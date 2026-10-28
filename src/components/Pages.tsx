@@ -344,7 +344,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="Settings" />
       <div className="ncard flat">
         <NRow name="Calm view" sub="Bigger text, fewer things on screen" right={<Toggle on={state.user.viewMode === 'calm'} onChange={onCalm} label="Calm view" />} />
-        <NRow name="Dark mode" sub="Follows your phone until you change it" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
+        <NRow name="Dark mode" sub="Light is the default" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
       </div>
       <Band left="Demo" />
       <div className="ncard flat">

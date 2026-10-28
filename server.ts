@@ -18,7 +18,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Photos and PDFs are sent as base64, so allow bigger bodies (the client shrinks photos first).
+app.use(express.json({ limit: '12mb' }));
 
 // API Routes
 

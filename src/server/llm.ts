@@ -17,7 +17,7 @@ export interface ToolCall {
 
 /** Provider-neutral conversation item. */
 export type Turn =
-  | { role: 'user'; text: string }
+  | { role: 'user'; text: string; files?: { mimeType: string; data: string }[] }
   | { role: 'model'; text: string }
   | { role: 'model_calls'; calls: ToolCall[]; raw?: unknown }
   | { role: 'tool_results'; results: { call: ToolCall; result: unknown }[] };
@@ -52,7 +52,8 @@ const gemini: LlmProvider = {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const contents: any[] = [];
     for (const t of turns) {
-      if (t.role === 'user') contents.push({ role: 'user', parts: [{ text: t.text }] });
+      if (t.role === 'user')
+        contents.push({ role: 'user', parts: [...(t.files || []).map((f) => ({ inlineData: { mimeType: f.mimeType, data: f.data } })), { text: t.text }] });
       else if (t.role === 'model') contents.push({ role: 'model', parts: [{ text: t.text }] });
       else if (t.role === 'model_calls')
         contents.push((t.raw as any) || { role: 'model', parts: t.calls.map((c) => ({ functionCall: { id: c.id, name: c.name, args: c.args } })) });
