@@ -71,7 +71,7 @@ export const HomePage: React.FC<Props> = (p) => {
         <span className="from bank">Nordea noticed</span>
         <div>
           <h3>Is “{e.title}” still a plan?</h3>
-          <p>Its date has passed.</p>
+          <p>Its date has passed and no money has been added for a long time.</p>
         </div>
         <div className="btns">
           <button className="btn primary" onClick={() => p.onArchive(e)}>No, remove it</button>
@@ -170,6 +170,7 @@ export const HomePage: React.FC<Props> = (p) => {
         </div>
 
         <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} />
+        <p className="foot-note">Nothing is used without your OK. Every fact shows where it came from.</p>
       </div>
     </>
   );
@@ -200,7 +201,7 @@ export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: ()
           {list.length > 3 && <button className="nshowall" onClick={onToggle}>{all ? 'Show less' : 'Show all'}</button>}
         </>
       ) : (
-        <p className="hist-empty">No chats yet.</p>
+        <p className="hist-empty">Your chats with Abel will show up here.</p>
       )}
     </div>
   );

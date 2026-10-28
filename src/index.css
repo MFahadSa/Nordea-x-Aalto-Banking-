@@ -680,3 +680,13 @@ span.cam-x{background:none}
 .cf-sheet .earns{align-self:flex-start}
 .clamp1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 .row-txt .meta.warn{color:var(--warn)}
+
+/* ---- Goal detail panel (Abel knows → tap a goal) ---- */
+.goal-more{padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--line);animation:v14in .18s ease}
+.gm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.gm-stats>div{background:var(--surface-2);border-radius:10px;padding:10px 10px 9px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.gm-stats b{font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap}
+.gm-stats span{font-size:12.5px;line-height:1.3;color:var(--muted)}
+.gm-stats .gap b{color:var(--bank)}.gm-stats .ok b{color:var(--ok)}
+.gm-note{margin:0;font-size:14px;color:var(--ink-2)}
+.gm-act{display:flex;gap:8px;flex-wrap:wrap}
