@@ -1,3 +1,4 @@
+import type { Conversation, Earning, Share } from '../types.js';
 import {
   User,
   CabinetEntry,
@@ -154,3 +155,53 @@ export async function sendMessage(
   if (!res.ok) throw new Error('Failed to send message');
   return res.json();
 }
+
+// ---------- v14 ----------
+
+export interface GoalStatus {
+  goalId: string; title: string; target: number; targetDate: string; saved: number; monthlyGoingIn: number;
+  monthsLeft: number; projectedByTargetDate: number; shortBy: number; onTrack: boolean; extraPerMonthNeeded: number; percentSaved: number;
+}
+export interface AppState {
+  user: User;
+  entries: CabinetEntry[];
+  accounts: { current: { balance: number; iban: string }; savings: { balance: number; iban: string; monthlyDeposit: number }; carFund?: { balance: number; iban: string } };
+  goals: GoalStatus[];
+  salary: { found: boolean; latest?: number; payday?: number; changed?: boolean; changeMonth?: string | null; from?: number; to?: number; difference?: number };
+  spentThisMonth: number;
+  payPlan: { nextPayday: string | null; income: number; spendingAveragePerMonth: number; alreadySavingPerMonth: number; leftOver: number; keepInCurrentAccount: number; suggestedExtraMove: number; towardsGoal: string | null };
+  conversations: (Conversation & { count: number; title: string; snippet: string })[];
+  earnings: Earning[];
+  shares: Share[];
+  accessCount: number;
+  recentReads: AccessLogEntry[];
+  readable: { abel: number; offers: number };
+  aiConnected: boolean;
+  today: string;
+}
+
+async function j<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try { msg = (await res.json()).error || msg; } catch { /* keep default */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+export const fetchState = (userId: string) => fetch(`/api/state?userId=${userId}`).then((r) => j<AppState>(r));
+export const createConversation = (userId: string, helperId: string) =>
+  post('/api/conversations', { userId, helperId }).then((r) => j<{ conversation: Conversation }>(r)).then((d) => d.conversation);
+export const fetchConversationMessages = (conversationId: string) =>
+  fetch(`/api/conversations/${conversationId}/messages`).then((r) => j<{ messages: ChatMessage[] }>(r)).then((d) => d.messages);
+export const sendChat = (userId: string, conversationId: string | null, helperId: string, text: string) =>
+  post('/api/chat', { userId, conversationId, helperId, text }).then((r) => j<{ conversationId: string; messages: ChatMessage[]; error?: string }>(r));
+export const doAction = (userId: string, messageId: string, action: string, payload: Record<string, unknown> = {}) =>
+  post('/api/actions', { userId, messageId, action, payload }).then((r) => j<{ messages: ChatMessage[]; resolvedMessageId: string }>(r));
+export const setOffersOff = (userId: string, offersOff: boolean) => post('/api/settings', { userId, offersOff }).then((r) => j<{ user: User }>(r));
+export const revokeShare = (shareId: string) => post(`/api/shares/${shareId}/revoke`, {}).then((r) => j<{ message: string }>(r));
+export const importChat = (userId: string, conversationId: string | null, helperId: string, body: { sample?: boolean; text?: string; fileName?: string }) =>
+  post('/api/import', { userId, conversationId, helperId, ...body }).then((r) => j<{ conversationId: string; messages: ChatMessage[] }>(r));
+export const confirmObservation = (userId: string, entryId: string) =>
+  post('/api/events/observation-confirmed', { userId, entryId }).then((r) => j<{ entry: CabinetEntry; conversationId?: string }>(r));

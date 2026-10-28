@@ -1,0 +1,34 @@
+{
+  "id": "insure",
+  "name": "Peitto Insurance",
+  "initials": "PI",
+  "color": "#00829B",
+  "kind": "Home insurance",
+  "when": "The customer asks about home, contents or flat insurance.",
+  "cta": "See cover",
+  "view": "Get a quote",
+  "buy": "Take it (demo)",
+  "verb": "took out",
+  "alternative": "Or compare insurers on your own, nothing is booked",
+  "fee": {
+    "type": "percentOfYear",
+    "value": 0.1
+  },
+  "shareBack": 0.5,
+  "feeText": "Nordea gets 10% of your first year’s price, and gives half of it back to you.",
+  "items": [
+    {
+      "title": "Home cover · basic",
+      "sub": "Contents up to 30 000 €",
+      "price": 12,
+      "per": "/month"
+    },
+    {
+      "title": "Home cover · full",
+      "sub": "Contents, liability and water damage",
+      "price": 19,
+      "per": "/month"
+    }
+  ],
+  "_note": "Fictional partner for the student concept. Not a real company."
+}

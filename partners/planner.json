@@ -1,0 +1,32 @@
+{
+  "id": "planner",
+  "name": "Vakaa Planning",
+  "initials": "VP",
+  "color": "#1F6F43",
+  "kind": "Financial planning",
+  "when": "The customer asks for financial advice, a money plan, wealth or retirement planning. Always also mention that a Nordea adviser is free.",
+  "cta": "See plans",
+  "view": "Ask a question",
+  "buy": "Sign up (demo)",
+  "verb": "signed up for",
+  "alternative": "Or talk to a Nordea adviser, free",
+  "fee": {
+    "type": "percent",
+    "value": 0.3
+  },
+  "shareBack": 0.5,
+  "feeText": "Nordea gets 30% of what you pay Vakaa, and gives half of it back to you.",
+  "items": [
+    {
+      "title": "One-hour money plan",
+      "sub": "Video call with a certified planner",
+      "price": 120
+    },
+    {
+      "title": "Full plan and 2 follow-ups",
+      "sub": "Budget, savings and pension",
+      "price": 290
+    }
+  ],
+  "_note": "Fictional partner for the student concept. Not a real company."
+}

@@ -1,0 +1,23 @@
+{
+  "id": "adviser",
+  "name": "Nordea adviser",
+  "purpose": "A person who reads the customer's cabinet before a meeting, only while a one-time share is active.",
+  "needs": [
+    "cabinetEntries"
+  ],
+  "mayRead": [
+    "goal",
+    "life_event",
+    "preference",
+    "fact",
+    "observation"
+  ],
+  "neverRead": [
+    "unconsented_private",
+    "credentials",
+    "raw_health_diagnoses"
+  ],
+  "canAct": false,
+  "nordeaEarnsMoney": false,
+  "avatarColor": "#0E7A69"
+}

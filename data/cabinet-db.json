@@ -5,7 +5,7 @@
       "persona": "lauri",
       "name": "Lauri",
       "age": 31,
-      "roleDescription": "Salary grew to €3,900; saving for flat with partner in 18 mo; car goal is stale.",
+      "roleDescription": "Salary grew to 3 900 €; saving for flat with partner in 18 mo; car goal is stale.",
       "viewMode": "full",
       "layoutPrefs": {
         "widgetsOrder": [
@@ -102,7 +102,7 @@
       "userId": "lauri",
       "type": "goal",
       "title": "Save for a car",
-      "detail": "€12,000 by December 2025 (no contribution since Feb 2024)",
+      "detail": "12 000 € by December 2025 (no contribution since Feb 2024)",
       "source": "customer",
       "status": "stale",
       "private": false,
@@ -131,7 +131,7 @@
       "userId": "lauri",
       "type": "goal",
       "title": "Buy a flat with my partner",
-      "detail": "€30,000 deposit target in about 18 months",
+      "detail": "30 000 € deposit target in about 18 months",
       "source": "customer",
       "status": "active",
       "private": false,
@@ -177,8 +177,8 @@
       "id": "lauri-obs-salary",
       "userId": "lauri",
       "type": "observation",
-      "title": "Salary increased to €3,900",
-      "detail": "Rose from €3,400 six months ago; confirmed across 6 payroll cycles",
+      "title": "Your salary went up in April 2026",
+      "detail": "From 3 400 € to 3 900 € a month.",
       "source": "nordea",
       "status": "active",
       "private": false,
@@ -190,18 +190,17 @@
         "channel": "system",
         "detectedFrom": "transactions"
       },
-      "why": "Regular payroll deposits increased by +€500/mo starting May 2026.",
-      "reviewed": true,
-      "confirmedAt": "2026-06-01T10:00:00.000Z",
+      "why": "Your last 6 salary payments were 3 900 €. Before April they were 3 400 €.",
+      "reviewed": false,
       "createdAt": "2026-05-25T16:00:00.000Z",
-      "updatedAt": "2026-06-01T10:00:00.000Z"
+      "updatedAt": "2026-05-25T16:00:00.000Z"
     },
     {
       "id": "lauri-obs-restaurants",
       "userId": "lauri",
       "type": "observation",
-      "title": "Dining out rose to ~€390/mo",
-      "detail": "Elevated spending over the last 3 months vs €160 baseline",
+      "title": "You've been eating out more",
+      "detail": "About 390 € a month lately. Usually about 160 €.",
       "source": "nordea",
       "status": "active",
       "private": false,
@@ -213,7 +212,7 @@
         "channel": "system",
         "detectedFrom": "transactions"
       },
-      "why": "Card merchant categories for dining and restaurants average +140% since August.",
+      "why": "Restaurant payments averaged 390 € a month in August–October. In the 12 months before, 160 €. Numbers can’t tell us why, so we ask.",
       "reviewed": false,
       "createdAt": "2026-10-15T09:00:00.000Z",
       "updatedAt": "2026-10-15T09:00:00.000Z"
@@ -223,7 +222,7 @@
       "userId": "eeva",
       "type": "goal",
       "title": "Peace of mind emergency buffer",
-      "detail": "€3,000 kept in safe reserve",
+      "detail": "3 000 € kept in safe reserve",
       "source": "customer",
       "status": "active",
       "private": false,
@@ -269,7 +268,7 @@
       "userId": "eeva",
       "type": "fact",
       "title": "Keva retirement pension income",
-      "detail": "Reliable €1,850/mo deposited on the 4th of each month",
+      "detail": "Reliable 1 850 €/mo deposited on the 4th of each month",
       "source": "nordea",
       "status": "active",
       "private": false,
@@ -2396,11 +2395,11 @@
         "Buy a flat with my partner",
         "Save for a car",
         "I prefer low-risk saving",
-        "Salary increased to €3,900"
+        "Salary increased to 3 900 €"
       ],
       "blockedReasons": [
         {
-          "title": "Dining out rose to ~€390/mo",
+          "title": "Dining out rose to ~390 €/mo",
           "reason": "Observation pending customer review/approval"
         }
       ]
@@ -2415,5 +2414,8 @@
       "couldHelp": true
     }
   ],
-  "undoRecords": []
+  "undoRecords": [],
+  "conversations": [],
+  "earnings": [],
+  "shares": []
 }

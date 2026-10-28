@@ -1,0 +1,21 @@
+{
+  "id": "offers",
+  "name": "Nordea offers",
+  "purpose": "Picks a relevant partner offer when the customer asks about something a partner covers. Sees only entries the customer allowed for offers, never private ones.",
+  "needs": [
+    "cabinetEntries"
+  ],
+  "mayRead": [
+    "goal",
+    "life_event",
+    "preference"
+  ],
+  "neverRead": [
+    "unconsented_private",
+    "credentials",
+    "raw_health_diagnoses"
+  ],
+  "canAct": false,
+  "nordeaEarnsMoney": true,
+  "avatarColor": "#B0461F"
+}

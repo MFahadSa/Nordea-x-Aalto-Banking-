@@ -4,6 +4,10 @@ export type ViewMode = 'full' | 'calm';
 
 export interface User {
   id: string;
+  /** Customer turned partner offers off (Who sees it → Partner offers). */
+  offersOff?: boolean;
+  /** Extra monthly saving the customer set up with Abel (simulated standing order). */
+  extraMonthly?: number;
   persona: PersonaId;
   name: string;
   age: number;
@@ -102,6 +106,8 @@ export interface UndoRecord {
   description: string;
   previousEntry?: CabinetEntry | null;
   entryId?: string;
+  /** For one undo that covers several new entries (e.g. an import). */
+  entryIds?: string[];
 }
 
 export interface Transaction {
@@ -115,7 +121,18 @@ export interface Transaction {
 }
 
 export interface MessageCard {
-  type: 'goal_status' | 'undo_banner' | 'access_check' | 'account_summary' | 'info';
+  type:
+    | 'goal_status'
+    | 'undo_banner'
+    | 'access_check'
+    | 'account_summary'
+    | 'info'
+    | 'offer'
+    | 'offer_list'
+    | 'import'
+    | 'handoff'
+    | 'confirm_save'
+    | 'confirm_plan';
   title?: string;
   body?: string;
   data?: Record<string, any>;
@@ -127,7 +144,15 @@ export interface ChatMessage {
   agentId: string;
   channel: 'app' | 'whatsapp' | 'staff';
   sender: 'user' | 'agent' | 'system';
+  /** Which conversation (chat thread) this message belongs to. */
+  conversationId?: string;
+  /** Which helper the conversation is with (abel, autopilot, budget, invest, life, leaks, person). */
+  helperId?: string;
   text: string;
+  /** Cabinet entries Abel actually relied on for this reply (checked against what the gateway returned). */
+  usedEntryIds?: string[];
+  /** Set when the customer tapped a button on this message, so it can't be tapped twice. */
+  resolved?: string;
   suggestions?: string[];
   cards?: MessageCard[];
   notes?: {
@@ -136,4 +161,64 @@ export interface ChatMessage {
     entryId?: string;
   }[];
   createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  userId: string;
+  helperId: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Partner ids already offered in this conversation (max one offer per partner per chat). */
+  offered: string[];
+}
+
+export interface PartnerItem {
+  title: string;
+  sub: string;
+  price: number;
+  per?: string;
+}
+
+export interface PartnerManifest {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  kind: string;
+  /** When Abel may suggest this partner (given to the model as a description). */
+  when: string;
+  cta: string;
+  view: string;
+  buy: string;
+  verb: string;
+  alternative: string;
+  /** How Nordea is paid. Computed in code, never by the model. */
+  fee: { type: 'percent' | 'flat' | 'percentOfYear'; value: number };
+  /** Share of Nordea's fee given back to the customer's savings. */
+  shareBack: number;
+  feeText: string;
+  items: PartnerItem[];
+}
+
+export interface Earning {
+  id: string;
+  userId: string;
+  partnerId: string;
+  partnerName: string;
+  what: string;
+  fee: number;
+  back: number;
+  createdAt: string;
+}
+
+export interface Share {
+  id: string;
+  userId: string;
+  agentId: string;
+  items: string[];
+  createdAt: string;
+  until: string;
+  revoked: boolean;
+  revokedAt?: string;
 }
