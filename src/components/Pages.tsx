@@ -29,8 +29,9 @@ interface KnowsProps {
 function seenLine(e: CabinetEntry): string {
   // Only say something when it isn't the obvious "Abel uses it".
   if (e.type === 'blind_spot' || e.status === 'archived') return '';
-  if (e.source === 'nordea' && !e.reviewed) return 'Waiting for your OK';
-  if (e.status === 'disputed' || e.readableBy?.abel === false) return 'Not used';
+  if (e.source === 'nordea' && !e.reviewed) return 'Not used until you confirm it';
+  if (e.status === 'disputed') return 'Not used: you said it’s wrong';
+  if (e.readableBy?.abel === false) return 'Not used: you turned it off';
   if (e.readableBy?.offers && !e.private) return 'Offers can use it';
   return '';
 }
@@ -38,7 +39,7 @@ function seenLine(e: CabinetEntry): string {
 const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; whyOpen: boolean; onWhy: () => void } & Pick<KnowsProps, 'onUpdate' | 'onArchive'>> = ({ e, open, onMenu, whyOpen, onWhy, onUpdate, onArchive }) => {
   const c = e.type === 'blind_spot' ? 'grey' : e.source === 'nordea' ? 'bank' : 'you';
   const meta =
-    e.status === 'archived' ? 'Removed' : e.status === 'disputed' ? 'You said it’s wrong' : e.status === 'stale' ? 'Out of date' : e.private ? 'Private' : e.source === 'document' ? 'From a document' : '';
+    e.status === 'archived' ? 'Removed · kept in history' : e.status === 'stale' ? 'Looks out of date' : e.private ? 'Private · never used for offers' : e.source === 'document' ? 'From a document you imported' : '';
   return (
     <div className="row">
       <div className="row-main">
@@ -46,7 +47,7 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
         <div className="row-txt">
           <h4>{e.title}</h4>
           {e.detail && <p className={open ? '' : 'clamp1'}>{e.detail}</p>}
-          {(meta || seenLine(e)) && <span className={`meta${['Waiting for your OK', 'Not used'].includes(seenLine(e)) ? ' warn' : ''}`}>{[meta, seenLine(e)].filter(Boolean).join(' · ')}</span>}
+          {(meta || seenLine(e)) && <span className={`meta${seenLine(e).startsWith('Not used') ? ' warn' : ''}`}>{[meta, seenLine(e)].filter(Boolean).join(' · ')}</span>}
         </div>
         <button className="more" onClick={onMenu} aria-expanded={open} aria-label={`Options for ${e.title}`}>{open ? '×' : '⋯'}</button>
       </div>
@@ -99,7 +100,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
       <DetailHead
         title="What Abel knows"
         big={String(known)}
-        sub="things Abel knows · you decide"
+        sub="things Abel uses to help you. You decide what’s in it."
         actions={[
           { icon: 'plus', label: 'Add a goal', onClick: p.onAddGoal },
           { icon: 'spark', label: 'Tell Abel', onClick: p.onTellAbel },
@@ -124,8 +125,16 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 </button>
                 {goalOpen === g.goalId && (
                   <div className="goal-more">
-                    <p>{nfi(g.monthlyGoingIn)} a month · {g.monthsLeft} months left{g.onTrack ? '' : ` · ${eur(g.extraPerMonthNeeded)} more a month closes the gap`}</p>
-                    <button className="btn small" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Abel about this</button>
+                    <div className="gm-stats">
+                      <div><b>{eur(g.monthlyGoingIn)}</b><span>saved a month</span></div>
+                      <div><b>{g.monthsLeft}</b><span>months left</span></div>
+                      <div className={g.onTrack ? 'ok' : 'gap'}><b>{g.onTrack ? '✓' : `+${eur(g.extraPerMonthNeeded)}`}</b><span>{g.onTrack ? 'on track' : 'a month to be on time'}</span></div>
+                    </div>
+                    <p className="gm-note">At this pace you’ll have about {eur(g.projectedByTargetDate)} by {monthLong(g.targetDate.slice(0, 7))}.</p>
+                    <div className="gm-act">
+                      <button className="btn small primary" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Abel about this</button>
+                      <button className="btn small" onClick={() => p.onAskAbout('Plan my next payday')}>Plan my payday</button>
+                    </div>
                   </div>
                 )}
               </React.Fragment>
@@ -135,7 +144,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
           <div className="nempty">
             <span className="ne-art" aria-hidden="true"><Icon name="cal" /></span>
             <b>Your goals will appear here</b>
-            <p>Tell Abel what you’re saving for.</p>
+            <p>Tell Abel what you’re saving for, and he’ll track it with you.</p>
             <button className="nq" onClick={p.onAddGoal}><span className="nq-c"><Icon name="plus" /></span><span className="nq-l">Create</span></button>
           </div>
         )}
@@ -143,7 +152,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
           <div className="body">
             <div className="sec-title"><h2>Everything else</h2></div>
             <div className="legend"><span className="from you">You told us</span><span className="from bank">Nordea noticed</span>{hasBlind && <span className="from grey">Not shared</span>}</div>
-            {listed.length === 0 && <div className="card"><p>Nothing yet.</p></div>}
+            {listed.length === 0 && <div className="card"><p>Nothing else yet. Tell Abel about plans or changes in your life.</p></div>}
             {DRAWERS.map((dw) => {
               const items = listed.filter(dw.has);
               if (!items.length) return null;
@@ -188,41 +197,41 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
   const off = !!state.user.offersOff;
   return (
     <>
-      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="reads, all logged" onBack={onBack} />
+      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="times something read what Abel knows. Every read is logged." onBack={onBack} />
       <div className="nbody">
         <Band left="Who can read" />
         <div className="ncard flat">
-          <NRow name="Abel" sub={`${state.readable.abel} things`} />
-          <NRow name="Offers" sub={off ? 'Off' : `${state.readable.offers} things`} />
+          <NRow name="Abel, your assistant" sub={`Can use ${state.readable.abel} things`} />
+          <NRow name="Nordea offers" sub={off ? 'Nothing: partner offers are off' : `Can use ${state.readable.offers} things you allowed`} />
           {active.length ? (
             active.map((s) => (
-              <NRow key={s.id} name="Adviser" sub={`${s.items.length} things · until ${dayMonth(s.until)}`} right={<button className="btn small" onClick={() => onRevoke(s.id)}>Stop sharing</button>} />
+              <NRow key={s.id} name="A Nordea adviser" sub={`Sees ${s.items.length} things until ${dayMonth(s.until)}`} right={<button className="btn small" onClick={() => onRevoke(s.id)}>Stop sharing</button>} />
             ))
           ) : (
-            <NRow name="Adviser" sub="Only if you share" />
+            <NRow name="A Nordea adviser" sub="Nothing, unless you share for a meeting" />
           )}
         </div>
         <Band left="Partner offers" />
         <div className="ncard flat">
-          <NRow name="Offers in chat" sub={off ? 'Off' : 'Only when you ask'} right={<Toggle on={!off} onChange={onToggleOffers} label="Partner offers in chat" />} />
+          <NRow name="Offers in chat" sub={off ? 'Off' : 'Only when you ask about something a partner covers'} right={<Toggle on={!off} onChange={onToggleOffers} label="Partner offers in chat" />} />
         </div>
-        <Band left="Nordea earned" right={`${nfi(fee)} €`} />
+        <Band left="What Nordea earned from you" right={`${nfi(fee)} €`} />
         <div className="ncard flat">
           {state.earnings.length ? (
             <>
               {[...state.earnings].reverse().map((x) => (
-                <NRow key={x.id} name={x.partnerName} sub={dayMonth(x.createdAt.slice(0, 10))} amount={nfi(x.fee)} note={<span className="up">{nfi(x.back)} back</span>} />
+                <NRow key={x.id} name={x.partnerName} sub={`${x.what} · ${dayMonth(x.createdAt.slice(0, 10))}`} amount={nfi(x.fee)} note={<span className="up">{nfi(x.back)} back to you</span>} />
               ))}
-              <NRow name="Back to your savings" amount={nfi(back)} />
+              <NRow name="Given back to you" sub="Into your savings account" amount={nfi(back)} />
             </>
           ) : (
-            <p className="hist-empty" style={{ padding: 16 }}>Nothing yet.</p>
+            <p className="hist-empty" style={{ padding: 16 }}>Nothing yet. If you buy through a partner, Nordea’s fee and your share show here.</p>
           )}
         </div>
         <Band left="Latest reads" />
         <div className="ncard flat">
           {state.recentReads.length ? (
-            state.recentReads.slice(0, 5).map((a) => <NRow key={a.id} name={a.agentName} sub={`${a.itemsReadCount} read · ${a.blockedCount} held back`} />)
+            state.recentReads.slice(0, 5).map((a) => <NRow key={a.id} name={a.agentName} sub={`${a.purpose} · read ${a.itemsReadCount}, held back ${a.blockedCount}`} />)
           ) : (
             <p className="hist-empty" style={{ padding: 16 }}>Nothing has read it yet.</p>
           )}
@@ -240,7 +249,7 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
       <DetailHead
         title="Payday autopilot"
         big={nfi(pp.suggestedExtraMove)}
-        sub="extra to save each payday"
+        sub={pp.towardsGoal ? `Abel suggests saving this much more for “${pp.towardsGoal}” each payday` : 'Abel suggests saving this much more each payday'}
         onBack={onBack}
         actions={[
           { icon: 'spark', label: 'Plan with Abel', onClick: () => onPlan() },
@@ -252,15 +261,15 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
         <Band left="Next payday" right={pp.nextPayday ? dayMonth(pp.nextPayday) : undefined} />
         <div className="ncard flat">
           <NRow name="Salary" amount={nfi(pp.income)} />
-          <NRow name="Spending" sub="3-month average" amount={`−${nfi(pp.spendingAveragePerMonth)}`} />
+          <NRow name="Bills and spending" sub="Average of the last 3 months" amount={`−${nfi(pp.spendingAveragePerMonth)}`} />
           <NRow name="Already saving" amount={`−${nfi(pp.alreadySavingPerMonth)}`} />
           <NRow name="Left over" amount={nfi(pp.leftOver)} />
           {pp.towardsGoal && <NRow name="Abel suggests" sub={`To “${pp.towardsGoal}”`} amount={`+${nfi(pp.suggestedExtraMove)}`} />}
         </div>
         <Band left="Your rules" />
         <div className="ncard flat">
-          <NRow name="Always keep" sub="In current account" amount={nfi(pp.keepInCurrentAccount)} />
-          <NRow name="Abel may" sub="Suggest only, you confirm" />
+          <NRow name="Always keep" sub="Stays in your current account as a buffer" amount={nfi(pp.keepInCurrentAccount)} />
+          <NRow name="What Abel may do" sub="Suggest only. Nothing moves until you confirm" />
         </div>
       </div>
     </>
@@ -279,7 +288,7 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
       <DetailHead
         title="Rewards"
         big={String(pts)}
-        sub={`points · ${level}`}
+        sub={`points to spend · ${level} level`}
         actions={[
           { icon: 'check', label: 'Earn points', onClick: onEarn },
           { icon: 'gift', label: 'Use points', onClick: () => document.getElementById('use-points')?.scrollIntoView({ behavior: 'smooth' }) },
@@ -303,8 +312,8 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
         </div>
         <Band left="Earn more" />
         <div className="ncard flat">
-          <NRow name={waiting ? `Check ${waiting} things` : 'All checked'} sub={waiting ? '+10 points each' : 'Nothing waiting'} right={waiting ? <button className="btn small" onClick={onEarn}>Do it</button> : <span className="npill up">✓</span>} />
-          <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `${eur(state.user.extraMonthly)} more a month` : '+50 points'} right={state.user.extraMonthly ? <span className="npill up">✓</span> : undefined} />
+          <NRow name={waiting ? 'Check what Nordea noticed' : 'Everything is checked'} sub={waiting ? `${waiting} waiting · +10 points each` : 'Nothing waiting for you'} right={waiting ? <button className="btn small" onClick={onEarn}>Do it</button> : <span className="npill up">✓</span>} />
+          <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `You save ${eur(state.user.extraMonthly)} more a month` : 'Plan your payday with Abel · +50 points'} right={state.user.extraMonthly ? <span className="npill up">✓</span> : undefined} />
         </div>
         {used.length > 0 && (
           <>
