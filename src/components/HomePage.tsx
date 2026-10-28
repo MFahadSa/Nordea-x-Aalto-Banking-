@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AppState } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
-import { Icon, Bell } from '../ui/icons.js';
+import { Icon, Bell, Chevron } from '../ui/icons.js';
 import { nfi, ago } from '../ui/format.js';
 import { HELPERS, HELPER_ORDER } from '../ui/helpers.js';
 import { LOGO_WHITE } from '../constants/logos.js';
@@ -58,6 +58,7 @@ export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame:
 export const HomePage: React.FC<Props> = (p) => {
   const { state } = p;
   const [feedAll, setFeedAll] = useState(false);
+  const [accOpen, setAccOpen] = useState(false);
   const [whyId, setWhyId] = useState<string | null>(null);
   const feed = feedItems(state.entries);
   const acc = state.accounts;
@@ -70,7 +71,7 @@ export const HomePage: React.FC<Props> = (p) => {
         <span className="from bank">Nordea noticed</span>
         <div>
           <h3>Is “{e.title}” still a plan?</h3>
-          <p>Its date has passed and no money has been added for a long time.</p>
+          <p>Its date has passed.</p>
         </div>
         <div className="btns">
           <button className="btn primary" onClick={() => p.onArchive(e)}>No, remove it</button>
@@ -117,16 +118,21 @@ export const HomePage: React.FC<Props> = (p) => {
           </button>
         </div>
         <div className="ncard">
-          <div className="nhead-row">
-            <div>
-              <h3>Accounts and cards</h3>
-              <p className="n-sub">Available in bank accounts {nfi(available)}</p>
+          <button className="nrow2 head acc-toggle" onClick={() => setAccOpen(!accOpen)} aria-expanded={accOpen}>
+            <span className="n-l">
+              <span className="n-name b">Accounts and cards</span>
+              <span className="n-sub">Available {nfi(available)}</span>
+            </span>
+            <span className="nchev" aria-hidden="true"><Chevron rotate={accOpen ? -90 : 90} /></span>
+          </button>
+          {accOpen && (
+            <div className="acc-list">
+              <NRow name="Current account" sub={acc.current.iban} amount={nfi(acc.current.balance)} onClick={() => p.onFrame('Accounts')} />
+              <NRow name="Savings account" sub={acc.savings.iban} amount={nfi(acc.savings.balance)} onClick={() => p.onFrame('Accounts')} />
+              {acc.carFund && carGoal && <NRow name="Car fund" sub={acc.carFund.iban} amount={nfi(acc.carFund.balance)} onClick={() => p.onFrame('Accounts')} />}
+              <NRow name="Spent this month" sub="Current account" amount={nfi(state.spentThisMonth)} />
             </div>
-          </div>
-          <NRow name="Current account" sub={acc.current.iban} amount={nfi(acc.current.balance)} note={`Spent ${nfi(state.spentThisMonth)} this month`} onClick={() => p.onFrame('Accounts')} />
-          <NRow name="Savings account" sub={acc.savings.iban} amount={nfi(acc.savings.balance)} onClick={() => p.onFrame('Accounts')} />
-          {acc.carFund && carGoal && <NRow name="Car fund" sub={acc.carFund.iban} amount={nfi(acc.carFund.balance)} onClick={() => p.onFrame('Accounts')} />}
-          <button className="nshowall" onClick={() => p.onFrame('Accounts')}>Show all</button>
+          )}
         </div>
 
         {feed.length > 0 && (
@@ -145,7 +151,6 @@ export const HomePage: React.FC<Props> = (p) => {
           <div className="nhead-row">
             <div>
               <h3>Abel can help with</h3>
-              <p className="n-sub">{state.user.viewMode === 'calm' ? 'Abel or a person, whenever you like' : 'One tap opens the right helper'}</p>
             </div>
           </div>
           <div className="helpers in-card" role="list">
@@ -165,7 +170,6 @@ export const HomePage: React.FC<Props> = (p) => {
         </div>
 
         <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} />
-        <p className="foot-note">Nothing is used without your OK. Every fact shows where it came from.</p>
       </div>
     </>
   );
@@ -196,7 +200,7 @@ export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: ()
           {list.length > 3 && <button className="nshowall" onClick={onToggle}>{all ? 'Show less' : 'Show all'}</button>}
         </>
       ) : (
-        <p className="hist-empty">Your chats will show up here, so you can pick up where you left off.</p>
+        <p className="hist-empty">No chats yet.</p>
       )}
     </div>
   );

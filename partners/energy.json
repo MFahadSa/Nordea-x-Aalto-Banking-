@@ -9,13 +9,13 @@
   "view": "Compare with mine",
   "buy": "Switch (demo)",
   "verb": "switched to",
-  "alternative": "Or let Abel check your current bill, free",
+  "alternative": "Let Abel check your bill (free)",
   "fee": {
     "type": "flat",
     "value": 25
   },
   "shareBack": 0.5,
-  "feeText": "Nordea gets 25 € if you switch, and gives half of it back to you.",
+  "feeText": "Nordea earns 25 € if you switch. Half goes back to you.",
   "items": [
     {
       "title": "Fixed price · 12 months",

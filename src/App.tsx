@@ -3,7 +3,7 @@ import { PhoneFrame } from './components/PhoneFrame.js';
 import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
 import { HomePage } from './components/HomePage.js';
-import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, ContactPage, MorePage } from './components/Pages.js';
+import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
 import { Icon } from './ui/icons.js';
 import { CabinetEntry, ChatMessage, PersonaId, User } from './types.js';
@@ -24,13 +24,18 @@ import {
   confirmObservation,
   fetchConversationMessages,
   ImportBody,
+  Reward,
+  fetchRewards,
+  redeemReward,
 } from './services/api.js';
 
 type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot';
 
 function initialDark() {
   try {
-    const saved = localStorage.getItem('abel-theme');
+    // Only a choice the customer made in More → Dark mode counts. (Older versions saved the editor's dark setting.)
+    localStorage.removeItem('abel-theme');
+    const saved = localStorage.getItem('abel-theme-choice');
     if (saved) return saved === 'dark';
   } catch { /* storage may be blocked */ }
   // Light by default, like the Nordea app. Dark only when the customer switches it on (More → Dark mode).
@@ -48,6 +53,8 @@ export default function App() {
   const [usersOpen, setUsersOpen] = useState(false);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [redeemAsk, setRedeemAsk] = useState<Reward | null>(null);
   const screenRef = useRef<HTMLDivElement>(null);
 
   // Chat
@@ -69,11 +76,11 @@ export default function App() {
   useEffect(() => {
     refresh(personaId);
     fetchUsers().then(setUsers).catch(() => {});
+    fetchRewards().then(setRewards).catch(() => {});
   }, [personaId]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    try { localStorage.setItem('abel-theme', isDark ? 'dark' : 'light'); } catch { /* ignore */ }
   }, [isDark]);
 
   useEffect(() => {
@@ -217,11 +224,22 @@ export default function App() {
     );
   };
 
-  const frame = (what: string) => setToast({ message: `${what} is part of the Nordea app you already have. This concept only adds Abel.` });
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    try { localStorage.setItem('abel-theme-choice', next ? 'dark' : 'light'); } catch { /* storage may be blocked */ }
+  };
+  const frame = (what: string) => setToast({ message: `${what} is part of the Nordea app. This concept adds Abel.` });
 
   return (
     <div className={isCalm ? 'calm' : ''}>
-      <p className="caption"><b>The Banking Context Cabinet</b> · a concept for the Aalto × Nordea brief{!state.aiConnected && ' · AI not connected here'}</p>
+      <div className="stage-top">
+        <span className="stage-t"><b>Abel</b> · Nordea concept{!state.aiConnected && ' · AI not connected'}</span>
+        <button className="theme-chip" onClick={toggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+          <Icon name={isDark ? 'sun' : 'moon'} size={16} />
+          {isDark ? 'Light' : 'Dark'}
+        </button>
+      </div>
       <div className="stagewrap">
         <PhoneFrame
           screenRef={screenRef}
@@ -271,6 +289,19 @@ export default function App() {
                 userId={state.user.id}
                 onGoalAdded={(e, undoToken) => { setToast({ message: `📌 Added “${e.title}”`, undoToken }); refresh(); }}
               />
+              {redeemAsk && (
+                <RedeemSheet
+                  state={state}
+                  reward={redeemAsk}
+                  onNo={() => setRedeemAsk(null)}
+                  onYes={async () => {
+                    const r = redeemAsk;
+                    setRedeemAsk(null);
+                    try { const res = await redeemReward(state.user.id, r.id); setToast({ message: res.message }); refresh(); }
+                    catch (e: any) { setToast({ message: e?.message || 'That didn’t work' }); }
+                  }}
+                />
+              )}
               {toast && (
                 <div className="toast" role="status">
                   <span>{toast.message}</span>
@@ -321,7 +352,7 @@ export default function App() {
           {page === 'autopilot' && (
             <AutopilotPage state={state} onBack={() => goPage('home')} onPlan={(t) => startChat('autopilot', t)} />
           )}
-          {page === 'rewards' && <RewardsPage state={state} onAsk={() => openHelper('abel')} onUse={(t) => setToast({ message: `Booked (demo): ${t}` })} onKnows={() => goPage('home')} />}
+          {page === 'rewards' && <RewardsPage state={state} rewards={rewards} onAsk={() => openHelper('abel')} onUse={setRedeemAsk} onEarn={() => goPage('home')} />}
           {page === 'contact' && <ContactPage state={state} onHelper={openHelper} onOpenConversation={openConversation} />}
           {page === 'more' && (
             <MorePage
@@ -330,13 +361,13 @@ export default function App() {
               onPage={(p) => goPage(p as Page)}
               onUsers={() => setUsersOpen(true)}
               onCalm={async () => { await updateUserViewMode(state.user.id, isCalm ? 'full' : 'calm'); refresh(); }}
-              onDark={() => setIsDark(!isDark)}
+              onDark={toggleTheme}
               onReset={async () => { await resetDatabase(); refresh(); setToast({ message: 'Demo data reset' }); }}
             />
           )}
         </PhoneFrame>
       </div>
-      <p className="foot">Student prototype. All data is made up; partners, offers and rewards are fictional examples, not real Nordea products.</p>
+      <p className="foot">Student concept · fictional data and partners</p>
     </div>
   );
 }

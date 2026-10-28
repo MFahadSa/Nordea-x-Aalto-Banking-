@@ -30,6 +30,14 @@ function newConversation(userId: string, helperId: string): Conversation {
   return db.addConversation({ id: id('conv'), userId, helperId, createdAt: now(), updatedAt: now(), offered: [] });
 }
 
+export const REWARDS = [
+  { id: 'coach', title: 'A free 30-minute session with a Nordea money coach', short: 'Money coach session', pts: 100, done: 'Booked. A money coach will contact you.' },
+  { id: 'charity', title: 'Nordea gives 5 € to a charity you choose', short: '5 € to charity', pts: 100, done: 'Thank you. You’ll pick the charity by email (example).' },
+  { id: 'nofee', title: 'One month with no account fee', short: 'No account fee for a month', pts: 150, done: 'Done. Next month has no account fee.' },
+  { id: 'boost', title: 'Nordea adds 10 € to your goal savings', short: '10 € to your goal', pts: 300, done: 'Done. 10 € added to your savings.' },
+];
+export const levelOf = (lifetime: number) => (lifetime >= 300 ? 'Gold' : lifetime >= 150 ? 'Silver' : 'Starter');
+
 export function registerV14Routes(app: Express) {
   // Everything the screens need in one call.
   app.get('/api/state', (req, res) => {
@@ -126,17 +134,17 @@ export function registerV14Routes(app: Express) {
           db.updateMessage(msg.id, { resolved: p.cta });
           const h = offerHeadline(userId, p.id);
           const home = h.used.length ? db.getCabinetEntry(h.used[0]) : undefined;
-          out.push(agentMsg(userId, conv, helper, home?.target ? `Here are three on Kotiväli that work with a ${fmt(home.target.amount)} deposit:` : `Here’s what ${p.name} has:`, {
+          out.push(agentMsg(userId, conv, helper, home?.target ? `Three that fit a ${fmt(home.target.amount)} deposit:` : `Here’s what ${p.name} has:`, {
             cards: [{ type: 'offer_list', data: { partnerId: p.id, name: p.name, initials: p.initials, color: p.color, items: p.items, view: p.view, buy: p.buy, verb: p.verb, feeText: p.feeText } }],
             usedEntryIds: h.used,
           }));
         } else if (action === 'offer_no') {
           db.updateMessage(msg.id, { resolved: 'No thanks' });
-          out.push(agentMsg(userId, conv, helper, 'No problem 👍 I won’t bring it up again in this chat.'));
+          out.push(agentMsg(userId, conv, helper, 'No problem 👍'));
         } else {
           db.updateMessage(msg.id, { resolved: 'Turn off partner offers' });
           db.updateUser(userId, { offersOff: true });
-          out.push(agentMsg(userId, conv, helper, 'Done, no more partner offers. You can turn them back on any time in Who sees it.'));
+          out.push(agentMsg(userId, conv, helper, 'Done, no more offers. Turn them back on in Who sees it.'));
         }
         break;
       }
@@ -149,7 +157,7 @@ export function registerV14Routes(app: Express) {
         if (msg.resolved) return res.status(409).json({ error: 'Already bought' });
         if (action === 'offer_view') {
           out.push(userMsg(userId, conv, helper, `${p.view}: ${item.title}`));
-          out.push(agentMsg(userId, conv, helper, `Sent to ${p.name} (demo) ✓ They only get your name and phone number. Nothing Abel knows about you is shared.`));
+          out.push(agentMsg(userId, conv, helper, `Sent ✓ ${p.name} only gets your name and number.`));
           break;
         }
         const fee = fin.partnerFee(p.fee, item.price);
@@ -159,7 +167,7 @@ export function registerV14Routes(app: Express) {
         db.updateUser(userId, { accounts: { ...user.accounts, savings: { ...user.accounts.savings, balance: Math.round((user.accounts.savings.balance + back) * 100) / 100 } } });
         out.push(userMsg(userId, conv, helper, `${p.id === 'homes' ? 'I bought' : p.buy.replace(' (demo)', '')}: ${item.title}`));
         const home = p.id === 'homes' ? db.getCabinetEntries(userId).find((e) => e.goalType === 'home' && e.status === 'active') : undefined;
-        out.push(agentMsg(userId, conv, helper, `${p.id === 'homes' ? 'Congratulations on your new home! 🎉' : 'Done (demo) ✓'}\n\nNordea earned ${fmt(fee)} from ${p.name} for this. As promised, ${fmt(back)} of it goes back to your savings account.`, {
+        out.push(agentMsg(userId, conv, helper, `${p.id === 'homes' ? 'Congratulations! 🎉' : 'Done ✓'}\n\nNordea earned ${fmt(fee)} from ${p.name}. ${fmt(back)} of it goes to your savings.`, {
           suggestions: home ? [`Mark “${home.title}” as done`] : [],
           cards: [{ type: 'info', data: { link: 'privacy', label: 'See what Nordea earned' } }],
         }));
@@ -171,14 +179,14 @@ export function registerV14Routes(app: Express) {
         if (!c) return res.status(400).json({ error: 'No plan on this message' });
         if (action === 'plan_cancel') {
           db.updateMessage(msg.id, { resolved: 'Cancel' });
-          out.push(agentMsg(userId, conv, helper, 'Okay, nothing changes. Your saving stays as it is.'));
+          out.push(agentMsg(userId, conv, helper, 'Okay, nothing changes.'));
           break;
         }
         const amt = Number(c.data!.amount);
         db.updateMessage(msg.id, { resolved: 'Yes, set it up' });
         db.updateUser(userId, { extraMonthly: (user.extraMonthly || 0) + amt, points: (user.points || 0) + 50 });
         const goal = fin.primaryGoal(userId);
-        out.push(agentMsg(userId, conv, helper, `Done ✓ ${fmt(amt)} will move to ${goal ? `“${goal.title}”` : 'your savings'} every month, starting ${new Date(c.data!.starts + 'T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}. You can stop it any time in Payday autopilot.`, {
+        out.push(agentMsg(userId, conv, helper, `Done ✓ ${fmt(amt)} a month to ${goal ? `“${goal.title}”` : 'savings'}, from ${new Date(c.data!.starts + 'T12:00:00Z').toLocaleDateString('en-GB', { month: 'long' })}.`, {
           usedEntryIds: goal ? [goal.id] : [],
         }));
         break;
@@ -202,7 +210,7 @@ export function registerV14Routes(app: Express) {
         const undoToken = id('undo');
         db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}" (private)`, previousEntry: null, entryId: e.id });
         db.updateMessage(msg.id, { resolved: 'Save privately' });
-        out.push(agentMsg(userId, conv, helper, 'Saved privately 🔒 Only I can read it, never offers.', { notes: [{ text: `📌 Abel will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
+        out.push(agentMsg(userId, conv, helper, 'Saved privately 🔒', { notes: [{ text: `📌 Abel will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
         break;
       }
       case 'handoff_connect':
@@ -211,14 +219,14 @@ export function registerV14Routes(app: Express) {
         if (!c) return res.status(400).json({ error: 'No hand-off on this message' });
         if (action === 'handoff_no') {
           db.updateMessage(msg.id, { resolved: 'Not now' });
-          out.push(agentMsg(userId, conv, helper, 'No problem, nothing was shared. Just ask whenever you’re ready.'));
+          out.push(agentMsg(userId, conv, helper, 'Okay, nothing was shared.'));
           break;
         }
         const prev = previewCabinetForAgent(userId, 'adviser');
         const today = now().slice(0, 10);
         const share = db.addShare({ id: id('share'), userId, agentId: 'adviser', items: prev.allowed.map((e) => e.title), createdAt: now(), until: fin.addDays(today, 7), revoked: false });
         db.updateMessage(msg.id, { resolved: 'Connect me' });
-        out.push(agentMsg(userId, conv, helper, `Connected ✓ A Nordea adviser will contact you. They see ${share.items.length} things you approved, once, until ${fmtDay(share.until)}.`, {
+        out.push(agentMsg(userId, conv, helper, `Connected ✓ An adviser will contact you.`, {
           cards: [{ type: 'info', data: { shareId: share.id, label: 'Stop sharing now' } }],
         }));
         break;
@@ -229,7 +237,7 @@ export function registerV14Routes(app: Express) {
         if (!c) return res.status(400).json({ error: 'No import on this message' });
         if (action === 'import_no') {
           db.updateMessage(msg.id, { resolved: 'Not now' });
-          out.push(agentMsg(userId, conv, helper, 'Okay, nothing saved. I don’t keep the file.'));
+          out.push(agentMsg(userId, conv, helper, 'Okay, nothing saved.'));
           break;
         }
         const items: ImportItem[] = c.data!.items;
@@ -249,7 +257,7 @@ export function registerV14Routes(app: Express) {
         const undoToken = id('undo');
         db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create_many', description: `Imported ${ids.length} things`, previousEntry: null, entryIds: ids });
         db.updateMessage(msg.id, { resolved: `Save ${ids.length} ${ids.length === 1 ? 'thing' : 'things'}` });
-        out.push(agentMsg(userId, conv, helper, `Saved ${ids.length} ✓ I’ll use ${ids.length === 1 ? 'it' : 'them'} from now on. Offers can’t read any of it unless you allow it.`, {
+        out.push(agentMsg(userId, conv, helper, `Saved ${ids.length} ✓`, {
           notes: [{ text: `📌 Abel will remember ${ids.length === 1 ? 'this' : 'these'}`, undoToken }],
         }));
         break;
@@ -258,6 +266,24 @@ export function registerV14Routes(app: Express) {
         return res.status(400).json({ error: 'Unknown action' });
     }
     res.json({ messages: out, resolvedMessageId: msg.id });
+  });
+
+  // Rewards: example rewards, points are really spent, the level never drops.
+  app.get('/api/rewards', (_req, res) => res.json({ rewards: REWARDS }));
+  app.post('/api/rewards/redeem', (req, res) => {
+    const { userId = 'lauri', rewardId } = req.body || {};
+    const u = db.getUser(userId);
+    const r = REWARDS.find((x) => x.id === rewardId);
+    if (!u || !r) return res.status(404).json({ error: 'Reward not found' });
+    if ((u.points || 0) < r.pts) return res.status(400).json({ error: `You need ${r.pts - (u.points || 0)} more points` });
+    const updates: any = {
+      points: (u.points || 0) - r.pts,
+      pointsSpent: (u.pointsSpent || 0) + r.pts,
+      redeemed: [...(u.redeemed || []), { rewardId: r.id, title: r.title, pts: r.pts, at: now() }],
+    };
+    if (r.id === 'boost') updates.accounts = { ...u.accounts, savings: { ...u.accounts.savings, balance: u.accounts.savings.balance + 10 } };
+    const user = db.updateUser(userId, updates);
+    res.json({ user, message: r.done });
   });
 
   app.post('/api/settings', (req, res) => {
@@ -303,10 +329,10 @@ export function registerV14Routes(app: Express) {
       const suggestions: string[] = [];
       if (r.amount && ['price_tag', 'receipt', 'bill', 'other'].includes(r.kind || '')) suggestions.push(r.kind === 'bill' ? `Can I pay ${fmt(r.amount, r.amount % 1 ? 2 : 0)} this month?` : `Can I afford ${fmt(r.amount, r.amount % 1 ? 2 : 0)}?`);
       a = r.items.length
-        ? agentMsg(userId, conv.id, conv.helperId, `${what}\n\nHere’s what I’d remember. Untick anything you’d rather I didn’t keep:`, {
+        ? agentMsg(userId, conv.id, conv.helperId, `${what} Here’s what I’d remember:`, {
             cards: [{ type: 'import', data: { items: r.items, source, transcript: body } }],
           })
-        : agentMsg(userId, conv.id, conv.helperId, `${what}\n\nI didn’t find anything about your goals or plans worth remembering, so I won’t keep it.`, { suggestions });
+        : agentMsg(userId, conv.id, conv.helperId, `${what}`, { suggestions });
     }
     res.status(201).json({ conversationId: conv.id, messages: [u, a] });
   });
@@ -326,9 +352,9 @@ export function registerV14Routes(app: Express) {
     const conv = newConversation(userId, 'abel');
     const diff = sal.found ? sal.difference : 0;
     const savingLine = (u.extraMonthly || 0) > 0
-      ? `Your pay went up by ${fmt(diff)} a month, and you now save ${fmt(acc.savings.monthlyDeposit)} a month.`
-      : `Your pay went up by ${fmt(diff)} a month, but your saving stayed at ${fmt(acc.savings.monthlyDeposit)}.`;
-    agentMsg(userId, conv.id, 'abel', `Thanks for confirming 🙌 ${savingLine}\n\n${goal ? `${(u.extraMonthly || 0) > 0 ? 'Want to check' : 'Want to update'} your “${goal.title}” plan${(u.extraMonthly || 0) > 0 ? ' still fits' : ' to match'}?` : 'Want to put some of it towards a goal?'}`, {
+      ? `Your pay is up ${fmt(diff)} a month, and you save ${fmt(acc.savings.monthlyDeposit)}.`
+      : `Your pay is up ${fmt(diff)} a month, but saving stayed at ${fmt(acc.savings.monthlyDeposit)}.`;
+    agentMsg(userId, conv.id, 'abel', `Thanks 🙌 ${savingLine}\n\n${goal ? `Update your “${goal.title}” plan?` : 'Put some towards a goal?'}`, {
       suggestions: goal ? ['Yes, show me', 'Not now'] : ['Help me plan something', 'Not now'],
       usedEntryIds: [e.id, goal?.id].filter(Boolean) as string[],
     });

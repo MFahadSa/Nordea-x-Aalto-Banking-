@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppState } from '../services/api.js';
+import { AppState, Reward } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, dayMonth } from '../ui/format.js';
@@ -27,24 +27,26 @@ interface KnowsProps {
 }
 
 function seenLine(e: CabinetEntry) {
+  // Only say something when it isn't the obvious "Abel uses it".
   if (e.type === 'blind_spot' || e.status === 'archived') return null;
-  if (e.source === 'nordea' && !e.reviewed) return <span className="seen off">Not used until you say it’s right</span>;
-  if (e.status === 'disputed') return <span className="seen off">Not used: you said it’s wrong</span>;
-  const who = [e.readableBy?.abel !== false ? 'Abel' : null, e.readableBy?.offers && !e.private ? 'Nordea offers' : null].filter(Boolean);
-  return <span className="seen">{who.length ? 'Used by ' + who.join(' and ') : 'Not used by anyone'}</span>;
+  if (e.source === 'nordea' && !e.reviewed) return <span className="seen off">Waiting for your OK</span>;
+  if (e.status === 'disputed') return <span className="seen off">Not used</span>;
+  if (e.readableBy?.abel === false) return <span className="seen off">Not used</span>;
+  if (e.readableBy?.offers && !e.private) return <span className="seen">Offers can use it</span>;
+  return null;
 }
 
 const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; whyOpen: boolean; onWhy: () => void } & Pick<KnowsProps, 'onUpdate' | 'onArchive'>> = ({ e, open, onMenu, whyOpen, onWhy, onUpdate, onArchive }) => {
   const c = e.type === 'blind_spot' ? 'grey' : e.source === 'nordea' ? 'bank' : 'you';
   const meta =
-    e.status === 'archived' ? 'Removed · kept in history' : e.status === 'disputed' ? 'You said this is wrong' : e.status === 'stale' ? 'Looks out of date' : e.private ? 'Private · never used for offers' : e.source === 'document' ? 'From a document you imported' : '';
+    e.status === 'archived' ? 'Removed' : e.status === 'disputed' ? 'You said it’s wrong' : e.status === 'stale' ? 'Out of date' : e.private ? 'Private' : e.source === 'document' ? 'From a document' : '';
   return (
     <div className="row">
       <div className="row-main">
         <span className={`dotc ${c}`} />
         <div className="row-txt">
           <h4>{e.title}</h4>
-          {e.detail && <p>{e.detail}</p>}
+          {e.detail && <p className={open ? '' : 'clamp1'}>{e.detail}</p>}
           {meta && <span className="meta">{meta}</span>}
           {seenLine(e)}
         </div>
@@ -96,7 +98,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
       <DetailHead
         title="What Abel knows"
         big={String(known)}
-        sub="things Abel uses to help you. You decide what’s in it."
+        sub="things Abel knows · you decide"
         actions={[
           { icon: 'plus', label: 'Add a goal', onClick: p.onAddGoal },
           { icon: 'spark', label: 'Tell Abel', onClick: p.onTellAbel },
@@ -121,7 +123,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 </button>
                 {goalOpen === g.goalId && (
                   <div className="goal-more">
-                    <p>{nfi(g.monthlyGoingIn)} a month goes in, {g.monthsLeft} months to go. {g.onTrack ? 'You’re on track.' : `About ${eur(g.extraPerMonthNeeded)} more a month would close the gap.`}</p>
+                    <p>{nfi(g.monthlyGoingIn)} a month · {g.monthsLeft} months left{g.onTrack ? '' : ` · ${eur(g.extraPerMonthNeeded)} more a month closes the gap`}</p>
                     <button className="btn small" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Abel about this</button>
                   </div>
                 )}
@@ -132,15 +134,15 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
           <div className="nempty">
             <span className="ne-art" aria-hidden="true"><Icon name="cal" /></span>
             <b>Your goals will appear here</b>
-            <p>Tell Abel what you’re saving for, and he’ll track it with you.</p>
+            <p>Tell Abel what you’re saving for.</p>
             <button className="nq" onClick={p.onAddGoal}><span className="nq-c"><Icon name="plus" /></span><span className="nq-l">Create</span></button>
           </div>
         )}
         <div className="embed">
           <div className="body">
-            <div className="sec-title"><h2>Everything Abel knows</h2><button className="btn link" onClick={p.onAddGoal}>+ Add a goal</button></div>
+            <div className="sec-title"><h2>Everything Abel knows</h2></div>
             <div className="legend"><span className="from you">You told us</span><span className="from bank">Nordea noticed</span><span className="from grey">Can’t see</span></div>
-            {active.length === 0 && <div className="card"><p>Nothing yet. Tell Abel what you’re planning, or import a chat.</p></div>}
+            {active.length === 0 && <div className="card"><p>Nothing yet. Tell Abel what you’re planning.</p></div>}
             {DRAWERS.map((dw) => {
               const items = active.filter(dw.has);
               if (!items.length) return null;
@@ -196,12 +198,12 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
               <NRow key={s.id} name="A Nordea adviser" sub={`${s.items.length} things · shared once, until ${dayMonth(s.until)}`} right={<button className="btn small" onClick={() => onRevoke(s.id)}>Stop sharing</button>} />
             ))
           ) : (
-            <NRow name="A Nordea adviser" sub={state.shares.length ? 'Nothing now · your last share has ended' : 'Only if you share for a meeting, once'} />
+            <NRow name="A Nordea adviser" sub={state.shares.length ? 'Nothing now' : 'Only if you share, once'} />
           )}
         </div>
         <Band left="Partner offers" />
         <div className="ncard flat">
-          <NRow name="Offers in chat" sub={off ? 'Off' : 'Only when you ask about something a partner covers'} right={<Toggle on={!off} onChange={onToggleOffers} label="Partner offers in chat" />} />
+          <NRow name="Offers in chat" sub={off ? 'Off' : 'Only when you ask'} right={<Toggle on={!off} onChange={onToggleOffers} label="Partner offers in chat" />} />
         </div>
         <Band left="What Nordea earned from you" right={`${nfi(fee)} €`} />
         <div className="ncard flat">
@@ -210,10 +212,10 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
               {[...state.earnings].reverse().map((x) => (
                 <NRow key={x.id} name={x.partnerName} sub={`${x.what} · ${dayMonth(x.createdAt.slice(0, 10))}`} amount={nfi(x.fee)} note={<span className="up">{nfi(x.back)} back to you</span>} />
               ))}
-              <NRow name="Given back to you" sub="Part of every partner fee goes to your savings" amount={nfi(back)} />
+              <NRow name="Given back to you" sub="Into your savings" amount={nfi(back)} />
             </>
           ) : (
-            <p className="hist-empty" style={{ padding: 16 }}>Nothing yet. If you buy through a partner, Nordea’s fee and your share of it show up here.</p>
+            <p className="hist-empty" style={{ padding: 16 }}>Nothing yet.</p>
           )}
         </div>
         <Band left="Latest reads" />
@@ -256,7 +258,7 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
         <Band left="Your rules" />
         <div className="ncard flat">
           <NRow name="Keep in current account" sub={`At least ${eur(pp.keepInCurrentAccount)} (default)`} />
-          <NRow name="What Abel may do" sub="Suggest only. Nothing moves without your OK" />
+          <NRow name="What Abel may do" sub="Suggest only" />
         </div>
         <div style={{ padding: 16 }}>
           <button className="btn primary block" onClick={() => onPlan('Plan my next payday')}>Review the plan with Abel</button>
@@ -267,48 +269,79 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
 };
 
 // ---------------- Rewards ----------------
-const REWARDS = [
-  { title: 'A free 30-minute session with a Nordea money coach', pts: 100 },
-  { title: 'Nordea gives 5 € to a charity you choose', pts: 100 },
-  { title: 'One month with no account fee', pts: 150 },
-  { title: 'Nordea adds 10 € to your goal savings', pts: 300 },
-];
-export const RewardsPage: React.FC<{ state: AppState; onAsk: () => void; onUse: (title: string) => void; onKnows: () => void }> = ({ state, onAsk, onUse, onKnows }) => {
+export const levelOf = (lifetime: number) => (lifetime >= 300 ? 'Gold' : lifetime >= 150 ? 'Silver' : 'Starter');
+export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: () => void; onUse: (r: Reward) => void; onEarn: () => void }> = ({ state, rewards, onAsk, onUse, onEarn }) => {
   const pts = state.user.points || 0;
-  const level = pts >= 300 ? 'Gold' : pts >= 150 ? 'Silver' : 'Starter';
+  const level = levelOf(pts + (state.user.pointsSpent || 0));
   const waiting = state.entries.filter((e) => (e.source === 'nordea' && !e.reviewed && e.status === 'active') || e.status === 'stale').length;
+  const used = state.user.redeemed || [];
   return (
     <>
-      <DetailHead title="Rewards" big={String(pts)} sub={`points to spend · ${level} level`} actions={[{ icon: 'check', label: 'Earn points', onClick: onKnows }, { icon: 'gift', label: 'Use points', onClick: () => {} }, { icon: 'spark', label: 'Ask Abel', onClick: onAsk }]} />
+      <DetailHead
+        title="Rewards"
+        big={String(pts)}
+        sub={`points · ${level}`}
+        actions={[
+          { icon: 'check', label: 'Earn points', onClick: onEarn },
+          { icon: 'gift', label: 'Use points', onClick: () => document.getElementById('use-points')?.scrollIntoView({ behavior: 'smooth' }) },
+          { icon: 'spark', label: 'Ask Abel', onClick: onAsk },
+        ]}
+      />
       <div className="nbody">
-        <div className="embed">
-          <div className="body">
-            <div className="card">
-              <div className="sec-title" style={{ padding: 0 }}><h3>Use your points</h3><b>{pts}</b></div>
-              <ul className="redeem">
-                {REWARDS.map((r) => {
-                  const can = pts >= r.pts;
-                  return (
-                    <li key={r.title}>
-                      <span className="l"><b>{r.title}</b><span>{r.pts} points{can ? '' : ` · ${r.pts - pts} more needed`}</span></span>
-                      <button className={`btn small ${can ? 'primary' : ''}`} disabled={!can} onClick={() => onUse(r.title)}>{can ? 'Use' : 'Locked'}</button>
-                    </li>
-                  );
-                })}
-              </ul>
-              <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Spending points never lowers your level. Example rewards; Nordea would set the real ones.</p>
-            </div>
-            <div className="card">
-              <h3>Keep what Abel knows up to date</h3>
-              <ul className="checklist">
-                <li><span className={`tick ${waiting ? '' : 'ok'}`}>{waiting ? '' : '✓'}</span><span className="l">{waiting ? `Check ${waiting} ${waiting === 1 ? 'thing' : 'things'} Nordea noticed (+10 each)` : 'Nothing waiting for you'}</span>{waiting > 0 && <button className="btn small" onClick={onKnows}>Do it</button>}</li>
-                <li><span className={`tick ${state.user.extraMonthly ? 'ok' : ''}`}>{state.user.extraMonthly ? '✓' : ''}</span><span className="l">{state.user.extraMonthly ? `You save ${eur(state.user.extraMonthly)} more a month` : 'Set up a saving plan with Abel (+50)'}</span></li>
-              </ul>
-            </div>
-          </div>
+        <Band left="Use your points" right={`${pts} to spend`} />
+        <div className="ncard flat" id="use-points">
+          {rewards.map((r) => {
+            const can = pts >= r.pts;
+            return (
+              <NRow
+                key={r.id}
+                name={r.short}
+                sub={can ? `${r.pts} points` : `${r.pts} points · ${r.pts - pts} to go`}
+                right={<button className={`btn small ${can ? 'primary' : ''}`} disabled={!can} onClick={() => onUse(r)}>{can ? 'Use' : 'Locked'}</button>}
+              />
+            );
+          })}
         </div>
+        <Band left="Earn more" />
+        <div className="ncard flat">
+          <NRow name={waiting ? `Check ${waiting} things` : 'All checked'} sub={waiting ? '+10 points each' : 'Nothing waiting'} right={waiting ? <button className="btn small" onClick={onEarn}>Do it</button> : <span className="npill up">✓</span>} />
+          <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `${eur(state.user.extraMonthly)} more a month` : '+50 points'} right={state.user.extraMonthly ? <span className="npill up">✓</span> : undefined} />
+        </div>
+        {used.length > 0 && (
+          <>
+            <Band left="Used" />
+            <div className="ncard flat">
+              {[...used].reverse().map((u, i) => <NRow key={i} name={u.title} sub={`${u.pts} points · ${dayMonth(u.at.slice(0, 10))}`} />)}
+            </div>
+          </>
+        )}
+        <p className="foot-note">Example rewards. Your level never drops when you spend.</p>
       </div>
     </>
+  );
+};
+
+/** The confirm pop-up, same layout as the original prototype. */
+export const RedeemSheet: React.FC<{ state: AppState; reward: Reward; onYes: () => void; onNo: () => void }> = ({ state, reward, onYes, onNo }) => {
+  const pts = state.user.points || 0;
+  const level = levelOf(pts + (state.user.pointsSpent || 0));
+  return (
+    <div className="cf-bg" onClick={onNo}>
+      <div className="cf-sheet" role="dialog" aria-label="Use your points?" onClick={(e) => e.stopPropagation()}>
+        <span className="kicker">Please confirm</span>
+        <h3>Use your points?</h3>
+        <div className="summary">
+          <div className="sum-row"><b>Reward</b><span>{reward.title}</span></div>
+          <div className="sum-row"><b>Costs</b><span>{reward.pts} of your {pts} points</span></div>
+          <div className="sum-row"><b>Left after</b><span>{pts - reward.pts} points</span></div>
+        </div>
+        <span className="earns no">Your level stays {level}.</span>
+        <div className="btns stack">
+          <button className="btn primary block" onClick={onYes}>Yes, use {reward.pts} points</button>
+          <button className="btn quiet block" onClick={onNo}>Cancel</button>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -320,9 +353,9 @@ export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => 
       <DetailHead title="Contact" sub="How can we help you today?" />
       <div className="nbody">
         <div className="ncard first">
-          <NRow name={<><Icon name="spark" /> Chat with Abel</>} sub="Your AI assistant · replies instantly" onClick={() => onHelper('abel')} />
-          <NRow name={<><Icon name="person" /> Talk to a person</>} sub="A Nordea adviser · Abel prepares them" onClick={() => onHelper('person')} />
-          <NRow name={<><Icon name="cal" /> Book an online meeting</>} sub="Pick a time that suits you" onClick={() => onHelper('person')} />
+          <NRow name={<><Icon name="spark" /> Chat with Abel</>} sub="Replies instantly" onClick={() => onHelper('abel')} />
+          <NRow name={<><Icon name="person" /> Talk to a person</>} sub="A Nordea adviser" onClick={() => onHelper('person')} />
+          <NRow name={<><Icon name="cal" /> Book an online meeting</>} sub="Pick a time" onClick={() => onHelper('person')} />
         </div>
         <HistoryCard state={state} all={all} onToggle={() => setAll(!all)} onOpen={onOpenConversation} />
       </div>
@@ -338,18 +371,18 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="You" />
       <div className="ncard flat">
         <NRow name="What Abel knows" sub="Goals, plans, preferences" onClick={() => onPage('knows')} />
-        <NRow name="Who sees it" sub="Access log, sharing and partner offers" onClick={() => onPage('privacy')} />
+        <NRow name="Who sees it" sub="Access, sharing, offers" onClick={() => onPage('privacy')} />
         <NRow name="Rewards" sub="Points and levels" onClick={() => onPage('rewards')} />
       </div>
       <Band left="Settings" />
       <div className="ncard flat">
-        <NRow name="Calm view" sub="Bigger text, fewer things on screen" right={<Toggle on={state.user.viewMode === 'calm'} onChange={onCalm} label="Calm view" />} />
+        <NRow name="Calm view" sub="Bigger text, fewer things" right={<Toggle on={state.user.viewMode === 'calm'} onChange={onCalm} label="Calm view" />} />
         <NRow name="Dark mode" sub="Light is the default" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
       </div>
       <Band left="Demo" />
       <div className="ncard flat">
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
-        <NRow name="Reset demo data" sub="Back to the fictional starting point" onClick={onReset} />
+        <NRow name="Reset demo data" sub="Start again" onClick={onReset} />
       </div>
     </div>
   </>
