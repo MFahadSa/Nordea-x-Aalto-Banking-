@@ -679,3 +679,4 @@ span.cam-x{background:none}
 .cf-sheet .sum-row b{width:90px;flex:none}
 .cf-sheet .earns{align-self:flex-start}
 .clamp1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.row-txt .meta.warn{color:var(--warn)}

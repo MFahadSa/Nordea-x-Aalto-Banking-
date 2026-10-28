@@ -180,7 +180,7 @@ export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: ()
   const shown = all ? list : list.slice(0, 3);
   return (
     <div className="ncard">
-      <div className="nhead-row"><h3>Recent chats with Abel</h3></div>
+      <div className="nhead-row"><h3>Recent chats</h3></div>
       {list.length ? (
         <>
           {shown.map((c) => {

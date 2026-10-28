@@ -9,13 +9,13 @@
   "view": "Ask a question",
   "buy": "Sign up (demo)",
   "verb": "signed up for",
-  "alternative": "Talk to a Nordea adviser instead (free)",
+  "alternative": "Or talk to a Nordea adviser, free",
   "fee": {
     "type": "percent",
     "value": 0.3
   },
   "shareBack": 0.5,
-  "feeText": "Nordea earns 30% of the price. Half goes back to you.",
+  "feeText": "Nordea gets 30% of what you pay Vakaa, and gives half of it back to you.",
   "items": [
     {
       "title": "One-hour money plan",
