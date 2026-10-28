@@ -4,7 +4,13 @@ import { fileURLToPath } from 'url';
 import { db } from './src/server/db.js';
 import { readCabinetThroughGateway } from './src/server/accessGateway.js';
 import { getAllAgents, getAgentManifest } from './src/server/agentRegistry.js';
-import { CabinetEntry, ChatMessage, UndoRecord } from './src/types.js';
+import { CabinetEntry, UndoRecord } from './src/types.js';
+import { registerV14Routes } from './src/server/routes.js';
+import { setProviderForTests } from './src/server/llm.js';
+import { mockProvider } from './src/server/llmMock.js';
+
+// Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.
+if (process.env.LLM_PROVIDER === 'mock') setProviderForTests(mockProvider);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -188,7 +194,9 @@ app.post('/api/cabinet/undo', (req, res) => {
     return res.status(404).json({ error: 'Undo token expired or not found' });
   }
 
-  if (record.action === 'create' && record.entryId) {
+  if (record.action === 'create_many' && record.entryIds) {
+    record.entryIds.forEach((id) => db.deleteCabinetEntry(id));
+  } else if (record.action === 'create' && record.entryId) {
     // Revert creation by deleting the entry
     db.deleteCabinetEntry(record.entryId);
   } else if ((record.action === 'update' || record.action === 'archive') && record.previousEntry) {
@@ -240,146 +248,8 @@ app.get('/api/transactions', (req, res) => {
   res.json({ transactions });
 });
 
-// 9. Channel-Agnostic Chat Messages
-app.get('/api/messages', (req, res) => {
-  const userId = (req.query.userId as string) || 'lauri';
-  const messages = db.getMessages(userId);
-  res.json({ messages });
-});
-
-app.post('/api/messages', (req, res) => {
-  const { userId = 'lauri', text, channel = 'app' } = req.body;
-
-  if (!text || typeof text !== 'string') {
-    return res.status(400).json({ error: 'text is required' });
-  }
-
-  const now = new Date().toISOString();
-
-  // 1. Store user message
-  const userMsg: ChatMessage = {
-    id: `msg-user-${Date.now()}`,
-    userId,
-    agentId: 'abel',
-    channel,
-    sender: 'user',
-    text,
-    createdAt: now,
-  };
-  db.addMessage(userMsg);
-
-  // 2. Categorize topic for Topic Log (labels only, privacy-preserving)
-  let detectedTopic = 'general_inquiry';
-  let purposeLabel = 'Chat: general question';
-  const lower = text.toLowerCase();
-  if (lower.includes('track') || lower.includes('goal') || lower.includes('flat') || lower.includes('car')) {
-    detectedTopic = 'goals_pacing';
-    purposeLabel = 'Chat: goal check';
-  } else if (lower.includes('salary') || lower.includes('raise') || lower.includes('pay')) {
-    detectedTopic = 'income_salary';
-    purposeLabel = 'Chat: salary query';
-  } else if (lower.includes('eat') || lower.includes('restaurant') || lower.includes('spend')) {
-    detectedTopic = 'spending_habits';
-    purposeLabel = 'Chat: spending query';
-  } else if (lower.includes('safe') || lower.includes('risk') || lower.includes('invest')) {
-    detectedTopic = 'risk_preference';
-    purposeLabel = 'Chat: risk preference';
-  } else if (lower.includes('adviser') || lower.includes('person') || lower.includes('human')) {
-    detectedTopic = 'human_handoff';
-    purposeLabel = 'Chat: adviser request';
-  }
-
-  // 3. Perform audit read through Access Gateway with short label
-  const gatewayCheck = readCabinetThroughGateway(
-    userId,
-    'abel',
-    purposeLabel
-  );
-
-  db.addTopicLogEntry({
-    id: `topic-${Date.now()}`,
-    timestamp: now,
-    userId,
-    topic: detectedTopic,
-    couldHelp: true,
-  });
-
-  // 4. Abel's warm conversational response
-  const user = db.getUser(userId);
-  const isCalm = user?.viewMode === 'calm';
-
-  let replyText = '';
-  let suggestions: string[] = [];
-
-  if (lower.trim() === 'hey' || lower.trim() === 'hi' || lower.trim() === 'hello') {
-    replyText = `Hey ${user?.name || ''}! 👋 How’s it going?`;
-    suggestions = [
-      'Am I on track?',
-      'I am stuck',
-      'Where does my money go?',
-      'I’d rather talk to a person',
-    ];
-  } else if (lower.includes('stuck') || lower.includes('lost') || lower.includes('help')) {
-    replyText = `I hear you. Let’s figure it out together, one step at a time.\n\nWhat feels hardest right now?`;
-    suggestions = [
-      'Money’s tight right now',
-      'I don’t know where to start',
-      'Something changed in my life',
-      'I’d rather talk to a person',
-    ];
-  } else if (lower.includes('track') || lower.includes('goal')) {
-    replyText = isCalm
-      ? `For your emergency buffer, you have €${user?.accounts.savings.balance.toLocaleString()} kept safely in reserve.`
-      : `Looking at your cabinet: for "Buy a flat with my partner", you have €${user?.accounts.savings.balance.toLocaleString()} saved and €${user?.accounts.savings.monthlyDeposit}/mo going in. Saving about €55 more a month would keep you completely on schedule.`;
-    suggestions = [
-      'Can I afford a €1,500 trip?',
-      'What changed in my spending?',
-      'Review my cabinet',
-    ];
-  } else {
-    replyText = `Thanks for asking. In this concept prototype, I’ve checked your cabinet via the Access Gateway.\n\nIs there something specific about your savings or spending you’d like to explore?`;
-    suggestions = [
-      'Am I on track?',
-      'Where does my money go?',
-      'Talk to a person',
-    ];
-  }
-
-  const agentMsg: ChatMessage = {
-    id: `msg-agent-${Date.now()}`,
-    userId,
-    agentId: 'abel',
-    channel,
-    sender: 'agent',
-    text: replyText,
-    suggestions,
-    cards: [
-      {
-        type: 'access_check',
-        title: `🔒 Used ${gatewayCheck.allowed.length} things from your cabinet · see which`,
-        body: '',
-        data: {
-          itemsReadCount: gatewayCheck.allowed.length,
-          blockedCount: gatewayCheck.blocked.length,
-        },
-      },
-    ],
-    createdAt: new Date(Date.now() + 100).toISOString(),
-  };
-
-  db.addMessage(agentMsg);
-
-  res.status(201).json({
-    userMessage: userMsg,
-    agentMessage: agentMsg,
-    accessGateway: {
-      itemsReadCount: gatewayCheck.allowed.length,
-      blockedCount: gatewayCheck.blocked.length,
-      allowed: gatewayCheck.allowed.map((e) => e.title),
-      blocked: gatewayCheck.blocked,
-    },
-  });
-});
+// 9. Chat, button actions and everything new in v14 live in routes.ts
+registerV14Routes(app);
 
 // Vite Middleware Mounting (Development) or Static File Serving (Production)
 async function startServer() {

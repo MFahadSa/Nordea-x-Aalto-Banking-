@@ -8,6 +8,9 @@ import {
   AccessLogEntry,
   TopicLogEntry,
   UndoRecord,
+  Conversation,
+  Earning,
+  Share,
 } from '../types.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -21,6 +24,9 @@ export interface DatabaseState {
   accessLog: AccessLogEntry[];
   topicLog: TopicLogEntry[];
   undoRecords: UndoRecord[];
+  conversations: Conversation[];
+  earnings: Earning[];
+  shares: Share[];
 }
 
 function generateTransactionsForLauri(): Transaction[] {
@@ -195,7 +201,7 @@ function getInitialState(): DatabaseState {
       persona: 'lauri',
       name: 'Lauri',
       age: 31,
-      roleDescription: 'Salary grew to €3,900; saving for flat with partner in 18 mo; car goal is stale.',
+      roleDescription: 'Salary grew to 3 900 €; saving for flat with partner in 18 mo; car goal is stale.',
       viewMode: 'full',
       layoutPrefs: {
         widgetsOrder: ['quickActions', 'goals', 'accounts', 'insights', 'cabinet'],
@@ -251,7 +257,7 @@ function getInitialState(): DatabaseState {
       userId: 'lauri',
       type: 'goal',
       title: 'Save for a car',
-      detail: '€12,000 by December 2025 (no contribution since Feb 2024)',
+      detail: '12 000 € by December 2025 (no contribution since Feb 2024)',
       source: 'customer',
       status: 'stale',
       private: false,
@@ -270,7 +276,7 @@ function getInitialState(): DatabaseState {
       userId: 'lauri',
       type: 'goal',
       title: 'Buy a flat with my partner',
-      detail: '€30,000 deposit target in about 18 months',
+      detail: '30 000 € deposit target in about 18 months',
       source: 'customer',
       status: 'active',
       private: false,
@@ -304,13 +310,13 @@ function getInitialState(): DatabaseState {
       userId: 'lauri',
       type: 'observation',
       title: 'Your salary went up in April 2026',
-      detail: 'From €3,400 to €3,900 a month. Is this right?',
+      detail: 'From 3 400 € to 3 900 € a month.',
       source: 'nordea',
       status: 'active',
       private: false,
       readableBy: { abel: true, offers: false },
       provenance: { channel: 'system', detectedFrom: 'transactions' },
-      why: 'Your last 6 salary payments were €3,900. Before April they were €3,400.',
+      why: 'Your last 6 salary payments were 3 900 €. Before April they were 3 400 €.',
       reviewed: false,
       createdAt: '2026-05-25T16:00:00.000Z',
       updatedAt: '2026-05-25T16:00:00.000Z',
@@ -320,13 +326,13 @@ function getInitialState(): DatabaseState {
       userId: 'lauri',
       type: 'observation',
       title: "You've been eating out more",
-      detail: 'About €390 a month lately. Usually about €160.',
+      detail: 'About 390 € a month lately. Usually about 160 €.',
       source: 'nordea',
       status: 'active',
       private: false,
       readableBy: { abel: true, offers: false },
       provenance: { channel: 'system', detectedFrom: 'transactions' },
-      why: 'Restaurant payments averaged €390 a month in August–October. In the 12 months before, €160. Numbers can’t tell us why, so we ask.',
+      why: 'Restaurant payments averaged 390 € a month in August–October. In the 12 months before, 160 €. Numbers can’t tell us why, so we ask.',
       reviewed: false,
       createdAt: '2026-10-15T09:00:00.000Z',
       updatedAt: '2026-10-15T09:00:00.000Z',
@@ -338,7 +344,7 @@ function getInitialState(): DatabaseState {
       userId: 'eeva',
       type: 'goal',
       title: 'Peace of mind emergency buffer',
-      detail: '€3,000 kept in safe reserve',
+      detail: '3 000 € kept in safe reserve',
       source: 'customer',
       status: 'active',
       private: false,
@@ -371,7 +377,7 @@ function getInitialState(): DatabaseState {
       userId: 'eeva',
       type: 'fact',
       title: 'Keva retirement pension income',
-      detail: 'Reliable €1,850/mo deposited on the 4th of each month',
+      detail: 'Reliable 1 850 €/mo deposited on the 4th of each month',
       source: 'nordea',
       status: 'active',
       private: false,
@@ -439,11 +445,11 @@ function getInitialState(): DatabaseState {
         'Buy a flat with my partner',
         'Save for a car',
         'I prefer low-risk saving',
-        'Salary increased to €3,900',
+        'Salary increased to 3 900 €',
       ],
       blockedReasons: [
         {
-          title: 'Dining out rose to ~€390/mo',
+          title: 'Dining out rose to ~390 €/mo',
           reason: 'Observation pending customer review/approval',
         },
       ],
@@ -468,7 +474,18 @@ function getInitialState(): DatabaseState {
     accessLog,
     topicLog,
     undoRecords: [],
+    conversations: [],
+    earnings: [],
+    shares: [],
   };
+}
+
+/** Older saved databases don't have the v14 tables yet: add them without touching anything else. */
+function migrate(state: DatabaseState): DatabaseState {
+  state.conversations = state.conversations || [];
+  state.earnings = state.earnings || [];
+  state.shares = state.shares || [];
+  return state;
 }
 
 class Database {
@@ -489,7 +506,7 @@ class Database {
     if (fs.existsSync(DB_FILE)) {
       try {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        return JSON.parse(raw);
+        return migrate(JSON.parse(raw));
       } catch (err) {
         console.warn('Could not read existing DB file. Initializing fresh seed.', err);
       }
@@ -624,6 +641,64 @@ class Database {
       return true;
     }
     return false;
+  }
+
+  // ---- v14: conversations, partner earnings, one-time shares
+  public getConversations(userId: string): Conversation[] {
+    return this.state.conversations.filter((c) => c.userId === userId);
+  }
+
+  public getConversation(id: string): Conversation | undefined {
+    return this.state.conversations.find((c) => c.id === id);
+  }
+
+  public addConversation(c: Conversation): Conversation {
+    this.state.conversations.push(c);
+    this.saveState(this.state);
+    return c;
+  }
+
+  public touchConversation(id: string, updates: Partial<Conversation> = {}) {
+    const c = this.getConversation(id);
+    if (!c) return;
+    Object.assign(c, updates, { updatedAt: new Date().toISOString() });
+    this.saveState(this.state);
+  }
+
+  public updateMessage(id: string, updates: Partial<ChatMessage>) {
+    const m = this.state.messages.find((x) => x.id === id);
+    if (!m) return undefined;
+    Object.assign(m, updates);
+    this.saveState(this.state);
+    return m;
+  }
+
+  public getEarnings(userId: string): Earning[] {
+    return this.state.earnings.filter((e) => e.userId === userId);
+  }
+
+  public addEarning(e: Earning): Earning {
+    this.state.earnings.push(e);
+    this.saveState(this.state);
+    return e;
+  }
+
+  public getShares(userId: string): Share[] {
+    return this.state.shares.filter((x) => x.userId === userId);
+  }
+
+  public addShare(x: Share): Share {
+    this.state.shares.push(x);
+    this.saveState(this.state);
+    return x;
+  }
+
+  public updateShare(id: string, updates: Partial<Share>) {
+    const x = this.state.shares.find((y) => y.id === id);
+    if (!x) return undefined;
+    Object.assign(x, updates);
+    this.saveState(this.state);
+    return x;
   }
 }
 

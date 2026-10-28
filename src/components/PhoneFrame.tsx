@@ -4,12 +4,17 @@ interface PhoneFrameProps {
   children: React.ReactNode;
   statusBarTheme?: 'brand' | 'light';
   overlay?: React.ReactNode;
+  /** The tab bar, below the scrolling screen. */
+  bottom?: React.ReactNode;
+  screenRef?: React.Ref<HTMLDivElement>;
 }
 
 export const PhoneFrame: React.FC<PhoneFrameProps> = ({
   children,
   statusBarTheme = 'brand',
   overlay,
+  bottom,
+  screenRef,
 }) => {
   const holderRef = useRef<HTMLDivElement>(null);
   const phoneRef = useRef<HTMLDivElement>(null);
@@ -43,7 +48,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
 
   return (
     <div className="phone-holder" ref={holderRef} id="pholder">
-      <div className="phone" ref={phoneRef} id="phone">
+      <div className="phone" ref={phoneRef} id="phone" style={{ ['--sb-h' as any]: '38px' }}>
         {/* Status Bar */}
         <div className={`status ${statusBarTheme === 'light' ? 'light' : ''}`} id="status">
           <span>9:41</span>
@@ -53,9 +58,10 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
         </div>
 
         {/* Screen Content */}
-        <div className="screen" id="screen" tabIndex={-1}>
+        <div className="screen" id="screen" tabIndex={-1} ref={screenRef}>
           {children}
         </div>
+        <div id="bottom">{bottom}</div>
 
         {/* In-Phone Modals and Overlays */}
         {overlay}
