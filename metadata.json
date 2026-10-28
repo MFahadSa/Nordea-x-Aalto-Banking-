@@ -1,0 +1,6 @@
+{
+  "name": "The Banking Context Cabinet",
+  "description": "Nordea × Aalto University mobile banking concept featuring AI assistant Abel, a customer-controlled Context Cabinet, and a verifiable access gateway.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

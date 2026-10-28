@@ -1,0 +1,11 @@
+{
+  "id": "abel",
+  "name": "Abel",
+  "purpose": "Banking Context Cabinet primary assistant. Helps customers stay on track with goals, clarifies balances and spending trends, and maintains consented context transparently.",
+  "needs": ["cabinetEntries", "transactions", "accounts"],
+  "mayRead": ["goal", "life_event", "preference", "fact", "observation"],
+  "neverRead": ["unconsented_private", "credentials", "raw_health_diagnoses"],
+  "canAct": false,
+  "nordeaEarnsMoney": false,
+  "avatarColor": "#0000A0"
+}
