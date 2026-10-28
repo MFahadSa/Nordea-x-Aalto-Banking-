@@ -2,17 +2,17 @@ import React, { useState } from 'react';
 import { AppState, Reward } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
 import { Icon } from '../ui/icons.js';
-import { nfi, eur, monthLong, dayMonth } from '../ui/format.js';
+import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
 import { DetailHead, NRow, Band, Toggle } from './Nordea.js';
 import { HistoryCard } from './HomePage.js';
 
 // ---------------- What Abel knows ----------------
 const DRAWERS: { name: string; has: (e: CabinetEntry) => boolean; icon: string }[] = [
-  { name: 'Goals and plans', has: (e) => e.type === 'goal', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>' },
-  { name: 'Life and household', has: (e) => e.type === 'life_event', icon: '<path d="M3 11l9-7 9 7v9H3z"/>' },
-  { name: 'Money and work', has: (e) => e.type === 'observation' || e.type === 'fact', icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>' },
+  { name: 'Other goals', has: (e) => e.type === 'goal', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>' },
+  { name: 'Life', has: (e) => e.type === 'life_event', icon: '<path d="M3 11l9-7 9 7v9H3z"/>' },
+  { name: 'Money', has: (e) => e.type === 'observation' || e.type === 'fact', icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>' },
   { name: 'Preferences', has: (e) => e.type === 'preference', icon: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>' },
-  { name: 'What it can’t see', has: (e) => e.type === 'blind_spot', icon: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 4l16 16"/>' },
+  { name: 'Not shared', has: (e) => e.type === 'blind_spot', icon: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 4l16 16"/>' },
 ];
 
 interface KnowsProps {
@@ -26,14 +26,13 @@ interface KnowsProps {
   onArchive: (e: CabinetEntry) => void;
 }
 
-function seenLine(e: CabinetEntry) {
+function seenLine(e: CabinetEntry): string {
   // Only say something when it isn't the obvious "Abel uses it".
-  if (e.type === 'blind_spot' || e.status === 'archived') return null;
-  if (e.source === 'nordea' && !e.reviewed) return <span className="seen off">Waiting for your OK</span>;
-  if (e.status === 'disputed') return <span className="seen off">Not used</span>;
-  if (e.readableBy?.abel === false) return <span className="seen off">Not used</span>;
-  if (e.readableBy?.offers && !e.private) return <span className="seen">Offers can use it</span>;
-  return null;
+  if (e.type === 'blind_spot' || e.status === 'archived') return '';
+  if (e.source === 'nordea' && !e.reviewed) return 'Waiting for your OK';
+  if (e.status === 'disputed' || e.readableBy?.abel === false) return 'Not used';
+  if (e.readableBy?.offers && !e.private) return 'Offers can use it';
+  return '';
 }
 
 const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; whyOpen: boolean; onWhy: () => void } & Pick<KnowsProps, 'onUpdate' | 'onArchive'>> = ({ e, open, onMenu, whyOpen, onWhy, onUpdate, onArchive }) => {
@@ -47,8 +46,7 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
         <div className="row-txt">
           <h4>{e.title}</h4>
           {e.detail && <p className={open ? '' : 'clamp1'}>{e.detail}</p>}
-          {meta && <span className="meta">{meta}</span>}
-          {seenLine(e)}
+          {(meta || seenLine(e)) && <span className={`meta${['Waiting for your OK', 'Not used'].includes(seenLine(e)) ? ' warn' : ''}`}>{[meta, seenLine(e)].filter(Boolean).join(' · ')}</span>}
         </div>
         <button className="more" onClick={onMenu} aria-expanded={open} aria-label={`Options for ${e.title}`}>{open ? '×' : '⋯'}</button>
       </div>
@@ -91,6 +89,9 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   const [why, setWhy] = useState<string | null>(null);
   const [goalOpen, setGoalOpen] = useState<string | null>(null);
   const active = state.entries.filter((e) => e.status !== 'archived');
+  const tracked = new Set(state.goals.map((g) => g.goalId));
+  const listed = active.filter((e) => !tracked.has(e.id));
+  const hasBlind = active.some((e) => e.type === 'blind_spot');
   const removed = state.entries.filter((e) => e.status === 'archived');
   const known = active.filter((e) => e.type !== 'blind_spot').length;
   return (
@@ -115,7 +116,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 <button className="nrow2 goal" onClick={() => setGoalOpen(goalOpen === g.goalId ? null : g.goalId)}>
                   <span className="n-l">
                     <span className="n-name">{g.title}</span>
-                    <span className="n-sub">{nfi(g.saved)} of {nfi(g.target)} · by {monthLong(g.targetDate.slice(0, 7))}</span>
+                    <span className="n-sub">{n0(g.saved)} of {eur(g.target)} · {monthShort(g.targetDate.slice(0, 7))}</span>
                     <span className="gbar"><i style={{ width: `${g.percentSaved}%` }} /></span>
                   </span>
                   <span className="n-r"><span className={`npill ${g.onTrack ? 'up' : 'down'}`}>{g.onTrack ? 'On track' : `${eur(g.shortBy)} short`}</span></span>
@@ -140,11 +141,11 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         )}
         <div className="embed">
           <div className="body">
-            <div className="sec-title"><h2>Everything Abel knows</h2></div>
-            <div className="legend"><span className="from you">You told us</span><span className="from bank">Nordea noticed</span><span className="from grey">Can’t see</span></div>
-            {active.length === 0 && <div className="card"><p>Nothing yet. Tell Abel what you’re planning.</p></div>}
+            <div className="sec-title"><h2>Everything else</h2></div>
+            <div className="legend"><span className="from you">You told us</span><span className="from bank">Nordea noticed</span>{hasBlind && <span className="from grey">Not shared</span>}</div>
+            {listed.length === 0 && <div className="card"><p>Nothing yet.</p></div>}
             {DRAWERS.map((dw) => {
-              const items = active.filter(dw.has);
+              const items = listed.filter(dw.has);
               if (!items.length) return null;
               return (
                 <div className="drawer" key={dw.name}>
@@ -187,32 +188,32 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
   const off = !!state.user.offersOff;
   return (
     <>
-      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="times something read what Abel knows" onBack={onBack} />
+      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="reads, all logged" onBack={onBack} />
       <div className="nbody">
         <Band left="Who can read" />
         <div className="ncard flat">
-          <NRow name="Abel, your assistant" sub={`${state.readable.abel} things`} />
-          <NRow name="Nordea offers" sub={off ? 'Nothing · partner offers are off' : state.readable.offers ? `${state.readable.offers} things you allowed` : 'Nothing'} />
+          <NRow name="Abel" sub={`${state.readable.abel} things`} />
+          <NRow name="Offers" sub={off ? 'Off' : `${state.readable.offers} things`} />
           {active.length ? (
             active.map((s) => (
-              <NRow key={s.id} name="A Nordea adviser" sub={`${s.items.length} things · shared once, until ${dayMonth(s.until)}`} right={<button className="btn small" onClick={() => onRevoke(s.id)}>Stop sharing</button>} />
+              <NRow key={s.id} name="Adviser" sub={`${s.items.length} things · until ${dayMonth(s.until)}`} right={<button className="btn small" onClick={() => onRevoke(s.id)}>Stop sharing</button>} />
             ))
           ) : (
-            <NRow name="A Nordea adviser" sub={state.shares.length ? 'Nothing now' : 'Only if you share, once'} />
+            <NRow name="Adviser" sub="Only if you share" />
           )}
         </div>
         <Band left="Partner offers" />
         <div className="ncard flat">
           <NRow name="Offers in chat" sub={off ? 'Off' : 'Only when you ask'} right={<Toggle on={!off} onChange={onToggleOffers} label="Partner offers in chat" />} />
         </div>
-        <Band left="What Nordea earned from you" right={`${nfi(fee)} €`} />
+        <Band left="Nordea earned" right={`${nfi(fee)} €`} />
         <div className="ncard flat">
           {state.earnings.length ? (
             <>
               {[...state.earnings].reverse().map((x) => (
-                <NRow key={x.id} name={x.partnerName} sub={`${x.what} · ${dayMonth(x.createdAt.slice(0, 10))}`} amount={nfi(x.fee)} note={<span className="up">{nfi(x.back)} back to you</span>} />
+                <NRow key={x.id} name={x.partnerName} sub={dayMonth(x.createdAt.slice(0, 10))} amount={nfi(x.fee)} note={<span className="up">{nfi(x.back)} back</span>} />
               ))}
-              <NRow name="Given back to you" sub="Into your savings" amount={nfi(back)} />
+              <NRow name="Back to your savings" amount={nfi(back)} />
             </>
           ) : (
             <p className="hist-empty" style={{ padding: 16 }}>Nothing yet.</p>
@@ -221,7 +222,7 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
         <Band left="Latest reads" />
         <div className="ncard flat">
           {state.recentReads.length ? (
-            state.recentReads.map((a) => <NRow key={a.id} name={a.agentName} sub={`${a.purpose} · ${a.itemsReadCount} read, ${a.blockedCount} held back`} />)
+            state.recentReads.slice(0, 5).map((a) => <NRow key={a.id} name={a.agentName} sub={`${a.itemsReadCount} read · ${a.blockedCount} held back`} />)
           ) : (
             <p className="hist-empty" style={{ padding: 16 }}>Nothing has read it yet.</p>
           )}
@@ -239,7 +240,7 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
       <DetailHead
         title="Payday autopilot"
         big={nfi(pp.suggestedExtraMove)}
-        sub={pp.towardsGoal ? `suggested to “${pp.towardsGoal}” each payday` : 'suggested each payday'}
+        sub="extra to save each payday"
         onBack={onBack}
         actions={[
           { icon: 'spark', label: 'Plan with Abel', onClick: () => onPlan() },
@@ -248,20 +249,18 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
         ]}
       />
       <div className="nbody">
-        <Band left={pp.nextPayday ? `Next payday · ${dayMonth(pp.nextPayday)}` : 'Next payday'} />
+        <Band left="Next payday" right={pp.nextPayday ? dayMonth(pp.nextPayday) : undefined} />
         <div className="ncard flat">
-          <NRow name="Salary coming in" sub="Your account" amount={nfi(pp.income)} />
-          <NRow name="Bills and everyday spending" sub="Average of the last 3 months" amount={`−${nfi(pp.spendingAveragePerMonth)}`} />
-          <NRow name="Already going to savings" sub="Every month" amount={`−${nfi(pp.alreadySavingPerMonth)}`} />
-          <NRow name="Left over" sub="Before Abel’s suggestion" amount={nfi(pp.leftOver)} />
+          <NRow name="Salary" amount={nfi(pp.income)} />
+          <NRow name="Spending" sub="3-month average" amount={`−${nfi(pp.spendingAveragePerMonth)}`} />
+          <NRow name="Already saving" amount={`−${nfi(pp.alreadySavingPerMonth)}`} />
+          <NRow name="Left over" amount={nfi(pp.leftOver)} />
+          {pp.towardsGoal && <NRow name="Abel suggests" sub={`To “${pp.towardsGoal}”`} amount={`+${nfi(pp.suggestedExtraMove)}`} />}
         </div>
         <Band left="Your rules" />
         <div className="ncard flat">
-          <NRow name="Keep in current account" sub={`At least ${eur(pp.keepInCurrentAccount)} (default)`} />
-          <NRow name="What Abel may do" sub="Suggest only" />
-        </div>
-        <div style={{ padding: 16 }}>
-          <button className="btn primary block" onClick={() => onPlan('Plan my next payday')}>Review the plan with Abel</button>
+          <NRow name="Always keep" sub="In current account" amount={nfi(pp.keepInCurrentAccount)} />
+          <NRow name="Abel may" sub="Suggest only, you confirm" />
         </div>
       </div>
     </>

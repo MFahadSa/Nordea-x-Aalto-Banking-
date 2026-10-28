@@ -220,7 +220,7 @@ export const Chat: React.FC<Props> = (p) => {
             {open && (
               <>
                 <div className="of-act"><button className="btn primary" onClick={() => act('offer_show')}>{d.cta}</button><button className="btn" onClick={() => act('offer_no')}>No thanks</button></div>
-                <div className="of-foot"><button className="btn link" onClick={() => p.onOpenHelper('person')}>{d.alternative}</button><button className="btn link muted" onClick={() => act('offer_off')}>No more offers</button></div>
+                <div className="of-foot"><button className="btn link" onClick={() => p.onOpenHelper('person')}>{d.alternative}</button><button className="btn link muted" onClick={() => act('offer_off')}>Turn off partner offers</button></div>
               </>
             )}
           </div>
@@ -267,13 +267,13 @@ export const Chat: React.FC<Props> = (p) => {
       case 'handoff':
         return (
           <div className="rc">
-            <b className="rc-t">{c.title} would see:</b>
+            <b className="rc-t">Ready! {c.title} would receive:</b>
             <div className="legend small"><span className="from you">You told us</span><span className="from bank">Nordea noticed</span></div>
             <ul className="rc-l">
               {(d.gets || []).slice(0, 6).map((g: any, k: number) => <li key={k}><span className={`dotc ${g.source === 'nordea' ? 'bank' : 'you'}`} />{g.title}</li>)}
               {(d.gets || []).length > 6 && <li className="more-l">…and {d.gets.length - 6} more</li>}
             </ul>
-            {d.heldBack > 0 && <p className="rc-n">{d.heldBack} held back</p>}
+            {d.heldBack > 0 && <p className="rc-n">Held back: {d.heldBack} not approved by you, private, or not checked yet.</p>}
             <span className="earns no">{d.earns}</span>
             <p className="rc-n share-n"><Icon name="cal" /><span>{d.share}</span></p>
             {open && <div className="of-act" style={{ padding: '4px 0 0' }}><button className="btn primary" onClick={() => act('handoff_connect')}>Connect me</button><button className="btn" onClick={() => act('handoff_no')}>Not now</button></div>}
@@ -301,7 +301,7 @@ export const Chat: React.FC<Props> = (p) => {
         if (d.shareId) {
           const s = p.shares.find((x) => x.id === d.shareId);
           if (!s) return null;
-          return s.revoked ? <span>Sharing stopped.</span> : <span>🔗 Shared until {dayMonth(s.until)} · <button className="btn link" onClick={() => p.onRevoke(s.id)}>Stop sharing</button></span>;
+          return s.revoked ? <span>Sharing stopped. The adviser can’t see what Abel knows any more.</span> : <span>🔗 Shared once with your adviser, until {dayMonth(s.until)}. <button className="btn link" onClick={() => p.onRevoke(s.id)}>Stop sharing now</button></span>;
         }
         if (d.link) return <button className="btn small" onClick={() => p.onOpenPage(d.link)}>{d.label}</button>;
         return null;
@@ -418,7 +418,7 @@ export const Chat: React.FC<Props> = (p) => {
               <button className="att-t" onClick={() => { setAttOpen(false); docRef.current?.click(); }}><span className="att-c"><Icon name="file" size={22} /></span>PDF or file</button>
               <button className="att-t" onClick={() => { setAttOpen(false); p.onImport({ sample: true }); }}><span className="att-c"><Icon name="contact" size={22} /></span>Sample chat</button>
             </div>
-            <p className="att-note"><Icon name="shield" size={16} /><span>Nothing is saved without your OK. Fictional documents only.</span></p>
+            <p className="att-note"><Icon name="shield" size={16} /><span>Abel reads it to suggest what to remember, like a receipt, a payslip or a price tag. Nothing is saved without your OK. Use fictional documents only.</span></p>
           </div>
         </>
       )}

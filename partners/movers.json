@@ -9,13 +9,13 @@
   "view": "Ask for a quote",
   "buy": "Book it (demo)",
   "verb": "booked",
-  "alternative": "Plan moving costs with Abel (free)",
+  "alternative": "Or plan the moving costs with Abel, free",
   "fee": {
     "type": "flat",
     "value": 40
   },
   "shareBack": 0.5,
-  "feeText": "Nordea earns 40 € if you book. Half goes back to you.",
+  "feeText": "Nordea gets 40 € if you book through Kantaja, and gives half of it back to you.",
   "items": [
     {
       "title": "Two movers · 4 hours",

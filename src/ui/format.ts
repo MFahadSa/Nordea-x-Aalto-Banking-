@@ -9,6 +9,9 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 export const monthLong = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 export const dayMonth = (d: string) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
 export const monthName = (ym: string) => MONTHS[Number(ym.slice(5, 7)) - 1];
+export const monthShort = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1].slice(0, 3)} ${ym.slice(0, 4)}`;
+/** Whole euros without decimals, e.g. 14 600 (for compact lines). */
+export const n0 = (n: number) => Number(n).toLocaleString('fi-FI', { maximumFractionDigits: 0 });
 
 export function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;

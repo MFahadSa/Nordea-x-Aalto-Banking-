@@ -9,13 +9,13 @@
   "view": "Book a viewing",
   "buy": "Buy (demo)",
   "verb": "bought",
-  "alternative": "Ask a Nordea adviser instead (free)",
+  "alternative": "Or ask a Nordea adviser about buying, free",
   "fee": {
     "type": "percent",
     "value": 0.005
   },
   "shareBack": 0.25,
-  "feeText": "Nordea earns 0.5% if you buy. A quarter goes back to you.",
+  "feeText": "Nordea gets 0.5% of the price if you buy through Kotiväli, and gives a quarter of it back to you.",
   "items": [
     {
       "title": "2 rooms · 52 m²",
