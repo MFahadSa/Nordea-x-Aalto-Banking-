@@ -6,6 +6,9 @@ export interface User {
   id: string;
   /** Customer turned partner offers off (Who sees it → Partner offers). */
   offersOff?: boolean;
+  /** Points already spent on rewards. Spending never lowers the level (level uses points + pointsSpent). */
+  pointsSpent?: number;
+  redeemed?: { rewardId: string; title: string; pts: number; at: string }[];
   /** Extra monthly saving the customer set up with Abel (simulated standing order). */
   extraMonthly?: number;
   persona: PersonaId;

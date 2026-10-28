@@ -9,13 +9,13 @@
   "view": "Get a quote",
   "buy": "Take it (demo)",
   "verb": "took out",
-  "alternative": "Or compare insurers on your own, nothing is booked",
+  "alternative": "Compare insurers yourself",
   "fee": {
     "type": "percentOfYear",
     "value": 0.1
   },
   "shareBack": 0.5,
-  "feeText": "Nordea gets 10% of your first year’s price, and gives half of it back to you.",
+  "feeText": "Nordea earns 10% of your first year. Half goes back to you.",
   "items": [
     {
       "title": "Home cover · basic",

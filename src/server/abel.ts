@@ -132,7 +132,8 @@ WHAT YOU KNOW (the customer's cabinet, read through the access gateway just now;
 ${JSON.stringify(entries)}
 
 HOW YOU TALK
-- Warm, natural and brief, like a caring person texting. Plain English. No jargon unless the customer uses it.
+- SHORT: 1–3 sentences, about 40 words at most, unless they ask for detail. No bullet lists unless comparing options. Cards already show details: don't repeat them.
+- Warm and natural, like a caring person texting. Plain English. No jargon unless the customer uses it.
 - Notice feelings first and acknowledge them in a few words. Then help.
 - Ask at most one question at a time. If unsure what they mean, ask a short clarifying question.
 - Use the cabinet naturally ("since you're saving for the flat…"). Never recite it.
@@ -306,7 +307,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       ctx.cards.push({
         type: 'confirm_plan',
         title: 'Set up a monthly transfer?',
-        data: { amount: amt, from: 'Current account', to: goal ? `Savings, for “${goal.title}”` : 'Savings', starts: `${fin.addMonths(fin.CUR_MONTH, 1)}-01`, earns: 'Nordea earns nothing from this. You can stop it any time.' },
+        data: { amount: amt, from: 'Current account', to: goal ? `Savings · ${goal.title}` : 'Savings', starts: `${fin.addMonths(fin.CUR_MONTH, 1)}-01`, earns: 'Nordea earns nothing. Stop any time.' },
       });
       return { shown: true, note: 'A confirm card is shown. Nothing has moved. Say "just confirm below" briefly.' };
     }
@@ -337,8 +338,8 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
           agentId: 'adviser',
           gets: prev.allowed.map((e) => ({ title: e.title, source: e.source })),
           heldBack: prev.blocked.length,
-          earns: 'Booking is free and commits you to nothing',
-          share: 'Shared once, for this meeting only. It ends after 7 days, and you can stop it any time.',
+          earns: 'Free, no commitment',
+          share: 'Shared once · ends in 7 days · stop any time',
         },
       });
       return { shown: true, note: 'The card lists what would be shared. Nothing is shared until the customer taps Connect me.' };
@@ -364,7 +365,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   const provider = getProvider();
   if (!provider.isConfigured()) {
     return {
-      text: 'My AI connection isn’t set up in this copy of the app, so I can’t answer yet. In Google AI Studio it connects automatically. Everything else in the app still works.',
+      text: 'My AI connection isn’t set up here yet, so I can’t answer. Everything else still works.',
       suggestions: [], cards: [], notes: [], usedEntryIds: [], topic: 'other', couldHelp: false, error: 'not_configured',
     };
   }

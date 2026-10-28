@@ -199,6 +199,9 @@ export const sendChat = (userId: string, conversationId: string | null, helperId
   post('/api/chat', { userId, conversationId, helperId, text }).then((r) => j<{ conversationId: string; messages: ChatMessage[]; error?: string }>(r));
 export const doAction = (userId: string, messageId: string, action: string, payload: Record<string, unknown> = {}) =>
   post('/api/actions', { userId, messageId, action, payload }).then((r) => j<{ messages: ChatMessage[]; resolvedMessageId: string }>(r));
+export interface Reward { id: string; title: string; short: string; pts: number; done: string }
+export const fetchRewards = () => fetch('/api/rewards').then((r) => j<{ rewards: Reward[] }>(r)).then((d) => d.rewards);
+export const redeemReward = (userId: string, rewardId: string) => post('/api/rewards/redeem', { userId, rewardId }).then((r) => j<{ user: User; message: string }>(r));
 export const setOffersOff = (userId: string, offersOff: boolean) => post('/api/settings', { userId, offersOff }).then((r) => j<{ user: User }>(r));
 export const revokeShare = (shareId: string) => post(`/api/shares/${shareId}/revoke`, {}).then((r) => j<{ message: string }>(r));
 export interface ImportBody { sample?: boolean; text?: string; fileName?: string; fileBase64?: string; mimeType?: string; thumb?: string }

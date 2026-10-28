@@ -662,3 +662,20 @@ span.cam-x{background:none}
 .cam-shot:active i{transform:scale(.92)}
 :root[data-theme="dark"] .att-c{background:#232866;color:#C9D2FF}
 :root[data-theme="dark"] .att-bg{background:rgba(0,0,0,.5)}
+
+/* ---- Stage above the phone: short title and a Light/Dark switch ---- */
+.stage-top{width:410px;max-width:100%;display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;padding:0 6px}
+.stage-t{font-size:13px;color:var(--muted)}.stage-t b{color:var(--ink)}
+.theme-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.theme-chip:hover{border-color:var(--brand)}
+.acc-list{animation:v14in .18s ease}
+.acc-toggle .nchev{color:var(--muted)}
+
+/* ---- Confirm pop-up (same layout as the original prototype) ---- */
+.cf-bg{position:absolute;inset:0;z-index:35;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;animation:v14fade .15s ease}
+.cf-sheet{background:var(--surface);width:100%;border-radius:22px 22px 0 0;padding:20px;display:flex;flex-direction:column;gap:12px;animation:v14up .2s ease}
+.cf-sheet h3{font-size:19px;font-weight:700;color:var(--ink)}
+.cf-sheet .summary{padding:12px}
+.cf-sheet .sum-row b{width:90px;flex:none}
+.cf-sheet .earns{align-self:flex-start}
+.clamp1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
