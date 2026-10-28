@@ -17,8 +17,11 @@ export const mockProvider: LlmProvider = {
   isConfigured: () => true,
   async step({ turns, tools, system }) {
     const last = turns[turns.length - 1];
+    if (tools.some((t) => t.name === 'proposeEntries') && last.role === 'user' && last.files?.length) {
+      return { calls: [call('proposeEntries', { kind: 'price_tag', summary: 'A price tag for a sofa: 1 290 €.', amount: 1290, items: [] })] };
+    }
     if (tools.some((t) => t.name === 'proposeEntries')) {
-      return { calls: [call('proposeEntries', { items: [{ type: 'goal', title: 'Trip to Japan', quote: 'Japan next spring, about 4000', sensitive: false, targetAmount: 4000, targetDate: '2027-04-30' }] })] };
+      return { calls: [call('proposeEntries', { kind: 'notes', summary: 'Your travel notes.', items: [{ type: 'goal', title: 'Trip to Japan', quote: 'Japan next spring, about 4000', sensitive: false, targetAmount: 4000, targetDate: '2027-04-30' }] })] };
     }
     const u = lastUserText(turns);
     if (last.role === 'user') {

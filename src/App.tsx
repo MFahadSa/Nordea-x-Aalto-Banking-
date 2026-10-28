@@ -23,6 +23,7 @@ import {
   importChat,
   confirmObservation,
   fetchConversationMessages,
+  ImportBody,
 } from './services/api.js';
 
 type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot';
@@ -32,7 +33,9 @@ function initialDark() {
     const saved = localStorage.getItem('abel-theme');
     if (saved) return saved === 'dark';
   } catch { /* storage may be blocked */ }
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches || false;
+  // Light by default, like the Nordea app. Dark only when the customer switches it on (More → Dark mode).
+  // (AI Studio's dark editor would otherwise make the preview start dark.)
+  return false;
 }
 
 export default function App() {
@@ -146,7 +149,7 @@ export default function App() {
       setWaiting(false);
     }
   };
-  const doImport = async (body: { sample?: boolean; text?: string; fileName?: string }) => {
+  const doImport = async (body: ImportBody) => {
     if (!state) return;
     if (!chatOpen) {
       setHelperId('abel');
@@ -157,6 +160,8 @@ export default function App() {
     try {
       const res = await importChat(state.user.id, chatOpen ? conversationId : null, chatOpen ? helperId : 'abel', body);
       appendFromServer(res.conversationId, res.messages);
+    } catch (e: any) {
+      setToast({ message: e?.message || 'Couldn’t read that file' });
     } finally {
       setWaiting(false);
     }
@@ -249,6 +254,7 @@ export default function App() {
                 onOpenHelper={openHelper}
                 onRevoke={async (id) => { const r = await revokeShare(id); setToast({ message: r.message }); refresh(); }}
                 onImport={doImport}
+                onToast={(m) => setToast({ message: m })}
                 onEditEntry={() => goPage('knows')}
               />
               <PersonaPickerModal

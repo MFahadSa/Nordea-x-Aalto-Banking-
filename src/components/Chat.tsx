@@ -3,6 +3,35 @@ import { ChatMessage, CabinetEntry, MessageCard, Share } from '../types.js';
 import { Icon, BotAvatar, Chevron } from '../ui/icons.js';
 import { eur, eurP, dayMonth } from '../ui/format.js';
 import { HELPERS } from '../ui/helpers.js';
+import type { ImportBody } from '../services/api.js';
+
+// Shrink a photo before sending: the model gets at most 1600 px, the chat keeps a small thumbnail.
+function shrink(file: Blob, max: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not open that photo')); };
+    img.src = url;
+  });
+}
+const b64 = (dataUrl: string) => dataUrl.slice(dataUrl.indexOf(',') + 1);
+function readAsDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(new Error('Could not read that file'));
+    fr.readAsDataURL(file);
+  });
+}
 
 interface Props {
   open: boolean;
@@ -20,7 +49,8 @@ interface Props {
   onOpenPage: (page: string) => void;
   onOpenHelper: (id: string) => void;
   onRevoke: (shareId: string) => void;
-  onImport: (body: { sample?: boolean; text?: string; fileName?: string }) => void;
+  onImport: (body: ImportBody) => void;
+  onToast: (message: string) => void;
   onEditEntry: (id: string) => void;
 }
 
@@ -34,7 +64,14 @@ export const Chat: React.FC<Props> = (p) => {
   const [impShow, setImpShow] = useState<string | null>(null);
   const [impSel, setImpSel] = useState<Record<string, boolean[]>>({});
   const bodyRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
+  const imgRef = useRef<HTMLInputElement>(null);
+  const camFallbackRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [camOpen, setCamOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<any>(null);
   const seen = useRef<Set<string>>(new Set());
 
   useLayoutEffect(() => {
@@ -45,6 +82,93 @@ export const Chat: React.FC<Props> = (p) => {
     setUsedOpen(null);
     setImpShow(null);
   }, [p.helperId]);
+  useEffect(() => () => stopCamera(), []);
+  // Attach the camera stream once the camera view is on screen.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (camOpen && v && streamRef.current && v.srcObject !== streamRef.current) {
+      v.srcObject = streamRef.current;
+      v.play().catch(() => {});
+    }
+  }, [camOpen]);
+  useEffect(() => {
+    if (!p.open) { stopCamera(); setAttOpen(false); }
+  }, [p.open]);
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCamOpen(false);
+  }
+  async function openCamera() {
+    setAttOpen(false);
+    if (!navigator.mediaDevices?.getUserMedia) { camFallbackRef.current?.click(); return; }
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      streamRef.current = st;
+      setCamOpen(true);
+    } catch {
+      p.onToast('Camera access was blocked. You can pick a photo instead.');
+      imgRef.current?.click();
+    }
+  }
+  async function snap() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) { p.onToast('The camera is still starting. Try again in a second.'); return; }
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+    c.getContext('2d')!.drawImage(v, 0, 0);
+    stopCamera();
+    const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.9));
+    sendPhoto(blob, 'Photo');
+  }
+  async function sendPhoto(file: Blob, name: string) {
+    try {
+      const [big, thumb] = await Promise.all([shrink(file, 1600, 0.85), shrink(file, 240, 0.7)]);
+      p.onImport({ fileBase64: b64(big), mimeType: 'image/jpeg', fileName: name, thumb });
+    } catch (e: any) {
+      p.onToast(e?.message || 'Could not open that photo');
+    }
+  }
+  async function sendDoc(f: File) {
+    if (f.size > 8 * 1024 * 1024) { p.onToast('That file is too big. Try one under 8 MB.'); return; }
+    if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+      p.onImport({ fileBase64: b64(await readAsDataUrl(f)), mimeType: 'application/pdf', fileName: f.name });
+    } else if (/\.(md|markdown|txt)$/i.test(f.name) || f.type.startsWith('text/')) {
+      p.onImport({ text: await f.text(), fileName: f.name });
+    } else if (f.type.startsWith('image/')) {
+      sendPhoto(f, f.name);
+    } else {
+      p.onToast('I can read PDFs, photos and text files.');
+    }
+  }
+  function toggleMic() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { p.onToast('Voice isn’t available in this browser. Try Chrome, or type instead.'); return; }
+    if (recRef.current) { recRef.current.stop(); return; }
+    const rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    let finalText = '';
+    rec.onresult = (e: any) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      setText((finalText + interim).trim());
+    };
+    rec.onerror = (e: any) => p.onToast(e.error === 'not-allowed' ? 'Microphone access was blocked. Allow it, or type instead.' : 'I didn’t catch that. Try again, or type instead.');
+    rec.onend = () => {
+      recRef.current = null;
+      setListening(false);
+      if (finalText.trim()) send(finalText);
+    };
+    recRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { recRef.current = null; setListening(false); }
+  }
 
   if (!p.open) return null;
 
@@ -193,6 +317,19 @@ export const Chat: React.FC<Props> = (p) => {
   items.push({ who: 'bot', key: 'g1' + p.helperId, node: g1 }, { who: 'bot', key: 'g2' + p.helperId, node: g2 });
   p.messages.forEach((m) => {
     if (m.sender === 'user') {
+      if (m.attachment) {
+        const at = m.attachment;
+        items.push({
+          who: 'me',
+          key: m.id,
+          node: at.kind === 'image' && at.thumb ? (
+            <img className="att-img" src={at.thumb} alt="Photo you sent" />
+          ) : (
+            <span className="att-file"><Icon name={at.kind === 'image' ? 'image' : 'file'} /><span><b>{at.name}</b><span>{at.kind === 'pdf' ? 'PDF' : at.kind === 'image' ? 'Photo' : 'Text file'}</span></span></span>
+          ),
+        });
+        return;
+      }
       items.push({ who: 'me', key: m.id, node: m.text });
       return;
     }
@@ -232,7 +369,7 @@ export const Chat: React.FC<Props> = (p) => {
         <span className="bot-av lg" aria-hidden="true"><Icon name={h.icon} /></span>
         <div className="chat-t">
           <b>{h.name}</b>
-          <span id="chat-status"><i className="live-dot inline" />{p.waiting ? 'typing…' : `${h.sub} · online`}</span>
+          <span id="chat-status"><i className={`live-dot inline${listening ? ' rec' : ''}`} />{listening ? 'Listening… tap the mic to stop' : p.waiting ? 'typing…' : `${h.sub} · online`}</span>
         </div>
         <button className="chat-ic" onClick={p.onNew} aria-label="Start a new conversation" title="New conversation">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5" /></svg>
@@ -269,12 +406,34 @@ export const Chat: React.FC<Props> = (p) => {
           </div>
         )}
       </div>
-      <div className="att-pop" hidden={!attOpen}>
-        <button onClick={() => { setAttOpen(false); p.onImport({ sample: true }); }}><Icon name="contact" /><span><b>Import a chat (sample)</b><span>Lauri and Mia plan their year</span></span></button>
-        <button onClick={() => { setAttOpen(false); fileRef.current?.click(); }}><Icon name="file" /><span><b>File</b><span>Markdown or text</span></span></button>
-      </div>
+      {attOpen && (
+        <>
+          <div className="att-bg" onClick={() => setAttOpen(false)} />
+          <div className="att-sheet" role="dialog" aria-label="Add to chat">
+            <span className="att-grab" aria-hidden="true" />
+            <b className="att-title">Add to chat</b>
+            <div className="att-grid">
+              <button className="att-t" onClick={openCamera}><span className="att-c"><Icon name="camera" size={22} /></span>Take a photo</button>
+              <button className="att-t" onClick={() => { setAttOpen(false); imgRef.current?.click(); }}><span className="att-c"><Icon name="image" size={22} /></span>Photos</button>
+              <button className="att-t" onClick={() => { setAttOpen(false); docRef.current?.click(); }}><span className="att-c"><Icon name="file" size={22} /></span>PDF or file</button>
+              <button className="att-t" onClick={() => { setAttOpen(false); p.onImport({ sample: true }); }}><span className="att-c"><Icon name="contact" size={22} /></span>Sample chat</button>
+            </div>
+            <p className="att-note"><Icon name="shield" size={16} /><span>Abel reads it to suggest what to remember, like a receipt, a payslip or a price tag. Nothing is saved without your OK. Use fictional documents only.</span></p>
+          </div>
+        </>
+      )}
+      {camOpen && (
+        <div className="cam" role="dialog" aria-label="Take a photo">
+          <video ref={videoRef} playsInline muted />
+          <div className="cam-bar">
+            <button className="cam-x" onClick={stopCamera} aria-label="Cancel"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+            <button className="cam-shot" onClick={snap} aria-label="Take photo"><i /></button>
+            <span className="cam-x" aria-hidden="true" />
+          </div>
+        </div>
+      )}
       <div className="chat-in">
-        <button className="chat-plus" type="button" onClick={() => setAttOpen(!attOpen)} aria-label="Add a file">
+        <button className="chat-plus" type="button" onClick={() => setAttOpen(!attOpen)} aria-label="Add a photo or file" aria-expanded={attOpen}>
           <Icon name="plus" />
         </button>
         <label className="sr" htmlFor="ai-q">Message {h.name}</label>
@@ -292,22 +451,15 @@ export const Chat: React.FC<Props> = (p) => {
             }
           }}
         />
+        <button className={`chat-mic${listening ? ' rec' : ''}`} type="button" onClick={toggleMic} aria-label={listening ? 'Stop listening' : 'Talk instead of typing'}>
+          <Icon name="mic" />
+        </button>
         <button className="chat-send" type="button" onClick={() => send(text)} disabled={p.waiting} aria-label="Send">
           <Icon name="send" />
         </button>
-        <input
-          type="file"
-          ref={fileRef}
-          accept=".md,.markdown,.txt,text/markdown,text/plain"
-          hidden
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            if (!f) return;
-            const t = await f.text();
-            p.onImport({ text: t, fileName: f.name });
-          }}
-        />
+        <input type="file" ref={docRef} accept=".pdf,.md,.markdown,.txt,application/pdf,text/markdown,text/plain" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendDoc(f); }} />
+        <input type="file" ref={imgRef} accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, f.name); }} />
+        <input type="file" ref={camFallbackRef} accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, 'Photo'); }} />
       </div>
       <p className="chat-foot">Concept · fictional data · nothing saved without your OK</p>
     </section>

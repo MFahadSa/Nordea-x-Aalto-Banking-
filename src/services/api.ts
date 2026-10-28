@@ -201,7 +201,8 @@ export const doAction = (userId: string, messageId: string, action: string, payl
   post('/api/actions', { userId, messageId, action, payload }).then((r) => j<{ messages: ChatMessage[]; resolvedMessageId: string }>(r));
 export const setOffersOff = (userId: string, offersOff: boolean) => post('/api/settings', { userId, offersOff }).then((r) => j<{ user: User }>(r));
 export const revokeShare = (shareId: string) => post(`/api/shares/${shareId}/revoke`, {}).then((r) => j<{ message: string }>(r));
-export const importChat = (userId: string, conversationId: string | null, helperId: string, body: { sample?: boolean; text?: string; fileName?: string }) =>
+export interface ImportBody { sample?: boolean; text?: string; fileName?: string; fileBase64?: string; mimeType?: string; thumb?: string }
+export const importChat = (userId: string, conversationId: string | null, helperId: string, body: ImportBody) =>
   post('/api/import', { userId, conversationId, helperId, ...body }).then((r) => j<{ conversationId: string; messages: ChatMessage[] }>(r));
 export const confirmObservation = (userId: string, entryId: string) =>
   post('/api/events/observation-confirmed', { userId, entryId }).then((r) => j<{ entry: CabinetEntry; conversationId?: string }>(r));

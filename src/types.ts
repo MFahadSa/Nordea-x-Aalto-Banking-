@@ -151,6 +151,8 @@ export interface ChatMessage {
   text: string;
   /** Cabinet entries Abel actually relied on for this reply (checked against what the gateway returned). */
   usedEntryIds?: string[];
+  /** A file or photo the customer sent (a small thumbnail is kept for photos, never the full file). */
+  attachment?: { name: string; kind: 'image' | 'pdf' | 'text'; thumb?: string; size?: number };
   /** Set when the customer tapped a button on this message, so it can't be tapped twice. */
   resolved?: string;
   suggestions?: string[];

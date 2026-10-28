@@ -5,7 +5,7 @@ import { db } from './db.js';
 import { previewCabinetForAgent } from './accessGateway.js';
 import { getPartner, getAllPartners } from './partnerRegistry.js';
 import * as fin from './finance.js';
-import { abelTurn, proposeFromText, offerHeadline, SAMPLE_CHAT, ImportItem } from './abel.js';
+import { abelTurn, proposeFromContent, offerHeadline, SAMPLE_CHAT, ImportItem } from './abel.js';
 import { getProvider } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard } from '../types.js';
 
@@ -272,20 +272,42 @@ export function registerV14Routes(app: Express) {
     res.json({ share: s, message: 'Sharing stopped. The adviser can’t see it any more.' });
   });
 
-  // Import a conversation or text file. Sample = the built-in fictional chat between Lauri and Mia.
+  // Import a chat, a text file, a PDF or a photo. Sample = the built-in fictional chat between Lauri and Mia.
   app.post('/api/import', async (req, res) => {
-    const { userId = 'lauri', conversationId, helperId = 'abel', text, fileName, sample } = req.body || {};
+    const { userId = 'lauri', conversationId, helperId = 'abel', text, fileName, sample, fileBase64, mimeType, thumb } = req.body || {};
     let conv = conversationId ? db.getConversation(conversationId) : undefined;
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
-    const r = await proposeFromText(userId, sample ? null : String(text || ''));
-    const source = sample ? r.source : String(fileName || 'your file').slice(0, 80);
-    const u = userMsg(userId, conv.id, conv.helperId, `📄 ${source}`);
+    const isImage = /^image\/(jpeg|png|webp|heic|heif)$/.test(String(mimeType || ''));
+    const isPdf = mimeType === 'application/pdf';
+    if (fileBase64 && !isImage && !isPdf) return res.status(400).json({ error: 'Only photos (JPG, PNG, WebP) and PDFs can be read.' });
+    if (fileBase64 && String(fileBase64).length > 11_000_000) return res.status(413).json({ error: 'That file is too big. Try one under 8 MB.' });
+
+    const r = await proposeFromContent(userId, fileBase64 ? { file: { mimeType, data: String(fileBase64) } } : { text: sample ? null : String(text || '') });
+    const source = sample ? r.source : String(fileName || (isImage ? 'Photo' : 'your file')).slice(0, 80);
+    const kind: 'image' | 'pdf' | 'text' = isImage ? 'image' : isPdf ? 'pdf' : 'text';
+    const u: ChatMessage = {
+      id: id('msg-user'), userId, agentId: 'abel', channel: 'app', sender: 'user', conversationId: conv.id, helperId: conv.helperId,
+      text: isImage ? '' : `📄 ${source}`, createdAt: now(),
+      attachment: { name: source, kind, thumb: isImage && typeof thumb === 'string' && thumb.length < 60000 ? thumb : undefined },
+    };
+    db.addMessage(u);
     const body = sample ? SAMPLE_CHAT.map(([w, t]) => `${w}: ${t}`).join('\n') : undefined;
-    const a = r.items.length
-      ? agentMsg(userId, conv.id, conv.helperId, `I read ${sample ? `your chat with Mia (${r.lines} messages)` : `“${source}”`}. Here’s what I’d remember. Untick anything you’d rather I didn’t keep:`, {
-          cards: [{ type: 'import', data: { items: r.items, source, transcript: body } }],
-        })
-      : agentMsg(userId, conv.id, conv.helperId, getProvider().isConfigured() ? `I read “${source}”, but didn’t find anything about your goals, plans or money worth remembering.` : 'I can read files once my AI connection is set up. In this copy of the app it isn’t, but the sample chat works.');
+
+    let a: ChatMessage;
+    if (!getProvider().isConfigured() && !sample) {
+      a = agentMsg(userId, conv.id, conv.helperId, 'I can read photos and files once my AI connection is set up. In this copy of the app it isn’t, but the sample chat works.');
+    } else if (r.kind === 'error') {
+      a = agentMsg(userId, conv.id, conv.helperId, `Sorry, I couldn’t read ${isImage ? 'that photo' : `“${source}”`}. Could you try again, or tell me the important part?`);
+    } else {
+      const what = sample ? `I read your chat with Mia (${r.lines} messages).` : r.summary ? r.summary : `I read “${source}”.`;
+      const suggestions: string[] = [];
+      if (r.amount && ['price_tag', 'receipt', 'bill', 'other'].includes(r.kind || '')) suggestions.push(r.kind === 'bill' ? `Can I pay ${fmt(r.amount, r.amount % 1 ? 2 : 0)} this month?` : `Can I afford ${fmt(r.amount, r.amount % 1 ? 2 : 0)}?`);
+      a = r.items.length
+        ? agentMsg(userId, conv.id, conv.helperId, `${what}\n\nHere’s what I’d remember. Untick anything you’d rather I didn’t keep:`, {
+            cards: [{ type: 'import', data: { items: r.items, source, transcript: body } }],
+          })
+        : agentMsg(userId, conv.id, conv.helperId, `${what}\n\nI didn’t find anything about your goals or plans worth remembering, so I won’t keep it.`, { suggestions });
+    }
     res.status(201).json({ conversationId: conv.id, messages: [u, a] });
   });
 
