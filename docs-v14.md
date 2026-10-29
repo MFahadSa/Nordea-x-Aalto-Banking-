@@ -24,3 +24,21 @@ and Abel is a real language model (Gemini) with tools. Code owns the facts and t
 ## Test locally without a Gemini key
 `LLM_PROVIDER=mock npm run dev` uses a scripted stand-in (`src/server/llmMock.ts`). Never set it in AI Studio.
 In AI Studio the key is injected automatically, so the real Abel answers there.
+
+## Saved data (Supabase)
+- `src/server/store.ts`: talks to Supabase. Every record is a row in `abel_records` (kind, id, user_id, data). Kept files go to the private bucket `abel-documents`.
+- `src/server/db.ts`: still keeps everything in memory for speed. After each change it sends only the changed records to Supabase. Requests that change data answer only after that save. If Supabase is down, it retries every 5 s and shows it in More → Saved data.
+- Without `SUPABASE_URL` / `SUPABASE_SECRET_KEY` it uses `data/cabinet-db.json` like before (resets on restart).
+- First start with an empty table: today's data is copied into Supabase. After that, Supabase is the source of truth.
+- Setup: run `supabase/setup.sql` once, then add the two secrets in AI Studio.
+- Limit: built for one running copy of the app (fine for the demo). Two copies at once could overwrite each other's changes.
+
+## Your documents (option C)
+- `src/server/documents.ts`. Off by default: a file is read once and not kept, not even a preview.
+- "Keep a copy" in the Add to chat sheet stores it for 30 days (`KEEP_DAYS`), then it deletes itself. The things saved from it stay.
+- Delete from the chat bubble or Abel knows → Your documents. If things were saved from the file, the customer chooses: delete them too (for good, with their history) or only the file.
+- Who sees it → Your data: documents count, and "Delete my chats".
+
+## Duplicate check and history
+- `src/server/similar.ts`, done in code before saving. Same thing again → not saved. Same thing with a new amount or date → a card: Update it / Keep both / Leave it. Imports mark look-alikes and can update the existing item.
+- Every add, change, removal, confirmation and undo is a row in `entryHistory`: who (you / Abel / Nordea), where, and before → after. Shown under "History" on each item and goal.

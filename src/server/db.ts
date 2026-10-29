@@ -11,7 +11,10 @@ import {
   Conversation,
   Earning,
   Share,
+  StoredDocument,
+  EntryEvent,
 } from '../types.js';
+import { Remote, Row, supabaseConfigured, supabaseRemote, cleanErr } from './store.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'cabinet-db.json');
@@ -27,6 +30,80 @@ export interface DatabaseState {
   conversations: Conversation[];
   earnings: Earning[];
   shares: Share[];
+  documents: StoredDocument[];
+  entryHistory: EntryEvent[];
+}
+
+/** Who changed something in What Abel knows, and where. Recorded in the entry's history. */
+export interface ChangeMeta {
+  by?: EntryEvent['by'];
+  how?: string;
+  action?: EntryEvent['action'];
+}
+
+/** The fields whose changes are worth showing in an entry's history. */
+const TRACKED: (keyof CabinetEntry)[] = ['title', 'detail', 'status', 'private', 'target', 'readableBy', 'reviewed'];
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+let seq = 0;
+const eventId = () => `ev-${Date.now()}-${(seq++).toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+/** History for entries that existed before history was kept (the seed, or an older saved database). */
+function historyFor(entries: CabinetEntry[]): EntryEvent[] {
+  const out: EntryEvent[] = [];
+  for (const e of entries) {
+    out.push({ id: `ev-seed-${e.id}-a`, entryId: e.id, userId: e.userId, at: e.createdAt, action: 'added', by: e.source === 'nordea' ? 'nordea' : 'you', how: e.source === 'nordea' ? 'Noticed in your transactions' : e.source === 'document' ? 'From a document' : 'In the app', title: e.title });
+    if (e.confirmedAt && e.confirmedAt !== e.createdAt) out.push({ id: `ev-seed-${e.id}-c`, entryId: e.id, userId: e.userId, at: e.confirmedAt, action: 'confirmed', by: 'you', how: 'You said it’s still right', title: e.title });
+  }
+  return out;
+}
+
+/** Each kind of record and how it's keyed. Users are a map, the rest are lists. */
+const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory'] as const;
+type ListKind = (typeof LISTS)[number];
+const keyOf = (kind: ListKind, x: any): string => (kind === 'undoRecords' ? x.undoToken : x.id);
+// Rows come back unordered, so restore the order the app expects.
+const ORDER: Record<ListKind, { field: string; desc?: boolean }> = {
+  cabinetEntries: { field: 'createdAt' },
+  transactions: { field: 'date' },
+  messages: { field: 'createdAt' },
+  accessLog: { field: 'timestamp', desc: true },
+  topicLog: { field: 'timestamp', desc: true },
+  undoRecords: { field: 'timestamp' },
+  conversations: { field: 'createdAt' },
+  earnings: { field: 'createdAt' },
+  shares: { field: 'createdAt' },
+  documents: { field: 'createdAt' },
+  entryHistory: { field: 'at' },
+};
+
+function toRows(state: DatabaseState): Row[] {
+  const rows: Row[] = Object.values(state.users).map((u) => ({ kind: 'users', id: u.id, user_id: u.id, data: u }));
+  for (const kind of LISTS) for (const x of state[kind] as any[]) rows.push({ kind, id: keyOf(kind, x), user_id: x.userId ?? null, data: x });
+  return rows;
+}
+
+function fromRows(rows: Row[]): DatabaseState {
+  const st: any = { users: {} };
+  LISTS.forEach((k) => (st[k] = []));
+  for (const r of rows) {
+    if (r.kind === 'users') st.users[r.id] = r.data;
+    else if (st[r.kind]) st[r.kind].push(r.data);
+  }
+  for (const k of LISTS) {
+    const { field, desc } = ORDER[k];
+    st[k].sort((a: any, b: any) => String(a[field] || '').localeCompare(String(b[field] || '')) * (desc ? -1 : 1));
+  }
+  return st as DatabaseState;
+}
+
+export interface DbStatus {
+  mode: 'supabase' | 'file';
+  ok: boolean;
+  message: string;
+  lastSavedAt?: string;
+  lastError?: { at: string; message: string };
+  rows?: number;
+  waiting: number;
 }
 
 function generateTransactionsForLauri(): Transaction[] {
@@ -477,6 +554,8 @@ function getInitialState(): DatabaseState {
     conversations: [],
     earnings: [],
     shares: [],
+    documents: [],
+    entryHistory: historyFor(cabinetEntries),
   };
 }
 
@@ -485,15 +564,102 @@ function migrate(state: DatabaseState): DatabaseState {
   state.conversations = state.conversations || [];
   state.earnings = state.earnings || [];
   state.shares = state.shares || [];
+  state.documents = state.documents || [];
+  if (!state.entryHistory) state.entryHistory = historyFor(state.cabinetEntries || []);
   return state;
 }
 
 class Database {
   private state: DatabaseState;
+  private remote: Remote | null = null;
+  /** What Supabase has, as JSON per record, so only changed records are sent. */
+  private synced = new Map<string, string>();
+  private chain: Promise<void> = Promise.resolve();
+  private timer: NodeJS.Timeout | null = null;
+  private st: DbStatus = { mode: 'file', ok: true, message: 'Saved on this server only. It resets when the app restarts.', waiting: 0 };
 
   constructor() {
     this.ensureDataDir();
     this.state = this.loadState();
+  }
+
+  /**
+   * Connect to Supabase if its secrets are set. Called once before the server starts.
+   * An empty table gets today's data (so nothing is lost when switching over); otherwise Supabase wins.
+   */
+  public async init() {
+    if (!supabaseConfigured()) return;
+    const remote = supabaseRemote();
+    try {
+      const rows = await remote.loadAll();
+      this.remote = remote;
+      if (rows.length) {
+        this.state = migrate(fromRows(rows));
+        rows.forEach((r) => this.synced.set(`${r.kind}:${r.id}`, JSON.stringify(r.data)));
+        this.writeFile();
+      }
+      await this.flush();
+      this.st = { ...this.st, mode: 'supabase', ok: !this.st.lastError, message: 'Saved in Supabase', rows: this.synced.size };
+      console.log(`Database: Supabase (${this.synced.size} records)`);
+    } catch (err) {
+      this.remote = null;
+      const message = cleanErr(err);
+      this.st = { mode: 'file', ok: false, message: `Supabase isn’t working, so data is only kept on this server for now. ${message}`, lastError: { at: new Date().toISOString(), message }, waiting: 0 };
+      console.error('Database: Supabase failed, using the local file.', message);
+    }
+  }
+
+  public status(): DbStatus {
+    return { ...this.st, waiting: this.remote ? this.pendingCount() : 0 };
+  }
+
+  private pendingCount() {
+    let n = 0;
+    const now = new Map(toRows(this.state).map((r) => [`${r.kind}:${r.id}`, JSON.stringify(r.data)]));
+    for (const [k, v] of now) if (this.synced.get(k) !== v) n++;
+    for (const k of this.synced.keys()) if (!now.has(k)) n++;
+    return n;
+  }
+
+  /** Send every changed record to Supabase. Requests that change data wait for this before answering. */
+  public flush(): Promise<void> {
+    if (!this.remote) return Promise.resolve();
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    this.chain = this.chain.then(() => this.push()).catch(() => {});
+    return this.chain;
+  }
+
+  private async push() {
+    const remote = this.remote;
+    if (!remote) return;
+    const now = new Map<string, Row>();
+    toRows(this.state).forEach((r) => now.set(`${r.kind}:${r.id}`, r));
+    const changed: Row[] = [];
+    const json = new Map<string, string>();
+    for (const [k, r] of now) {
+      const j = JSON.stringify(r.data);
+      json.set(k, j);
+      if (this.synced.get(k) !== j) changed.push(r);
+    }
+    const gone = [...this.synced.keys()].filter((k) => !now.has(k)).map((k) => ({ kind: k.slice(0, k.indexOf(':')), id: k.slice(k.indexOf(':') + 1) }));
+    if (!changed.length && !gone.length) return;
+    try {
+      if (changed.length) await remote.upsert(changed.map((r) => ({ ...r, data: JSON.parse(json.get(`${r.kind}:${r.id}`)!) })));
+      if (gone.length) await remote.remove(gone);
+      changed.forEach((r) => this.synced.set(`${r.kind}:${r.id}`, json.get(`${r.kind}:${r.id}`)!));
+      gone.forEach((g) => this.synced.delete(`${g.kind}:${g.id}`));
+      this.st = { ...this.st, ok: true, message: 'Saved in Supabase', lastSavedAt: new Date().toISOString(), rows: this.synced.size };
+    } catch (err) {
+      const message = cleanErr(err);
+      this.st = { ...this.st, ok: false, message: `Last save to Supabase failed. Trying again. ${message}`, lastError: { at: new Date().toISOString(), message } };
+      console.error('Database: save to Supabase failed:', message);
+      this.later(5000); // try again shortly; nothing is lost while the server runs
+    }
+  }
+
+  private later(ms = 300) {
+    if (!this.remote || this.timer) return;
+    this.timer = setTimeout(() => { this.timer = null; this.flush(); }, ms);
   }
 
   private ensureDataDir() {
@@ -512,17 +678,24 @@ class Database {
       }
     }
     const seed = getInitialState();
-    this.saveState(seed);
+    this.state = seed;
+    this.writeFile();
     return seed;
   }
 
-  private saveState(state: DatabaseState) {
+  private writeFile() {
     try {
       this.ensureDataDir();
-      fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), 'utf-8');
+      fs.writeFileSync(DB_FILE, JSON.stringify(this.state, null, 2), 'utf-8');
     } catch (err) {
       console.error('Failed to write db state to disk:', err);
     }
+  }
+
+  /** Every change ends here: write the local copy and queue the Supabase save. */
+  private saveState(_state?: DatabaseState) {
+    this.writeFile();
+    this.later();
   }
 
   public getState(): DatabaseState {
@@ -556,32 +729,99 @@ class Database {
     return this.state.cabinetEntries.find((e) => e.id === id);
   }
 
-  public addCabinetEntry(entry: CabinetEntry): CabinetEntry {
+  // ---- history of each entry
+  private logEvent(e: CabinetEntry, action: EntryEvent['action'], meta: ChangeMeta = {}, changes?: EntryEvent['changes']) {
+    this.state.entryHistory.push({
+      id: eventId(), entryId: e.id, userId: e.userId, at: new Date().toISOString(), action: meta.action || action,
+      by: meta.by || (e.source === 'nordea' ? 'nordea' : 'you'), how: meta.how, title: e.title, changes: changes?.length ? changes : undefined,
+    });
+  }
+
+  public getEntryHistory(entryId: string): EntryEvent[] {
+    return this.state.entryHistory.filter((h) => h.entryId === entryId);
+  }
+
+  public addCabinetEntry(entry: CabinetEntry, meta: ChangeMeta = {}): CabinetEntry {
     this.state.cabinetEntries.push(entry);
+    this.logEvent(entry, 'added', meta);
     this.saveState(this.state);
     return entry;
   }
 
-  public updateCabinetEntry(id: string, updates: Partial<CabinetEntry>): CabinetEntry | undefined {
+  public updateCabinetEntry(id: string, updates: Partial<CabinetEntry>, meta: ChangeMeta = {}): CabinetEntry | undefined {
     const idx = this.state.cabinetEntries.findIndex((e) => e.id === id);
     if (idx === -1) return undefined;
-    this.state.cabinetEntries[idx] = {
-      ...this.state.cabinetEntries[idx],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
+    const before = this.state.cabinetEntries[idx];
+    const after = { ...before, ...updates, updatedAt: new Date().toISOString() };
+    this.state.cabinetEntries[idx] = after;
+    const changes = TRACKED.filter((f) => f in updates && !same(before[f], after[f])).map((f) => ({ field: f, from: before[f] ?? null, to: after[f] ?? null }));
+    const status = changes.find((c) => c.field === 'status');
+    const action: EntryEvent['action'] =
+      status?.to === 'archived' ? 'removed'
+      : status?.to === 'disputed' ? 'marked_wrong'
+      : status && (status.from === 'archived' || status.from === 'disputed') && changes.length === 1 ? 'brought_back'
+      : changes.length === 1 && changes[0].field === 'reviewed' && after.reviewed ? 'confirmed'
+      : 'changed';
+    if (changes.length) this.logEvent(after, action, meta, changes.filter((c) => !(action === 'confirmed' && c.field === 'reviewed')));
+    else if (updates.confirmedAt || meta.action) this.logEvent(after, 'confirmed', meta);
     this.saveState(this.state);
-    return this.state.cabinetEntries[idx];
+    return after;
   }
 
-  public deleteCabinetEntry(id: string): boolean {
-    const initLen = this.state.cabinetEntries.length;
-    this.state.cabinetEntries = this.state.cabinetEntries.filter((e) => e.id !== id);
-    if (this.state.cabinetEntries.length !== initLen) {
-      this.saveState(this.state);
-      return true;
-    }
-    return false;
+  /**
+   * Delete for good. `purge` also drops the entry's history (used when the customer deletes a document
+   * "and the things taken from it", or undoes an add: then nothing about it should stay).
+   */
+  public deleteCabinetEntry(id: string, meta: ChangeMeta & { purge?: boolean } = {}): boolean {
+    const e = this.getCabinetEntry(id);
+    if (!e) return false;
+    this.state.cabinetEntries = this.state.cabinetEntries.filter((x) => x.id !== id);
+    if (meta.purge) this.state.entryHistory = this.state.entryHistory.filter((h) => h.entryId !== id);
+    else this.logEvent(e, 'deleted', meta);
+    this.saveState(this.state);
+    return true;
+  }
+
+  // ---- kept documents ("Keep a copy")
+  public getDocuments(userId: string): StoredDocument[] {
+    return this.state.documents.filter((d) => d.userId === userId);
+  }
+
+  public getDocument(id: string): StoredDocument | undefined {
+    return this.state.documents.find((d) => d.id === id);
+  }
+
+  public addDocument(d: StoredDocument): StoredDocument {
+    this.state.documents.push(d);
+    this.saveState(this.state);
+    return d;
+  }
+
+  public updateDocument(id: string, updates: Partial<StoredDocument>) {
+    const d = this.getDocument(id);
+    if (!d) return undefined;
+    Object.assign(d, updates);
+    this.saveState(this.state);
+    return d;
+  }
+
+  public removeDocument(id: string) {
+    const d = this.getDocument(id);
+    this.state.documents = this.state.documents.filter((x) => x.id !== id);
+    // The chat bubble keeps the file name but loses its preview.
+    for (const m of this.state.messages) if (m.attachment?.documentId === id) m.attachment = { ...m.attachment, thumb: undefined, deleted: true };
+    this.saveState(this.state);
+    return d;
+  }
+
+  /** "Delete my chats": every conversation and message of this customer. What Abel knows stays. */
+  public deleteChats(userId: string) {
+    const n = this.state.messages.filter((m) => m.userId === userId).length;
+    this.state.messages = this.state.messages.filter((m) => m.userId !== userId);
+    this.state.conversations = this.state.conversations.filter((c) => c.userId !== userId);
+    this.state.topicLog = this.state.topicLog.filter((t) => t.userId !== userId);
+    this.saveState(this.state);
+    return n;
   }
 
   public getTransactions(userId: string): Transaction[] {

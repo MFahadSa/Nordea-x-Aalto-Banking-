@@ -7,7 +7,8 @@ import { getPartner, getAllPartners } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { abelTurn, proposeFromContent, offerHeadline, SAMPLE_CHAT, ImportItem } from './abel.js';
 import { getProvider, aiStatus, aiPing } from './llm.js';
-import { CabinetEntry, ChatMessage, Conversation, MessageCard } from '../types.js';
+import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } from '../types.js';
+import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } from './documents.js';
 
 const fmt = (n: number, d = 0) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
@@ -38,9 +39,25 @@ export const REWARDS = [
 ];
 export const levelOf = (lifetime: number) => (lifetime >= 300 ? 'Gold' : lifetime >= 150 ? 'Silver' : 'Starter');
 
+/** What the app shows about a kept file (never the bytes). */
+function docInfo(d: StoredDocument) {
+  const titles = d.entryIds.map((i) => db.getCabinetEntry(i)?.title).filter(Boolean) as string[];
+  return { id: d.id, name: d.name, kind: d.kind, size: d.size, createdAt: d.createdAt, expiresAt: d.expiresAt, conversationId: d.conversationId, entries: titles };
+}
+
+/** Make a cabinet entry from a draft the customer approved on a card. */
+function entryFromDraft(userId: string, d: any, extra: Partial<CabinetEntry> = {}): CabinetEntry {
+  return {
+    id: id('entry'), userId, type: d.type, title: d.title, detail: d.detail || '', source: 'customer', status: 'active', private: false,
+    readableBy: { abel: true, offers: false }, provenance: { channel: 'app' }, target: d.target, goalType: d.goalType,
+    reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(), ...extra,
+  };
+}
+
 export function registerV14Routes(app: Express) {
   // Everything the screens need in one call.
-  app.get('/api/state', (req, res) => {
+  app.get('/api/state', async (req, res) => {
+    await sweepExpired().catch(() => 0);
     const userId = String(req.query.userId || 'lauri');
     const user = db.getUser(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -76,6 +93,7 @@ export function registerV14Routes(app: Express) {
         offers: user.offersOff ? 0 : previewCabinetForAgent(userId, 'offers').allowed.length,
       },
       aiConnected: getProvider().isConfigured(),
+      documents: db.getDocuments(userId).map(docInfo),
       today: fin.DEMO_TODAY,
     });
   });
@@ -206,13 +224,8 @@ export function registerV14Routes(app: Express) {
           out.push(agentMsg(userId, conv, helper, 'Okay, I won’t keep it. 💙'));
           break;
         }
-        const d = c.data!.draft;
-        const e: CabinetEntry = {
-          id: id('entry'), userId, type: d.type, title: d.title, detail: d.detail || '', source: 'customer', status: 'active', private: true,
-          readableBy: { abel: true, offers: false }, provenance: { channel: 'app', messageId: msg.id }, target: d.target, goalType: d.goalType,
-          reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(),
-        };
-        db.addCabinetEntry(e);
+        const e = entryFromDraft(userId, c.data!.draft, { private: true, provenance: { channel: 'app', messageId: msg.id } });
+        db.addCabinetEntry(e, { by: 'you', how: 'Saved privately in chat' });
         const undoToken = id('undo');
         db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}" (private)`, previousEntry: null, entryId: e.id });
         db.updateMessage(msg.id, { resolved: 'Save privately' });
@@ -243,28 +256,86 @@ export function registerV14Routes(app: Express) {
         if (!c) return res.status(400).json({ error: 'No import on this message' });
         if (action === 'import_no') {
           db.updateMessage(msg.id, { resolved: 'Not now' });
-          out.push(agentMsg(userId, conv, helper, 'Okay, nothing saved. I don’t keep the file.'));
+          const kept = c.data!.documentId ? db.getDocument(c.data!.documentId) : undefined;
+          out.push(agentMsg(userId, conv, helper, kept ? `Okay, nothing saved from it. Your copy stays in Your documents until ${fmtDay(kept.expiresAt.slice(0, 10))}, and you can delete it any time.` : 'Okay, nothing saved. I don’t keep the file.'));
           break;
         }
         const items: ImportItem[] = c.data!.items;
         const picked = (Array.isArray(payload.selected) ? payload.selected : []).map(Number).filter((i: number) => items[i]);
         if (!picked.length) return res.status(400).json({ error: 'Nothing selected' });
+        const how = `From ${c.data!.source}`;
         const ids: string[] = [];
+        let updated = 0;
+        const undoNotes: NonNullable<ChatMessage['notes']> = [];
         for (const i of picked) {
           const x = items[i];
+          const old = x.updates && x.duplicateOfId ? db.getCabinetEntry(x.duplicateOfId) : undefined;
+          if (old && old.userId === userId && old.status !== 'archived') {
+            // Ticking a "Changes …" line updates the existing thing instead of adding a second copy.
+            const prev = { ...old };
+            db.updateCabinetEntry(old.id, { target: x.target || old.target, status: old.status === 'stale' ? 'active' : old.status, confirmedAt: now() }, { by: 'you', how });
+            const undoToken = id('undo');
+            db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'update', description: `Updated "${old.title}"`, previousEntry: prev, entryId: old.id });
+            undoNotes.push({ text: `📌 Updated: ${old.title}`, undoToken, entryId: old.id });
+            updated++;
+            continue;
+          }
+          const detail = x.duplicateOfId ? '' : x.detail;
           const e: CabinetEntry = {
-            id: id('entry'), userId, type: x.type, title: x.title, detail: `${x.sensitive ? 'Private' : x.detail} · From ${c.data!.source}`, source: 'document',
-            status: 'active', private: !!x.sensitive, readableBy: { abel: true, offers: false }, provenance: { channel: 'app', documentId: c.data!.source, messageId: msg.id },
+            id: id('entry'), userId, type: x.type, title: x.title, detail: `${x.sensitive ? 'Private' : detail}${detail || x.sensitive ? ' · ' : ''}From ${c.data!.source}`, source: 'document',
+            status: 'active', private: !!x.sensitive, readableBy: { abel: true, offers: false }, provenance: { channel: 'app', documentId: c.data!.documentId || c.data!.source, messageId: msg.id },
             target: x.target, goalType: x.target ? 'other' : undefined, reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(),
           };
-          db.addCabinetEntry(e);
+          db.addCabinetEntry(e, { by: 'you', how });
           ids.push(e.id);
         }
+        // A kept file remembers what came from it, so deleting the file can offer to delete those too.
+        const doc = c.data!.documentId ? db.getDocument(c.data!.documentId) : undefined;
+        if (doc) db.updateDocument(doc.id, { entryIds: [...doc.entryIds, ...ids] });
+        const notes = [...undoNotes];
+        if (ids.length) {
+          const undoToken = id('undo');
+          db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create_many', description: `Imported ${ids.length} things`, previousEntry: null, entryIds: ids });
+          notes.unshift({ text: `📌 Abel will remember ${ids.length === 1 ? 'this' : 'these'}`, undoToken });
+        }
+        const total = ids.length + updated;
+        db.updateMessage(msg.id, { resolved: `Save ${total} ${total === 1 ? 'thing' : 'things'}` });
+        const parts = [ids.length ? `Saved ${ids.length}` : '', updated ? `updated ${updated}` : ''].filter(Boolean).join(' and ');
+        out.push(agentMsg(userId, conv, helper, `${parts.charAt(0).toUpperCase() + parts.slice(1)} ✓ I’ll use ${total === 1 ? 'it' : 'them'} from now on. Offers can’t read any of it unless you allow it.`, { notes }));
+        break;
+      }
+      case 'dup_update':
+      case 'dup_both':
+      case 'dup_keep': {
+        const c = card('duplicate');
+        if (!c) return res.status(400).json({ error: 'No choice on this message' });
+        const { existing, draft, sensitive } = c.data!;
+        if (action === 'dup_keep') {
+          db.updateMessage(msg.id, { resolved: 'Leave it as it is' });
+          out.push(agentMsg(userId, conv, helper, `Okay, I’ll keep “${existing.title}” as it is.`));
+          break;
+        }
+        if (action === 'dup_both') {
+          const e = entryFromDraft(userId, draft, { private: !!sensitive, provenance: { channel: 'app', messageId: msg.id } });
+          db.addCabinetEntry(e, { by: 'you', how: 'In chat, kept both' });
+          const undoToken = id('undo');
+          db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}"`, previousEntry: null, entryId: e.id });
+          db.updateMessage(msg.id, { resolved: 'Keep both' });
+          out.push(agentMsg(userId, conv, helper, `Saved “${e.title}” next to “${existing.title}”.${sensitive ? ' 🔒 Only I can read it.' : ''}`, { notes: [{ text: `📌 Abel will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
+          break;
+        }
+        const old = db.getCabinetEntry(existing.id);
+        if (!old || old.userId !== userId) return res.status(404).json({ error: 'That entry no longer exists' });
+        const prev = { ...old };
+        const updates: Partial<CabinetEntry> = { title: draft.title || old.title, detail: draft.detail || old.detail, confirmedAt: now() };
+        if (draft.target) updates.target = draft.target;
+        if (old.status === 'stale') updates.status = 'active';
+        db.updateCabinetEntry(old.id, updates, { by: 'you', how: 'In chat' });
         const undoToken = id('undo');
-        db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create_many', description: `Imported ${ids.length} things`, previousEntry: null, entryIds: ids });
-        db.updateMessage(msg.id, { resolved: `Save ${ids.length} ${ids.length === 1 ? 'thing' : 'things'}` });
-        out.push(agentMsg(userId, conv, helper, `Saved ${ids.length} ✓ I’ll use ${ids.length === 1 ? 'it' : 'them'} from now on. Offers can’t read any of it unless you allow it.`, {
-          notes: [{ text: `📌 Abel will remember ${ids.length === 1 ? 'this' : 'these'}`, undoToken }],
+        db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'update', description: `Updated "${old.title}"`, previousEntry: prev, entryId: old.id });
+        db.updateMessage(msg.id, { resolved: 'Update it' });
+        out.push(agentMsg(userId, conv, helper, `Updated ✓ “${updates.title}”${draft.target ? ` is now ${fmt(draft.target.amount)} by ${fmtDay(draft.target.date)}` : ''}. The old version is in its history.`, {
+          notes: [{ text: `📌 Updated: ${updates.title}`, undoToken, entryId: old.id }],
         }));
         break;
       }
@@ -306,7 +377,7 @@ export function registerV14Routes(app: Express) {
 
   // Import a chat, a text file, a PDF or a photo. Sample = the built-in fictional chat between Lauri and Mia.
   app.post('/api/import', async (req, res) => {
-    const { userId = 'lauri', conversationId, helperId = 'abel', text, fileName, sample, fileBase64, mimeType, thumb } = req.body || {};
+    const { userId = 'lauri', conversationId, helperId = 'abel', text, fileName, sample, fileBase64, mimeType, thumb, keep } = req.body || {};
     let conv = conversationId ? db.getConversation(conversationId) : undefined;
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const isImage = /^image\/(jpeg|png|webp|heic|heif)$/.test(String(mimeType || ''));
@@ -317,38 +388,106 @@ export function registerV14Routes(app: Express) {
     const r = await proposeFromContent(userId, fileBase64 ? { file: { mimeType, data: String(fileBase64) } } : { text: sample ? null : String(text || '') });
     const source = sample ? r.source : String(fileName || (isImage ? 'Photo' : 'your file')).slice(0, 80);
     const kind: 'image' | 'pdf' | 'text' = isImage ? 'image' : isPdf ? 'pdf' : 'text';
+    // "Keep a copy" was ticked: store the file in Your documents (deleted after 30 days, or whenever the customer wants).
+    // Otherwise nothing of the file is kept, not even a preview.
+    let doc: StoredDocument | undefined;
+    let keepError = '';
+    if (keep && !sample && (fileBase64 || text)) {
+      try {
+        const body = fileBase64 ? Buffer.from(String(fileBase64), 'base64') : Buffer.from(String(text), 'utf-8');
+        doc = await keepDocument({ userId, name: source, kind, mimeType: fileBase64 ? String(mimeType) : 'text/plain; charset=utf-8', body, conversationId: conv.id });
+      } catch (err: any) {
+        keepError = String(err?.message || err).slice(0, 200);
+        console.error('Could not keep the file:', keepError);
+      }
+    }
     const u: ChatMessage = {
       id: id('msg-user'), userId, agentId: 'abel', channel: 'app', sender: 'user', conversationId: conv.id, helperId: conv.helperId,
       text: isImage ? '' : `📄 ${source}`, createdAt: now(),
-      attachment: { name: source, kind, thumb: isImage && typeof thumb === 'string' && thumb.length < 60000 ? thumb : undefined },
+      attachment: { name: source, kind, documentId: doc?.id, thumb: doc && isImage && typeof thumb === 'string' && thumb.length < 60000 ? thumb : undefined },
     };
     db.addMessage(u);
+    if (doc) db.updateDocument(doc.id, { messageId: u.id });
+    const keptLine = sample ? '' : doc ? `\n\nI kept a copy in Your documents until ${fmtDay(doc.expiresAt.slice(0, 10))}. You can delete it any time.` : keepError ? '\n\nI couldn’t keep a copy this time, so the file isn’t stored.' : '';
     const body = sample ? SAMPLE_CHAT.map(([w, t]) => `${w}: ${t}`).join('\n') : undefined;
 
     let a: ChatMessage;
     if (!getProvider().isConfigured() && !sample) {
       a = agentMsg(userId, conv.id, conv.helperId, 'I can read photos and files once my AI connection is set up. In this copy of the app it isn’t, but the sample chat works.');
     } else if (r.kind === 'error') {
-      a = agentMsg(userId, conv.id, conv.helperId, `Sorry, I couldn’t read ${isImage ? 'that photo' : `“${source}”`}. Could you try again, or tell me the important part?`);
+      a = agentMsg(userId, conv.id, conv.helperId, `Sorry, I couldn’t read ${isImage ? 'that photo' : `“${source}”`}. Could you try again, or tell me the important part?${keptLine}`);
     } else {
       const what = sample ? `I read your chat with Mia (${r.lines} messages).` : r.summary ? r.summary : `I read “${source}”.`;
       const suggestions: string[] = [];
       if (r.amount && ['price_tag', 'receipt', 'bill', 'other'].includes(r.kind || '')) suggestions.push(r.kind === 'bill' ? `Can I pay ${fmt(r.amount, r.amount % 1 ? 2 : 0)} this month?` : `Can I afford ${fmt(r.amount, r.amount % 1 ? 2 : 0)}?`);
       a = r.items.length
-        ? agentMsg(userId, conv.id, conv.helperId, `${what}\n\nHere’s what I’d remember. Untick anything you’d rather I didn’t keep:`, {
-            cards: [{ type: 'import', data: { items: r.items, source, transcript: body } }],
+        ? agentMsg(userId, conv.id, conv.helperId, `${what}${keptLine}\n\nHere’s what I’d remember. Untick anything you’d rather I didn’t keep:`, {
+            cards: [{ type: 'import', data: { items: r.items, source, transcript: body, documentId: doc?.id } }],
           })
-        : agentMsg(userId, conv.id, conv.helperId, `${what}\n\nI didn’t find anything about your goals or plans worth remembering, so I won’t keep it.`, { suggestions });
+        : agentMsg(userId, conv.id, conv.helperId, doc ? `${what}\n\nI didn’t find anything about your goals or plans worth remembering.${keptLine}` : `${what}\n\nI didn’t find anything about your goals or plans worth remembering, so I won’t keep it.`, { suggestions });
     }
     res.status(201).json({ conversationId: conv.id, messages: [u, a] });
   });
+
+  // ---- Your documents (kept copies) ----
+  app.get('/api/documents', (req, res) => {
+    const userId = String(req.query.userId || 'lauri');
+    res.json({ documents: db.getDocuments(userId).map(docInfo), keepDays: KEEP_DAYS });
+  });
+
+  // Opens the kept file. Only for its owner; the bytes never go to anyone else.
+  app.get('/api/documents/:id/file', async (req, res) => {
+    const userId = String(req.query.userId || 'lauri');
+    const d = db.getDocument(req.params.id);
+    if (!d || d.userId !== userId) return res.status(404).json({ error: 'Document not found' });
+    try {
+      const buf = await readDocument(d);
+      res.setHeader('Content-Type', d.mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${d.name.replace(/[^a-zA-Z0-9._ -]/g, '_')}"`);
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.send(buf);
+    } catch (err: any) {
+      res.status(404).json({ error: 'The file is no longer there', detail: String(err?.message || err).slice(0, 200) });
+    }
+  });
+
+  // Delete a kept file. alsoEntries=true also deletes what was saved from it, for good.
+  app.delete('/api/documents/:id', async (req, res) => {
+    const userId = String(req.query.userId || req.body?.userId || 'lauri');
+    const alsoEntries = String(req.query.alsoEntries || req.body?.alsoEntries || '') === 'true';
+    const d = db.getDocument(req.params.id);
+    if (!d || d.userId !== userId) return res.status(404).json({ error: 'Document not found' });
+    try {
+      const r = await deleteDocument(d, alsoEntries);
+      res.json({ deleted: d.id, removedEntries: r.removed, message: r.removed ? `Deleted “${d.name}” and ${r.removed} ${r.removed === 1 ? 'thing' : 'things'} saved from it` : `Deleted “${d.name}”` });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Could not delete the file. Please try again.', detail: String(err?.message || err).slice(0, 200) });
+    }
+  });
+
+  // The history of one thing in What Abel knows, newest first.
+  app.get('/api/entries/:id/history', (req, res) => {
+    const userId = String(req.query.userId || 'lauri');
+    const e = db.getCabinetEntry(req.params.id);
+    if (!e || e.userId !== userId) return res.status(404).json({ error: 'Entry not found' });
+    res.json({ history: [...db.getEntryHistory(e.id)].reverse() });
+  });
+
+  // "Delete my chats". What Abel knows and kept documents stay (they have their own delete).
+  app.post('/api/chats/delete', (req, res) => {
+    const { userId = 'lauri' } = req.body || {};
+    const n = db.deleteChats(userId);
+    res.json({ deletedMessages: n, message: n ? 'Your chats are deleted' : 'There were no chats to delete' });
+  });
+
+  app.get('/api/db-status', (_req, res) => res.json(db.status()));
 
   // When the customer confirms something Nordea noticed. For a salary change, Abel follows up in a new chat.
   app.post('/api/events/observation-confirmed', (req, res) => {
     const { userId = 'lauri', entryId } = req.body || {};
     const e = db.getCabinetEntry(entryId);
     if (!e || e.userId !== userId) return res.status(404).json({ error: 'Entry not found' });
-    db.updateCabinetEntry(e.id, { reviewed: true, confirmedAt: now() });
+    db.updateCabinetEntry(e.id, { reviewed: true, confirmedAt: now() }, { by: 'you', how: 'You confirmed it' });
     const u = db.getUser(userId)!;
     db.updateUser(userId, { points: (u.points || 0) + 10 });
     if (!/salary|pay/i.test(e.title)) return res.json({ entry: db.getCabinetEntry(e.id) });

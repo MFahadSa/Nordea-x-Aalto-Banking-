@@ -699,3 +699,31 @@ span.cam-x{background:none}
 .qr.busy{opacity:.5;pointer-events:none}
 .err-info{font-size:12.5px;color:var(--muted);word-break:break-word}
 .ai-bad{color:var(--danger)}
+
+/* ---- v14 db: Keep a copy, Your documents, history, duplicate choice ---- */
+.mcol.me{align-items:flex-end;width:max-content;max-width:84%}
+.mcol.me .bub{max-width:100%}
+.doc-ic{align-self:flex-start;margin-top:2px}
+.att-kept{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);padding:0 4px}
+.att-kept a,.att-kept .btn.link{font-size:12px;font-weight:600;color:var(--brand);padding:0;min-height:0;text-decoration:none}
+.att-kept.muted{font-style:normal}
+.keep-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface-2);border:0;border-radius:14px;padding:12px 14px;cursor:pointer;color:var(--ink);font:inherit}
+.keep-row .keep-t{display:flex;flex-direction:column;gap:2px;flex:1}
+.keep-row .keep-t b{font-size:15px;font-weight:600}
+.keep-row .keep-t span{font-size:12.5px;color:var(--muted);line-height:1.4}
+.keep-row .tgl{pointer-events:none;flex:none}
+.hist-l{list-style:none;margin:6px 0 0;padding:10px 12px;background:var(--surface-2);border-radius:12px;display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--ink-2);width:100%}
+.hist-l.err{color:var(--warn,#b45309)}
+.hist-l li{display:flex;flex-direction:column;gap:2px;padding-left:12px;border-left:2px solid var(--line)}
+.hist-l .h-top{display:flex;justify-content:space-between;gap:8px}
+.hist-l .h-top b{color:var(--ink);font-weight:600}
+.hist-l .h-top span,.hist-l .h-how{color:var(--muted);font-size:12px}
+.hist-l .h-ch s{color:var(--muted)}
+.goal-more .hist-l{margin-top:10px}
+.doc-ic{width:34px;height:34px;border-radius:10px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--brand)}
+.doc-ic svg{width:20px;height:20px}
+.row-opts a.btn{text-decoration:none;display:inline-flex;align-items:center}
+.row-opts .btn svg{vertical-align:-3px}
+.cf-p{font-size:14.5px;line-height:1.5;color:var(--ink-2);margin:0}
+.of-act.stack3{flex-direction:column;align-items:stretch}
+.of-act.stack3 .btn{width:100%}

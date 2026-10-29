@@ -1,4 +1,4 @@
-import type { Conversation, Earning, Share } from '../types.js';
+import type { Conversation, Earning, Share, EntryEvent } from '../types.js';
 import {
   User,
   CabinetEntry,
@@ -177,8 +177,11 @@ export interface AppState {
   recentReads: AccessLogEntry[];
   readable: { abel: number; offers: number };
   aiConnected: boolean;
+  /** Files the customer chose to keep. Info only, never the file itself. */
+  documents: DocInfo[];
   today: string;
 }
+export interface DocInfo { id: string; name: string; kind: 'image' | 'pdf' | 'text'; size: number; createdAt: string; expiresAt: string; conversationId?: string; entries: string[] }
 
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -219,8 +222,18 @@ export const fetchRewards = () => fetch('/api/rewards').then((r) => j<{ rewards:
 export const redeemReward = (userId: string, rewardId: string) => post('/api/rewards/redeem', { userId, rewardId }).then((r) => j<{ user: User; message: string }>(r));
 export const setOffersOff = (userId: string, offersOff: boolean) => post('/api/settings', { userId, offersOff }).then((r) => j<{ user: User }>(r));
 export const revokeShare = (shareId: string) => post(`/api/shares/${shareId}/revoke`, {}).then((r) => j<{ message: string }>(r));
-export interface ImportBody { sample?: boolean; text?: string; fileName?: string; fileBase64?: string; mimeType?: string; thumb?: string }
+export interface ImportBody { sample?: boolean; text?: string; fileName?: string; fileBase64?: string; mimeType?: string; thumb?: string; /** "Keep a copy" was ticked */ keep?: boolean }
 export const importChat = (userId: string, conversationId: string | null, helperId: string, body: ImportBody) =>
   post('/api/import', { userId, conversationId, helperId, ...body }).then((r) => j<{ conversationId: string; messages: ChatMessage[] }>(r));
 export const confirmObservation = (userId: string, entryId: string) =>
   post('/api/events/observation-confirmed', { userId, entryId }).then((r) => j<{ entry: CabinetEntry; conversationId?: string }>(r));
+
+// ---- Your documents, entry history, deleting chats, where data is saved
+export const documentUrl = (userId: string, id: string) => `/api/documents/${id}/file?userId=${encodeURIComponent(userId)}`;
+export const deleteDocument = (userId: string, id: string, alsoEntries: boolean) =>
+  fetch(`/api/documents/${id}?userId=${encodeURIComponent(userId)}&alsoEntries=${alsoEntries}`, { method: 'DELETE' }).then((r) => j<{ message: string; removedEntries: number }>(r));
+export const fetchHistory = (userId: string, entryId: string) =>
+  fetch(`/api/entries/${entryId}/history?userId=${encodeURIComponent(userId)}`).then((r) => j<{ history: EntryEvent[] }>(r)).then((d) => d.history);
+export const deleteChats = (userId: string) => post('/api/chats/delete', { userId }).then((r) => j<{ message: string; deletedMessages: number }>(r));
+export interface DbStatus { mode: 'supabase' | 'file'; ok: boolean; message: string; lastSavedAt?: string; lastError?: { at: string; message: string }; rows?: number; waiting: number }
+export const fetchDbStatus = () => fetch('/api/db-status').then((r) => j<DbStatus>(r));
