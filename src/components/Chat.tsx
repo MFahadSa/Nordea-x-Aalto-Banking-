@@ -405,6 +405,7 @@ export const Chat: React.FC<Props> = (p) => {
       });
     });
     richCards.forEach((x) => items.push({ who: 'bot', key: `${m.id}-c${x.ci}`, node: x.node, rich: true }));
+    if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">Quick answer from your account data · Abel’s AI is taking a short break</span> });
     if (m.errorInfo && debug) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
     if (lastBot) lastBot.after = usedLine(m);
