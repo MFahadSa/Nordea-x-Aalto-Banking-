@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppState, Reward, pingAi, fetchAiStatus, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
+import { AppState, Reward, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
@@ -473,19 +473,34 @@ const DbCheck: React.FC = () => {
   return <NRow name="Saved data" sub={<span className={s && s.mode === 'supabase' && s.ok ? 'up' : s && !s.ok ? 'ai-bad' : ''}>{text}</span>} right={<button className="btn small" onClick={load}>Check</button>} />;
 };
 
+/** Short, readable reason for the team (the full text is in the chat's technical details). */
+function friendly(msg?: string | null): string {
+  const m = String(msg || '');
+  const wait = m.match(/try again in ((?:\d+h)?(?:\d+m(?!s))?(?:[\d.]+(?:ms|s))?)/i)?.[1];
+  if (/per ?day|TPD|RPD|daily|free_tier|exceeded your current quota/i.test(m)) return `Daily free limit reached${wait ? ` (resets in ${wait.replace(/\.\d+s$/, 's')})` : ''}`;
+  if (/per minute|TPM|RPM|\b429\b/i.test(m)) return 'Per-minute limit, back in a few seconds';
+  if (/\b401\b|invalid api key|unauthori/i.test(m)) return 'The key is wrong or was deleted';
+  if (/timeout|did not answer within/i.test(m)) return 'Didn’t answer in time';
+  if (/fetch failed|ENOTFOUND|ECONN|Can’t reach/i.test(m)) return 'Can’t reach the service';
+  return m.slice(0, 120);
+}
+
 const AiCheck: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
+  const [members, setMembers] = useState<NonNullable<AiStatus['members']>>([]);
   React.useEffect(() => {
     fetchAiStatus()
-      .then((s) => setRes(!s.keyPresent ? { ok: false, text: s.provider !== 'gemini' ? `No ${s.provider} key: add LLM_API_KEY (AI Studio: Settings → Secrets)` : 'No Gemini key reaches the server' } : s.lastError && (!s.lastOk || s.lastError.at > s.lastOk.at) ? { ok: false, text: s.lastError.message } : s.lastOk ? { ok: true, text: `Working · ${s.lastOk.model}${speed(s)}` } : null))
+      .then((s) => (setMembers(s.members || []), s))
+      .then((s) => setRes(!s.keyPresent ? { ok: false, text: s.provider !== 'gemini' ? `No ${s.provider} key: add LLM_API_KEY (AI Studio: Settings → Secrets)` : 'No Gemini key reaches the server' } : s.lastError && (!s.lastOk || s.lastError.at > s.lastOk.at) ? { ok: false, text: friendly(s.lastError.message) } : s.lastOk ? { ok: true, text: `Working · ${s.lastOk.model}${speed(s)}` } : null))
       .catch(() => {});
   }, []);
   const test = async () => {
     setBusy(true);
     try {
       const r = await pingAi();
-      setRes(r.ok ? { ok: true, text: `Working · ${r.model} · test answered in ${((r.ms || 0) / 1000).toFixed(1)} s${speed(r.status)}` } : { ok: false, text: r.error || 'Unknown error' });
+      setRes(r.ok ? { ok: true, text: `Working · ${r.model} · test answered in ${((r.ms || 0) / 1000).toFixed(1)} s${speed(r.status)}` } : { ok: false, text: friendly(r.error) || 'Unknown error' });
+      setMembers(r.status?.members || []);
     } catch (e: any) {
       setRes({ ok: false, text: e?.message || 'The check itself failed' });
     } finally {
@@ -493,12 +508,72 @@ const AiCheck: React.FC = () => {
     }
   };
   return (
-    <NRow
-      name="AI connection"
-      sub={busy ? 'Testing…' : res ? <span className={res.ok ? 'up' : 'ai-bad'}>{res.text}</span> : 'Test whether Abel’s AI answers'}
-      right={<button className="btn small" onClick={test} disabled={busy}>Test</button>}
-    />
+    <>
+      <NRow
+        name="AI connection"
+        sub={busy ? 'Testing…' : res ? <span className={res.ok ? 'up' : 'ai-bad'}>{res.text}</span> : 'Test whether Abel’s AI answers'}
+        right={<button className="btn small" onClick={test} disabled={busy}>Test</button>}
+      />
+      {members.length > 1 && (
+        <div className="ai-each">
+          <span className="ai-each-h">In order: the first one that's free answers. If all are resting, Abel answers common questions from the bank's own numbers.</span>
+          {members.map((m) => (
+            <div key={m.name} className="ai-each-r">
+              <b>{m.name}{m.vision ? ' · reads photos' : ''}</b>
+              <span className={!m.configured ? 'ai-bad' : m.restingFor ? 'ai-bad' : 'up'}>
+                {!m.configured ? 'No key' : m.restingFor ? `Resting ${m.restingFor > 120 ? `${Math.round(m.restingFor / 60)} min` : `${m.restingFor} s`} · ${friendly(m.lastFail?.message)}` : m.lastOk ? 'Ready · answered recently' : 'Ready'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
+};
+
+/** For the team: ask Abel ~12 real questions and grade the answers (uses ~15–20 AI requests). */
+const SelfTest: React.FC = () => {
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<{ results: CheckResult[]; passed: number; total: number } | null>(null);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState<number | null>(null);
+  const run = async () => {
+    setBusy(true); setErr(''); setOut(null);
+    try { setOut(await runSelfTest()); } catch (e: any) { setErr(e?.message || 'The check failed'); } finally { setBusy(false); }
+  };
+  return (
+    <>
+      <NRow
+        name="Check Abel’s answers"
+        sub={busy ? 'Asking 12 questions… this takes 2–3 minutes' : err ? <span className="ai-bad">{err}</span> : out ? <span className={out.passed === out.total ? 'up' : 'ai-bad'}>{out.passed} of {out.total} passed</span> : 'Real questions to the real AI, on a copy of Lauri. Uses about 15–20 AI requests'}
+        right={<button className="btn small" onClick={run} disabled={busy}>Run</button>}
+      />
+      {out && (
+        <div className="ai-each">
+          {out.results.map((r, i) => (
+            <button key={i} className="ai-each-r st-r" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
+              <b className={r.ok ? 'up' : 'ai-bad'}>{r.ok ? '✓' : '✗'} {r.name}</b>
+              <span>{r.why} · {r.answeredBy} · {(r.ms / 1000).toFixed(1)} s</span>
+              {open === i && <span className="st-more"><b>Asked:</b> {r.asked}<br /><b>Abel:</b> {r.reply || '–'}{r.cards.length ? <><br /><b>Cards:</b> {r.cards.join(', ')}</> : null}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
+
+/** For the team: show the small technical line under Abel's messages when something failed. Off for customers. */
+const DebugToggle: React.FC = () => {
+  const read = () => { try { return localStorage.getItem('abel-debug') === '1'; } catch { return false; } };
+  const [on, setOn] = useState(read);
+  const flip = () => {
+    const v = !on;
+    setOn(v);
+    try { localStorage.setItem('abel-debug', v ? '1' : '0'); } catch { /* storage may be blocked */ }
+    window.dispatchEvent(new Event('abel-debug'));
+  };
+  return <NRow name="Show technical details" sub="For your team: why an answer failed, under the message" right={<Toggle on={on} onChange={flip} label="Show technical details" />} />;
 };
 
 // ---------------- More ----------------
@@ -520,7 +595,9 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="Demo" />
       <div className="ncard flat">
         <AiCheck />
+        <SelfTest />
         <DbCheck />
+        <DebugToggle />
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
         <NRow name="Reset demo data" sub="Start again" onClick={onReset} />
       </div>

@@ -814,6 +814,40 @@ class Database {
     return d;
   }
 
+  /** A copy of a demo customer (for the answer check), so tests never change the real demo data. */
+  public cloneUser(fromId: string, toId: string) {
+    this.removeUser(toId);
+    const u = this.state.users[fromId];
+    if (!u) return false;
+    this.state.users[toId] = { ...JSON.parse(JSON.stringify(u)), id: toId, name: u.name };
+    const map = new Map<string, string>();
+    for (const e of this.getCabinetEntries(fromId)) {
+      const id = `${toId}-${e.id}`;
+      map.set(e.id, id);
+      this.state.cabinetEntries.push({ ...JSON.parse(JSON.stringify(e)), id, userId: toId });
+    }
+    for (const t of this.getTransactions(fromId)) this.state.transactions.push({ ...t, id: `${toId}-${t.id}`, userId: toId });
+    this.saveState(this.state);
+    return true;
+  }
+
+  /** Remove a (test) customer and everything about them. */
+  public removeUser(id: string) {
+    delete this.state.users[id];
+    const keep = (x: { userId?: string }) => x.userId !== id;
+    this.state.cabinetEntries = this.state.cabinetEntries.filter(keep);
+    this.state.transactions = this.state.transactions.filter(keep);
+    this.state.messages = this.state.messages.filter(keep);
+    this.state.conversations = this.state.conversations.filter(keep);
+    this.state.accessLog = this.state.accessLog.filter(keep);
+    this.state.topicLog = this.state.topicLog.filter(keep);
+    this.state.undoRecords = this.state.undoRecords.filter(keep);
+    this.state.entryHistory = this.state.entryHistory.filter(keep);
+    this.state.earnings = this.state.earnings.filter(keep);
+    this.state.shares = this.state.shares.filter(keep);
+    this.saveState(this.state);
+  }
+
   /** Delete one chat: its messages and the conversation. Kept documents and what Abel knows stay. */
   public deleteConversation(userId: string, id: string) {
     const c = this.getConversation(id);

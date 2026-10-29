@@ -32,7 +32,12 @@ export interface LlmProvider {
   name: string;
   isConfigured(): boolean;
   /** One model step. The model must answer with tool calls (Abel always ends with finishReply). */
-  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number }): Promise<StepResult>;
+  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number }): Promise<StepResult>;
+  /** Can read photos (and scanned PDFs). */
+  vision?: boolean;
+  /** Readable name, e.g. "Groq" or "Gemini". */
+  label?: string;
+  model?: string;
   /** Providers other than Gemini report their own status for More → AI connection. */
   status?(): any;
   ping?(): Promise<any>;
@@ -70,7 +75,7 @@ export function recordTurn(ms: number, calls: number) {
 /** Max time for one call to the model. Without this a stuck request leaves the chat "typing…" forever. */
 const STEP_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 30000;
 
-function geminiConfigured() {
+export function geminiConfigured() {
   const k = process.env.GEMINI_API_KEY;
   return !!k && k !== 'MY_GEMINI_API_KEY';
 }
@@ -190,8 +195,12 @@ export async function generateWith(
   throw last;
 }
 
-const gemini: LlmProvider = {
+export const gemini: LlmProvider = {
   name: 'gemini',
+  label: 'Gemini',
+  vision: true,
+  status: () => geminiStatus(),
+  ping: () => geminiPing(),
   isConfigured: geminiConfigured,
   async step({ system, turns, tools, temperature = 0.3, timeoutMs }) {
     const contents: any[] = [];
@@ -218,8 +227,14 @@ const thinkLabel = (m?: ThinkMode) => (m === 'level' ? 'low' : m === 'budget' ? 
 /** For the "AI connection" check in More. Never returns the key itself. */
 export function aiStatus() {
   if (override?.status) return override.status();
+  if (override) return { provider: override.name, keyPresent: true, model: override.name, candidates: [], lastOk: null, lastError: null, thinking: '', lastTurn };
+  return geminiStatus();
+}
+
+/** Gemini's own status (also used when Gemini is one link in the chain). */
+export function geminiStatus() {
   return {
-    provider: override ? override.name : 'gemini',
+    provider: 'gemini',
     keyPresent: geminiConfigured(),
     model: activeModel || CANDIDATES[0],
     candidates: CANDIDATES,
@@ -234,6 +249,10 @@ export function aiStatus() {
 export async function aiPing() {
   if (override?.ping) return override.ping();
   if (override) return { ok: true, model: override.name, ms: 0, reply: 'OK (test stand-in)' };
+  return geminiPing();
+}
+
+export async function geminiPing() {
   if (!geminiConfigured()) return { ok: false, error: 'No Gemini key reaches the server (GEMINI_API_KEY is missing).' };
   const t0 = Date.now();
   try {
@@ -246,7 +265,7 @@ export async function aiPing() {
 
 /** Short, customer-safe reason for the last failure (shown under the error message in chat). */
 export function lastErrorText() {
-  if (override?.status) return override.status().lastError?.message || '';
+  if (override?.status) return override.status()?.lastError?.message || '';
   return lastError?.message || '';
 }
 
