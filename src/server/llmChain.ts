@@ -37,7 +37,9 @@ export function makeChain(members: LlmProvider[]): ChainProvider {
     const s = st.get(m)!;
     try {
       // Only the last option waits out a per-minute limit; the others hand over to the next model straight away.
-      const res = await m.step({ ...args, maxWaitMs: isLast ? 20000 : 1500 });
+      // The first (best) model waits up to 8 s for its per-minute limit, so answers stay consistent;
+      // only a longer wait hands over to the next model. The last option waits up to 20 s.
+      const res = await m.step({ ...args, maxWaitMs: isLast ? 20000 : m === members[0] ? 8000 : 1500 });
       s.lastOk = { at: new Date().toISOString() };
       s.restUntil = 0;
       lastUsed = m;
