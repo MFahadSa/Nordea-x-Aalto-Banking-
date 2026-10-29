@@ -13,7 +13,7 @@ import { db } from './db.js';
 import { readCabinetThroughGateway, previewCabinetForAgent } from './accessGateway.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
-import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn } from './llm.js';
+import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn, isBusy } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
 
 export const HELPER_FOCUS: Record<string, string> = {
@@ -424,7 +424,11 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       console.error('LLM error:', err?.message || err);
       const detail = lastErrorText() || String(err?.message || err).slice(0, 300);
       return {
-        text: /timeout/i.test(detail) ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?' : 'Sorry, I couldn’t answer just now. Could you try again in a moment?',
+        text: isBusy(detail)
+          ? 'Sorry, Google’s AI is very busy right now, so I couldn’t answer. Could you try again in a minute?'
+          : /timeout/i.test(detail)
+            ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?'
+            : 'Sorry, I couldn’t answer just now. Could you try again in a moment?',
         suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: false, error: 'llm_error', errorDetail: detail,
       };
     }
