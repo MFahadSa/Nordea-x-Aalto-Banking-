@@ -23,8 +23,9 @@ export const providerLabel = () => labelFor(envBase());
 /** Other free models on the same service, tried when the first one is at its limit (Groq counts limits per model). */
 export function fallbackModels(): string[] {
   if (process.env.LLM_FALLBACK_MODELS !== undefined) return process.env.LLM_FALLBACK_MODELS.split(',').map((s) => s.trim()).filter(Boolean);
-  // Only one backup: the small gpt-oss-20b gave broken answers in testing, so it isn't used by default.
-  if (/groq\.com/i.test(envBase())) return ['qwen/qwen3.8-27b'];
+  // Groq counts limits per model, so each extra model adds its own free allowance. gpt-oss-20b is last: it's
+  // the weakest, but the reply checks (code, empty or broken answers go back to the AI once) catch its slips.
+  if (/groq\.com/i.test(envBase())) return ['qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
   return [];
 }
 
