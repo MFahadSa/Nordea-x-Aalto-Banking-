@@ -70,9 +70,26 @@ export function callsInText(text: string, toolNames: string[], only?: { name: st
 
   // <function=name>{...}</function> (Llama style)
   s = s.replace(/<function=([\w.-]+)>\s*(\{[\s\S]*?\})\s*<\/function>/g, (all, name, json) => {
-    if (!names.has(name)) return all;
-    try { calls.push({ id: id(), name, args: JSON.parse(json) }); return ''; } catch { return all; }
+    const nm = closestTool(name, toolNames);
+    if (!nm) return all;
+    try { calls.push({ id: id(), name: nm, args: JSON.parse(json) }); return ''; } catch { return all; }
   });
+  // Qwen style: <tool_call><function=name><parameter=key>value</parameter>…</function></tool_call>
+  s = s.replace(/(?:<tool_call>\s*)?<function=([\w.-]+)>([\s\S]*?)(?:<\/function>|$)(?:\s*<\/tool_call>)?/g, (all, name, body) => {
+    const nm = closestTool(name, toolNames);
+    if (!nm || !/<parameter=/.test(body)) return all;
+    const args: Record<string, any> = {};
+    for (const m of body.matchAll(/<parameter=([\w.-]+)>\s*([\s\S]*?)\s*(?:<\/parameter>|(?=<parameter=)|$)/g)) {
+      const v = m[2].trim();
+      if (/^(true|false)$/i.test(v)) args[m[1]] = v.toLowerCase() === 'true';
+      else if (/^-?\d+(\.\d+)?$/.test(v)) args[m[1]] = Number(v);
+      else if (/^[[{]/.test(v)) { try { args[m[1]] = JSON.parse(v); } catch { args[m[1]] = v; } }
+      else args[m[1]] = v;
+    }
+    calls.push({ id: id(), name: nm, args });
+    return '';
+  });
+  s = s.replace(/<\/?tool_call>/g, '');
 
   const cut: [number, number][] = [];
   for (const b of jsonBlocks(s)) {
@@ -80,7 +97,9 @@ export function callsInText(text: string, toolNames: string[], only?: { name: st
     if (!v || typeof v !== 'object') continue;
     const name = v.name || v.function?.name || v.tool;
     const args = v.arguments ?? v.parameters ?? v.args ?? v.function?.arguments;
-    if (typeof name === 'string' && names.has(name)) {
+    const nm = typeof name === 'string' ? closestTool(name, toolNames) : undefined;
+    if (nm && (args === undefined || typeof args === 'object' || typeof args === 'string')) {
+      const name = nm;
       let a = args;
       if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } }
       calls.push({ id: id(), name, args: a && typeof a === 'object' ? a : {} });
@@ -108,4 +127,29 @@ export function callsInText(text: string, toolNames: string[], only?: { name: st
     }
   }
   return { calls, rest: s.replace(/\n{3,}/g, '\n\n').trim() };
+}
+
+/** The offered tool a (sometimes misspelled) name means: "proposeCabyrinthChange" → "proposeCabinetChange". */
+export function closestTool(name: string, toolNames: string[]): string | undefined {
+  if (toolNames.includes(name)) return name;
+  const lc = name.toLowerCase();
+  let best: { t: string; d: number } | undefined;
+  for (const t of toolNames) {
+    const d = editDistance(lc, t.toLowerCase());
+    if (d <= Math.max(2, Math.floor(t.length / 4)) && (!best || d < best.d)) best = { t, d };
+  }
+  return best?.t;
+}
+function editDistance(a: string, b: string) {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[a.length][b.length];
+}
+
+/** Text that is (part of) a tool call or code, never something to show a customer. */
+export function looksLikeCode(t: string): boolean {
+  return /<\/?(tool_call|function|parameter)\b|<function=|\{\s*"(name|arguments|function|parameters|tool)"\s*:|^\s*[{[]/m.test(String(t || ''));
 }

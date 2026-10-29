@@ -16,7 +16,7 @@ import * as fin from './finance.js';
 import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn, isBusy } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
 import { findSimilar, compare } from './similar.js';
-import { kvReplyIn } from './replyParse.js';
+import { kvReplyIn, looksLikeCode } from './replyParse.js';
 import { offlineAnswer } from './abelOffline.js';
 import { pdfText, xlsxText, XLSX_MIME } from './fileText.js';
 
@@ -256,6 +256,8 @@ export function cleanReply(t: string): string {
     .replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/^#{1,6}\s+/gm, '')
     .replace(/\n*\s*(?:\*\*)?(?:quick )?suggestions?:?(?:\*\*)?\s*\n(?:\s*[-•*]\s.*\n?)+/gi, '\n')
     .replace(/^\s*[.…]{2,}\s*$/gm, '')
+    // "14,600 €" → "14 600 €" (Finnish style; a comma is for cents)
+    .replace(/\b(\d{1,3}),(\d{3})(?=\s*€)/g, '$1 $2')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   return s;
@@ -557,7 +559,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   // When no AI can answer, the bank's code answers the common questions with real numbers.
   const offline = (detail?: string): AbelReply => {
     // The AI did answer but badly (garbled, made-up numbers): that's "I didn't get that right", not "try later".
-    const o = offlineAnswer(userId, userText, read.allowed, /garbled|Unverified|step limit/i.test(detail || '') ? 'unclear' : 'no_ai');
+    const o = offlineAnswer(userId, userText, read.allowed, /garbled|Unverified|step limit|was code/i.test(detail || '') ? 'unclear' : 'no_ai');
     for (const a of o.actions || []) runTool({ id: 'offline', name: a.name, args: a.args }, ctx);
     recordTurn(Date.now() - t0, modelCalls);
     return {
@@ -599,7 +601,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       const raw = (res.text || '').trim();
       const j = jsonReplyIn(raw);
       const t = cleanReply(j ? String(j.text) : raw);
-      if (t && !isGarbled(t) && !unsupportedNumbers(t, known).length) {
+      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known).length) {
         recordTurn(Date.now() - t0, modelCalls);
         return finish(t, j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
       }
@@ -639,7 +641,13 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       && results.every((r) => (r.result as any)?.saved === true || (r.result as any)?.shown === true)
       && !unsupportedNumbers(res.text!.trim(), known).length) {
       const t = cleanReply(res.text!.trim());
-      if (t && !isGarbled(t)) finished = finish(t, jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
+      if (t && !isGarbled(t) && !looksLikeCode(t)) finished = finish(t, jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
+    }
+    // The action went through but the model's words were code or nothing: say what was done, in plain words.
+    if (!finished && res.calls.every((c) => ACTION_TOOLS.has(c.name)) && (ctx.notes.length || ctx.cards.length)
+      && results.every((r) => (r.result as any)?.saved === true || (r.result as any)?.shown === true || (r.result as any)?.waitingForCustomer === true)
+      && (!(res.text || '').trim() || looksLikeCode(res.text!))) {
+      finished = finish(doneLine(), [], [], 'other', true);
     }
     if (finished) {
       recordTurn(Date.now() - t0, modelCalls);
@@ -657,7 +665,23 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     return [removed.length ? `Done, I removed ${q(removed)}.` : '', added.length ? `Got it, I’ll remember ${q(added)}.` : '', 'You can undo it below.'].filter(Boolean).join(' ');
   }
 
+  /** Plain words for the cards and notes of this turn. */
+  function doneLine() {
+    const c = ctx.cards[0];
+    if (c?.type === 'confirm_save') return 'Thank you for telling me, that sounds like a lot to carry. 💙\n\nIt’s private, so I haven’t saved it. If you’d like me to keep it in mind, tap Save privately below. Only I could read it, never offers.';
+    if (c?.type === 'duplicate') return 'This is close to something I already know. What would you like to do?';
+    if (c?.type === 'confirm_plan') return 'Here’s the transfer to confirm. Nothing moves until you tap 👇';
+    if (c?.type === 'handoff') return 'Here’s what a Nordea adviser would see, once, if you connect:';
+    if (c?.type === 'offer') return 'Here’s something that might help:';
+    return notesLine();
+  }
+
   function finish(text: string, suggestions: any, used: any, topic: any, couldHelp: any): AbelReply {
+    // Never show a tool call or code to the customer.
+    if (looksLikeCode(text)) {
+      if (ctx.notes.length || ctx.cards.length) text = doneLine();
+      else return offline('The AI answer was code, not words');
+    }
     // Code checks on what the model wrote:
     // a sensitive thing waiting for the customer's tap was not saved, whatever the model says;
     if (ctx.cards.some((c) => c.type === 'confirm_save') && /\b(added|saved|recorded|noted|I'll remember|I will remember|made a note)\b/i.test(text)) {
