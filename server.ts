@@ -15,9 +15,9 @@ import { deleteAllDocumentFiles } from './src/server/documents.js';
 
 // Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.
 if (process.env.LLM_PROVIDER === 'mock') setProvider(mockProvider);
-// LLM_PROVIDER=openai: the Aalto LLM gateway (or another OpenAI-compatible API). Needs the Aalto VPN.
+// LLM_PROVIDER=openai: an OpenAI-compatible API, e.g. Groq's free tier or the Aalto LLM gateway (VPN only).
 if (process.env.LLM_PROVIDER === 'openai') setProvider(openAiProvider);
-console.log(`AI provider: ${process.env.LLM_PROVIDER === 'openai' ? `Aalto LLM (${process.env.LLM_MODEL || 'Qwen/Qwen3.8-27B-FP8'})` : process.env.LLM_PROVIDER === 'mock' ? 'scripted test stand-in' : 'Gemini'}`);
+console.log(`AI provider: ${process.env.LLM_PROVIDER === 'openai' ? `${process.env.LLM_BASE_URL || 'Aalto LLM'} (${process.env.LLM_MODEL || 'Qwen/Qwen3.8-27B-FP8'})` : process.env.LLM_PROVIDER === 'mock' ? 'scripted test stand-in' : 'Gemini'}`);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
