@@ -151,5 +151,5 @@ function editDistance(a: string, b: string) {
 
 /** Text that is (part of) a tool call or code, never something to show a customer. */
 export function looksLikeCode(t: string): boolean {
-  return /<\/?(tool_call|function|parameter)\b|<function=|\{\s*"(name|arguments|function|parameters|tool)"\s*:|^\s*[{[]/m.test(String(t || ''));
+  return /<\/?(tool_call|function|parameter)\b|<function=|\{\s*"(name|arguments|function|parameters|tool)"\s*:|^\s*\{\s*("|$)|^\s*\[\s*[{"]/m.test(String(t || ''));
 }
