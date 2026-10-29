@@ -32,7 +32,7 @@ export interface LlmProvider {
   name: string;
   isConfigured(): boolean;
   /** One model step. The model must answer with tool calls (Abel always ends with finishReply). */
-  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number }): Promise<StepResult>;
+  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number }): Promise<StepResult>;
 }
 
 // Which Gemini model to use. GEMINI_MODEL wins; otherwise try these in order and remember the first
@@ -77,6 +77,8 @@ function clean(err: any): string {
 const isModelProblem = (msg: string) => /not found|NOT_FOUND|404|is not supported|unsupported model|does not exist/i.test(msg);
 /** Google is overloaded or rate-limiting: worth a short wait and a retry, then another model. */
 export const isBusy = (msg: string) => /\b503\b|UNAVAILABLE|high demand|overloaded|\b429\b|RESOURCE_EXHAUSTED|try again later/i.test(msg);
+/** Our own time limit or Google's: another (often faster) model may still answer in time. */
+export const isTimeout = (msg: string) => /\(timeout\)|timed out|DEADLINE_EXCEEDED|\b504\b/i.test(msg);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI'): Promise<T> {
@@ -86,7 +88,7 @@ export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI'): Prom
   });
 }
 
-async function callGemini(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }) {
+async function callGemini(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number }) {
   const modes: ThinkMode[] = thinkMode ? [thinkMode] : ['level', 'budget', 'none'];
   let last: any;
   for (const m of modes) {
@@ -102,7 +104,7 @@ async function callGemini(model: string, args: { system: string; contents: any[]
   throw last;
 }
 
-async function callOnce(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }, thinkingConfig?: object) {
+async function callOnce(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number }, thinkingConfig?: object) {
   // The key stays on the server: this file only runs in server.ts, never in the browser.
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const config: any = { systemInstruction: args.system, temperature: args.temperature };
@@ -111,27 +113,31 @@ async function callOnce(model: string, args: { system: string; contents: any[]; 
     config.tools = [{ functionDeclarations: args.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }];
     config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } };
   }
-  return withTimeout(ai.models.generateContent({ model, contents: args.contents, config }), STEP_TIMEOUT_MS);
+  return withTimeout(ai.models.generateContent({ model, contents: args.contents, config }), args.timeoutMs || STEP_TIMEOUT_MS);
 }
 
 /**
  * Try the remembered model first. If Google says it's busy (503/429), wait a moment and retry once,
- * then move on to the next model. If the model doesn't exist, move on straight away.
- * A wrong key, a timeout or a network problem won't be fixed by another model, so stop there.
+ * then move on to the next model. If the model doesn't exist or didn't answer in time, move on straight away.
+ * A wrong key or a network problem won't be fixed by another model, so stop there.
  */
-async function generate(args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }) {
+async function generate(args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number }) {
   return generateWith(callGemini, args);
 }
 
 /** The retry/fallback logic, separate from the network call so it can be tested. */
 export async function generateWith(
   call: (model: string, args: any) => Promise<any>,
-  args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number },
+  args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number },
   waitMs = 1200,
 ) {
   const order = activeModel ? [activeModel, ...CANDIDATES.filter((m) => m !== activeModel)] : CANDIDATES;
   let last: any;
+  const started = Date.now();
+  // After slow answers, stop trying more models so the customer isn't left waiting (at most about two time limits).
+  const budget = (args.timeoutMs || STEP_TIMEOUT_MS) * 1.5;
   for (const model of order) {
+    if (last && Date.now() - started > budget) break;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await call(model, args);
@@ -144,7 +150,7 @@ export async function generateWith(
         lastError = { at: new Date().toISOString(), message: msg, model };
         console.error(`Gemini error (${model}, try ${attempt + 1}):`, msg);
         if (isBusy(msg) && attempt === 0) { await sleep(waitMs); continue; } // one quick retry on the same model
-        if (isBusy(msg) || isModelProblem(msg)) break; // next model
+        if (isBusy(msg) || isModelProblem(msg) || isTimeout(msg)) break; // next model
         throw err;
       }
     }
@@ -155,7 +161,7 @@ export async function generateWith(
 const gemini: LlmProvider = {
   name: 'gemini',
   isConfigured: geminiConfigured,
-  async step({ system, turns, tools, temperature = 0.3 }) {
+  async step({ system, turns, tools, temperature = 0.3, timeoutMs }) {
     const contents: any[] = [];
     for (const t of turns) {
       if (t.role === 'user')
@@ -169,7 +175,7 @@ const gemini: LlmProvider = {
           parts: t.results.map((r) => ({ functionResponse: { id: r.call.id, name: r.call.name, response: { result: r.result } } })),
         });
     }
-    const res = await generate({ system, contents, tools, temperature });
+    const res = await generate({ system, contents, tools, temperature, timeoutMs });
     const calls: ToolCall[] = (res.functionCalls || []).map((c: any) => ({ id: c.id, name: c.name || '', args: (c.args as any) || {} }));
     return { calls, text: res.text, raw: res.candidates?.[0]?.content };
   },
