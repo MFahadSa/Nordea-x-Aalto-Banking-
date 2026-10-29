@@ -13,8 +13,9 @@ import { db } from './db.js';
 import { readCabinetThroughGateway, previewCabinetForAgent } from './accessGateway.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
-import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn } from './llm.js';
+import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn, isBusy } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
+import { findSimilar, compare } from './similar.js';
 
 export const HELPER_FOCUS: Record<string, string> = {
   abel: 'General help: goals, spending, plans, anything about their money life.',
@@ -271,6 +272,15 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
           type, title, detail: String(a.detail || '').slice(0, 200), target,
           goalType: type === 'goal' ? (a.goalType || 'other') : undefined,
         };
+        // Duplicate / contradiction check in code: never two copies of the same thing, never silently overwrite.
+        const twin = findSimilar(ctx.userId, draft);
+        if (twin) {
+          const how = compare(twin, draft);
+          if (how === 'same') return { saved: false, alreadyKnown: true, entryId: twin.id, note: `Already known as "${twin.title}". Nothing new was saved. Say so briefly.` };
+          ctx.cards.push({ type: 'duplicate', title: how === 'conflict' ? 'This changes something Abel knows' : 'Abel already knows something similar', data: { how, existing: { id: twin.id, title: twin.title, detail: twin.detail, target: twin.target }, draft, sensitive } });
+          ctx.allowedIds.add(twin.id);
+          return { saved: false, waitingForCustomer: true, similarTo: { id: twin.id, title: twin.title, detail: twin.detail, target: twin.target }, note: `Similar to "${twin.title}" (${how}). A choice card is shown: update it, keep both, or leave it. Do not say it was saved; ask in one short sentence.` };
+        }
         if (sensitive) {
           ctx.cards.push({ type: 'confirm_save', title: 'Looks private', body: 'Only Abel could read it, never offers. Save it?', data: { draft } });
           return { saved: false, waitingForCustomer: true, note: 'Sensitive: shown as a choice to the customer. Do not say it was saved.' };
@@ -282,7 +292,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
           provenance: { channel: 'app' }, target: draft.target, goalType: draft.goalType as any, reviewed: true,
           confirmedAt: now, createdAt: now, updatedAt: now,
         };
-        db.addCabinetEntry(entry);
+        db.addCabinetEntry(entry, { by: 'abel', how: 'From your chat' });
         const undoToken = recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId: entry.id });
         ctx.notes.push({ text: `📌 Abel will remember this: ${title}`, undoToken, entryId: entry.id });
         ctx.allowedIds.add(entry.id);
@@ -294,7 +304,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       if (!existing || existing.userId !== ctx.userId || !ctx.allowedIds.has(existing.id)) return { saved: false, error: 'entryId not found in the cabinet' };
       const prev = { ...existing };
       if (action === 'archive') {
-        db.updateCabinetEntry(existing.id, { status: 'archived' });
+        db.updateCabinetEntry(existing.id, { status: 'archived' }, { by: 'abel', how: 'From your chat' });
         const undoToken = recordUndo({ userId: ctx.userId, action: 'archive', description: `Removed "${existing.title}"`, previousEntry: prev, entryId: existing.id });
         ctx.notes.push({ text: `🗂 Removed from what Abel knows: ${existing.title} (kept in history)`, undoToken, entryId: existing.id });
         ctx.changes++;
@@ -307,7 +317,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
         updates.target = { amount: Number(a.targetAmount), date: String(a.targetDate || existing.target?.date) };
       if (existing.status === 'stale') updates.status = 'active';
       updates.confirmedAt = new Date().toISOString();
-      db.updateCabinetEntry(existing.id, updates);
+      db.updateCabinetEntry(existing.id, updates, { by: 'abel', how: 'From your chat' });
       const undoToken = recordUndo({ userId: ctx.userId, action: 'update', description: `Updated "${existing.title}"`, previousEntry: prev, entryId: existing.id });
       ctx.notes.push({ text: `📌 Updated: ${updates.title || existing.title}`, undoToken, entryId: existing.id });
       ctx.changes++;
@@ -424,7 +434,11 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       console.error('LLM error:', err?.message || err);
       const detail = lastErrorText() || String(err?.message || err).slice(0, 300);
       return {
-        text: /timeout/i.test(detail) ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?' : 'Sorry, I couldn’t answer just now. Could you try again in a moment?',
+        text: isBusy(detail)
+          ? 'Sorry, Google’s AI is very busy right now, so I couldn’t answer. Could you try again in a minute?'
+          : /timeout/i.test(detail)
+            ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?'
+            : 'Sorry, I couldn’t answer just now. Could you try again in a moment?',
         suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: false, error: 'llm_error', errorDetail: detail,
       };
     }
@@ -504,6 +518,10 @@ export interface ImportItem {
   quote: string;
   sensitive?: boolean;
   duplicateOf?: string;
+  /** The existing entry it looks like. */
+  duplicateOfId?: string;
+  /** Ticking it updates that entry instead of adding a second one. */
+  updates?: boolean;
   target?: { amount: number; date: string };
 }
 
@@ -516,18 +534,19 @@ const SAMPLE_ITEMS: ImportItem[] = [
 ];
 
 function dedupe(userId: string, items: ImportItem[]): ImportItem[] {
-  const active = db.getCabinetEntries(userId).filter((e) => e.status === 'active');
-  const words = (s: string) => new Set(s.toLowerCase().match(/[a-zåäö]{4,}|\d{3,}/g) || []);
   return items.map((it) => {
-    const w = words(it.title);
-    const hit = active.find((e) => {
-      const ew = words(`${e.title} ${e.detail}`);
-      const overlap = [...w].filter((x) => ew.has(x)).length;
-      return overlap >= 1 && (overlap >= 2 || (it.type === e.type && overlap >= 1));
-    });
-    return hit ? { ...it, on: false, duplicateOf: hit.title, detail: `Already in what Abel knows: “${hit.title}”` } : it;
+    const hit = findSimilar(userId, it);
+    if (!hit) return it;
+    const how = compare(hit, it);
+    const was = hit.target ? ` (${fmt(hit.target.amount)} by ${monthName(hit.target.date)})` : '';
+    if (how === 'conflict' || how === 'adds')
+      return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, updates: true,
+        detail: `Changes “${hit.title}”${was}${it.target ? ` to ${fmt(it.target.amount)} by ${monthName(it.target.date)}` : ''}. Tick to update it.` };
+    return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, detail: `Already in what Abel knows: “${hit.title}”. Tick to save it anyway.` };
   });
 }
+
+const monthName = (d: string) => new Date(`${d.slice(0, 7)}-15T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 export interface ProposeResult {
   items: ImportItem[];

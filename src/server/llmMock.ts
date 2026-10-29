@@ -31,7 +31,8 @@ export const mockProvider: LlmProvider = {
       if (/on track/.test(u)) return { calls: [call('getGoalStatus')] };
       if (/yes, move|move 300/.test(u)) return { calls: [call('offerTransfer', { amountPerMonth: 300 })] };
       if (/yes, show me|payday|plan my/.test(u)) return { calls: [call('getPayPlan')] };
-      if (/wedding/.test(u)) return { calls: [call('proposeCabinetChange', { action: 'add', type: 'goal', title: 'Save for a wedding', targetAmount: 15000, targetDate: '2027-07-31', goalType: 'other', sensitive: false })] };
+      if (/wedding/.test(u)) return { calls: [call('proposeCabinetChange', { action: 'add', type: 'goal', title: 'Save for a wedding', targetAmount: /20 ?000|20k/.test(u) ? 20000 : 15000, targetDate: '2027-07-31', goalType: 'other', sensitive: false })] };
+      if (/flat deposit/.test(u)) return { calls: [call('proposeCabinetChange', { action: 'add', type: 'goal', title: 'Flat deposit', targetAmount: 35000, targetDate: '2028-04-30', goalType: 'home', sensitive: false })] };
       if (/knee|surgery|sick/.test(u)) return { calls: [call('proposeCabinetChange', { action: 'add', type: 'fact', title: 'Mia’s knee surgery', sensitive: true })] };
       if (/human|person|adviser/.test(u)) return { calls: [call('startHandoff', { agentId: 'adviser' })] };
       if (/money go/.test(u)) return { calls: [call('getSpending', { months: 3 })] };
@@ -56,7 +57,7 @@ export const mockProvider: LlmProvider = {
       } else if (r.call.name === 'offerTransfer') {
         text = 'Here you go, just confirm below 👇';
       } else if (r.call.name === 'proposeCabinetChange') {
-        text = res.saved ? 'Love it! I’ve added it.' : 'That sounds hard. I won’t keep it unless you want me to.';
+        text = res.saved ? 'Love it! I’ve added it.' : res.alreadyKnown ? 'I already have that.' : res.similarTo ? 'You already have something like this. Choose below.' : 'That sounds hard. I won’t keep it unless you want me to.';
       } else if (r.call.name === 'startHandoff') {
         text = 'I can connect you with a Nordea adviser.';
       } else if (r.call.name === 'getSpending') {

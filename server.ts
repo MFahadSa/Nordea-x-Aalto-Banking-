@@ -8,6 +8,7 @@ import { CabinetEntry, UndoRecord } from './src/types.js';
 import { registerV14Routes } from './src/server/routes.js';
 import { setProviderForTests } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
+import { deleteAllDocumentFiles } from './src/server/documents.js';
 
 // Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.
 if (process.env.LLM_PROVIDER === 'mock') setProviderForTests(mockProvider);
@@ -20,6 +21,18 @@ const PORT = 3000;
 
 // Photos and PDFs are sent as base64, so allow bigger bodies (the client shrinks photos first).
 app.use(express.json({ limit: '12mb' }));
+
+// Anything that changes data answers only after the change is saved in Supabase (when it's set up),
+// so a restart of the hosting can't lose what the customer just did.
+app.use((req, res, next) => {
+  if (req.method === 'GET') return next();
+  const send = res.json.bind(res);
+  res.json = ((body: any) => {
+    db.flush().finally(() => send(body));
+    return res;
+  }) as any;
+  next();
+});
 
 // API Routes
 
@@ -50,7 +63,8 @@ app.patch('/api/users/:userId', (req, res) => {
   res.json({ user });
 });
 
-app.post('/api/users/reset', (req, res) => {
+app.post('/api/users/reset', async (req, res) => {
+  await deleteAllDocumentFiles();
   const state = db.resetToSeed();
   res.json({ message: 'Database reset to initial fictional seeds', state });
 });
@@ -104,7 +118,7 @@ app.post('/api/cabinet', (req, res) => {
     updatedAt: now,
   };
 
-  db.addCabinetEntry(newEntry);
+  db.addCabinetEntry(newEntry, { by: 'you', how: 'In the app' });
 
   // Generate undo token
   const undoToken = `undo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -133,7 +147,7 @@ app.patch('/api/cabinet/:id', (req, res) => {
   }
 
   const prevSnapshot = { ...existing };
-  const updated = db.updateCabinetEntry(req.params.id, req.body);
+  const updated = db.updateCabinetEntry(req.params.id, req.body, { by: 'you', how: 'In the app' });
 
   const undoToken = `undo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const undoRecord: UndoRecord = {
@@ -162,7 +176,7 @@ app.delete('/api/cabinet/:id', (req, res) => {
 
   const prevSnapshot = { ...existing };
   // Mark as archived (or delete) to preserve provenance
-  const archived = db.updateCabinetEntry(req.params.id, { status: 'archived' });
+  const archived = db.updateCabinetEntry(req.params.id, { status: 'archived' }, { by: 'you', how: 'In the app' });
 
   const undoToken = `undo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const undoRecord: UndoRecord = {
@@ -196,13 +210,13 @@ app.post('/api/cabinet/undo', (req, res) => {
   }
 
   if (record.action === 'create_many' && record.entryIds) {
-    record.entryIds.forEach((id) => db.deleteCabinetEntry(id));
+    record.entryIds.forEach((id) => db.deleteCabinetEntry(id, { purge: true }));
   } else if (record.action === 'create' && record.entryId) {
     // Revert creation by deleting the entry
-    db.deleteCabinetEntry(record.entryId);
+    db.deleteCabinetEntry(record.entryId, { purge: true });
   } else if ((record.action === 'update' || record.action === 'archive') && record.previousEntry) {
     // Restore previous snapshot
-    db.updateCabinetEntry(record.previousEntry.id, record.previousEntry);
+    db.updateCabinetEntry(record.previousEntry.id, record.previousEntry, { by: 'you', how: 'Undo', action: 'undone' });
   }
 
   db.removeUndoRecord(undoToken);
@@ -254,6 +268,8 @@ registerV14Routes(app);
 
 // Vite Middleware Mounting (Development) or Static File Serving (Production)
 async function startServer() {
+  // Connect to Supabase first (if its secrets are set), so the first request already sees saved data.
+  await db.init();
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {

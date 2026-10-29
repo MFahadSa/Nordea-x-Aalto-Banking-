@@ -135,7 +135,8 @@ export interface MessageCard {
     | 'import'
     | 'handoff'
     | 'confirm_save'
-    | 'confirm_plan';
+    | 'confirm_plan'
+    | 'duplicate';
   title?: string;
   body?: string;
   data?: Record<string, any>;
@@ -155,7 +156,17 @@ export interface ChatMessage {
   /** Cabinet entries Abel actually relied on for this reply (checked against what the gateway returned). */
   usedEntryIds?: string[];
   /** A file or photo the customer sent (a small thumbnail is kept for photos, never the full file). */
-  attachment?: { name: string; kind: 'image' | 'pdf' | 'text'; thumb?: string; size?: number };
+  attachment?: {
+    name: string;
+    kind: 'image' | 'pdf' | 'text';
+    /** Small preview, only when the customer chose to keep a copy. */
+    thumb?: string;
+    size?: number;
+    /** Set when the customer ticked "Keep a copy": the file is in Your documents. */
+    documentId?: string;
+    /** True once the kept copy was deleted (by the customer or after 30 days). */
+    deleted?: boolean;
+  };
   /** Technical reason when Abel couldn't answer (shown small, for debugging the demo). */
   errorInfo?: string;
   /** Set when the customer tapped a button on this message, so it can't be tapped twice. */
@@ -228,4 +239,37 @@ export interface Share {
   until: string;
   revoked: boolean;
   revokedAt?: string;
+}
+
+/** A file the customer chose to keep ("Keep a copy"). Deleted automatically after 30 days. */
+export interface StoredDocument {
+  id: string;
+  userId: string;
+  name: string;
+  kind: 'image' | 'pdf' | 'text';
+  mimeType: string;
+  size: number;
+  /** Where the bytes are: Supabase Storage (or data/documents/ without Supabase). */
+  storagePath: string;
+  conversationId?: string;
+  messageId?: string;
+  /** Things the customer saved from this file. */
+  entryIds: string[];
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** One change to one thing in What Abel knows. Labels and values only, never chat text. */
+export interface EntryEvent {
+  id: string;
+  entryId: string;
+  userId: string;
+  at: string;
+  action: 'added' | 'changed' | 'removed' | 'brought_back' | 'confirmed' | 'marked_wrong' | 'deleted' | 'undone';
+  /** Who made the change: the customer, Abel (from what the customer said) or Nordea (noticed in transactions). */
+  by: 'you' | 'abel' | 'nordea';
+  /** Where it happened, e.g. "In chat", "From payslip.pdf", "Undo". */
+  how?: string;
+  title: string;
+  changes?: { field: string; from: unknown; to: unknown }[];
 }

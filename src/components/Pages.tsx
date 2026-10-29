@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AppState, Reward, pingAi, fetchAiStatus } from '../services/api.js';
-import { CabinetEntry } from '../types.js';
+import { AppState, Reward, pingAi, fetchAiStatus, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
+import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
 import { DetailHead, NRow, Band, Toggle } from './Nordea.js';
@@ -24,7 +24,51 @@ interface KnowsProps {
   onAskAbout: (text: string) => void;
   onUpdate: (e: CabinetEntry, updates: Partial<CabinetEntry>) => void;
   onArchive: (e: CabinetEntry) => void;
+  onDeleteDoc: (id: string) => void;
 }
+
+// ---------------- History of one entry ----------------
+const WHO: Record<EntryEvent['by'], string> = { you: 'You', abel: 'Abel', nordea: 'Nordea' };
+const DID: Record<EntryEvent['action'], string> = {
+  added: 'added it', changed: 'changed it', removed: 'removed it', brought_back: 'brought it back', confirmed: 'confirmed it',
+  marked_wrong: 'said it’s wrong', deleted: 'deleted it', undone: 'undid a change',
+};
+const FIELD: Record<string, string> = { title: 'Name', detail: 'Details', status: 'Status', private: 'Private', target: 'Target', readableBy: 'Who can use it', reviewed: 'Checked by you' };
+const STATUS: Record<string, string> = { active: 'In use', stale: 'Looks out of date', archived: 'Removed', disputed: 'Marked wrong' };
+const fullDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+function val(field: string, v: any): string {
+  if (v == null || v === '') return '–';
+  if (field === 'target') return `${eur(v.amount)} by ${monthShort(String(v.date).slice(0, 7))}`;
+  if (field === 'status') return STATUS[v] || String(v);
+  if (field === 'readableBy') return Object.entries(v).filter(([, on]) => on).map(([k]) => (k === 'abel' ? 'Abel' : k === 'offers' ? 'Offers' : k)).join(', ') || 'No one';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  return String(v);
+}
+
+/** Every change to one thing, newest first: who did it, where, and what changed. Loaded when opened. */
+export const HistoryList: React.FC<{ userId: string; entryId: string }> = ({ userId, entryId }) => {
+  const [list, setList] = useState<EntryEvent[] | null>(null);
+  const [err, setErr] = useState('');
+  React.useEffect(() => {
+    fetchHistory(userId, entryId).then(setList).catch((e) => setErr(e?.message || 'Couldn’t load the history'));
+  }, [userId, entryId]);
+  if (err) return <p className="hist-l err">{err}</p>;
+  if (!list) return <p className="hist-l">Loading history…</p>;
+  if (!list.length) return <p className="hist-l">No changes yet.</p>;
+  return (
+    <ol className="hist-l" aria-label="History">
+      {list.map((h) => (
+        <li key={h.id}>
+          <span className="h-top"><b>{WHO[h.by]} {DID[h.action]}</b><span>{fullDate(h.at)}</span></span>
+          {h.how && <span className="h-how">{h.how}</span>}
+          {(h.changes || []).filter((c) => c.field !== 'reviewed').map((c, i) => (
+            <span className="h-ch" key={i}>{FIELD[c.field] || c.field}: <s>{val(c.field, c.from)}</s> → {val(c.field, c.to)}</span>
+          ))}
+        </li>
+      ))}
+    </ol>
+  );
+};
 
 function seenLine(e: CabinetEntry): string {
   // Only say something when it isn't the obvious "Abel uses it".
@@ -37,6 +81,7 @@ function seenLine(e: CabinetEntry): string {
 }
 
 const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; whyOpen: boolean; onWhy: () => void } & Pick<KnowsProps, 'onUpdate' | 'onArchive'>> = ({ e, open, onMenu, whyOpen, onWhy, onUpdate, onArchive }) => {
+  const [hist, setHist] = useState(false);
   const c = e.type === 'blind_spot' ? 'grey' : e.source === 'nordea' ? 'bank' : 'you';
   const meta =
     e.status === 'archived' ? 'Removed · kept in history' : e.status === 'stale' ? 'Looks out of date' : e.private ? 'Private · never used for offers' : e.source === 'document' ? 'From a document you imported' : '';
@@ -55,13 +100,17 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
       {open && (
         <div className="row-opts">
           {e.status === 'archived' ? (
-            <button className="btn small" onClick={() => onUpdate(e, { status: 'active' })}>Bring back</button>
+            <>
+              <button className="btn small" onClick={() => onUpdate(e, { status: 'active' })}>Bring back</button>
+              <button className="btn small quiet" aria-expanded={hist} onClick={() => setHist(!hist)}>{hist ? 'Hide history' : 'History'}</button>
+            </>
           ) : e.status === 'disputed' ? (
             <button className="btn small" onClick={() => onUpdate(e, { status: 'active' })}>It’s right after all</button>
           ) : (
             <>
               {e.source === 'nordea' && e.type !== 'blind_spot' && <button className="btn small" onClick={() => onUpdate(e, { status: 'disputed' })}>That’s wrong</button>}
               {e.why && <button className="btn small quiet" onClick={onWhy}>How do we know?</button>}
+              <button className="btn small quiet" aria-expanded={hist} onClick={() => setHist(!hist)}>{hist ? 'Hide history' : 'History'}</button>
               {e.type !== 'blind_spot' && <button className="btn small quiet" onClick={() => onArchive(e)}>Remove</button>}
               {e.type !== 'blind_spot' && (
                 <div className="perm-row" style={{ width: '100%' }}>
@@ -78,17 +127,48 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
               )}
             </>
           )}
+          {hist && <HistoryList userId={e.userId} entryId={e.id} />}
         </div>
       )}
     </div>
   );
 };
 
+/** Files the customer chose to keep. Shown in What Abel knows, with delete. */
+const DocsSection: React.FC<{ userId: string; docs: DocInfo[]; onDelete: (id: string) => void }> = ({ userId, docs, onDelete }) => (
+  <>
+    <div className="sec-title" id="your-docs"><h2>Your documents</h2><span className="kicker">{docs.length ? `${docs.length} kept` : 'none kept'}</span></div>
+    {docs.length ? (
+      <div className="list">
+        {[...docs].reverse().map((d) => (
+          <div className="row" key={d.id}>
+            <div className="row-main">
+              <span className="doc-ic" aria-hidden="true"><Icon name={d.kind === 'image' ? 'image' : 'file'} /></span>
+              <div className="row-txt">
+                <h4>{d.name}</h4>
+                <p>{d.entries.length ? `Saved from it: ${d.entries.join(', ')}` : 'Nothing saved from it'}</p>
+                <span className="meta">Added {dayMonth(d.createdAt.slice(0, 10))} · deletes itself on {dayMonth(d.expiresAt.slice(0, 10))}</span>
+              </div>
+            </div>
+            <div className="row-opts">
+              <a className="btn small" href={documentUrl(userId, d.id)} target="_blank" rel="noopener">Open</a>
+              <button className="btn small quiet" onClick={() => onDelete(d.id)}><Icon name="trash" size={16} /> Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="card"><p>Files you add to a chat aren’t kept. Switch on “Keep a copy” when adding one, and it’s stored here for 30 days. You can delete it any time.</p></div>
+    )}
+  </>
+);
+
 export const KnowsPage: React.FC<KnowsProps> = (p) => {
   const { state } = p;
   const [menu, setMenu] = useState<string | null>(null);
   const [why, setWhy] = useState<string | null>(null);
   const [goalOpen, setGoalOpen] = useState<string | null>(null);
+  const [goalHist, setGoalHist] = useState<string | null>(null);
   const active = state.entries.filter((e) => e.status !== 'archived');
   const tracked = new Set(state.goals.map((g) => g.goalId));
   const listed = active.filter((e) => !tracked.has(e.id));
@@ -134,7 +214,9 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                     <div className="gm-act">
                       <button className="btn small primary" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Abel about this</button>
                       <button className="btn small" onClick={() => p.onAskAbout('Plan my next payday')}>Plan my payday</button>
+                      <button className="btn small quiet" aria-expanded={goalHist === g.goalId} onClick={() => setGoalHist(goalHist === g.goalId ? null : g.goalId)}>{goalHist === g.goalId ? 'Hide history' : 'History'}</button>
                     </div>
+                    {goalHist === g.goalId && <HistoryList userId={state.user.id} entryId={g.goalId} />}
                   </div>
                 )}
               </React.Fragment>
@@ -171,6 +253,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 </div>
               );
             })}
+            <DocsSection userId={state.user.id} docs={state.documents || []} onDelete={p.onDeleteDoc} />
             {removed.length > 0 && (
               <>
                 <div className="sec-title"><h2>Removed</h2><span className="kicker">kept in history</span></div>
@@ -189,7 +272,8 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
 };
 
 // ---------------- Who sees it ----------------
-export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onToggleOffers: () => void; onRevoke: (id: string) => void }> = ({ state, onBack, onToggleOffers, onRevoke }) => {
+export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onToggleOffers: () => void; onRevoke: (id: string) => void; onDocuments: () => void; onDeleteChats: () => void }> = ({ state, onBack, onToggleOffers, onRevoke, onDocuments, onDeleteChats }) => {
+  const docs = state.documents || [];
   const today = new Date().toISOString().slice(0, 10);
   const active = state.shares.filter((s) => !s.revoked && s.until >= today);
   const fee = state.earnings.reduce((a, x) => a + x.fee, 0);
@@ -210,6 +294,11 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
           ) : (
             <NRow name="A Nordea adviser" sub="Nothing, unless you share for a meeting" />
           )}
+        </div>
+        <Band left="Your data" />
+        <div className="ncard flat">
+          <NRow name="Your documents" sub={docs.length ? `${docs.length} kept · delete any time` : 'None kept. Files are read once, unless you keep a copy'} onClick={onDocuments} />
+          <NRow name="Your chats" sub={state.conversations.length ? `${state.conversations.length} ${state.conversations.length === 1 ? 'chat' : 'chats'} saved` : 'No chats saved'} right={state.conversations.length ? <button className="btn small" onClick={onDeleteChats}>Delete</button> : undefined} />
         </div>
         <Band left="Partner offers" />
         <div className="ncard flat">
@@ -375,6 +464,15 @@ export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => 
 const speed = (s: { lastTurn?: { ms: number; calls: number } | null; thinking?: string }) =>
   (s.lastTurn ? ` · last chat answer ${(s.lastTurn.ms / 1000).toFixed(1)} s (${s.lastTurn.calls} ${s.lastTurn.calls === 1 ? 'call' : 'calls'})` : '') + (s.thinking && s.thinking !== 'not tried yet' ? ` · thinking ${s.thinking}` : '');
 /** Shows whether Abel's AI works here, and the real reason if not. Never shows the key. */
+/** Where the demo's data is saved (Supabase or only this server). */
+const DbCheck: React.FC = () => {
+  const [s, setS] = useState<DbStatus | null>(null);
+  const load = () => fetchDbStatus().then(setS).catch(() => setS(null));
+  React.useEffect(() => { load(); }, []);
+  const text = !s ? 'Checking…' : s.mode === 'supabase' ? (s.ok ? `Saved in Supabase${s.rows ? ` · ${s.rows} records` : ''}${s.waiting ? ` · ${s.waiting} waiting` : ''}` : s.message) : s.message;
+  return <NRow name="Saved data" sub={<span className={s && s.mode === 'supabase' && s.ok ? 'up' : s && !s.ok ? 'ai-bad' : ''}>{text}</span>} right={<button className="btn small" onClick={load}>Check</button>} />;
+};
+
 const AiCheck: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
@@ -422,9 +520,56 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="Demo" />
       <div className="ncard flat">
         <AiCheck />
+        <DbCheck />
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
         <NRow name="Reset demo data" sub="Start again" onClick={onReset} />
       </div>
     </div>
   </>
+);
+
+/** Delete a kept file. If things were saved from it, the customer chooses whether they go too. */
+export const DeleteDocSheet: React.FC<{ doc: DocInfo; onDelete: (alsoEntries: boolean) => void; onCancel: () => void }> = ({ doc, onDelete, onCancel }) => {
+  const n = doc.entries.length;
+  return (
+    <div className="cf-bg" onClick={onCancel}>
+      <div className="cf-sheet" role="dialog" aria-label="Delete this document?" onClick={(e) => e.stopPropagation()}>
+        <span className="kicker">Your documents</span>
+        <h3>Delete “{doc.name}”?</h3>
+        {n ? (
+          <div className="summary">
+            <div className="sum-row"><span>Abel saved {n} {n === 1 ? 'thing' : 'things'} from it:</span></div>
+            {doc.entries.map((t, i) => <div className="sum-row" key={i}><span>• {t}</span></div>)}
+          </div>
+        ) : (
+          <p className="cf-p">Nothing was saved from it. The file is deleted for good.</p>
+        )}
+        <div className="btns stack">
+          {n ? (
+            <>
+              <button className="btn primary block" onClick={() => onDelete(true)}>Delete the file and {n === 1 ? 'that thing' : `those ${n} things`}</button>
+              <button className="btn block" onClick={() => onDelete(false)}>Delete only the file</button>
+            </>
+          ) : (
+            <button className="btn primary block" onClick={() => onDelete(false)}>Delete</button>
+          )}
+          <button className="btn quiet block" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const ConfirmSheet: React.FC<{ kicker: string; title: string; body: string; yes: string; onYes: () => void; onNo: () => void }> = ({ kicker, title, body, yes, onYes, onNo }) => (
+  <div className="cf-bg" onClick={onNo}>
+    <div className="cf-sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <span className="kicker">{kicker}</span>
+      <h3>{title}</h3>
+      <p className="cf-p">{body}</p>
+      <div className="btns stack">
+        <button className="btn primary block" onClick={onYes}>{yes}</button>
+        <button className="btn quiet block" onClick={onNo}>Cancel</button>
+      </div>
+    </div>
+  </div>
 );

@@ -1,9 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChatMessage, CabinetEntry, MessageCard, Share } from '../types.js';
 import { Icon, BotAvatar, Chevron } from '../ui/icons.js';
-import { eur, eurP, dayMonth } from '../ui/format.js';
+import { eur, eurP, dayMonth, monthShort } from '../ui/format.js';
 import { HELPERS } from '../ui/helpers.js';
-import type { ImportBody } from '../services/api.js';
+import { documentUrl } from '../services/api.js';
+import type { ImportBody, DocInfo } from '../services/api.js';
 
 // Shrink a photo before sending: the model gets at most 1600 px, the chat keeps a small thumbnail.
 function shrink(file: Blob, max: number, quality: number): Promise<string> {
@@ -52,6 +53,9 @@ interface Props {
   onImport: (body: ImportBody) => void;
   onToast: (message: string) => void;
   onEditEntry: (id: string) => void;
+  userId: string;
+  documents: DocInfo[];
+  onDeleteDoc: (id: string) => void;
 }
 
 type Item = { who: 'me' | 'bot'; key: string; node: React.ReactNode; rich?: boolean; after?: React.ReactNode };
@@ -60,6 +64,8 @@ export const Chat: React.FC<Props> = (p) => {
   const h = HELPERS[p.helperId] || HELPERS.abel;
   const [text, setText] = useState('');
   const [attOpen, setAttOpen] = useState(false);
+  // "Keep a copy": off by default, so Abel reads a file once and it's gone.
+  const [keepCopy, setKeepCopy] = useState(false);
   const [usedOpen, setUsedOpen] = useState<string | null>(null);
   const [impShow, setImpShow] = useState<string | null>(null);
   const [impSel, setImpSel] = useState<Record<string, boolean[]>>({});
@@ -126,7 +132,7 @@ export const Chat: React.FC<Props> = (p) => {
   async function sendPhoto(file: Blob, name: string) {
     try {
       const [big, thumb] = await Promise.all([shrink(file, 1600, 0.85), shrink(file, 240, 0.7)]);
-      p.onImport({ fileBase64: b64(big), mimeType: 'image/jpeg', fileName: name, thumb });
+      p.onImport({ fileBase64: b64(big), mimeType: 'image/jpeg', fileName: name, thumb, keep: keepCopy });
     } catch (e: any) {
       p.onToast(e?.message || 'Could not open that photo');
     }
@@ -134,9 +140,9 @@ export const Chat: React.FC<Props> = (p) => {
   async function sendDoc(f: File) {
     if (f.size > 8 * 1024 * 1024) { p.onToast('That file is too big. Try one under 8 MB.'); return; }
     if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
-      p.onImport({ fileBase64: b64(await readAsDataUrl(f)), mimeType: 'application/pdf', fileName: f.name });
+      p.onImport({ fileBase64: b64(await readAsDataUrl(f)), mimeType: 'application/pdf', fileName: f.name, keep: keepCopy });
     } else if (/\.(md|markdown|txt)$/i.test(f.name) || f.type.startsWith('text/')) {
-      p.onImport({ text: await f.text(), fileName: f.name });
+      p.onImport({ text: await f.text(), fileName: f.name, keep: keepCopy });
     } else if (f.type.startsWith('image/')) {
       sendPhoto(f, f.name);
     } else {
@@ -297,6 +303,26 @@ export const Chat: React.FC<Props> = (p) => {
           </div>
         );
       }
+      case 'duplicate': {
+        const ex = d.existing || {};
+        const dr = d.draft || {};
+        const tgt = (t: any) => (t ? `${eur(t.amount)} by ${monthShort(t.date.slice(0, 7))}` : '');
+        return (
+          <div className="offer">
+            <div className="of-h sm"><span className="of-logo" style={{ background: 'var(--brand)' }}><Icon name="cab" /></span><span className="of-n"><b>{c.title}</b><span>Please choose</span></span></div>
+            <div className="of-row"><div className="of-rt"><span><b>Abel knows</b><span>{ex.title}{ex.target ? ` · ${tgt(ex.target)}` : ex.detail ? ` · ${ex.detail}` : ''}</span></span></div></div>
+            <div className="of-row"><div className="of-rt"><span><b>You just said</b><span>{dr.title}{dr.target ? ` · ${tgt(dr.target)}` : dr.detail ? ` · ${dr.detail}` : ''}</span></span></div></div>
+            <div className="of-fee"><Icon name="shield" /><span>{d.how === 'conflict' ? 'Updating keeps the old version in its history, and you can undo it.' : 'Nothing is saved until you choose.'}</span></div>
+            {open && (
+              <div className="of-act stack3" style={{ paddingBottom: 12 }}>
+                <button className="btn primary" onClick={() => act('dup_update')}>Update “{ex.title}”</button>
+                <button className="btn" onClick={() => act('dup_both')}>Keep both</button>
+                <button className="btn quiet" onClick={() => act('dup_keep')}>Leave it as it is</button>
+              </div>
+            )}
+          </div>
+        );
+      }
       case 'info': {
         if (d.shareId) {
           const s = p.shares.find((x) => x.id === d.shareId);
@@ -319,14 +345,27 @@ export const Chat: React.FC<Props> = (p) => {
     if (m.sender === 'user') {
       if (m.attachment) {
         const at = m.attachment;
+        const doc = at.documentId ? p.documents.find((x) => x.id === at.documentId) : undefined;
+        const label = at.kind === 'pdf' ? 'PDF' : at.kind === 'image' ? 'Photo' : 'Text file';
+        // Kept: preview + open + delete. Not kept: just the name, nothing of the file is stored.
+        const keptLine = doc ? (
+          <span className="att-kept">
+            <span>Kept until {dayMonth(doc.expiresAt.slice(0, 10))}</span>
+            <a href={documentUrl(p.userId, doc.id)} target="_blank" rel="noopener">Open</a>
+            <button className="btn link" onClick={() => p.onDeleteDoc(doc.id)}>Delete</button>
+          </span>
+        ) : (
+          <span className="att-kept muted">{at.documentId || at.deleted ? 'Copy deleted' : 'Not kept · Abel read it once'}</span>
+        );
         items.push({
           who: 'me',
           key: m.id,
-          node: at.kind === 'image' && at.thumb ? (
+          node: doc && at.kind === 'image' && at.thumb ? (
             <img className="att-img" src={at.thumb} alt="Photo you sent" />
           ) : (
-            <span className="att-file"><Icon name={at.kind === 'image' ? 'image' : 'file'} /><span><b>{at.name}</b><span>{at.kind === 'pdf' ? 'PDF' : at.kind === 'image' ? 'Photo' : 'Text file'}</span></span></span>
+            <span className="att-file"><Icon name={at.kind === 'image' ? 'image' : 'file'} /><span><b>{at.name}</b><span>{label}</span></span></span>
           ),
+          after: keptLine,
         });
         return;
       }
@@ -386,7 +425,7 @@ export const Chat: React.FC<Props> = (p) => {
           const first = !prev || prev.who !== it.who, lastG = !next || next.who !== it.who;
           const pop = seen.current.has(it.key) ? '' : ' pop';
           seen.current.add(it.key);
-          if (it.who === 'me') return <div key={it.key} className={`mrow me${pop}${first ? ' gstart' : ''}`}><div className="bub">{it.node}</div></div>;
+          if (it.who === 'me') return <div key={it.key} className={`mrow me${pop}${first ? ' gstart' : ''}`}>{it.after ? <div className="mcol me"><div className="bub">{it.node}</div>{it.after}</div> : <div className="bub">{it.node}</div>}</div>;
           return (
             <div key={it.key} className={`mrow bot${pop}${first ? ' gstart' : ''}${it.rich ? ' wide' : ''}`}>
               {lastG ? <BotAvatar /> : <span className="av-sp" />}
@@ -419,6 +458,10 @@ export const Chat: React.FC<Props> = (p) => {
               <button className="att-t" onClick={() => { setAttOpen(false); docRef.current?.click(); }}><span className="att-c"><Icon name="file" size={22} /></span>PDF or file</button>
               <button className="att-t" onClick={() => { setAttOpen(false); p.onImport({ sample: true }); }}><span className="att-c"><Icon name="contact" size={22} /></span>Sample chat</button>
             </div>
+            <button className="keep-row" role="switch" aria-checked={keepCopy} onClick={() => setKeepCopy(!keepCopy)}>
+              <span className="keep-t"><b>Keep a copy</b><span>{keepCopy ? 'Saved in Your documents for 30 days. Delete it any time.' : 'Off: Abel reads the file once, then it’s gone.'}</span></span>
+              <span className={`tgl${keepCopy ? ' on' : ''}`} aria-hidden="true"><i /></span>
+            </button>
             <p className="att-note"><Icon name="shield" size={16} /><span>Abel reads it to suggest what to remember, like a receipt, a payslip or a price tag. Nothing is saved without your OK. Use fictional documents only.</span></p>
           </div>
         </>

@@ -75,6 +75,9 @@ function clean(err: any): string {
   return raw.replace(/AIza[0-9A-Za-z_-]{20,}/g, '[key]').replace(/key=[^&\s]+/gi, 'key=[key]').slice(0, 300);
 }
 const isModelProblem = (msg: string) => /not found|NOT_FOUND|404|is not supported|unsupported model|does not exist/i.test(msg);
+/** Google is overloaded or rate-limiting: worth a short wait and a retry, then another model. */
+export const isBusy = (msg: string) => /\b503\b|UNAVAILABLE|high demand|overloaded|\b429\b|RESOURCE_EXHAUSTED|try again later/i.test(msg);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI'): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -111,22 +114,39 @@ async function callOnce(model: string, args: { system: string; contents: any[]; 
   return withTimeout(ai.models.generateContent({ model, contents: args.contents, config }), STEP_TIMEOUT_MS);
 }
 
-/** Try the remembered model, then the other candidates if Google says the model doesn't exist. */
+/**
+ * Try the remembered model first. If Google says it's busy (503/429), wait a moment and retry once,
+ * then move on to the next model. If the model doesn't exist, move on straight away.
+ * A wrong key, a timeout or a network problem won't be fixed by another model, so stop there.
+ */
 async function generate(args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }) {
+  return generateWith(callGemini, args);
+}
+
+/** The retry/fallback logic, separate from the network call so it can be tested. */
+export async function generateWith(
+  call: (model: string, args: any) => Promise<any>,
+  args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number },
+  waitMs = 1200,
+) {
   const order = activeModel ? [activeModel, ...CANDIDATES.filter((m) => m !== activeModel)] : CANDIDATES;
   let last: any;
   for (const model of order) {
-    try {
-      const res = await callGemini(model, args);
-      activeModel = model;
-      lastOk = { at: new Date().toISOString(), model };
-      return res;
-    } catch (err) {
-      last = err;
-      const msg = clean(err);
-      lastError = { at: new Date().toISOString(), message: msg, model };
-      console.error(`Gemini error (${model}):`, msg);
-      if (!isModelProblem(msg)) break; // a wrong key, a timeout or a network problem won't be fixed by another model
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await call(model, args);
+        activeModel = model;
+        lastOk = { at: new Date().toISOString(), model };
+        return res;
+      } catch (err) {
+        last = err;
+        const msg = clean(err);
+        lastError = { at: new Date().toISOString(), message: msg, model };
+        console.error(`Gemini error (${model}, try ${attempt + 1}):`, msg);
+        if (isBusy(msg) && attempt === 0) { await sleep(waitMs); continue; } // one quick retry on the same model
+        if (isBusy(msg) || isModelProblem(msg)) break; // next model
+        throw err;
+      }
     }
   }
   throw last;
@@ -150,7 +170,7 @@ const gemini: LlmProvider = {
         });
     }
     const res = await generate({ system, contents, tools, temperature });
-    const calls: ToolCall[] = (res.functionCalls || []).map((c) => ({ id: c.id, name: c.name || '', args: (c.args as any) || {} }));
+    const calls: ToolCall[] = (res.functionCalls || []).map((c: any) => ({ id: c.id, name: c.name || '', args: (c.args as any) || {} }));
     return { calls, text: res.text, raw: res.candidates?.[0]?.content };
   },
 };
@@ -195,4 +215,9 @@ export function setProviderForTests(p: LlmProvider | null) {
 
 export function getProvider(): LlmProvider {
   return override || gemini;
+}
+
+/** Tests only: forget the remembered model. */
+export function resetModelForTests() {
+  activeModel = null;
 }

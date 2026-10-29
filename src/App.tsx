@@ -3,7 +3,7 @@ import { PhoneFrame } from './components/PhoneFrame.js';
 import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
 import { HomePage } from './components/HomePage.js';
-import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage } from './components/Pages.js';
+import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, DeleteDocSheet, ConfirmSheet } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
 import { Icon } from './ui/icons.js';
 import { CabinetEntry, ChatMessage, PersonaId, User } from './types.js';
@@ -27,6 +27,8 @@ import {
   Reward,
   fetchRewards,
   redeemReward,
+  deleteDocument,
+  deleteChats,
 } from './services/api.js';
 
 type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot';
@@ -55,6 +57,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [redeemAsk, setRedeemAsk] = useState<Reward | null>(null);
+  const [delDocId, setDelDocId] = useState<string | null>(null);
+  const [askDeleteChats, setAskDeleteChats] = useState(false);
   const screenRef = useRef<HTMLDivElement>(null);
 
   // Chat
@@ -176,10 +180,41 @@ export default function App() {
     try {
       const res = await importChat(state.user.id, chatOpen ? conversationId : null, chatOpen ? helperId : 'abel', body);
       appendFromServer(res.conversationId, res.messages);
+      refresh(); // a kept copy shows up in Your documents
     } catch (e: any) {
       setToast({ message: e?.message || 'Couldn’t read that file' });
     } finally {
       setWaiting(false);
+    }
+  };
+
+  // ---------- your documents and chats ----------
+  const removeDoc = async (alsoEntries: boolean) => {
+    const id = delDocId;
+    setDelDocId(null);
+    if (!state || !id) return;
+    try {
+      const r = await deleteDocument(state.user.id, id, alsoEntries);
+      setToast({ message: r.message });
+      await refresh();
+      if (chatOpen && conversationId) setMessages(await fetchConversationMessages(conversationId));
+    } catch (e: any) {
+      setToast({ message: e?.message || 'Couldn’t delete it. Try again.' });
+    }
+  };
+  const removeChats = async () => {
+    setAskDeleteChats(false);
+    if (!state) return;
+    try {
+      const r = await deleteChats(state.user.id);
+      viewRef.current++;
+      setChatOpen(false);
+      setConversationId(null);
+      setMessages([]);
+      setToast({ message: r.message });
+      refresh();
+    } catch (e: any) {
+      setToast({ message: e?.message || 'Couldn’t delete your chats. Try again.' });
     }
   };
 
@@ -283,7 +318,23 @@ export default function App() {
                 onImport={doImport}
                 onToast={(m) => setToast({ message: m })}
                 onEditEntry={() => goPage('knows')}
+                userId={state.user.id}
+                documents={state.documents}
+                onDeleteDoc={setDelDocId}
               />
+              {delDocId && state.documents.find((d) => d.id === delDocId) && (
+                <DeleteDocSheet doc={state.documents.find((d) => d.id === delDocId)!} onDelete={removeDoc} onCancel={() => setDelDocId(null)} />
+              )}
+              {askDeleteChats && (
+                <ConfirmSheet
+                  kicker="Your chats"
+                  title="Delete all your chats?"
+                  body="Every conversation with Abel and the helpers is deleted for good. What Abel knows and Your documents stay, and you can delete those separately."
+                  yes="Delete my chats"
+                  onYes={removeChats}
+                  onNo={() => setAskDeleteChats(false)}
+                />
+              )}
               <PersonaPickerModal
                 isOpen={usersOpen}
                 onClose={() => setUsersOpen(false)}
@@ -348,11 +399,14 @@ export default function App() {
               onAskAbout={(t) => startChat('abel', t)}
               onUpdate={update}
               onArchive={archive}
+              onDeleteDoc={setDelDocId}
             />
           )}
           {page === 'privacy' && (
             <PrivacyPage
               state={state}
+              onDocuments={() => { goPage('knows'); setTimeout(() => document.getElementById('your-docs')?.scrollIntoView({ behavior: 'smooth' }), 80); }}
+              onDeleteChats={() => setAskDeleteChats(true)}
               onBack={() => goPage('knows')}
               onToggleOffers={async () => { await setOffersOff(state.user.id, !state.user.offersOff); setToast({ message: state.user.offersOff ? 'Partner offers are on' : 'Partner offers are off' }); refresh(); }}
               onRevoke={async (id) => { const r = await revokeShare(id); setToast({ message: r.message }); refresh(); }}
