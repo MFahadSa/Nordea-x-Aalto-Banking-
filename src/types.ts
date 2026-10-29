@@ -9,6 +9,8 @@ export interface User {
   /** Points already spent on rewards. Spending never lowers the level (level uses points + pointsSpent). */
   pointsSpent?: number;
   redeemed?: { rewardId: string; title: string; pts: number; at: string }[];
+  /** Where the account data last came from (upload or the Supabase feed). Seed data when missing. */
+  nordeaData?: { from: string; at: string; transactions: number; balances: boolean };
   /** Extra monthly saving the customer set up with Abel (simulated standing order). */
   extraMonthly?: number;
   persona: PersonaId;
@@ -90,7 +92,22 @@ export interface AccessLogEntry {
   itemsReadCount: number;
   blockedCount: number;
   allowedItems: string[];
+  /** Ids of the entries read (newer logs), for counting how often each note is used. */
+  allowedIds?: string[];
   blockedReasons: { title: string; reason: string }[];
+}
+
+/** Points the customer earns from their data: once for each note they share, and each time it's actually read. */
+export interface DataReward {
+  id: string;
+  userId: string;
+  kind: 'shared' | 'used';
+  points: number;
+  /** shared: the note that became shared. used: the notes that were read. */
+  entryIds: string[];
+  agentId?: string;
+  what: string;
+  at: string;
 }
 
 export interface TopicLogEntry {
@@ -169,6 +186,8 @@ export interface ChatMessage {
   };
   /** Set when no AI answered and the bank's own code did (shown as a small label, so it's never mistaken for the AI). */
   answeredBy?: 'bank_code';
+  /** What Abel was given for this reply (not proof of what it used): approved notes and the demo account data. */
+  supplied?: { notes: number; accountData: boolean };
   /** Technical reason when Abel couldn't answer (shown small, for debugging the demo). */
   errorInfo?: string;
   /** Set when the customer tapped a button on this message, so it can't be tapped twice. */

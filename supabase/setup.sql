@@ -21,3 +21,5 @@ grant select, insert, update, delete on public.abel_records to service_role;
 insert into storage.buckets (id, name, public)
 values ('abel-documents', 'abel-documents', false)
 on conflict (id) do nothing;
+
+-- (Optional) New Nordea account data for the demo: see supabase/nordea-feed.sql.

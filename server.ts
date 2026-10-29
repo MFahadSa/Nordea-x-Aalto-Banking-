@@ -8,6 +8,7 @@ import { readCabinetThroughGateway } from './src/server/accessGateway.js';
 import { getAllAgents, getAgentManifest } from './src/server/agentRegistry.js';
 import { CabinetEntry, UndoRecord } from './src/types.js';
 import { registerV14Routes } from './src/server/routes.js';
+import { startFeedWatcher } from './src/server/nordeaFeed.js';
 import { setProvider } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
 import { openAiProvidersFromEnv } from './src/server/llmOpenAI.js';
@@ -280,6 +281,8 @@ registerV14Routes(app);
 async function startServer() {
   // Connect to Supabase first (if its secrets are set), so the first request already sees saved data.
   await db.init();
+  // New Nordea account data added to Supabase → nordea_feed is applied automatically.
+  startFeedWatcher();
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {

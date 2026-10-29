@@ -13,6 +13,7 @@ import {
   Share,
   StoredDocument,
   EntryEvent,
+  DataReward,
 } from '../types.js';
 import { Remote, Row, supabaseConfigured, supabaseRemote, cleanErr } from './store.js';
 
@@ -32,6 +33,7 @@ export interface DatabaseState {
   shares: Share[];
   documents: StoredDocument[];
   entryHistory: EntryEvent[];
+  dataRewards: DataReward[];
 }
 
 /** Who changed something in What Abel knows, and where. Recorded in the entry's history. */
@@ -58,7 +60,7 @@ function historyFor(entries: CabinetEntry[]): EntryEvent[] {
 }
 
 /** Each kind of record and how it's keyed. Users are a map, the rest are lists. */
-const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory'] as const;
+const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory', 'dataRewards'] as const;
 type ListKind = (typeof LISTS)[number];
 const keyOf = (kind: ListKind, x: any): string => (kind === 'undoRecords' ? x.undoToken : x.id);
 // Rows come back unordered, so restore the order the app expects.
@@ -74,6 +76,7 @@ const ORDER: Record<ListKind, { field: string; desc?: boolean }> = {
   shares: { field: 'createdAt' },
   documents: { field: 'createdAt' },
   entryHistory: { field: 'at' },
+  dataRewards: { field: 'at' },
 };
 
 function toRows(state: DatabaseState): Row[] {
@@ -556,6 +559,7 @@ function getInitialState(): DatabaseState {
     shares: [],
     documents: [],
     entryHistory: historyFor(cabinetEntries),
+    dataRewards: [],
   };
 }
 
@@ -566,6 +570,7 @@ function migrate(state: DatabaseState): DatabaseState {
   state.shares = state.shares || [];
   state.documents = state.documents || [];
   if (!state.entryHistory) state.entryHistory = historyFor(state.cabinetEntries || []);
+  state.dataRewards = state.dataRewards || [];
   return state;
 }
 
@@ -845,6 +850,7 @@ class Database {
     this.state.entryHistory = this.state.entryHistory.filter(keep);
     this.state.earnings = this.state.earnings.filter(keep);
     this.state.shares = this.state.shares.filter(keep);
+    this.state.dataRewards = this.state.dataRewards.filter(keep);
     this.saveState(this.state);
   }
 
@@ -871,6 +877,23 @@ class Database {
 
   public getTransactions(userId: string): Transaction[] {
     return this.state.transactions.filter((t) => t.userId === userId);
+  }
+
+  /** New Nordea account data for a customer: their transactions are replaced by these. */
+  public replaceTransactions(userId: string, list: Transaction[]) {
+    this.state.transactions = [...this.state.transactions.filter((t) => t.userId !== userId), ...list];
+    this.saveState(this.state);
+  }
+
+  // ---- Data rewards: points for what the customer shares and for how often it's read ----
+  public getDataRewards(userId: string): DataReward[] {
+    return this.state.dataRewards.filter((r) => r.userId === userId);
+  }
+
+  public addDataReward(r: DataReward) {
+    this.state.dataRewards.push(r);
+    this.saveState(this.state);
+    return r;
   }
 
   public getMessages(userId: string): ChatMessage[] {

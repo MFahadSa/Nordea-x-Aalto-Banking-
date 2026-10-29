@@ -220,6 +220,24 @@ export const pingAi = () => post('/api/ai-ping', {}).then((r) => j<{ ok: boolean
 export const doAction = (userId: string, messageId: string, action: string, payload: Record<string, unknown> = {}) =>
   post('/api/actions', { userId, messageId, action, payload }).then((r) => j<{ messages: ChatMessage[]; resolvedMessageId: string }>(r));
 export interface Reward { id: string; title: string; short: string; pts: number; done: string }
+export interface NordeaDataInfo {
+  info: { from: string; at: string; transactions: number; balances: boolean } | null;
+  transactions: number;
+  feed: { enabled: boolean; ok: boolean; message: string; lastCheck?: string; lastApplied?: { at: string; rowId: number; userId: string; result: string } };
+}
+export interface NordeaApplyResult { ok: boolean; message: string; transactions?: number; noticed?: { added: string[]; updated: string[]; removed: string[] } }
+export const fetchNordeaData = (userId: string) => fetch(`/api/nordea-data?userId=${encodeURIComponent(userId)}`).then((r) => j<NordeaDataInfo>(r));
+export const uploadNordeaData = (userId: string, text: string, fileName: string) => post('/api/nordea-data', { userId, text, fileName }).then((r) => j<{ result: NordeaApplyResult }>(r)).then((d) => d.result);
+export const checkNordeaFeed = (userId: string) => post('/api/nordea-data/check', { userId }).then((r) => j<{ applied: { rowId: number; result: NordeaApplyResult }[]; feed: NordeaDataInfo['feed'] }>(r));
+export interface DataRewards {
+  rules: { sharedPerNote: number; used: { agentId: string; name: string; points: number; dailyCap: number }[] };
+  sharing: { notesNow: number; notesEver: number; points: number };
+  use: { reads: number; readsThisMonth: number; points: number; byAgent: { agentId: string; name: string; reads: number; points: number }[] };
+  mostUsed: { id: string; title: string; reads: number; removed: boolean }[];
+  recent: { what: string; points: number; at: string; kind: 'shared' | 'used'; notes: number }[];
+  moneyBack: number;
+}
+export const fetchDataRewards = (userId: string) => fetch(`/api/data-rewards?userId=${encodeURIComponent(userId)}`).then((r) => j<DataRewards>(r));
 export const fetchRewards = () => fetch('/api/rewards').then((r) => j<{ rewards: Reward[] }>(r)).then((d) => d.rewards);
 export const redeemReward = (userId: string, rewardId: string) => post('/api/rewards/redeem', { userId, rewardId }).then((r) => j<{ user: User; message: string }>(r));
 export const setOffersOff = (userId: string, offersOff: boolean) => post('/api/settings', { userId, offersOff }).then((r) => j<{ user: User }>(r));

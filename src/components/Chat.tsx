@@ -198,19 +198,31 @@ export const Chat: React.FC<Props> = (p) => {
   };
 
   const byId = (id: string) => p.entries.find((e) => e.id === id);
+  // What Abel could see for this reply (its inputs), and, separately, what the model says it used.
+  // The model's list is its own report, so it's labelled that way, not as proof.
   const usedLine = (m: ChatMessage) => {
     const es = (m.usedEntryIds || []).map(byId).filter((e): e is CabinetEntry => !!e && e.status !== 'archived');
-    if (!es.length) return null;
+    const sup = m.supplied;
+    if (!sup && !es.length) return null;
     const open = usedOpen === m.id;
+    const label = sup
+      ? `Abel could see: ${sup.notes} saved ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ', your demo account data' : ''}`
+      : `Abel says it used ${es.length} ${es.length === 1 ? 'thing' : 'things'}`;
     return (
       <>
         <button className="used-l" onClick={() => setUsedOpen(open ? null : m.id)} aria-expanded={open}>
           <span className="ud">{es.slice(0, 3).map((e) => <i key={e.id} className={e.source === 'nordea' ? 'bank' : 'you'} />)}</span>
-          Based on {es.length} {es.length === 1 ? 'thing' : 'things'} Abel knows
+          {label}
           <Chevron rotate={open ? -90 : 90} size={14} />
         </button>
         {open && (
           <div className="used-list">
+            {sup && (
+              <p className="used-note">
+                Abel was given {sup.notes} {sup.notes === 1 ? 'note' : 'notes'} you approved{sup.accountData ? ' and your demo account data (balances, salary, spending; fictional)' : ''}. Nothing else: not your kept files, and nothing you declined or removed.
+              </p>
+            )}
+            {es.length > 0 && <p className="used-note"><b>Abel says it used:</b> (its own report, not a proof)</p>}
             {es.map((e) => (
               <div className="used-i" key={e.id}>
                 <span className={`dotc ${e.source === 'nordea' ? 'bank' : 'you'}`} />
