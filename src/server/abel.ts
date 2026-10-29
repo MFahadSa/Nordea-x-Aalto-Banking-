@@ -30,7 +30,43 @@ export const HELPER_FOCUS: Record<string, string> = {
 const fmt = (n: number, d = 0) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
 
-const SENSITIVE = /\b(health|illness|ill\b|sick|cancer|diagnos|pregnan|baby on the way|ivf|divorc|separat|affair|therapy|depress|anxiety|disab|surgery|hospital|debt collector|gambl|addict)/i;
+// A code backstop for what's private. Kept narrow: "separately", "disable" or "works at the hospital" are not private.
+const SENSITIVE = /\b(health|illness|ill\b|sick|cancer|diagnos|pregnan|baby on the way|ivf|divorc|separation|separated|affair|therapy|depress|anxiety|disabilit|disabled|surgery|hospitali[sz]|debt collector|gambl|addict)/i;
+
+/** Dates from the model as YYYY-MM-DD. "2027-08", "08/2027" and "August 2027" become the last day of that month. */
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const endOfMonth = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+export function normDate(v: unknown): string | undefined {
+  const s = String(v ?? '').trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) {
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return undefined;
+    return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  if ((m = s.match(/^(\d{4})[-/.](\d{1,2})$/))) return Number(m[2]) >= 1 && Number(m[2]) <= 12 ? endOfMonth(Number(m[1]), Number(m[2])) : undefined;
+  if ((m = s.match(/^(\d{1,2})[-/.](\d{4})$/))) return Number(m[1]) >= 1 && Number(m[1]) <= 12 ? endOfMonth(Number(m[2]), Number(m[1])) : undefined;
+  if ((m = s.match(/^(?:(?:end|by|in)\s+(?:of\s+)?)?([a-zA-Z]{3,9})\.?,?\s+(\d{4})$/))) {
+    const i = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase());
+    return i >= 0 ? endOfMonth(Number(m[2]), i + 1) : undefined;
+  }
+  if ((m = s.match(/^(\d{4})$/))) return `${m[1]}-12-31`;
+  return undefined;
+}
+/** Amounts from the model: 4000, "4000", "4 000 €", "4.000,50". */
+export function normAmount(v: unknown): number | undefined {
+  if (typeof v === 'number') return v > 0 ? v : undefined;
+  let s = String(v ?? '').replace(/[\s\u00a0€]|eur/gi, '');
+  if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+  else s = s.replace(/[.,](?=\d{3}\b)/g, '');
+  const n = Number(s);
+  return n > 0 ? n : undefined;
+}
+/** A goal target only when both the amount and the date are known. */
+const targetOf = (amount: unknown, date: unknown) => {
+  const a = normAmount(amount), d = normDate(date);
+  return a && d ? { amount: a, date: d } : undefined;
+};
 
 // ---------- tool definitions (what the model can see) ----------
 const TOOLS: ToolDecl[] = [
@@ -59,7 +95,7 @@ const TOOLS: ToolDecl[] = [
   {
     name: 'proposeCabinetChange',
     description:
-      'Remember, update or remove something in the customer’s cabinet. Use for meaningful context only: goals with an amount or date, life events, preferences, facts. Never for small talk, feelings in passing, or complaints. Set sensitive=true for health, relationships, pregnancy and similar: it will NOT be saved unless the customer taps to save it privately.',
+      'Remember, update or remove something in the customer’s cabinet. Use for meaningful context only: goals with an amount or date, life events, preferences, facts. Never for small talk, feelings in passing, or complaints. Set sensitive=true only for health or medical matters, pregnancy, mental health, addiction, relationship problems (separation, divorce, affairs) or debt collection. Normal life plans with a partner (a wedding, a honeymoon, moving in together, a partner’s new job) are NOT sensitive. Sensitive things are NOT saved unless the customer taps to save them privately.',
     parameters: {
       type: 'object',
       properties: {
@@ -68,8 +104,8 @@ const TOOLS: ToolDecl[] = [
         type: { type: 'string', enum: ['goal', 'life_event', 'preference', 'fact'] },
         title: { type: 'string', description: 'Short, in the customer’s words, e.g. "Save for a wedding"' },
         detail: { type: 'string' },
-        targetAmount: { type: 'number', description: 'Goals only, in euros' },
-        targetDate: { type: 'string', description: 'Goals only, YYYY-MM-DD' },
+        targetAmount: { type: 'number', description: 'Goals only: the amount in euros as a plain number, e.g. 35000' },
+        targetDate: { type: 'string', description: 'Goals only: YYYY-MM-DD. If only a month is known, use its last day, e.g. "2028-04-30"' },
         goalType: { type: 'string', enum: ['home', 'car', 'travel', 'buffer', 'other'] },
         sensitive: { type: 'boolean' },
       },
@@ -159,7 +195,7 @@ RULES YOU MUST FOLLOW
 - NEVER state a number that isn't in FACTS, the cabinet, or a tool result. FACTS already cover balances, salary, 3-month spending, goals and the payday plan, so answer straight away. Call a tool only for something not there (another period or category, or whether a specific amount is affordable).
 - Be quick: when you can, answer in ONE step by calling finishReply directly. You may call proposeCabinetChange, offerTransfer, suggestPartnerOffer or startHandoff in the same step as finishReply.
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts). Don't ask permission for normal things; the app shows "Abel will remember this · Undo". Never save small talk, filler, greetings, complaints or one-off feelings.
-- Sensitive topics (health, relationships, pregnancy…): be kind, set sensitive=true; it won't be saved unless the customer chooses to.
+- Sensitive topics (health, pregnancy, relationship problems…): be kind, set sensitive=true; it won't be saved unless the customer chooses to. A wedding, a honeymoon or a partner's new job is a normal plan, not sensitive.
 - Old goals whose date has passed: ask gently whether they're still a plan; archive only if the customer says so.
 - "Delete everything" or other big removals: don't do it. Explain they can remove items in "Abel knows", or offer a person.
 - Partner offers: only with suggestPartnerOffer, only when the customer is asking about that thing now. At most one per reply. Don't repeat the card's details or the fee in your text; one short line introducing it is enough. Never push, and never mention offers otherwise.
@@ -264,10 +300,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
         const title = String(a.title || '').trim().slice(0, 80);
         if (!title) return { saved: false, error: 'title is required' };
         const type = ['goal', 'life_event', 'preference', 'fact'].includes(a.type) ? a.type : 'fact';
-        const target =
-          type === 'goal' && Number(a.targetAmount) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(a.targetDate || ''))
-            ? { amount: Number(a.targetAmount), date: String(a.targetDate) }
-            : undefined;
+        const target = type === 'goal' ? targetOf(a.targetAmount, a.targetDate) : undefined;
         const draft = {
           type, title, detail: String(a.detail || '').slice(0, 200), target,
           goalType: type === 'goal' ? (a.goalType || 'other') : undefined,
@@ -313,8 +346,11 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       const updates: Partial<CabinetEntry> = {};
       if (a.title) updates.title = String(a.title).slice(0, 80);
       if (a.detail) updates.detail = String(a.detail).slice(0, 200);
-      if (Number(a.targetAmount) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(a.targetDate || existing.target?.date || '')))
-        updates.target = { amount: Number(a.targetAmount), date: String(a.targetDate || existing.target?.date) };
+      {
+        // An update may change only the amount or only the date; keep the other one.
+        const t = targetOf(a.targetAmount ?? existing.target?.amount, a.targetDate ?? existing.target?.date);
+        if (t && (a.targetAmount != null || a.targetDate != null)) updates.target = t;
+      }
       if (existing.status === 'stale') updates.status = 'active';
       updates.confirmedAt = new Date().toISOString();
       db.updateCabinetEntry(existing.id, updates, { by: 'abel', how: 'From your chat' });
@@ -524,15 +560,20 @@ export interface ImportItem {
   duplicateOfId?: string;
   /** Ticking it updates that entry instead of adding a second one. */
   updates?: boolean;
+  /** Why it isn't ticked (private, or already known). Shown under the detail; never saved. */
+  note?: string;
+  goalType?: 'home' | 'car' | 'travel' | 'buffer' | 'other';
   target?: { amount: number; date: string };
 }
+
+const PRIVATE_NOTE = 'Looks private, so it’s not ticked. If you save it, only Abel can read it, never offers.';
 
 const SAMPLE_ITEMS: ImportItem[] = [
   { on: true, type: 'goal', title: 'Wedding in summer 2027', detail: 'About 15 000 € by July 2027 · with Mia', quote: 'if we say 15k for the wedding… July 2027?', target: { amount: 15000, date: '2027-07-31' } },
   { on: true, type: 'fact', title: 'Car loan ends in March 2027', detail: 'About 180 € a month freed up', quote: 'my car loan ends in March, that frees up like 180 a month' },
   { on: true, type: 'life_event', title: 'Mia starts a new job in January', detail: 'Household income will change', quote: 'I start at the hospital in January' },
   { on: true, type: 'preference', title: 'Never below 2 000 € in my account', detail: 'A buffer that keeps me calm', quote: 'I never want less than 2000 in the account' },
-  { on: false, sensitive: true, type: 'fact', title: 'Mia’s health costs', detail: 'Looks private, so it’s not ticked. Only saved if you tick it.', quote: 'I need to sort my knee surgery costs first' },
+  { on: false, sensitive: true, type: 'fact', title: 'Mia’s health costs', detail: 'Knee surgery costs to sort out first', note: 'Looks private, so it’s not ticked. If you save it, only Abel can read it, never offers.', quote: 'I need to sort my knee surgery costs first' },
 ];
 
 function dedupe(userId: string, items: ImportItem[]): ImportItem[] {
@@ -543,8 +584,8 @@ function dedupe(userId: string, items: ImportItem[]): ImportItem[] {
     const was = hit.target ? ` (${fmt(hit.target.amount)} by ${monthName(hit.target.date)})` : '';
     if (how === 'conflict' || how === 'adds')
       return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, updates: true,
-        detail: `Changes “${hit.title}”${was}${it.target ? ` to ${fmt(it.target.amount)} by ${monthName(it.target.date)}` : ''}. Tick to update it.` };
-    return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, detail: `Already in what Abel knows: “${hit.title}”. Tick to save it anyway.` };
+        note: `Changes “${hit.title}”${was}${it.target ? ` to ${fmt(it.target.amount)} by ${monthName(it.target.date)}` : ''}. Tick to update it.` };
+    return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, note: `Already in what Abel knows: “${hit.title}”. Tick to save it as well.` };
   });
 }
 
@@ -588,7 +629,7 @@ export async function proposeFromContent(
   const tool: ToolDecl = {
     name: 'proposeEntries',
     description:
-      'Say what the file is, and list things worth remembering for the customer: goals (with amount/date if stated), life events, preferences, facts. Mark health, relationship and similar as sensitive.',
+      'Say what the file is, and list things worth remembering for the customer: goals (always with targetAmount and targetDate when the file states them), life events, preferences, facts. Set sensitive=true only for health or medical matters, pregnancy, mental health, addiction, relationship problems (separation, divorce, affairs) or debt collection. Normal life plans with a partner (a wedding, a honeymoon, moving in together, a partner’s new job) are NOT sensitive.',
     parameters: {
       type: 'object',
       properties: {
@@ -602,7 +643,10 @@ export async function proposeFromContent(
             properties: {
               type: { type: 'string', enum: ['goal', 'life_event', 'preference', 'fact'] },
               title: { type: 'string' }, detail: { type: 'string' }, quote: { type: 'string', description: 'The exact words it came from' },
-              sensitive: { type: 'boolean' }, targetAmount: { type: 'number' }, targetDate: { type: 'string' },
+              sensitive: { type: 'boolean' },
+              targetAmount: { type: 'number', description: 'Goals: the amount in euros as a plain number, e.g. 4000' },
+              targetDate: { type: 'string', description: 'Goals: YYYY-MM-DD. If only a month is given, use its last day, e.g. "2027-08-31"' },
+              goalType: { type: 'string', enum: ['home', 'car', 'travel', 'buffer', 'other'], description: 'Goals: home for a flat or house' },
             },
             required: ['type', 'title', 'quote', 'sensitive'],
           },
@@ -630,14 +674,18 @@ export async function proposeFromContent(
     const raw = (args.items || []) as any[];
     const items: ImportItem[] = raw.slice(0, 6).map((x) => {
       const sensitive = !!x.sensitive || SENSITIVE.test(`${x.title} ${x.detail || ''}`);
+      const type = ['goal', 'life_event', 'preference', 'fact'].includes(x.type) ? x.type : 'fact';
       return {
         on: !sensitive,
-        type: ['goal', 'life_event', 'preference', 'fact'].includes(x.type) ? x.type : 'fact',
+        type,
         title: String(x.title || '').slice(0, 80),
-        detail: sensitive ? 'Looks private, so it’s not ticked. Only saved if you tick it.' : String(x.detail || '').slice(0, 200),
+        // The real detail is kept even for private things; the note says why it isn't ticked.
+        detail: String(x.detail || '').slice(0, 200),
+        note: sensitive ? PRIVATE_NOTE : undefined,
         quote: String(x.quote || '').slice(0, 160),
         sensitive,
-        target: Number(x.targetAmount) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(x.targetDate || '')) ? { amount: Number(x.targetAmount), date: String(x.targetDate) } : undefined,
+        target: type === 'goal' ? targetOf(x.targetAmount, x.targetDate) : undefined,
+        goalType: type === 'goal' && ['home', 'car', 'travel', 'buffer', 'other'].includes(x.goalType) ? x.goalType : undefined,
       };
     });
     return {

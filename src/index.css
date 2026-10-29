@@ -727,3 +727,5 @@ span.cam-x{background:none}
 .cf-p{font-size:14.5px;line-height:1.5;color:var(--ink-2);margin:0}
 .of-act.stack3{flex-direction:column;align-items:stretch}
 .of-act.stack3 .btn{width:100%}
+
+.imp-t .imp-note{font-size:12.5px;color:var(--bank);font-weight:600}
