@@ -16,7 +16,7 @@ import * as fin from './finance.js';
 import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn, isBusy } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
 import { findSimilar, compare } from './similar.js';
-import { kvReplyIn } from './replyParse.js';
+import { kvReplyIn, looksLikeCode } from './replyParse.js';
 import { offlineAnswer } from './abelOffline.js';
 import { pdfText, xlsxText, XLSX_MIME } from './fileText.js';
 
@@ -256,6 +256,8 @@ export function cleanReply(t: string): string {
     .replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/^#{1,6}\s+/gm, '')
     .replace(/\n*\s*(?:\*\*)?(?:quick )?suggestions?:?(?:\*\*)?\s*\n(?:\s*[-•*]\s.*\n?)+/gi, '\n')
     .replace(/^\s*[.…]{2,}\s*$/gm, '')
+    // "14,600 €" → "14 600 €" (Finnish style; a comma is for cents)
+    .replace(/\b(\d{1,3}),(\d{3})(?=\s*€)/g, '$1 $2')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   return s;
@@ -326,7 +328,8 @@ interface TurnCtx {
 const DELETE_ALL = /\b(delete|remove|forget|erase|wipe|clear)\b.*\b(everything|all (of )?(it|that|my|you|the|data|info))|\b(everything|all) you know\b/i;
 // Paying someone else (not one of the customer's own accounts).
 const PAY_OTHER = /\b(send|transfer|pay|wire|give)\b[^.?!]*\bto\s+(?!(?:my|the|our)\s+(?:own\s+)?(?:savings|car fund|current|account|flat|goal)|savings\b)(?:my\s+(?:friend|brother|sister|mum|mom|dad|partner|wife|husband)\s+)?[A-Za-zÅÄÖåäö]+/i;
-const PAY_CLAIM = /\b(I can|I'll|I will|let me|I've|I have)\b[^.?!]{0,40}\b(set up|make|send|arrange|prepare|do|transfer|schedule)\b|\bjust confirm\b|\bconfirm (it|when|the transfer|below)\b/i;
+const SAVED_CLAIM = /\b(added|saved|recorded|noted|I'll remember|I will remember|made a note)\b/i;
+const PAY_CLAIM = /\b(I can(?!['’]t|not)|I'll|I will(?! not)|let me|I've|I have)\b(?![^.?!]{0,15}\b(not|never|can['’]t|cannot)\b)[^.?!]{0,40}\b(set up|make|send|arrange|prepare|do|transfer|schedule)\b|\bjust confirm\b|\bconfirm (it|when|the transfer|below)\b/i;
 
 function newId(p: string) {
   return `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -557,7 +560,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   // When no AI can answer, the bank's code answers the common questions with real numbers.
   const offline = (detail?: string): AbelReply => {
     // The AI did answer but badly (garbled, made-up numbers): that's "I didn't get that right", not "try later".
-    const o = offlineAnswer(userId, userText, read.allowed, /garbled|Unverified|step limit/i.test(detail || '') ? 'unclear' : 'no_ai');
+    const o = offlineAnswer(userId, userText, read.allowed, /garbled|Unverified|step limit|was code/i.test(detail || '') ? 'unclear' : 'no_ai');
     for (const a of o.actions || []) runTool({ id: 'offline', name: a.name, args: a.args }, ctx);
     recordTurn(Date.now() - t0, modelCalls);
     return {
@@ -571,6 +574,14 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   if (!provider.isConfigured()) return offline('No AI key in this copy of the app (not_configured)');
 
   let retried = false;
+  let ruleRetried = false;
+  /** What's wrong with a reply, told to the model so it can write it again itself. */
+  const problemWith = (text: string): string | null => {
+    if (looksLikeCode(text)) return 'Your reply was code or a tool call written as text. Call the tool properly, and give the customer plain words in finishReply.';
+    if (ctx.cards.some((c) => c.type === 'confirm_save') && SAVED_CLAIM.test(text)) return 'This sensitive thing was NOT saved: the customer chooses with the Save privately card. Write the reply again: be kind, and do not say you added, saved or noted it.';
+    if (PAY_OTHER.test(userText) && !ctx.cards.some((c) => c.type === 'confirm_plan') && PAY_CLAIM.test(text)) return 'You cannot pay or send money to another person, so do not offer to set it up or ask them to confirm. Write the reply again: say so kindly and point them to Payments in the app.';
+    return null;
+  };
   // An answer must arrive within 75 seconds overall (LLM_TURN_MS, longer for the slower Aalto LLM).
   const deadline = Date.now() + (Number(process.env.LLM_TURN_MS) || 75000);
   for (let step = 0; step < 6; step++) {
@@ -587,8 +598,9 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       if (ctx.cards.length || ctx.notes.length) {
         recordTurn(Date.now() - t0, modelCalls);
         return {
-          text: ctx.cards.length ? 'Here’s what I prepared for you. Just confirm below 👇' : notesLine(),
+          text: doneLine(),
           suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: true,
+          offline: true, errorDetail: detail,
         };
       }
       return offline(detail);
@@ -599,13 +611,15 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       const raw = (res.text || '').trim();
       const j = jsonReplyIn(raw);
       const t = cleanReply(j ? String(j.text) : raw);
-      if (t && !isGarbled(t) && !unsupportedNumbers(t, known).length) {
+      const p = t ? problemWith(t) : null;
+      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known).length && (!p || ruleRetried)) {
         recordTurn(Date.now() - t0, modelCalls);
         return finish(t, j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
       }
       if (t && isGarbled(t)) return offline('The AI answer was garbled');
+      if (p) ruleRetried = true;
       turns.push({ role: 'model', text: t || '(empty)' });
-      turns.push({ role: 'user', text: '(system) Please answer by calling finishReply, and use tools for any numbers.' });
+      turns.push({ role: 'user', text: `(system) ${p || 'Please answer by calling finishReply, and use tools for any numbers.'}` });
       continue;
     }
     turns.push({ role: 'model_calls', calls: res.calls, raw: res.raw });
@@ -625,6 +639,12 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
         }
         // Still made-up numbers after one retry: answer from the bank's code instead of showing them.
         if (bad.length) { console.warn('Abel used unverified numbers after a retry:', bad); return offline('Unverified numbers after a retry'); }
+        const p = problemWith(text);
+        if (p && !ruleRetried) {
+          ruleRetried = true;
+          results.push({ call, result: { accepted: false, error: p } });
+          continue;
+        }
         finished = finish(text, call.args.suggestions, call.args.usedEntryIds, call.args.topic, call.args.couldHelp);
         results.push({ call, result: { accepted: true } });
       } else {
@@ -637,15 +657,20 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     // as long as every action went through and the text's numbers check out. Saves time and free-tier tokens.
     if (!finished && (res.text || '').trim() && res.calls.every((c) => ACTION_TOOLS.has(c.name))
       && results.every((r) => (r.result as any)?.saved === true || (r.result as any)?.shown === true)
-      && !unsupportedNumbers(res.text!.trim(), known).length) {
+      && !unsupportedNumbers(res.text!.trim(), known).length && !problemWith(cleanReply(res.text!.trim()))) {
       const t = cleanReply(res.text!.trim());
-      if (t && !isGarbled(t)) finished = finish(t, jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
+      if (t && !isGarbled(t) && !looksLikeCode(t)) finished = finish(t, jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
     }
+    // Otherwise (no words yet, or the words were code) the results go back to the model, which writes the reply.
     if (finished) {
       recordTurn(Date.now() - t0, modelCalls);
       return finished;
     }
     turns.push({ role: 'tool_results', results });
+  }
+  if (ctx.cards.length || ctx.notes.length) {
+    recordTurn(Date.now() - t0, modelCalls);
+    return { text: doneLine(), suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: true, offline: true, errorDetail: 'The AI did not finish within the step limit' };
   }
   return offline('The AI did not finish within the step limit');
 
@@ -657,18 +682,38 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     return [removed.length ? `Done, I removed ${q(removed)}.` : '', added.length ? `Got it, I’ll remember ${q(added)}.` : '', 'You can undo it below.'].filter(Boolean).join(' ');
   }
 
+  /** Plain words for the cards and notes of this turn. */
+  function doneLine() {
+    const c = ctx.cards[0];
+    if (c?.type === 'confirm_save') return 'Thank you for telling me, that sounds like a lot to carry. 💙\n\nIt’s private, so I haven’t saved it. If you’d like me to keep it in mind, tap Save privately below. Only I could read it, never offers.';
+    if (c?.type === 'duplicate') return 'This is close to something I already know. What would you like to do?';
+    if (c?.type === 'confirm_plan') return 'Here’s the transfer to confirm. Nothing moves until you tap 👇';
+    if (c?.type === 'handoff') return 'Here’s what a Nordea adviser would see, once, if you connect:';
+    if (c?.type === 'offer') return 'Here’s something that might help:';
+    return notesLine();
+  }
+
   function finish(text: string, suggestions: any, used: any, topic: any, couldHelp: any): AbelReply {
+    // Never show a tool call or code to the customer.
+    // (The model has already been asked once to fix these; this is the last resort, labelled as not from the AI.)
+    let fixed = false;
+    if (looksLikeCode(text)) {
+      if (ctx.notes.length || ctx.cards.length) { text = doneLine(); fixed = true; }
+      else return offline('The AI answer was code, not words');
+    }
     // Code checks on what the model wrote:
     // a sensitive thing waiting for the customer's tap was not saved, whatever the model says;
-    if (ctx.cards.some((c) => c.type === 'confirm_save') && /\b(added|saved|recorded|noted|I'll remember|I will remember|made a note)\b/i.test(text)) {
+    if (ctx.cards.some((c) => c.type === 'confirm_save') && SAVED_CLAIM.test(text)) {
+      fixed = true;
       text = 'Thank you for telling me, that sounds like a lot to carry. 💙\n\nIt’s private, so I haven’t saved it. If you’d like me to keep it in mind, tap Save privately below. Only I could read it, never offers.';
     }
     // Abel can't pay other people, so it must never offer to.
     if (PAY_OTHER.test(userText) && !ctx.cards.some((c) => c.type === 'confirm_plan') && PAY_CLAIM.test(text)) {
+      fixed = true;
       text = 'I can’t send money to other people from this chat. You can pay them in the app under Payments.\n\nI can help with moves between your own accounts, like putting a bit more into savings.';
       suggestions = ['Plan my next payday', 'How much is in my accounts?'];
     }
-    if (!text.trim() && ctx.notes.length) text = notesLine();
+    if (!text.trim() && (ctx.notes.length || ctx.cards.length)) { text = doneLine(); fixed = true; }
     // Guardrail 6: only entries the gateway actually returned (or that Abel just saved) can be listed as used.
     const usedIds = Array.from(new Set([...(Array.isArray(used) ? used.map(String) : []), ...ctx.extraUsed])).filter((id) => ctx.allowedIds.has(id) || ctx.extraUsed.includes(id));
     return {
@@ -680,6 +725,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       usedEntryIds: usedIds,
       topic: String(topic || 'other'),
       couldHelp: couldHelp !== false,
+      ...(fixed ? { offline: true, errorDetail: 'The AI’s words broke a rule twice, so fixed words were used' } : {}),
     };
   }
 }
