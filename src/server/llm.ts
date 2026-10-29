@@ -33,13 +33,16 @@ export interface LlmProvider {
   isConfigured(): boolean;
   /** One model step. The model must answer with tool calls (Abel always ends with finishReply). */
   step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number }): Promise<StepResult>;
+  /** Providers other than Gemini report their own status for More → AI connection. */
+  status?(): any;
+  ping?(): Promise<any>;
 }
 
 // Which Gemini model to use. GEMINI_MODEL wins; otherwise try these in order and remember the first
 // one Google accepts (model names change over time, and not every account has every model).
 const CANDIDATES = (process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : [])
   // gemini-3.8-flash: Google's current stable Flash (Oct 2026). gemini-2.0-flash was shut down, so it's gone from the list.
-  .concat(['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-2.5-flash'])
+  .concat(['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.6-flash'])
   .filter((m, i, a) => a.indexOf(m) === i);
 let activeModel: string | null = null;
 let lastError: { at: string; message: string; model?: string } | null = null;
@@ -80,6 +83,16 @@ function clean(err: any): string {
 const isModelProblem = (msg: string) => /not found|NOT_FOUND|404|is not supported|unsupported model|does not exist/i.test(msg);
 /** Google is overloaded or rate-limiting: worth a short wait and a retry, then another model. */
 export const isBusy = (msg: string) => /\b503\b|UNAVAILABLE|high demand|overloaded|\b429\b|RESOURCE_EXHAUSTED|try again later/i.test(msg);
+/** The free key's daily limit (e.g. 20 requests per model per day). Retrying won't help until it resets. */
+export const isDailyLimit = (msg: string) => /per ?day|PerDay|free_tier|exceeded your current quota/i.test(msg);
+/** Models that hit their daily limit, and when to try them again. */
+const exhaustedUntil = new Map<string, number>();
+function retryAfterMs(msg: string) {
+  const m = msg.match(/retryDelay"?:\s*"(\d+)s/) || msg.match(/retry in (\d+)h/);
+  if (!m) return 3600_000;
+  return msg.includes('retry in') && /h/.test(m[0]) ? Number(m[1]) * 3600_000 : Number(m[1]) * 1000;
+}
+
 /** Our own time limit or Google's: another (often faster) model may still answer in time. */
 export const isTimeout = (msg: string) => /\(timeout\)|timed out|DEADLINE_EXCEEDED|\b504\b/i.test(msg);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -141,7 +154,14 @@ export async function generateWith(
   const started = Date.now();
   // After slow answers, stop trying more models so the customer isn't left waiting (at most about two time limits).
   const budget = (args.timeoutMs || STEP_TIMEOUT_MS) * 1.5;
-  for (const model of order) {
+  const now0 = Date.now();
+  const usable = order.filter((m) => (exhaustedUntil.get(m) || 0) < now0);
+  if (!usable.length) {
+    const msg = 'Daily free AI limit reached for every model (429). It resets later; see More → AI connection.';
+    lastError = { at: new Date().toISOString(), message: msg };
+    throw new Error(msg);
+  }
+  for (const model of usable) {
     if (last && Date.now() - started > budget) break;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -154,6 +174,7 @@ export async function generateWith(
         const msg = clean(err);
         lastError = { at: new Date().toISOString(), message: msg, model };
         console.error(`Gemini error (${model}, try ${attempt + 1}):`, msg);
+        if (isDailyLimit(msg)) { exhaustedUntil.set(model, Date.now() + retryAfterMs(msg)); useful = { err, msg, model }; break; } // don't waste requests
         if (isBusy(msg) && attempt === 0) { await sleep(waitMs); continue; } // one quick retry on the same model
         if (!isModelProblem(msg)) useful = { err, msg, model };
         if (isBusy(msg) || isModelProblem(msg) || isTimeout(msg)) break; // next model
@@ -196,6 +217,7 @@ const thinkLabel = (m?: ThinkMode) => (m === 'level' ? 'low' : m === 'budget' ? 
 
 /** For the "AI connection" check in More. Never returns the key itself. */
 export function aiStatus() {
+  if (override?.status) return override.status();
   return {
     provider: override ? override.name : 'gemini',
     keyPresent: geminiConfigured(),
@@ -210,6 +232,7 @@ export function aiStatus() {
 
 /** A tiny real request ("Reply with OK") so the customer can see whether the AI works and why not. */
 export async function aiPing() {
+  if (override?.ping) return override.ping();
   if (override) return { ok: true, model: override.name, ms: 0, reply: 'OK (test stand-in)' };
   if (!geminiConfigured()) return { ok: false, error: 'No Gemini key reaches the server (GEMINI_API_KEY is missing).' };
   const t0 = Date.now();
@@ -223,14 +246,16 @@ export async function aiPing() {
 
 /** Short, customer-safe reason for the last failure (shown under the error message in chat). */
 export function lastErrorText() {
+  if (override?.status) return override.status().lastError?.message || '';
   return lastError?.message || '';
 }
 
 let override: LlmProvider | null = null;
-/** Tests can plug in a scripted provider. Never used in the real app. */
-export function setProviderForTests(p: LlmProvider | null) {
+/** Swap Gemini for another provider: the Aalto LLM (LLM_PROVIDER=openai) or the scripted test stand-in (mock). */
+export function setProvider(p: LlmProvider | null) {
   override = p;
 }
+export const setProviderForTests = setProvider;
 
 export function getProvider(): LlmProvider {
   return override || gemini;
@@ -239,4 +264,5 @@ export function getProvider(): LlmProvider {
 /** Tests only: forget the remembered model. */
 export function resetModelForTests() {
   activeModel = null;
+  exhaustedUntil.clear();
 }

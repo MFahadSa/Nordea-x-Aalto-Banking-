@@ -198,15 +198,15 @@ export const createConversation = (userId: string, helperId: string) =>
   post('/api/conversations', { userId, helperId }).then((r) => j<{ conversation: Conversation }>(r)).then((d) => d.conversation);
 export const fetchConversationMessages = (conversationId: string) =>
   fetch(`/api/conversations/${conversationId}/messages`).then((r) => j<{ messages: ChatMessage[] }>(r)).then((d) => d.messages);
-/** A chat request gives up after 90 s, so the chat can never stay "typing…" forever. */
+/** A chat request gives up after 3 minutes, so the chat can never stay "typing…" forever (the server stops earlier). */
 export async function sendChat(userId: string, conversationId: string | null, helperId: string, text: string) {
   const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 90000);
+  const t = setTimeout(() => ctl.abort(), 180000);
   try {
     const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, conversationId, helperId, text }), signal: ctl.signal });
     return await j<{ conversationId: string; messages: ChatMessage[]; error?: string }>(r);
   } catch (e: any) {
-    if (e?.name === 'AbortError') throw new Error('No answer after 90 seconds (timeout)');
+    if (e?.name === 'AbortError') throw new Error('No answer after 3 minutes (timeout)');
     throw e;
   } finally {
     clearTimeout(t);

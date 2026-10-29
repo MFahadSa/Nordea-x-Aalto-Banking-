@@ -478,7 +478,7 @@ const AiCheck: React.FC = () => {
   const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
   React.useEffect(() => {
     fetchAiStatus()
-      .then((s) => setRes(!s.keyPresent ? { ok: false, text: 'No Gemini key reaches the server' } : s.lastError && (!s.lastOk || s.lastError.at > s.lastOk.at) ? { ok: false, text: s.lastError.message } : s.lastOk ? { ok: true, text: `Working · ${s.lastOk.model}${speed(s)}` } : null))
+      .then((s) => setRes(!s.keyPresent ? { ok: false, text: s.provider === 'aalto' ? 'No Aalto key: add LLM_API_KEY to the .env file' : 'No Gemini key reaches the server' } : s.lastError && (!s.lastOk || s.lastError.at > s.lastOk.at) ? { ok: false, text: s.lastError.message } : s.lastOk ? { ok: true, text: `Working · ${s.lastOk.model}${speed(s)}` } : null))
       .catch(() => {});
   }, []);
   const test = async () => {
