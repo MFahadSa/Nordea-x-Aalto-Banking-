@@ -63,6 +63,8 @@ export default function App() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [waiting, setWaiting] = useState(false);
+  // Which chat is on screen, so a late answer for another chat doesn't land here.
+  const viewRef = useRef(0);
 
   const refresh = useCallback(async (id: string = personaId) => {
     try {
@@ -97,12 +99,16 @@ export default function App() {
 
   // ---------- chat ----------
   const openHelper = (id: string) => {
+    viewRef.current++;
+    setWaiting(false);
     setHelperId(id);
     setConversationId(null);
     setMessages([]);
     setChatOpen(true);
   };
   const openConversation = async (id: string) => {
+    viewRef.current++;
+    setWaiting(false);
     const c = state?.conversations.find((x) => x.id === id);
     setHelperId(c?.helperId || 'abel');
     setConversationId(id);
@@ -124,15 +130,18 @@ export default function App() {
     const temp: ChatMessage = { id: 'tmp-' + Date.now(), userId: state.user.id, agentId: 'abel', channel: 'app', sender: 'user', text, createdAt: new Date().toISOString() };
     setMessages((prev) => [...prev, temp]);
     setWaiting(true);
+    const view = viewRef.current;
     try {
       const res = await sendChat(state.user.id, cId, hId, text);
+      if (view !== viewRef.current) { refresh(); return; } // the customer moved to another chat meanwhile
       setMessages((prev) => prev.filter((m) => m.id !== temp.id));
       appendFromServer(res.conversationId, res.messages);
       refresh();
     } catch (e: any) {
-      setMessages((prev) => [...prev, { ...temp, id: 'err-' + Date.now(), sender: 'agent', text: 'Sorry, something went wrong on my side. Could you try again?' }]);
+      if (view !== viewRef.current) return;
+      setMessages((prev) => [...prev, { ...temp, id: 'err-' + Date.now(), sender: 'agent', text: 'Sorry, I didn’t get an answer. Could you try again?', errorInfo: e?.message || 'The request failed' }]);
     } finally {
-      setWaiting(false);
+      if (view === viewRef.current) setWaiting(false);
     }
   };
   /** Open a helper and send a first message straight away. */

@@ -354,6 +354,7 @@ export const Chat: React.FC<Props> = (p) => {
       });
     });
     richCards.forEach((x) => items.push({ who: 'bot', key: `${m.id}-c${x.ci}`, node: x.node, rich: true }));
+    if (m.errorInfo) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
     if (lastBot) lastBot.after = usedLine(m);
     if (m.resolved && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
@@ -401,7 +402,7 @@ export const Chat: React.FC<Props> = (p) => {
           <div className="mrow bot pop gstart"><BotAvatar /><div className="mcol"><div className="bub typing" aria-label="Abel is typing"><i /><i /><i /></div></div></div>
         )}
         {pills && (
-          <div className="qr pop">
+          <div className={`qr pop${p.waiting ? ' busy' : ''}`}>
             {pills.map((s) => <button key={s} className="qr-b" onClick={() => send(s)}>{pillLabel(s)}</button>)}
           </div>
         )}

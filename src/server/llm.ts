@@ -1,6 +1,6 @@
 // One small module for every call to a language model, so the provider can be swapped later
 // (e.g. an OpenAI-compatible university gateway, or Claude) without touching the rest of the app.
-import { GoogleGenAI, FunctionCallingConfigMode } from '@google/genai';
+import { GoogleGenAI, FunctionCallingConfigMode, ThinkingLevel } from '@google/genai';
 
 export interface ToolDecl {
   name: string;
@@ -35,21 +35,107 @@ export interface LlmProvider {
   step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number }): Promise<StepResult>;
 }
 
-// The model name lives in one place. "gemini-flash-latest" is the alias used in the @google/genai SDK docs.
-// Change it with the GEMINI_MODEL environment variable if Google renames it.
-const MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+// Which Gemini model to use. GEMINI_MODEL wins; otherwise try these in order and remember the first
+// one Google accepts (model names change over time, and not every account has every model).
+const CANDIDATES = (process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : [])
+  .concat(['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'])
+  .filter((m, i, a) => a.indexOf(m) === i);
+let activeModel: string | null = null;
+let lastError: { at: string; message: string; model?: string } | null = null;
+let lastOk: { at: string; model: string } | null = null;
+
+// "Thinking" makes newer models much slower. Abel's job is short replies with tools, so keep it low.
+// Newer models take thinkingLevel, the 2.5 family takes thinkingBudget; each refuses the other.
+// Try in this order and remember what the model accepted. LLM_THINKING=default leaves it to Google.
+type ThinkMode = 'level' | 'budget' | 'none';
+let thinkMode: ThinkMode | null = process.env.LLM_THINKING === 'default' ? 'none' : null;
+const thinkingFor = (m: ThinkMode) =>
+  m === 'level' ? { thinkingLevel: ThinkingLevel.LOW } : m === 'budget' ? { thinkingBudget: 0 } : undefined;
+// Any "invalid request" answer may mean the model doesn't accept this thinking setting, so try the next one.
+// Timeouts and network errors are not retried here.
+const isThinkingProblem = (msg: string) => !/timeout|fetch failed|ECONN|ENOTFOUND|network/i.test(msg) && /thinking|INVALID_ARGUMENT|invalid argument|400/i.test(msg);
+
+/** Timing of the last answer, for More → AI connection. */
+let lastTurn: { at: string; ms: number; calls: number } | null = null;
+export function recordTurn(ms: number, calls: number) {
+  lastTurn = { at: new Date().toISOString(), ms, calls };
+}
+
+/** Max time for one call to the model. Without this a stuck request leaves the chat "typing…" forever. */
+const STEP_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 30000;
 
 function geminiConfigured() {
   const k = process.env.GEMINI_API_KEY;
   return !!k && k !== 'MY_GEMINI_API_KEY';
 }
 
+/** Error text without anything that looks like a key. */
+function clean(err: any): string {
+  const raw = String(err?.message || err || 'unknown error');
+  return raw.replace(/AIza[0-9A-Za-z_-]{20,}/g, '[key]').replace(/key=[^&\s]+/gi, 'key=[key]').slice(0, 300);
+}
+const isModelProblem = (msg: string) => /not found|NOT_FOUND|404|is not supported|unsupported model|does not exist/i.test(msg);
+
+export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI'): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${what} did not answer within ${Math.round(ms / 1000)} seconds (timeout)`)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
+
+async function callGemini(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }) {
+  const modes: ThinkMode[] = thinkMode ? [thinkMode] : ['level', 'budget', 'none'];
+  let last: any;
+  for (const m of modes) {
+    try {
+      const res = await callOnce(model, args, thinkingFor(m));
+      thinkMode = m;
+      return res;
+    } catch (err) {
+      last = err;
+      if (!isThinkingProblem(clean(err))) throw err;
+    }
+  }
+  throw last;
+}
+
+async function callOnce(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }, thinkingConfig?: object) {
+  // The key stays on the server: this file only runs in server.ts, never in the browser.
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const config: any = { systemInstruction: args.system, temperature: args.temperature };
+  if (thinkingConfig) config.thinkingConfig = thinkingConfig;
+  if (args.tools?.length) {
+    config.tools = [{ functionDeclarations: args.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }];
+    config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } };
+  }
+  return withTimeout(ai.models.generateContent({ model, contents: args.contents, config }), STEP_TIMEOUT_MS);
+}
+
+/** Try the remembered model, then the other candidates if Google says the model doesn't exist. */
+async function generate(args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }) {
+  const order = activeModel ? [activeModel, ...CANDIDATES.filter((m) => m !== activeModel)] : CANDIDATES;
+  let last: any;
+  for (const model of order) {
+    try {
+      const res = await callGemini(model, args);
+      activeModel = model;
+      lastOk = { at: new Date().toISOString(), model };
+      return res;
+    } catch (err) {
+      last = err;
+      const msg = clean(err);
+      lastError = { at: new Date().toISOString(), message: msg, model };
+      console.error(`Gemini error (${model}):`, msg);
+      if (!isModelProblem(msg)) break; // a wrong key, a timeout or a network problem won't be fixed by another model
+    }
+  }
+  throw last;
+}
+
 const gemini: LlmProvider = {
-  name: `gemini (${MODEL})`,
+  name: 'gemini',
   isConfigured: geminiConfigured,
   async step({ system, turns, tools, temperature = 0.3 }) {
-    // The key stays on the server: this file only runs in server.ts, never in the browser.
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const contents: any[] = [];
     for (const t of turns) {
       if (t.role === 'user')
@@ -63,20 +149,43 @@ const gemini: LlmProvider = {
           parts: t.results.map((r) => ({ functionResponse: { id: r.call.id, name: r.call.name, response: { result: r.result } } })),
         });
     }
-    const res = await ai.models.generateContent({
-      model: MODEL,
-      contents,
-      config: {
-        systemInstruction: system,
-        temperature,
-        tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }],
-        toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } },
-      },
-    });
+    const res = await generate({ system, contents, tools, temperature });
     const calls: ToolCall[] = (res.functionCalls || []).map((c) => ({ id: c.id, name: c.name || '', args: (c.args as any) || {} }));
     return { calls, text: res.text, raw: res.candidates?.[0]?.content };
   },
 };
+
+/** For the "AI connection" check in More. Never returns the key itself. */
+export function aiStatus() {
+  return {
+    provider: override ? override.name : 'gemini',
+    keyPresent: geminiConfigured(),
+    model: activeModel || CANDIDATES[0],
+    candidates: CANDIDATES,
+    lastOk,
+    lastError,
+    thinking: thinkMode === 'level' ? 'low' : thinkMode === 'budget' ? 'off' : thinkMode === 'none' ? 'model default' : 'not tried yet',
+    lastTurn,
+  };
+}
+
+/** A tiny real request ("Reply with OK") so the customer can see whether the AI works and why not. */
+export async function aiPing() {
+  if (override) return { ok: true, model: override.name, ms: 0, reply: 'OK (test stand-in)' };
+  if (!geminiConfigured()) return { ok: false, error: 'No Gemini key reaches the server (GEMINI_API_KEY is missing).' };
+  const t0 = Date.now();
+  try {
+    const res = await generate({ system: 'Reply with the single word OK.', contents: [{ role: 'user', parts: [{ text: 'Ping' }] }], temperature: 0 });
+    return { ok: true, model: activeModel, ms: Date.now() - t0, reply: String(res.text || '').slice(0, 40) };
+  } catch (err) {
+    return { ok: false, model: activeModel || CANDIDATES[0], ms: Date.now() - t0, error: clean(err) };
+  }
+}
+
+/** Short, customer-safe reason for the last failure (shown under the error message in chat). */
+export function lastErrorText() {
+  return lastError?.message || '';
+}
 
 let override: LlmProvider | null = null;
 /** Tests can plug in a scripted provider. Never used in the real app. */

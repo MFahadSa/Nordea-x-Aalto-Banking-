@@ -195,8 +195,23 @@ export const createConversation = (userId: string, helperId: string) =>
   post('/api/conversations', { userId, helperId }).then((r) => j<{ conversation: Conversation }>(r)).then((d) => d.conversation);
 export const fetchConversationMessages = (conversationId: string) =>
   fetch(`/api/conversations/${conversationId}/messages`).then((r) => j<{ messages: ChatMessage[] }>(r)).then((d) => d.messages);
-export const sendChat = (userId: string, conversationId: string | null, helperId: string, text: string) =>
-  post('/api/chat', { userId, conversationId, helperId, text }).then((r) => j<{ conversationId: string; messages: ChatMessage[]; error?: string }>(r));
+/** A chat request gives up after 90 s, so the chat can never stay "typing…" forever. */
+export async function sendChat(userId: string, conversationId: string | null, helperId: string, text: string) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 90000);
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, conversationId, helperId, text }), signal: ctl.signal });
+    return await j<{ conversationId: string; messages: ChatMessage[]; error?: string }>(r);
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw new Error('No answer after 90 seconds (timeout)');
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
+export interface AiStatus { provider: string; keyPresent: boolean; model: string; candidates: string[]; lastOk: { at: string; model: string } | null; lastError: { at: string; message: string; model?: string } | null; thinking?: string; lastTurn?: { at: string; ms: number; calls: number } | null }
+export const fetchAiStatus = () => fetch('/api/ai-status').then((r) => j<AiStatus>(r));
+export const pingAi = () => post('/api/ai-ping', {}).then((r) => j<{ ok: boolean; model?: string; ms?: number; reply?: string; error?: string; status: AiStatus }>(r));
 export const doAction = (userId: string, messageId: string, action: string, payload: Record<string, unknown> = {}) =>
   post('/api/actions', { userId, messageId, action, payload }).then((r) => j<{ messages: ChatMessage[]; resolvedMessageId: string }>(r));
 export interface Reward { id: string; title: string; short: string; pts: number; done: string }
