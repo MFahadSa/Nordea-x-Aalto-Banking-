@@ -1,4 +1,5 @@
-// Abel on any OpenAI-compatible chat API, e.g. the Aalto LLM gateway (only reachable on the Aalto VPN).
+// Abel on any OpenAI-compatible chat API: Groq's free tier (works in AI Studio) or the Aalto LLM gateway
+// (only on the Aalto VPN).
 // Turn it on with LLM_PROVIDER=openai plus LLM_BASE_URL, LLM_API_KEY and LLM_MODEL (in .env on the laptop,
 // never in code). Gemini stays the default everywhere else.
 import { LlmProvider, ToolDecl, Turn, ToolCall, withTimeout } from './llm.js';
@@ -13,7 +14,19 @@ let lastOk: { at: string; model: string } | null = null;
 let lastError: { at: string; message: string; model?: string } | null = null;
 // Some servers reject parts of the request; remember what they accepted so we don't ask twice.
 let toolChoice: 'required' | 'auto' = 'required';
-let noThink = true;
+const isAalto = () => /aalto/i.test(base());
+const isGptOss = () => /gpt-oss/i.test(model());
+// vLLM + Qwen (Aalto) understand chat_template_kwargs; gpt-oss models take reasoning_effort. Both make answers faster.
+let noThink = isAalto();
+let lowEffort = isGptOss();
+/** A readable name for More → AI connection, from the address. */
+export function providerLabel() {
+  const b = base();
+  if (/groq\.com/i.test(b)) return 'Groq';
+  if (/aalto/i.test(b)) return 'Aalto LLM';
+  if (/openrouter/i.test(b)) return 'OpenRouter';
+  try { return new URL(b).host; } catch { return 'OpenAI-compatible'; }
+}
 
 function clean(err: any) {
   const raw = String(err?.message || err || 'unknown error');
@@ -76,7 +89,7 @@ async function post(body: any, timeoutMs: number) {
       body: JSON.stringify(body),
     }),
     timeoutMs,
-    'The Aalto LLM',
+    providerLabel(),
   );
   const text = await res.text();
   if (!res.ok) throw new Error(`${res.status}: ${text.slice(0, 400)}`);
@@ -93,6 +106,8 @@ async function chat(args: { system: string; turns: Turn[]; tools: ToolDecl[]; te
     if (args.tools.length) body.tool_choice = toolChoice;
     if (noThink) body.chat_template_kwargs = { enable_thinking: false }; // vLLM + Qwen: answer without a long think
     else delete body.chat_template_kwargs;
+    if (lowEffort) body.reasoning_effort = 'low';
+    else delete body.reasoning_effort;
     try {
       const out = await post(body, timeout);
       lastOk = { at: new Date().toISOString(), model: model() };
@@ -100,18 +115,25 @@ async function chat(args: { system: string; turns: Turn[]; tools: ToolDecl[]; te
     } catch (err) {
       const msg = clean(err);
       lastError = { at: new Date().toISOString(), message: msg, model: model() };
-      console.error(`Aalto LLM error (${model()}):`, msg);
+      console.error(`${providerLabel()} error (${model()}):`, msg);
       // Not every server accepts these extras. Drop them and try again.
-      if (/^4\d\d/.test(msg) && noThink && /chat_template|enable_thinking|extra|unrecognized|not permitted/i.test(msg)) { noThink = false; continue; }
+      if (/^4\d\d/.test(msg) && noThink && /chat_template|enable_thinking|extra|unrecognized|not permitted|unsupported/i.test(msg)) { noThink = false; continue; }
+      if (/^4\d\d/.test(msg) && lowEffort && /reasoning_effort|unrecognized|unsupported/i.test(msg)) { lowEffort = false; continue; }
+      // Free tiers limit tokens per minute (Groq: 8 000). If the wait is short, wait once and retry.
+      const wait = msg.match(/try again in ([\d.]+)s/i);
+      if (/^429/.test(msg) && /per minute|TPM|RPM/i.test(msg) && wait && Number(wait[1]) <= 20 && attempt < 2) {
+        await new Promise((r) => setTimeout(r, Math.ceil(Number(wait[1]) * 1000) + 300));
+        continue;
+      }
       if (/^4\d\d/.test(msg) && toolChoice === 'required' && /tool_choice|required/i.test(msg)) { toolChoice = 'auto'; continue; }
       throw err;
     }
   }
-  throw new Error(lastError?.message || 'The Aalto LLM did not answer');
+  throw new Error(lastError?.message || `${providerLabel()} did not answer`);
 }
 
 export const openAiProvider: LlmProvider = {
-  name: 'aalto',
+  name: 'openai',
   isConfigured: () => !!key(),
   status: () => openAiStatus(),
   ping: () => openAiPing(),
@@ -125,7 +147,7 @@ export const openAiProvider: LlmProvider = {
 
 export function openAiStatus() {
   return {
-    provider: 'aalto',
+    provider: providerLabel(),
     keyPresent: !!key(),
     model: model(),
     candidates: [model()],
@@ -137,13 +159,13 @@ export function openAiStatus() {
 }
 
 export async function openAiPing() {
-  if (!key()) return { ok: false, error: 'No LLM_API_KEY reaches the server (add it to the .env file).' };
+  if (!key()) return { ok: false, error: 'No LLM_API_KEY reaches the server (AI Studio: Settings → Secrets; laptop: the .env file).' };
   const t0 = Date.now();
   try {
     const out = await chat({ system: 'Reply with the single word OK.', turns: [{ role: 'user', text: 'Ping' }], tools: [], temperature: 0 });
     return { ok: true, model: model(), ms: Date.now() - t0, reply: stripThinking(String(out?.choices?.[0]?.message?.content || '')).slice(0, 40) };
   } catch (err) {
     const m = clean(err);
-    return { ok: false, model: model(), ms: Date.now() - t0, error: /fetch failed|ENOTFOUND|ECONN|getaddrinfo/i.test(m) ? `Can’t reach ${base()}. Is the Aalto VPN on? (${m})` : m };
+    return { ok: false, model: model(), ms: Date.now() - t0, error: /fetch failed|ENOTFOUND|ECONN|getaddrinfo/i.test(m) ? `Can’t reach ${base()}.${isAalto() ? ' Is the Aalto VPN on?' : ''} (${m})` : m };
   }
 }
