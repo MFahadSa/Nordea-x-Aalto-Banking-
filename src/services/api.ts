@@ -214,6 +214,8 @@ export async function sendChat(userId: string, conversationId: string | null, he
 }
 export interface AiStatus { provider: string; keyPresent: boolean; model: string; candidates: string[]; lastOk: { at: string; model: string } | null; lastError: { at: string; message: string; model?: string } | null; thinking?: string; lastTurn?: { at: string; ms: number; calls: number } | null }
 export const fetchAiStatus = () => fetch('/api/ai-status').then((r) => j<AiStatus>(r));
+export interface PingEach { model: string; thinking?: string; plain: { ok: boolean; ms: number; error?: string }; abel: { ok: boolean; ms: number; error?: string } }
+export const pingAiEach = () => post('/api/ai-ping-each', {}).then((r) => j<{ results: PingEach[]; error?: string }>(r));
 export const pingAi = () => post('/api/ai-ping', {}).then((r) => j<{ ok: boolean; model?: string; ms?: number; reply?: string; error?: string; status: AiStatus }>(r));
 export const doAction = (userId: string, messageId: string, action: string, payload: Record<string, unknown> = {}) =>
   post('/api/actions', { userId, messageId, action, payload }).then((r) => j<{ messages: ChatMessage[]; resolvedMessageId: string }>(r));

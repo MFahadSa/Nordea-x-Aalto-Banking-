@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppState, Reward, pingAi, fetchAiStatus, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
+import { AppState, Reward, pingAi, pingAiEach, PingEach, fetchAiStatus, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
@@ -492,12 +492,46 @@ const AiCheck: React.FC = () => {
       setBusy(false);
     }
   };
+  const [each, setEach] = useState<PingEach[] | null>(null);
+  const [eachBusy, setEachBusy] = useState(false);
+  const [eachErr, setEachErr] = useState('');
+  const testEach = async () => {
+    setEachBusy(true); setEach(null); setEachErr('');
+    try {
+      const r = await pingAiEach();
+      if (r.error) setEachErr(r.error);
+      setEach(r.results);
+    } catch (e: any) {
+      setEachErr(e?.message || 'The check itself failed');
+    } finally {
+      setEachBusy(false);
+    }
+  };
+  const cell = (x: PingEach['plain']) => (x.ok ? <span className="up">✓ {(x.ms / 1000).toFixed(1)} s</span> : <span className="ai-bad">✗ {(x.ms / 1000).toFixed(1)} s · {x.error}</span>);
   return (
-    <NRow
-      name="AI connection"
-      sub={busy ? 'Testing…' : res ? <span className={res.ok ? 'up' : 'ai-bad'}>{res.text}</span> : 'Test whether Abel’s AI answers'}
-      right={<button className="btn small" onClick={test} disabled={busy}>Test</button>}
-    />
+    <>
+      <NRow
+        name="AI connection"
+        sub={busy ? 'Testing…' : res ? <span className={res.ok ? 'up' : 'ai-bad'}>{res.text}</span> : 'Test whether Abel’s AI answers'}
+        right={<button className="btn small" onClick={test} disabled={busy}>Test</button>}
+      />
+      <NRow
+        name="Test each model"
+        sub={eachBusy ? 'Testing every model at once… up to 50 s' : eachErr || 'Which Gemini model answers, and how fast'}
+        right={<button className="btn small" onClick={testEach} disabled={eachBusy}>Run</button>}
+      />
+      {each && (
+        <div className="ai-each">
+          {each.map((r) => (
+            <div key={r.model} className="ai-each-r">
+              <b>{r.model}</b>
+              <span>Plain: {cell(r.plain)}</span>
+              <span>As Abel (thinking {r.thinking || '–'}, tools): {cell(r.abel)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 };
 

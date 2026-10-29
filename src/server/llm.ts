@@ -221,6 +221,34 @@ export async function aiPing() {
   }
 }
 
+/**
+ * Detailed check (More → AI connection → Test each model): every model at the same time, twice:
+ * "plain" = a bare "Reply OK", "as Abel" = with the thinking setting and a tool, the way chat calls it.
+ * Shows which model works, how fast, and whether thinking or tools are what makes it hang.
+ */
+export async function aiPingEach() {
+  if (override) return { results: [{ model: override.name, plain: { ok: true, ms: 0 }, abel: { ok: true, ms: 0 } }] };
+  if (!geminiConfigured()) return { error: 'No Gemini key reaches the server (GEMINI_API_KEY is missing).', results: [] };
+  const base = { system: 'Reply with the single word OK.', contents: [{ role: 'user', parts: [{ text: 'Ping' }] }], temperature: 0, timeoutMs: 25000 };
+  const tool: ToolDecl = { name: 'finishReply', description: 'Give the answer.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } };
+  const timed = async (fn: () => Promise<any>) => {
+    const t0 = Date.now();
+    try {
+      await fn();
+      return { ok: true, ms: Date.now() - t0 };
+    } catch (err) {
+      return { ok: false, ms: Date.now() - t0, error: clean(err).slice(0, 160) };
+    }
+  };
+  const results = await Promise.all(
+    CANDIDATES.map(async (model) => {
+      const [plain, abel] = await Promise.all([timed(() => callOnce(model, base)), timed(() => callGemini(model, { ...base, tools: [tool] }))]);
+      return { model, plain, abel, thinking: thinkLabel(thinkModes.get(model)) };
+    }),
+  );
+  return { results };
+}
+
 /** Short, customer-safe reason for the last failure (shown under the error message in chat). */
 export function lastErrorText() {
   return lastError?.message || '';

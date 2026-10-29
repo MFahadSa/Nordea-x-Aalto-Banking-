@@ -6,7 +6,7 @@ import { previewCabinetForAgent } from './accessGateway.js';
 import { getPartner, getAllPartners } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { abelTurn, proposeFromContent, offerHeadline, SAMPLE_CHAT, ImportItem } from './abel.js';
-import { getProvider, aiStatus, aiPing } from './llm.js';
+import { getProvider, aiStatus, aiPing, aiPingEach } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } from '../types.js';
 import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } from './documents.js';
 
@@ -104,6 +104,7 @@ export function registerV14Routes(app: Express) {
   // and the last error. Never returns the key.
   app.get('/api/ai-status', (_req, res) => res.json(aiStatus()));
   app.post('/api/ai-ping', async (_req, res) => res.json({ ...(await aiPing()), status: aiStatus() }));
+  app.post('/api/ai-ping-each', async (_req, res) => res.json(await aiPingEach()));
 
   app.post('/api/conversations', (req, res) => {
     const { userId = 'lauri', helperId = 'abel' } = req.body || {};

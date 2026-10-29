@@ -727,3 +727,7 @@ span.cam-x{background:none}
 .cf-p{font-size:14.5px;line-height:1.5;color:var(--ink-2);margin:0}
 .of-act.stack3{flex-direction:column;align-items:stretch}
 .of-act.stack3 .btn{width:100%}
+
+.ai-each{padding:4px 16px 14px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--ink-2)}
+.ai-each-r{display:flex;flex-direction:column;gap:2px;padding:8px 10px;background:var(--surface-2);border-radius:10px;word-break:break-word}
+.ai-each-r b{color:var(--ink);font-size:13.5px}
