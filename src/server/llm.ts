@@ -38,7 +38,8 @@ export interface LlmProvider {
 // Which Gemini model to use. GEMINI_MODEL wins; otherwise try these in order and remember the first
 // one Google accepts (model names change over time, and not every account has every model).
 const CANDIDATES = (process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : [])
-  .concat(['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'])
+  // gemini-3.8-flash: Google's current stable Flash (Oct 2026). gemini-2.0-flash was shut down, so it's gone from the list.
+  .concat(['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-2.5-flash'])
   .filter((m, i, a) => a.indexOf(m) === i);
 let activeModel: string | null = null;
 let lastError: { at: string; message: string; model?: string } | null = null;
@@ -48,7 +49,9 @@ let lastOk: { at: string; model: string } | null = null;
 // Newer models take thinkingLevel, the 2.5 family takes thinkingBudget; each refuses the other.
 // Try in this order and remember what the model accepted. LLM_THINKING=default leaves it to Google.
 type ThinkMode = 'level' | 'budget' | 'none';
-let thinkMode: ThinkMode | null = process.env.LLM_THINKING === 'default' ? 'none' : null;
+// Remembered per model: 3.x models take thinkingLevel, 2.5 takes thinkingBudget.
+const thinkModes = new Map<string, ThinkMode>();
+const forced: ThinkMode | null = process.env.LLM_THINKING === 'default' ? 'none' : null;
 const thinkingFor = (m: ThinkMode) =>
   m === 'level' ? { thinkingLevel: ThinkingLevel.LOW } : m === 'budget' ? { thinkingBudget: 0 } : undefined;
 // Any "invalid request" answer may mean the model doesn't accept this thinking setting, so try the next one.
@@ -89,12 +92,13 @@ export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI'): Prom
 }
 
 async function callGemini(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number }) {
-  const modes: ThinkMode[] = thinkMode ? [thinkMode] : ['level', 'budget', 'none'];
+  const known = forced || thinkModes.get(model);
+  const modes: ThinkMode[] = known ? [known] : ['level', 'budget', 'none'];
   let last: any;
   for (const m of modes) {
     try {
       const res = await callOnce(model, args, thinkingFor(m));
-      thinkMode = m;
+      thinkModes.set(model, m);
       return res;
     } catch (err) {
       last = err;
@@ -133,6 +137,7 @@ export async function generateWith(
 ) {
   const order = activeModel ? [activeModel, ...CANDIDATES.filter((m) => m !== activeModel)] : CANDIDATES;
   let last: any;
+  let useful: { err: any; msg: string; model: string } | null = null;
   const started = Date.now();
   // After slow answers, stop trying more models so the customer isn't left waiting (at most about two time limits).
   const budget = (args.timeoutMs || STEP_TIMEOUT_MS) * 1.5;
@@ -150,10 +155,16 @@ export async function generateWith(
         lastError = { at: new Date().toISOString(), message: msg, model };
         console.error(`Gemini error (${model}, try ${attempt + 1}):`, msg);
         if (isBusy(msg) && attempt === 0) { await sleep(waitMs); continue; } // one quick retry on the same model
+        if (!isModelProblem(msg)) useful = { err, msg, model };
         if (isBusy(msg) || isModelProblem(msg) || isTimeout(msg)) break; // next model
         throw err;
       }
     }
+  }
+  // Report the real problem (e.g. a timeout), not just "the last fallback model doesn't exist".
+  if (useful) {
+    lastError = { at: new Date().toISOString(), message: useful.msg, model: useful.model };
+    throw useful.err;
   }
   throw last;
 }
@@ -181,6 +192,8 @@ const gemini: LlmProvider = {
   },
 };
 
+const thinkLabel = (m?: ThinkMode) => (m === 'level' ? 'low' : m === 'budget' ? 'off' : m === 'none' ? 'model default' : 'not tried yet');
+
 /** For the "AI connection" check in More. Never returns the key itself. */
 export function aiStatus() {
   return {
@@ -190,7 +203,7 @@ export function aiStatus() {
     candidates: CANDIDATES,
     lastOk,
     lastError,
-    thinking: thinkMode === 'level' ? 'low' : thinkMode === 'budget' ? 'off' : thinkMode === 'none' ? 'model default' : 'not tried yet',
+    thinking: thinkLabel(thinkModes.get(activeModel || CANDIDATES[0])),
     lastTurn,
   };
 }
