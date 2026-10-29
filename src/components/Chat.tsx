@@ -188,6 +188,17 @@ export const Chat: React.FC<Props> = (p) => {
     try { rec.start(); } catch { recRef.current = null; setListening(false); }
   }
 
+  // The message box grows with the text (up to about 6 lines, then it scrolls inside), like WhatsApp.
+  const boxRef = React.useRef<HTMLTextAreaElement>(null);
+  const touch = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+  React.useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+    el.style.overflowY = el.scrollHeight > 150 ? 'auto' : 'hidden';
+  }, [text, p.open]);
+
   if (!p.open) return null;
 
   const send = (t: string) => {
@@ -506,15 +517,19 @@ export const Chat: React.FC<Props> = (p) => {
           <Icon name="plus" />
         </button>
         <label className="sr" htmlFor="ai-q">Message {h.name}</label>
-        <input
+        <textarea
           id="ai-q"
+          ref={boxRef}
+          rows={1}
           placeholder="Message…"
           autoComplete="off"
           enterKeyHint="send"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            // Like WhatsApp: on a computer Enter sends and Shift+Enter starts a new line;
+            // on a phone Enter starts a new line and the arrow button sends.
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !touch) {
               e.preventDefault();
               send(text);
             }

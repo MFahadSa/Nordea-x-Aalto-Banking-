@@ -196,7 +196,7 @@ ${JSON.stringify(entries)}
 HOW YOU TALK
 - Warm, brief, plain English, like a caring person texting. Acknowledge feelings first. At most one question; ask if unclear.
 - Use the cabinet naturally, never recite it. Small talk: one or two sentences.
-- Money: 12 000 € (whole euros, or 1 420,50 € if cents matter). Plain text: no markdown, no JSON, no suggestion lists (quick replies go in suggestions).
+- Money: 12 000 € (whole euros, or 1 420,50 € if cents matter). Plain text: no markdown, no tables, no JSON, no suggestion lists (quick replies go in suggestions). For a plan over many months, summarise it in a few sentences.
 - Never show ids. When they name something ("the salary one"), find it yourself (newest = latest "added").
 - You can't browse, give live rates or forecasts, or move money. Unhappy customer: apologise, repair, offer a person.${calm ? '\n- CALM view: very short warm sentences, at most two suggestions, always offer a person.' : ''}
 
@@ -246,6 +246,12 @@ export function cleanReply(t: string): string {
   // finishReply's fields written as lines ("couldHelp: true", "usedEntryIds: []"…): cut them off.
   const kv = kvReplyIn(s);
   if (kv) s = kv.before || String(kv.fields.text || '');
+  // Markdown tables don't fit a chat bubble: each row becomes one readable line ("May 2027 · 3 900 € · …").
+  if (/^\s*\|.*\|\s*$/m.test(s)) {
+    s = s.split('\n').filter((l) => !/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l))
+      .map((l) => (/^\s*\|.*\|\s*$/.test(l) ? l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim()).filter(Boolean).join(' · ') : l))
+      .join('\n');
+  }
   s = s
     .replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/^#{1,6}\s+/gm, '')
     .replace(/\n*\s*(?:\*\*)?(?:quick )?suggestions?:?(?:\*\*)?\s*\n(?:\s*[-•*]\s.*\n?)+/gi, '\n')
