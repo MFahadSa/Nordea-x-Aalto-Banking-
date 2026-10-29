@@ -198,7 +198,7 @@ HOW YOU TALK
 - You can't browse, give live rates or forecasts, or move money. Unhappy customer: apologise, repair, offer a person.${calm ? '\n- CALM view: very short warm sentences, at most two suggestions, always offer a person.' : ''}
 
 RULES
-- Numbers only from FACTS, the cabinet, this chat or a tool result. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
+- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly). In goals, monthlyGoingIn is what goes in now; extraPerMonthNeeded is what's missing on top. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
 - One step: finishReply, plus any action tool in the same step.
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts); never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Abel knows".
 - Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
@@ -286,11 +286,32 @@ function numbersIn(s: string): number[] {
   }
   return out;
 }
-function unsupportedNumbers(reply: string, known: number[]): number[] {
+/** Simple maths on known numbers is fine: a sum or difference ("320 − 200 = 120"), or × / ÷ a small count ("8 200 ÷ 18 months"). */
+function derivable(n: number, known: number[]): boolean {
+  const k = Array.from(new Set(known.filter((x) => x !== 0 && Number.isFinite(x)).map((x) => Math.abs(x)))).slice(0, 250);
+  // Exact, or normal rounding of the result: 123 → "about 120", 8 230 → "about 8 200".
+  const near = (v: number) => {
+    if (v === 0) return false;
+    const d = Math.abs(v - n);
+    return d <= Math.abs(v) * 0.002 || (n % 10 === 0 && d <= 5) || (n % 100 === 0 && d <= 50) || (n % 1000 === 0 && d <= 500);
+  };
+  for (let i = 0; i < k.length; i++)
+    for (let j = 0; j < k.length; j++) {
+      const a = k[i], b = k[j];
+      if (near(a + b) || near(a - b)) return true;
+    }
+  // × or ÷ only by a count that's really there, like the months left (18) or 12 months a year:
+  // "460 × 18", "8 200 ÷ 18". Not one amount by another.
+  const counts = new Set([12, ...k.filter((x) => Number.isInteger(x) && x >= 2 && x <= 60)]);
+  for (const a of k) for (const m of counts) if (near(a * m) || near(a / m)) return true;
+  return false;
+}
+function unsupportedNumbers(reply: string, known: number[], money: number[] = []): number[] {
   const bad: number[] = [];
   for (const n of numbersIn(withoutDates(reply))) {
     if (n < 13 || (n >= 1990 && n <= 2100 && Number.isInteger(n))) continue; // small counts, years
     if (known.some((k) => k !== 0 && Math.abs(k - n) / Math.abs(k) <= 0.03)) continue; // rounding allowed
+    if (derivable(n, money)) continue;
     bad.push(n);
   }
   return bad;
@@ -430,6 +451,10 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
         const t = targetOf(a.targetAmount ?? existing.target?.amount, a.targetDate ?? existing.target?.date);
         if (t && (a.targetAmount != null || a.targetDate != null)) updates.target = t;
       }
+      // Nothing actually changes (e.g. "am I on track?" with the same amount again): no update, no note.
+      const same = (!updates.title || updates.title === existing.title) && (!updates.detail || updates.detail === existing.detail)
+        && (!updates.target || (existing.target && updates.target.amount === existing.target.amount && updates.target.date === existing.target.date));
+      if (same && existing.status !== 'stale') return { saved: false, alreadyKnown: true, note: 'Nothing changed: it is already like this. Do not mention an update.' };
       if (existing.status === 'stale') updates.status = 'active';
       updates.confirmedAt = new Date().toISOString();
       db.updateCabinetEntry(existing.id, updates, { by: 'abel', how: 'From your chat' });
@@ -547,6 +572,16 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   collectNumbers(read.allowed.map((e) => [e.detail, e.target, e.title]), known);
   collectNumbers(userText, known);
   collectNumbers(facts, known);
+  // For maths checks, only real amounts: facts, goal targets, what the customer wrote and tool results
+  // (not ids, IBANs or dates, which would make almost any number "derivable").
+  const money: number[] = [];
+  const numsOnly = (v: unknown) => { if (typeof v === 'number') money.push(v); else if (Array.isArray(v)) v.forEach(numsOnly); else if (v && typeof v === 'object') Object.values(v).forEach(numsOnly); };
+  numsOnly(facts);
+  read.allowed.forEach((e) => e.target && money.push(e.target.amount));
+  money.push(...numbersIn(withoutDates(userText)));
+  // Amounts in what Abel knows and earlier in this chat ("eating out 320 € → 200 €"), not ids.
+  for (const t of [...read.allowed.map((e) => `${e.title} ${e.detail}`), ...turns.map((t) => (t as any).text || '')])
+    money.push(...numbersIn(withoutDates(String(t))).filter((x) => x < 1e7));
   collectNumbers(turns.map((t) => (t as any).text || ''), known); // numbers already in this chat (checked when they were said)
 
   // When no AI can answer, the bank's code answers the common questions with real numbers.
@@ -605,7 +640,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       const j = jsonReplyIn(raw);
       const t = cleanReply(j ? String(j.text) : raw);
       const p = t ? problemWith(t) : null;
-      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known).length && (!p || ruleRetried)) {
+      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known, money).length && (!p || ruleRetried)) {
         recordTurn(Date.now() - t0, modelCalls);
         return finish(t, j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
       }
@@ -625,7 +660,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
         const text = cleanReply(String(call.args.text || ''));
         if (isGarbled(text) && ruleRetried) return offline('The AI answer was garbled');
         if (isGarbled(text)) { ruleRetried = true; results.push({ call, result: { accepted: false, error: 'Your reply came out broken. Write it again in plain, complete sentences.' } }); continue; }
-        const bad = unsupportedNumbers(text, known);
+        const bad = unsupportedNumbers(text, known, money);
         if (bad.length && !retried) {
           retried = true;
           results.push({ call, result: { accepted: false, error: `These numbers did not come from any tool or the cabinet: ${bad.join(', ')}. Call the right tool, then finishReply again without made-up numbers.` } });
@@ -644,6 +679,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       } else {
         const result = runTool(call, ctx);
         collectNumbers(result, known);
+        numsOnly(result);
         results.push({ call, result });
       }
     }
@@ -651,7 +687,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     // as long as every action went through and the text's numbers check out. Saves time and free-tier tokens.
     if (!finished && (res.text || '').trim() && res.calls.every((c) => ACTION_TOOLS.has(c.name))
       && results.every((r) => (r.result as any)?.saved === true || (r.result as any)?.shown === true)
-      && !unsupportedNumbers(res.text!.trim(), known).length && !problemWith(cleanReply(res.text!.trim()))) {
+      && !unsupportedNumbers(res.text!.trim(), known, money).length && !problemWith(cleanReply(res.text!.trim()))) {
       const t = cleanReply(res.text!.trim());
       if (t && !isGarbled(t) && !looksLikeCode(t)) finished = finish(t, jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
     }

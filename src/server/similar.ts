@@ -3,7 +3,7 @@ import { db } from './db.js';
 import { CabinetEntry } from '../types.js';
 
 const STOP = new Set(
-  'the and for new our you are was but not all any can get got set one two out per off own too yes now its his her him she who how why may way day '.concat('with from that this about month months year years want have save saving for the and into your will would more less some plan plans really just like also been them they their there what when then than very january february march april june july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec').split(' '),
+  'the and for new our you are was but not all any can get got set one two out per off own too yes now its his her him she who how why may way day '.concat('with from that this about month months year years want have save saving for the and into your will would more less some plan plans really just like also been them they their there what when then than very january february march april june july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec salary salaries pay net gross monthly account balance purchase preference minimum maintain fact goal goals job start starts starting ending end before after eur euro euros').split(' '),
 );
 
 export function words(s: string): Set<string> {
