@@ -137,6 +137,12 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
     };
   }
 
+  // Small talk.
+  if (/\b(how are you|how's it going|how are things|what'?s up|whats up)\b/.test(t)) {
+    return { text: `I’m good, thanks for asking! 😊 How about you, ${u.name}? Anything on your mind money-wise?`, suggestions: pills, usedEntryIds: [], topic: 'small_talk' };
+  }
+  if (/\b(thanks|thank you|kiitos)\b/.test(t)) return { text: 'You’re welcome! 💙', suggestions: [], usedEntryIds: [], topic: 'small_talk' };
+
   // Greetings.
   if (/^\s*(hi|hey|hello|moi|hei|terve|good (morning|evening|day))\b/.test(t)) {
     return { text: `Hi ${u.name}! 👋 What would you like to look at?`, suggestions: pills, usedEntryIds: [], topic: 'small_talk' };

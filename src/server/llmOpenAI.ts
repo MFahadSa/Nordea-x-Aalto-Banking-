@@ -134,7 +134,16 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
       label,
     );
     const text = await res.text();
-    if (!res.ok) throw new Error(`${res.status}: ${text.slice(0, 400)}`);
+    if (!res.ok) {
+      const e: any = new Error(`${res.status}: ${text.slice(0, 400)}`);
+      try {
+        const j = JSON.parse(text);
+        e.code = j?.error?.code;
+        // Groq: the model wrote a normal answer where a tool call was required. Its words are here.
+        e.failedGeneration = j?.error?.failed_generation;
+      } catch { /* not JSON */ }
+      throw e;
+    }
     return JSON.parse(text);
   }
 
@@ -154,8 +163,18 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
         const out = await post(body, timeout);
         lastOk = { at: new Date().toISOString(), model: o.model };
         return out;
-      } catch (err) {
+      } catch (err: any) {
         const msg = clean(err);
+        // Groq's "tool_use_failed": the model answered in plain words (fine for small talk). Use those words,
+        // and from now on let this model choose between a tool and plain text.
+        if (err?.code === 'tool_use_failed' || /tool_use_failed|Failed to call a function/i.test(msg)) {
+          toolChoice = 'auto';
+          if (typeof err?.failedGeneration === 'string' && err.failedGeneration.trim()) {
+            lastOk = { at: new Date().toISOString(), model: o.model };
+            return { choices: [{ message: { role: 'assistant', content: err.failedGeneration } }] };
+          }
+          continue; // retry once with tool_choice "auto"
+        }
         lastError = { at: new Date().toISOString(), message: msg, model: o.model };
         console.error(`${label} error (${o.model}):`, msg);
         // Not every server accepts these extras. Drop them and try again.

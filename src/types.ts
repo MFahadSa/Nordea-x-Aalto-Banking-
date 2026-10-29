@@ -167,6 +167,8 @@ export interface ChatMessage {
     /** True once the kept copy was deleted (by the customer or after 30 days). */
     deleted?: boolean;
   };
+  /** Set when no AI answered and the bank's own code did (shown as a small label, so it's never mistaken for the AI). */
+  answeredBy?: 'bank_code';
   /** Technical reason when Abel couldn't answer (shown small, for debugging the demo). */
   errorInfo?: string;
   /** Set when the customer tapped a button on this message, so it can't be tapped twice. */

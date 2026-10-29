@@ -523,6 +523,7 @@ const AiCheck: React.FC = () => {
               <span className={!m.configured ? 'ai-bad' : m.restingFor ? 'ai-bad' : 'up'}>
                 {!m.configured ? 'No key' : m.restingFor ? `Resting ${m.restingFor > 120 ? `${Math.round(m.restingFor / 60)} min` : `${m.restingFor} s`} · ${friendly(m.lastFail?.message)}` : m.lastOk ? 'Ready · answered recently' : 'Ready'}
               </span>
+              {!m.restingFor && m.lastFail && (!m.lastOk || m.lastFail.at > m.lastOk) && <span className="ai-each-err">Last problem: {friendly(m.lastFail.message)}</span>}
             </div>
           ))}
         </div>
