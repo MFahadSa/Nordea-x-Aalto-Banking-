@@ -158,7 +158,7 @@ export interface ChatMessage {
   /** A file or photo the customer sent (a small thumbnail is kept for photos, never the full file). */
   attachment?: {
     name: string;
-    kind: 'image' | 'pdf' | 'text';
+    kind: 'image' | 'pdf' | 'text' | 'sheet';
     /** Small preview, only when the customer chose to keep a copy. */
     thumb?: string;
     size?: number;
@@ -246,7 +246,7 @@ export interface StoredDocument {
   id: string;
   userId: string;
   name: string;
-  kind: 'image' | 'pdf' | 'text';
+  kind: 'image' | 'pdf' | 'text' | 'sheet';
   mimeType: string;
   size: number;
   /** Where the bytes are: Supabase Storage (or data/documents/ without Supabase). */

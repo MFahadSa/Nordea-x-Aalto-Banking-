@@ -79,6 +79,14 @@ export const Chat: React.FC<Props> = (p) => {
   const [listening, setListening] = useState(false);
   const recRef = useRef<any>(null);
   const seen = useRef<Set<string>>(new Set());
+  // Technical details only for the team (More → Show technical details). Customers never see them.
+  const readDebug = () => { try { return localStorage.getItem('abel-debug') === '1'; } catch { return false; } };
+  const [debug, setDebug] = useState(readDebug);
+  useEffect(() => {
+    const f = () => setDebug(readDebug());
+    window.addEventListener('abel-debug', f);
+    return () => window.removeEventListener('abel-debug', f);
+  }, []);
 
   useLayoutEffect(() => {
     const b = bodyRef.current;
@@ -141,12 +149,16 @@ export const Chat: React.FC<Props> = (p) => {
     if (f.size > 8 * 1024 * 1024) { p.onToast('That file is too big. Try one under 8 MB.'); return; }
     if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
       p.onImport({ fileBase64: b64(await readAsDataUrl(f)), mimeType: 'application/pdf', fileName: f.name, keep: keepCopy });
-    } else if (/\.(md|markdown|txt)$/i.test(f.name) || f.type.startsWith('text/')) {
+    } else if (/\.xlsx$/i.test(f.name) || f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+      p.onImport({ fileBase64: b64(await readAsDataUrl(f)), mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', fileName: f.name, keep: keepCopy });
+    } else if (/\.xls$/i.test(f.name)) {
+      p.onToast('Old .xls files can’t be read. Save it as .xlsx or .csv and try again.');
+    } else if (/\.(md|markdown|txt|csv)$/i.test(f.name) || f.type.startsWith('text/')) {
       p.onImport({ text: await f.text(), fileName: f.name, keep: keepCopy });
     } else if (f.type.startsWith('image/')) {
       sendPhoto(f, f.name);
     } else {
-      p.onToast('I can read PDFs, photos and text files.');
+      p.onToast('I can read PDFs, photos, Excel (.xlsx), CSV and text files.');
     }
   }
   function toggleMic() {
@@ -346,7 +358,7 @@ export const Chat: React.FC<Props> = (p) => {
       if (m.attachment) {
         const at = m.attachment;
         const doc = at.documentId ? p.documents.find((x) => x.id === at.documentId) : undefined;
-        const label = at.kind === 'pdf' ? 'PDF' : at.kind === 'image' ? 'Photo' : 'Text file';
+        const label = at.kind === 'pdf' ? 'PDF' : at.kind === 'image' ? 'Photo' : at.kind === 'sheet' ? 'Spreadsheet' : 'Text file';
         // Kept: preview + open + delete. Not kept: just the name, nothing of the file is stored.
         const keptLine = doc ? (
           <span className="att-kept">
@@ -393,7 +405,7 @@ export const Chat: React.FC<Props> = (p) => {
       });
     });
     richCards.forEach((x) => items.push({ who: 'bot', key: `${m.id}-c${x.ci}`, node: x.node, rich: true }));
-    if (m.errorInfo) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
+    if (m.errorInfo && debug) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
     if (lastBot) lastBot.after = usedLine(m);
     if (m.resolved && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
@@ -462,7 +474,7 @@ export const Chat: React.FC<Props> = (p) => {
               <span className="keep-t"><b>Keep a copy</b><span>{keepCopy ? 'Saved in Your documents for 30 days. Delete it any time.' : 'Off: Abel reads the file once, then it’s gone.'}</span></span>
               <span className={`tgl${keepCopy ? ' on' : ''}`} aria-hidden="true"><i /></span>
             </button>
-            <p className="att-note"><Icon name="shield" size={16} /><span>Abel reads it to suggest what to remember, like a receipt, a payslip or a price tag. Nothing is saved without your OK. Use fictional documents only.</span></p>
+            <p className="att-note"><Icon name="shield" size={16} /><span>Abel reads it to suggest what to remember: a payslip, a receipt, a price tag, a flat listing, or an Excel of your budget. Nothing is saved without your OK. Use fictional documents only.</span></p>
           </div>
         </>
       )}
@@ -501,7 +513,7 @@ export const Chat: React.FC<Props> = (p) => {
         <button className="chat-send" type="button" onClick={() => send(text)} disabled={p.waiting} aria-label="Send">
           <Icon name="send" />
         </button>
-        <input type="file" ref={docRef} accept=".pdf,.md,.markdown,.txt,application/pdf,text/markdown,text/plain" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendDoc(f); }} />
+        <input type="file" ref={docRef} accept=".pdf,.md,.markdown,.txt,.csv,.xlsx,application/pdf,text/markdown,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendDoc(f); }} />
         <input type="file" ref={imgRef} accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, f.name); }} />
         <input type="file" ref={camFallbackRef} accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, 'Photo'); }} />
       </div>

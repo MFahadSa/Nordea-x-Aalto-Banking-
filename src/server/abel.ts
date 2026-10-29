@@ -16,6 +16,8 @@ import * as fin from './finance.js';
 import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn, isBusy } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
 import { findSimilar, compare } from './similar.js';
+import { offlineAnswer } from './abelOffline.js';
+import { pdfText, xlsxText, XLSX_MIME } from './fileText.js';
 
 export const HELPER_FOCUS: Record<string, string> = {
   abel: 'General help: goals, spending, plans, anything about their money life.',
@@ -31,7 +33,7 @@ const fmt = (n: number, d = 0) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
 
 // A code backstop for what's private. Kept narrow: "separately", "disable" or "works at the hospital" are not private.
-const SENSITIVE = /\b(health|illness|ill\b|sick|cancer|diagnos|pregnan|baby on the way|ivf|divorc|separation|separated|affair|therapy|depress|anxiety|disabilit|disabled|surgery|hospitali[sz]|debt collector|gambl|addict)/i;
+const SENSITIVE = /\b(health|illness|ill\b|sick|cancer|diagnos|pregnan|baby on the way|ivf|divorc|separation|separated|affair|therap|depress|anxiety|anxious|panic attack|disabilit|disabled|surgery|hospitali[sz]|debt collector|gambl|addict)/i;
 
 /** Dates from the model as YYYY-MM-DD. "2027-08", "08/2027" and "August 2027" become the last day of that month. */
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -69,7 +71,11 @@ const targetOf = (amount: unknown, date: unknown) => {
 };
 
 // ---------- tool definitions (what the model can see) ----------
-const TOOLS: ToolDecl[] = [
+const ACTION_TOOLS = new Set(['proposeCabinetChange', 'offerTransfer', 'suggestPartnerOffer', 'startHandoff']);
+// Balances, salary, goals and the payday plan are already in FACTS, so those tools aren't offered to the model
+// (fewer tokens per answer). The code still handles them if a model asks.
+const FACT_TOOLS = new Set(['getAccounts', 'getSalary', 'getGoalStatus', 'getPayPlan']);
+const ALL_TOOLS: ToolDecl[] = [
   { name: 'getAccounts', description: 'Balances of the customer’s accounts and how much goes to savings each month.', parameters: { type: 'object', properties: {} } },
   {
     name: 'getSpending',
@@ -148,6 +154,8 @@ const TOOLS: ToolDecl[] = [
   },
 ];
 
+const TOOLS: ToolDecl[] = ALL_TOOLS.filter((t) => !FACT_TOOLS.has(t.name));
+
 /** The figures Abel needs most often, computed by code. Given up front so most replies need one model call. */
 function factsFor(userId: string, allowed: Set<string>) {
   return {
@@ -192,8 +200,8 @@ HOW YOU TALK
 - If they're unhappy with you: apologise briefly, repair, and offer a person.${calm ? '\n- CALM view: slower and warmer, very short sentences, at most two suggestions, explain why you ask, always offer to talk to a person.' : ''}
 
 RULES YOU MUST FOLLOW
-- NEVER state a number that isn't in FACTS, the cabinet, or a tool result. FACTS already cover balances, salary, 3-month spending, goals and the payday plan, so answer straight away. Call a tool only for something not there (another period or category, or whether a specific amount is affordable).
-- Be quick: when you can, answer in ONE step by calling finishReply directly. You may call proposeCabinetChange, offerTransfer, suggestPartnerOffer or startHandoff in the same step as finishReply.
+- NEVER state a number that isn't in FACTS, the cabinet, this chat, or a tool result. FACTS already cover balances, salary, 3-month spending, goals and the payday plan, so answer straight away. Call a tool only for something not there (another period or category, or whether a specific amount is affordable).
+- Be quick: answer in ONE step. Call finishReply directly, or call proposeCabinetChange, offerTransfer, suggestPartnerOffer or startHandoff TOGETHER with finishReply in the same step.
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts). Don't ask permission for normal things; the app shows "Abel will remember this · Undo". Never save small talk, filler, greetings, complaints or one-off feelings.
 - Sensitive topics (health, pregnancy, relationship problems…): be kind, set sensitive=true; it won't be saved unless the customer chooses to. A wedding, a honeymoon or a partner's new job is a normal plan, not sensitive.
 - Old goals whose date has passed: ask gently whether they're still a plan; archive only if the customer says so.
@@ -421,16 +429,12 @@ export interface AbelReply {
   error?: string;
   /** Technical reason when the AI failed (no key, wrong model, timeout…). Never contains the key. */
   errorDetail?: string;
+  /** Answered by the bank's code because no AI model was available. */
+  offline?: boolean;
 }
 
 export async function abelTurn(userId: string, conversationId: string, helperId: string, userText: string): Promise<AbelReply> {
   const provider = getProvider();
-  if (!provider.isConfigured()) {
-    return {
-      text: 'My AI connection isn’t set up in this copy of the app, so I can’t answer yet. In Google AI Studio it connects automatically. Everything else in the app still works.',
-      suggestions: [], cards: [], notes: [], usedEntryIds: [], topic: 'other', couldHelp: false, error: 'not_configured',
-    };
-  }
 
   // Guardrail 1: read the cabinet through the gateway before every reply.
   const HELPER_NAMES: Record<string, string> = { abel: 'Abel', autopilot: 'Payday autopilot', budget: 'Budget helper', invest: 'Investing', life: 'Life events', leaks: 'Money leaks', person: 'Talk to a person' };
@@ -441,14 +445,23 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   const t0 = Date.now();
   let modelCalls = 0;
 
-  // Earlier messages of this conversation (text only, newest 16).
+  // Earlier messages of this conversation: the newest 10, each kept short, so long chats stay cheap.
+  // A file the customer added shows as what Abel read from it (the summary and suggested items), not the file.
   const history = db
     .getMessages(userId)
     .filter((m) => m.conversationId === conversationId)
-    .slice(-17, -1);
+    .slice(-11, -1);
+  const cardLine = (m: ChatMessage) =>
+    (m.cards || [])
+      .map((c) =>
+        c.type === 'import'
+          ? `[from the file “${c.data?.source}”: ${(c.data?.items || []).map((x: any) => `${x.title}${x.target ? ` (${fmt(x.target.amount)} by ${x.target.date})` : ''}${x.detail ? ` – ${x.detail}` : ''}`).join('; ')}]`
+          : `[card shown: ${c.type}]`,
+      )
+      .join('\n');
   const turns: Turn[] = history.map((m) => ({
     role: m.sender === 'user' ? ('user' as const) : ('model' as const),
-    text: m.text + (m.cards?.length ? `\n[cards shown: ${m.cards.map((c) => c.type).join(', ')}]` : '') + (m.resolved ? `\n[customer tapped: ${m.resolved}]` : ''),
+    text: (m.attachment ? `[sent a file: ${m.attachment.name}]` : String(m.text || '').slice(0, 700)) + (m.cards?.length ? `\n${cardLine(m)}` : '') + (m.resolved ? `\n[customer tapped: ${m.resolved}]` : ''),
   })).filter((t) => t.text.trim());
   turns.push({ role: 'user', text: userText });
 
@@ -456,6 +469,22 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   collectNumbers(read.allowed.map((e) => [e.detail, e.target, e.title]), known);
   collectNumbers(userText, known);
   collectNumbers(facts, known);
+  collectNumbers(turns.map((t) => (t as any).text || ''), known); // numbers already in this chat (checked when they were said)
+
+  // When no AI can answer, the bank's code answers the common questions with real numbers.
+  const offline = (detail?: string): AbelReply => {
+    const o = offlineAnswer(userId, userText, read.allowed);
+    for (const a of o.actions || []) runTool({ id: 'offline', name: a.name, args: a.args }, ctx);
+    recordTurn(Date.now() - t0, modelCalls);
+    return {
+      text: o.text, suggestions: o.suggestions, cards: ctx.cards, notes: ctx.notes,
+      usedEntryIds: o.usedEntryIds.filter((id) => ctx.allowedIds.has(id)), topic: o.topic, couldHelp: true,
+      offline: true, errorDetail: detail,
+    };
+  };
+
+  // No AI set up in this copy: the bank's code still answers.
+  if (!provider.isConfigured()) return offline('No AI key in this copy of the app (not_configured)');
 
   let retried = false;
   // An answer must arrive within 75 seconds overall (LLM_TURN_MS, longer for the slower Aalto LLM).
@@ -478,16 +507,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
           suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: true,
         };
       }
-      return {
-        text: /daily|per ?day|free_tier|exceeded your current quota/i.test(detail)
-          ? 'Sorry, my free AI limit for today is used up, so I can’t answer right now. It resets in a few hours.'
-          : isBusy(detail)
-          ? 'Sorry, the AI service is very busy right now, so I couldn’t answer. Could you try again in a minute?'
-          : /timeout/i.test(detail)
-            ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?'
-            : 'Sorry, I couldn’t answer just now. Could you try again in a moment?',
-        suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: false, error: 'llm_error', errorDetail: detail,
-      };
+      return offline(detail);
     }
     if (!res.calls.length) {
       // The model answered in plain text despite the instructions: accept it, but only if its numbers check out.
@@ -523,13 +543,20 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
         results.push({ call, result });
       }
     }
+    // The model did an action (a card, a save) and already wrote its text: no second call needed,
+    // as long as every action went through and the text's numbers check out. Saves time and free-tier tokens.
+    if (!finished && (res.text || '').trim() && res.calls.every((c) => ACTION_TOOLS.has(c.name))
+      && results.every((r) => (r.result as any)?.saved === true || (r.result as any)?.shown === true)
+      && !unsupportedNumbers(res.text!.trim(), known).length) {
+      finished = finish(res.text!.trim(), [], [], 'other', true);
+    }
     if (finished) {
       recordTurn(Date.now() - t0, modelCalls);
       return finished;
     }
     turns.push({ role: 'tool_results', results });
   }
-  return finish('Sorry, I got a bit lost there. Could you say that again in a different way?', [], [], 'other', false);
+  return offline('The AI did not finish within the step limit');
 
   function finish(text: string, suggestions: any, used: any, topic: any, couldHelp: any): AbelReply {
     // Guardrail 6: only entries the gateway actually returned (or that Abel just saved) can be listed as used.
@@ -622,19 +649,29 @@ export async function proposeFromContent(
   if (input.text === null && !input.file) return { items: dedupe(userId, SAMPLE_ITEMS), lines: SAMPLE_CHAT.length, source: 'chat-lauri-and-mia.txt', kind: 'chat' };
   const provider = getProvider();
   let text = input.text || '';
-  // Only Gemini reads PDFs directly. For other models (e.g. the Aalto LLM), take the text out of the PDF first.
-  if (input.file?.mimeType === 'application/pdf' && provider.name !== 'gemini') {
+  // PDFs: read the text inside (cheaper, and works with every model). A scan has no text, so it stays a file
+  // and needs a model that reads images (in the chain: Gemini).
+  if (input.file?.mimeType === 'application/pdf') {
     try {
-      const { extractText, getDocumentProxy } = await import('unpdf');
-      const pdf = await getDocumentProxy(new Uint8Array(Buffer.from(input.file.data, 'base64')));
-      text = String((await extractText(pdf, { mergePages: true })).text || '').trim();
-      input = { text: text || '(This PDF has no text layer, e.g. a scan.)' };
-      text = input.text!;
+      const t = await pdfText(input.file.data);
+      if (t.replace(/\s/g, '').length >= 40) { input = { text: t }; text = t; }
     } catch (err) {
       console.error('Could not take text out of the PDF:', err);
     }
   }
-  if (!provider.isConfigured()) return { items: [], lines: text.split('\n').length, source: 'file' };
+  // Excel: as a table of text.
+  if (input.file?.mimeType === XLSX_MIME) {
+    try {
+      const x = await xlsxText(input.file.data);
+      input = { text: x.text };
+      text = x.text;
+    } catch (err) {
+      console.error('Could not read the spreadsheet:', err);
+      return { items: [], lines: 0, source: 'file', kind: 'error', errorDetail: 'The spreadsheet could not be opened (only .xlsx and .csv are supported).' };
+    }
+  }
+  const needsEyes = !!input.file; // a photo or a scanned PDF
+  if (!provider.isConfigured() || (needsEyes && !provider.vision)) return { items: [], lines: text.split('\n').length, source: 'file', kind: needsEyes ? 'no_vision' : 'no_ai' };
   const tool: ToolDecl = {
     name: 'proposeEntries',
     description:
@@ -642,7 +679,7 @@ export async function proposeFromContent(
     parameters: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['receipt', 'bill', 'price_tag', 'payslip', 'loan_or_contract', 'bank_statement', 'chat', 'notes', 'other'] },
+        kind: { type: 'string', enum: ['receipt', 'bill', 'price_tag', 'payslip', 'loan_or_contract', 'bank_statement', 'spreadsheet', 'flat_listing', 'chat', 'notes', 'other'] },
         summary: { type: 'string', description: 'One short, plain sentence: what this is, e.g. "A receipt from K-Market for 42,80 €."' },
         amount: { type: 'number', description: 'The main amount in euros, if there is one (price, total, net pay, balance).' },
         items: {

@@ -42,3 +42,11 @@ In AI Studio the key is injected automatically, so the real Abel answers there.
 ## Duplicate check and history
 - `src/server/similar.ts`, done in code before saving. Same thing again → not saved. Same thing with a new amount or date → a card: Update it / Keep both / Leave it. Imports mark look-alikes and can update the existing item.
 - Every add, change, removal, confirmation and undo is a row in `entryHistory`: who (you / Abel / Nordea), where, and before → after. Shown under "History" on each item and goal.
+
+## Answers that always arrive (chain + bank-code answers)
+- `src/server/llmChain.ts`: with `LLM_PROVIDER=openai`, Abel asks the models in order: `LLM_MODEL` → the other free Groq models → Gemini. A model that hits a limit rests for exactly as long as the limit says, and the next one answers at once. Photos and scanned PDFs go only to models that read images (Gemini).
+- `src/server/abelOffline.ts`: if every model is resting, the bank's code answers the common questions with real numbers: goals, spending, pay, balance, "can I afford", flat search (homes card), talk to a person. No "busy" message.
+- Customers never see technical details. Your team turns them on in More → Show technical details. More → AI connection shows each model and why it rests.
+- Fewer tokens per answer: the balance, salary, goal and payday tools aren't offered to the model (FACTS already have the numbers), a chat sends at most 10 earlier messages, and a step that did an action and wrote its text needs no second call.
+- Files: Excel (.xlsx) and CSV are read as tables. PDFs are read from their text (any model); scans and photos need Gemini.
+- More → Check Abel's answers: 12 real questions on a copy of Lauri, graded automatically (about 15–20 AI requests).

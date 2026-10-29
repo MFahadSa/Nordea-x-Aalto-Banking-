@@ -212,7 +212,9 @@ export async function sendChat(userId: string, conversationId: string | null, he
     clearTimeout(t);
   }
 }
-export interface AiStatus { provider: string; keyPresent: boolean; model: string; candidates: string[]; lastOk: { at: string; model: string } | null; lastError: { at: string; message: string; model?: string } | null; thinking?: string; lastTurn?: { at: string; ms: number; calls: number } | null }
+export interface AiStatus { provider: string; keyPresent: boolean; model: string; candidates: string[]; lastOk: { at: string; model: string } | null; lastError: { at: string; message: string; model?: string } | null; thinking?: string; lastTurn?: { at: string; ms: number; calls: number } | null;
+  /** With several AI models in a chain: each one's state. */
+  members?: { name: string; configured: boolean; vision: boolean; restingFor: number; lastOk: string | null; lastFail: { at: string; message: string; kind: string } | null }[] }
 export const fetchAiStatus = () => fetch('/api/ai-status').then((r) => j<AiStatus>(r));
 export const pingAi = () => post('/api/ai-ping', {}).then((r) => j<{ ok: boolean; model?: string; ms?: number; reply?: string; error?: string; status: AiStatus }>(r));
 export const doAction = (userId: string, messageId: string, action: string, payload: Record<string, unknown> = {}) =>
@@ -239,3 +241,7 @@ export const deleteChat = (userId: string, id: string) =>
 export const deleteChats = (userId: string) => post('/api/chats/delete', { userId }).then((r) => j<{ message: string; deletedMessages: number }>(r));
 export interface DbStatus { mode: 'supabase' | 'file'; ok: boolean; message: string; lastSavedAt?: string; lastError?: { at: string; message: string }; rows?: number; waiting: number }
 export const fetchDbStatus = () => fetch('/api/db-status').then((r) => j<DbStatus>(r));
+
+export interface CheckResult { name: string; asked: string; ok: boolean; why: string; reply: string; cards: string[]; answeredBy: string; ms: number }
+/** Runs about 12 real questions; can take a few minutes on a free plan. */
+export const runSelfTest = () => post('/api/selftest', {}).then((r) => j<{ results: CheckResult[]; passed: number; total: number }>(r));

@@ -9,6 +9,8 @@ import { abelTurn, proposeFromContent, offerHeadline, SAMPLE_CHAT, ImportItem } 
 import { getProvider, aiStatus, aiPing } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } from '../types.js';
 import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } from './documents.js';
+import { XLSX_MIME, csvText } from './fileText.js';
+import { runSelfTest } from './selftest.js';
 
 const fmt = (n: number, d = 0) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
@@ -383,12 +385,14 @@ export function registerV14Routes(app: Express) {
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const isImage = /^image\/(jpeg|png|webp|heic|heif)$/.test(String(mimeType || ''));
     const isPdf = mimeType === 'application/pdf';
-    if (fileBase64 && !isImage && !isPdf) return res.status(400).json({ error: 'Only photos (JPG, PNG, WebP) and PDFs can be read.' });
+    const isSheet = mimeType === XLSX_MIME || /\.csv$/i.test(String(fileName || ''));
+    if (fileBase64 && !isImage && !isPdf && mimeType !== XLSX_MIME) return res.status(400).json({ error: 'I can read photos (JPG, PNG, WebP), PDFs, Excel (.xlsx), CSV and text files.' });
     if (fileBase64 && String(fileBase64).length > 11_000_000) return res.status(413).json({ error: 'That file is too big. Try one under 8 MB.' });
 
-    const r = await proposeFromContent(userId, fileBase64 ? { file: { mimeType, data: String(fileBase64) } } : { text: sample ? null : String(text || '') });
+    const plain = /\.csv$/i.test(String(fileName || '')) ? csvText(String(text || '')).text : String(text || '');
+    const r = await proposeFromContent(userId, fileBase64 ? { file: { mimeType, data: String(fileBase64) } } : { text: sample ? null : plain });
     const source = sample ? r.source : String(fileName || (isImage ? 'Photo' : 'your file')).slice(0, 80);
-    const kind: 'image' | 'pdf' | 'text' = isImage ? 'image' : isPdf ? 'pdf' : 'text';
+    const kind: 'image' | 'pdf' | 'text' | 'sheet' = isImage ? 'image' : isPdf ? 'pdf' : isSheet ? 'sheet' : 'text';
     // "Keep a copy" was ticked: store the file in Your documents (deleted after 30 days, or whenever the customer wants).
     // Otherwise nothing of the file is kept, not even a preview.
     let doc: StoredDocument | undefined;
@@ -413,10 +417,12 @@ export function registerV14Routes(app: Express) {
     const body = sample ? SAMPLE_CHAT.map(([w, t]) => `${w}: ${t}`).join('\n') : undefined;
 
     let a: ChatMessage;
-    if (!getProvider().isConfigured() && !sample) {
-      a = agentMsg(userId, conv.id, conv.helperId, 'I can read photos and files once my AI connection is set up. In this copy of the app it isn’t, but the sample chat works.');
+    if (r.kind === 'no_vision') {
+      a = agentMsg(userId, conv.id, conv.helperId, `I can’t read ${isImage ? 'photos' : 'scanned PDFs'} right now. If you have it as a PDF with text, an Excel or a text file, send that instead, or just tell me the important part (for example the amount).${keptLine}`, { errorInfo: 'No model that reads images is available (needs Gemini).', suggestions: ['Can I afford 1 000 €?', 'Am I on track?'] });
+    } else if (r.kind === 'no_ai' && !sample) {
+      a = agentMsg(userId, conv.id, conv.helperId, `I can’t read files in this copy of the app yet. Tell me the important part and I’ll help with that.${keptLine}`, { errorInfo: 'No AI key set (not_configured).' });
     } else if (r.kind === 'error') {
-      a = agentMsg(userId, conv.id, conv.helperId, `Sorry, I couldn’t read ${isImage ? 'that photo' : `“${source}”`}. Could you try again, or tell me the important part?${keptLine}`, { errorInfo: r.errorDetail });
+      a = agentMsg(userId, conv.id, conv.helperId, `I couldn’t read ${isImage ? 'that photo' : `“${source}”`} just now. Try again in a minute, or tell me the important part.${keptLine}`, { errorInfo: r.errorDetail });
     } else {
       const what = sample ? `I read your chat with Mia (${r.lines} messages).` : r.summary ? r.summary : `I read “${source}”.`;
       const suggestions: string[] = [];
@@ -490,6 +496,20 @@ export function registerV14Routes(app: Express) {
   });
 
   app.get('/api/db-status', (_req, res) => res.json(db.status()));
+
+  // More → Check Abel's answers: real questions to the real AI on a copy of Lauri, graded automatically.
+  let selftestRunning = false;
+  app.post('/api/selftest', async (_req, res) => {
+    if (selftestRunning) return res.status(409).json({ error: 'A check is already running' });
+    selftestRunning = true;
+    try {
+      res.json(await runSelfTest());
+    } catch (err: any) {
+      res.status(500).json({ error: String(err?.message || err).slice(0, 300) });
+    } finally {
+      selftestRunning = false;
+    }
+  });
 
   // When the customer confirms something Nordea noticed. For a salary change, Abel follows up in a new chat.
   app.post('/api/events/observation-confirmed', (req, res) => {

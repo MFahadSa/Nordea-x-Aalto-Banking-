@@ -10,13 +10,17 @@ import { CabinetEntry, UndoRecord } from './src/types.js';
 import { registerV14Routes } from './src/server/routes.js';
 import { setProvider } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
-import { openAiProvider } from './src/server/llmOpenAI.js';
+import { openAiProvidersFromEnv } from './src/server/llmOpenAI.js';
+import { makeChain } from './src/server/llmChain.js';
+import { gemini, geminiConfigured } from './src/server/llm.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
 
 // Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.
 if (process.env.LLM_PROVIDER === 'mock') setProvider(mockProvider);
 // LLM_PROVIDER=openai: an OpenAI-compatible API, e.g. Groq's free tier or the Aalto LLM gateway (VPN only).
-if (process.env.LLM_PROVIDER === 'openai') setProvider(openAiProvider);
+// With LLM_PROVIDER=openai the app uses a chain: the configured model, the other free models on the same service,
+// then Gemini (if a Gemini key exists). The first one that's available answers.
+if (process.env.LLM_PROVIDER === 'openai') setProvider(makeChain([...openAiProvidersFromEnv(), ...(geminiConfigured() ? [gemini] : [])]));
 console.log(`AI provider: ${process.env.LLM_PROVIDER === 'openai' ? `${process.env.LLM_BASE_URL || 'Aalto LLM'} (${process.env.LLM_MODEL || 'Qwen/Qwen3.8-27B-FP8'})` : process.env.LLM_PROVIDER === 'mock' ? 'scripted test stand-in' : 'Gemini'}`);
 
 const __filename = fileURLToPath(import.meta.url);
