@@ -6,7 +6,7 @@ import { previewCabinetForAgent } from './accessGateway.js';
 import { getPartner, getAllPartners } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { abelTurn, proposeFromContent, offerHeadline, SAMPLE_CHAT, ImportItem } from './abel.js';
-import { getProvider } from './llm.js';
+import { getProvider, aiStatus, aiPing } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard } from '../types.js';
 
 const fmt = (n: number, d = 0) =>
@@ -82,6 +82,11 @@ export function registerV14Routes(app: Express) {
 
   app.get('/api/partners', (_req, res) => res.json({ partners: getAllPartners() }));
 
+  // AI connection check (More → AI connection). Shows whether a key is present, which model works,
+  // and the last error. Never returns the key.
+  app.get('/api/ai-status', (_req, res) => res.json(aiStatus()));
+  app.post('/api/ai-ping', async (_req, res) => res.json({ ...(await aiPing()), status: aiStatus() }));
+
   app.post('/api/conversations', (req, res) => {
     const { userId = 'lauri', helperId = 'abel' } = req.body || {};
     res.status(201).json({ conversation: newConversation(userId, helperId) });
@@ -107,6 +112,7 @@ export function registerV14Routes(app: Express) {
       cards: reply.cards,
       notes: reply.notes,
       usedEntryIds: reply.usedEntryIds,
+      errorInfo: reply.errorDetail,
     });
     res.status(201).json({ conversationId: conv.id, messages: [u, a], error: reply.error });
   });

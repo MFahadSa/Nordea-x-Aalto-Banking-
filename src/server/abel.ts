@@ -13,7 +13,7 @@ import { db } from './db.js';
 import { readCabinetThroughGateway, previewCabinetForAgent } from './accessGateway.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
-import { getProvider, ToolDecl, ToolCall, Turn } from './llm.js';
+import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
 
 export const HELPER_FOCUS: Record<string, string> = {
@@ -358,6 +358,8 @@ export interface AbelReply {
   topic: string;
   couldHelp: boolean;
   error?: string;
+  /** Technical reason when the AI failed (no key, wrong model, timeout…). Never contains the key. */
+  errorDetail?: string;
 }
 
 export async function abelTurn(userId: string, conversationId: string, helperId: string, userText: string): Promise<AbelReply> {
@@ -391,13 +393,20 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   collectNumbers(userText, known);
 
   let retried = false;
-  for (let step = 0; step < 7; step++) {
+  // An answer must arrive within 75 seconds overall, however many tool steps it takes.
+  const deadline = Date.now() + 75000;
+  for (let step = 0; step < 6; step++) {
+    if (Date.now() > deadline) break;
     let res;
     try {
       res = await provider.step({ system, turns, tools: TOOLS, temperature: 0.3 });
     } catch (err: any) {
       console.error('LLM error:', err?.message || err);
-      return { text: 'Sorry, I couldn’t think that through just now. Could you try again in a moment?', suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: false, error: 'llm_error' };
+      const detail = lastErrorText() || String(err?.message || err).slice(0, 300);
+      return {
+        text: /timeout/i.test(detail) ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?' : 'Sorry, I couldn’t answer just now. Could you try again in a moment?',
+        suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: false, error: 'llm_error', errorDetail: detail,
+      };
     }
     if (!res.calls.length) {
       // The model answered in plain text despite the instructions: accept it, but only if its numbers check out.

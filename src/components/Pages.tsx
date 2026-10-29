@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppState, Reward } from '../services/api.js';
+import { AppState, Reward, pingAi, fetchAiStatus } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
@@ -371,6 +371,36 @@ export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => 
   );
 };
 
+// ---------------- AI connection check ----------------
+/** Shows whether Abel's AI works here, and the real reason if not. Never shows the key. */
+const AiCheck: React.FC = () => {
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
+  React.useEffect(() => {
+    fetchAiStatus()
+      .then((s) => setRes(!s.keyPresent ? { ok: false, text: 'No Gemini key reaches the server' } : s.lastError && (!s.lastOk || s.lastError.at > s.lastOk.at) ? { ok: false, text: s.lastError.message } : s.lastOk ? { ok: true, text: `Working · ${s.lastOk.model}` } : null))
+      .catch(() => {});
+  }, []);
+  const test = async () => {
+    setBusy(true);
+    try {
+      const r = await pingAi();
+      setRes(r.ok ? { ok: true, text: `Working · ${r.model} · answered in ${((r.ms || 0) / 1000).toFixed(1)} s` } : { ok: false, text: r.error || 'Unknown error' });
+    } catch (e: any) {
+      setRes({ ok: false, text: e?.message || 'The check itself failed' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <NRow
+      name="AI connection"
+      sub={busy ? 'Testing…' : res ? <span className={res.ok ? 'up' : 'ai-bad'}>{res.text}</span> : 'Test whether Abel’s AI answers'}
+      right={<button className="btn small" onClick={test} disabled={busy}>Test</button>}
+    />
+  );
+};
+
 // ---------------- More ----------------
 export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: string) => void; onUsers: () => void; onCalm: () => void; onDark: () => void; onReset: () => void }> = ({ state, isDark, onPage, onUsers, onCalm, onDark, onReset }) => (
   <>
@@ -389,6 +419,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       </div>
       <Band left="Demo" />
       <div className="ncard flat">
+        <AiCheck />
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
         <NRow name="Reset demo data" sub="Start again" onClick={onReset} />
       </div>
