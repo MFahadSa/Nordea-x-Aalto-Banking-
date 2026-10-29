@@ -443,7 +443,7 @@ export const RedeemSheet: React.FC<{ state: AppState; reward: Reward; onYes: () 
 };
 
 // ---------------- Contact ----------------
-export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => void; onOpenConversation: (id: string) => void }> = ({ state, onHelper, onOpenConversation }) => {
+export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => void; onOpenConversation: (id: string) => void; onDeleteChat?: (id: string) => void; onDeleteAllChats?: () => void }> = ({ state, onHelper, onOpenConversation, onDeleteChat, onDeleteAllChats }) => {
   const [all, setAll] = useState(false);
   return (
     <>
@@ -454,7 +454,7 @@ export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => 
           <NRow name={<><Icon name="person" /> Talk to a person</>} sub="A Nordea adviser" onClick={() => onHelper('person')} />
           <NRow name={<><Icon name="cal" /> Book an online meeting</>} sub="Pick a time" onClick={() => onHelper('person')} />
         </div>
-        <HistoryCard state={state} all={all} onToggle={() => setAll(!all)} onOpen={onOpenConversation} />
+        <HistoryCard state={state} all={all} onToggle={() => setAll(!all)} onOpen={onOpenConversation} onDelete={onDeleteChat} onDeleteAll={onDeleteAllChats} />
       </div>
     </>
   );

@@ -29,6 +29,7 @@ import {
   redeemReward,
   deleteDocument,
   deleteChats,
+  deleteChat,
 } from './services/api.js';
 
 type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot';
@@ -59,6 +60,7 @@ export default function App() {
   const [redeemAsk, setRedeemAsk] = useState<Reward | null>(null);
   const [delDocId, setDelDocId] = useState<string | null>(null);
   const [askDeleteChats, setAskDeleteChats] = useState(false);
+  const [askDeleteChat, setAskDeleteChat] = useState<string | null>(null);
   const screenRef = useRef<HTMLDivElement>(null);
 
   // Chat
@@ -202,6 +204,19 @@ export default function App() {
       setToast({ message: e?.message || 'Couldn’t delete it. Try again.' });
     }
   };
+  const removeChat = async () => {
+    const id = askDeleteChat;
+    setAskDeleteChat(null);
+    if (!state || !id) return;
+    try {
+      const r = await deleteChat(state.user.id, id);
+      if (conversationId === id) { viewRef.current++; setChatOpen(false); setConversationId(null); setMessages([]); }
+      setToast({ message: r.message });
+      refresh();
+    } catch (e: any) {
+      setToast({ message: e?.message || 'Couldn’t delete the chat. Try again.' });
+    }
+  };
   const removeChats = async () => {
     setAskDeleteChats(false);
     if (!state) return;
@@ -325,6 +340,16 @@ export default function App() {
               {delDocId && state.documents.find((d) => d.id === delDocId) && (
                 <DeleteDocSheet doc={state.documents.find((d) => d.id === delDocId)!} onDelete={removeDoc} onCancel={() => setDelDocId(null)} />
               )}
+              {askDeleteChat && (
+                <ConfirmSheet
+                  kicker="Recent chats"
+                  title="Delete this chat?"
+                  body="The messages in this chat are deleted for good. What Abel saved from it stays in “Abel knows”, and kept files stay in Your documents. You can delete those separately."
+                  yes="Delete chat"
+                  onYes={removeChat}
+                  onNo={() => setAskDeleteChat(null)}
+                />
+              )}
               {askDeleteChats && (
                 <ConfirmSheet
                   kicker="Your chats"
@@ -384,6 +409,8 @@ export default function App() {
               onOpenPage={(p) => goPage(p as Page)}
               onOpenUsers={() => setUsersOpen(true)}
               onConfirm={confirm}
+              onDeleteChat={setAskDeleteChat}
+              onDeleteAllChats={() => setAskDeleteChats(true)}
               onWrong={(e) => update(e, { status: 'disputed' })}
               onArchive={archive}
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
@@ -416,7 +443,7 @@ export default function App() {
             <AutopilotPage state={state} onBack={() => goPage('home')} onPlan={(t) => startChat('autopilot', t)} />
           )}
           {page === 'rewards' && <RewardsPage state={state} rewards={rewards} onAsk={() => openHelper('abel')} onUse={setRedeemAsk} onEarn={() => goPage('home')} />}
-          {page === 'contact' && <ContactPage state={state} onHelper={openHelper} onOpenConversation={openConversation} />}
+          {page === 'contact' && <ContactPage state={state} onHelper={openHelper} onOpenConversation={openConversation} onDeleteChat={setAskDeleteChat} onDeleteAllChats={() => setAskDeleteChats(true)} />}
           {page === 'more' && (
             <MorePage
               state={state}

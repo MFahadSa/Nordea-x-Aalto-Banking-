@@ -473,6 +473,14 @@ export function registerV14Routes(app: Express) {
     res.json({ history: [...db.getEntryHistory(e.id)].reverse() });
   });
 
+  // Delete one chat (Recent chats → bin icon).
+  app.delete('/api/conversations/:id', (req, res) => {
+    const userId = String(req.query.userId || 'lauri');
+    if (!db.getConversation(req.params.id)) return res.status(404).json({ error: 'Chat not found' });
+    const n = db.deleteConversation(userId, req.params.id);
+    res.json({ deletedMessages: n, message: 'Chat deleted' });
+  });
+
   // "Delete my chats". What Abel knows and kept documents stay (they have their own delete).
   app.post('/api/chats/delete', (req, res) => {
     const { userId = 'lauri' } = req.body || {};

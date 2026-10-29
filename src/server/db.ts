@@ -814,6 +814,17 @@ class Database {
     return d;
   }
 
+  /** Delete one chat: its messages and the conversation. Kept documents and what Abel knows stay. */
+  public deleteConversation(userId: string, id: string) {
+    const c = this.getConversation(id);
+    if (!c || c.userId !== userId) return 0;
+    const n = this.state.messages.filter((m) => m.conversationId === id).length;
+    this.state.messages = this.state.messages.filter((m) => m.conversationId !== id);
+    this.state.conversations = this.state.conversations.filter((x) => x.id !== id);
+    this.saveState(this.state);
+    return n;
+  }
+
   /** "Delete my chats": every conversation and message of this customer. What Abel knows stays. */
   public deleteChats(userId: string) {
     const n = this.state.messages.filter((m) => m.userId === userId).length;

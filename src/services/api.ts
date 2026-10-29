@@ -234,6 +234,8 @@ export const deleteDocument = (userId: string, id: string, alsoEntries: boolean)
   fetch(`/api/documents/${id}?userId=${encodeURIComponent(userId)}&alsoEntries=${alsoEntries}`, { method: 'DELETE' }).then((r) => j<{ message: string; removedEntries: number }>(r));
 export const fetchHistory = (userId: string, entryId: string) =>
   fetch(`/api/entries/${entryId}/history?userId=${encodeURIComponent(userId)}`).then((r) => j<{ history: EntryEvent[] }>(r)).then((d) => d.history);
+export const deleteChat = (userId: string, id: string) =>
+  fetch(`/api/conversations/${id}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' }).then((r) => j<{ message: string }>(r));
 export const deleteChats = (userId: string) => post('/api/chats/delete', { userId }).then((r) => j<{ message: string; deletedMessages: number }>(r));
 export interface DbStatus { mode: 'supabase' | 'file'; ok: boolean; message: string; lastSavedAt?: string; lastError?: { at: string; message: string }; rows?: number; waiting: number }
 export const fetchDbStatus = () => fetch('/api/db-status').then((r) => j<DbStatus>(r));
