@@ -13,7 +13,7 @@ import { db } from './db.js';
 import { readCabinetThroughGateway, previewCabinetForAgent } from './accessGateway.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
-import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText } from './llm.js';
+import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
 
 export const HELPER_FOCUS: Record<string, string> = {
@@ -111,7 +111,18 @@ const TOOLS: ToolDecl[] = [
   },
 ];
 
-function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[], blockedCount: number) {
+/** The figures Abel needs most often, computed by code. Given up front so most replies need one model call. */
+function factsFor(userId: string, allowed: Set<string>) {
+  return {
+    accounts: fin.accounts(userId),
+    salary: fin.salaryInfo(userId),
+    spendingLast3Months: fin.spending(userId, 3),
+    goals: fin.activeGoals(userId).filter((g) => allowed.has(g.id)).map((g) => fin.goalStatus(userId, g)),
+    paydayPlan: fin.payPlan(userId),
+  };
+}
+
+function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[], blockedCount: number, facts: unknown) {
   const u = db.getUser(userId)!;
   const calm = u.viewMode === 'calm';
   const entries = cabinet.map((e) => ({
@@ -128,6 +139,9 @@ function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[],
 Customer: ${u.name}, ${u.age}. Today is ${fin.DEMO_TODAY}. View: ${calm ? 'CALM (older or data-careful customer)' : 'full'}.
 This chat is with the helper: ${helperId}. Focus: ${HELPER_FOCUS[helperId] || HELPER_FOCUS.abel}
 
+FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):
+${JSON.stringify(facts)}
+
 WHAT YOU KNOW (the customer's cabinet, read through the access gateway just now; ${blockedCount} items were held back and you must not guess them):
 ${JSON.stringify(entries)}
 
@@ -141,7 +155,8 @@ HOW YOU TALK
 - If they're unhappy with you: apologise briefly, repair, and offer a person.${calm ? '\n- CALM view: slower and warmer, very short sentences, at most two suggestions, explain why you ask, always offer to talk to a person.' : ''}
 
 RULES YOU MUST FOLLOW
-- NEVER state a number that didn't come from a tool result or the cabinet above. Call getAccounts / getSpending / getSalary / getGoalStatus / getPayPlan / checkAffordability first.
+- NEVER state a number that isn't in FACTS, the cabinet, or a tool result. FACTS already cover balances, salary, 3-month spending, goals and the payday plan, so answer straight away. Call a tool only for something not there (another period or category, or whether a specific amount is affordable).
+- Be quick: when you can, answer in ONE step by calling finishReply directly. You may call proposeCabinetChange, offerTransfer, suggestPartnerOffer or startHandoff in the same step as finishReply.
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts). Don't ask permission for normal things; the app shows "Abel will remember this · Undo". Never save small talk, filler, greetings, complaints or one-off feelings.
 - Sensitive topics (health, relationships, pregnancy…): be kind, set sensitive=true; it won't be saved unless the customer chooses to.
 - Old goals whose date has passed: ask gently whether they're still a plan; archive only if the customer says so.
@@ -375,7 +390,10 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   const HELPER_NAMES: Record<string, string> = { abel: 'Abel', autopilot: 'Payday autopilot', budget: 'Budget helper', invest: 'Investing', life: 'Life events', leaks: 'Money leaks', person: 'Talk to a person' };
   const read = readCabinetThroughGateway(userId, 'abel', `Chat: ${HELPER_NAMES[helperId] || 'Abel'}`);
   const ctx: TurnCtx = { userId, conversationId, allowedIds: new Set(read.allowed.map((e) => e.id)), cards: [], notes: [], changes: 0, offersShown: 0, extraUsed: [] };
-  const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length);
+  const facts = factsFor(userId, ctx.allowedIds);
+  const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts);
+  const t0 = Date.now();
+  let modelCalls = 0;
 
   // Earlier messages of this conversation (text only, newest 16).
   const history = db
@@ -391,6 +409,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   const known: number[] = [];
   collectNumbers(read.allowed.map((e) => [e.detail, e.target, e.title]), known);
   collectNumbers(userText, known);
+  collectNumbers(facts, known);
 
   let retried = false;
   // An answer must arrive within 75 seconds overall, however many tool steps it takes.
@@ -399,6 +418,7 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     if (Date.now() > deadline) break;
     let res;
     try {
+      modelCalls++;
       res = await provider.step({ system, turns, tools: TOOLS, temperature: 0.3 });
     } catch (err: any) {
       console.error('LLM error:', err?.message || err);
@@ -411,7 +431,10 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     if (!res.calls.length) {
       // The model answered in plain text despite the instructions: accept it, but only if its numbers check out.
       const t = (res.text || '').trim();
-      if (t && !unsupportedNumbers(t, known).length) return finish(t, [], [], 'other', true);
+      if (t && !unsupportedNumbers(t, known).length) {
+        recordTurn(Date.now() - t0, modelCalls);
+        return finish(t, [], [], 'other', true);
+      }
       turns.push({ role: 'model', text: t || '(empty)' });
       turns.push({ role: 'user', text: '(system) Please answer by calling finishReply, and use tools for any numbers.' });
       continue;
@@ -419,7 +442,9 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     turns.push({ role: 'model_calls', calls: res.calls, raw: res.raw });
     const results: { call: ToolCall; result: unknown }[] = [];
     let finished: AbelReply | null = null;
-    for (const call of res.calls) {
+    // Run the other tools first, so a finishReply in the same step sees their results and cards.
+    const ordered = [...res.calls.filter((c) => c.name !== 'finishReply'), ...res.calls.filter((c) => c.name === 'finishReply')];
+    for (const call of ordered) {
       if (call.name === 'finishReply') {
         const text = String(call.args.text || '').trim();
         const bad = unsupportedNumbers(text, known);
@@ -437,7 +462,10 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
         results.push({ call, result });
       }
     }
-    if (finished) return finished;
+    if (finished) {
+      recordTurn(Date.now() - t0, modelCalls);
+      return finished;
+    }
     turns.push({ role: 'tool_results', results });
   }
   return finish('Sorry, I got a bit lost there. Could you say that again in a different way?', [], [], 'other', false);

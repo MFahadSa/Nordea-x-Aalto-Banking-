@@ -1,6 +1,6 @@
 // One small module for every call to a language model, so the provider can be swapped later
 // (e.g. an OpenAI-compatible university gateway, or Claude) without touching the rest of the app.
-import { GoogleGenAI, FunctionCallingConfigMode } from '@google/genai';
+import { GoogleGenAI, FunctionCallingConfigMode, ThinkingLevel } from '@google/genai';
 
 export interface ToolDecl {
   name: string;
@@ -44,6 +44,23 @@ let activeModel: string | null = null;
 let lastError: { at: string; message: string; model?: string } | null = null;
 let lastOk: { at: string; model: string } | null = null;
 
+// "Thinking" makes newer models much slower. Abel's job is short replies with tools, so keep it low.
+// Newer models take thinkingLevel, the 2.5 family takes thinkingBudget; each refuses the other.
+// Try in this order and remember what the model accepted. LLM_THINKING=default leaves it to Google.
+type ThinkMode = 'level' | 'budget' | 'none';
+let thinkMode: ThinkMode | null = process.env.LLM_THINKING === 'default' ? 'none' : null;
+const thinkingFor = (m: ThinkMode) =>
+  m === 'level' ? { thinkingLevel: ThinkingLevel.LOW } : m === 'budget' ? { thinkingBudget: 0 } : undefined;
+// Any "invalid request" answer may mean the model doesn't accept this thinking setting, so try the next one.
+// Timeouts and network errors are not retried here.
+const isThinkingProblem = (msg: string) => !/timeout|fetch failed|ECONN|ENOTFOUND|network/i.test(msg) && /thinking|INVALID_ARGUMENT|invalid argument|400/i.test(msg);
+
+/** Timing of the last answer, for More → AI connection. */
+let lastTurn: { at: string; ms: number; calls: number } | null = null;
+export function recordTurn(ms: number, calls: number) {
+  lastTurn = { at: new Date().toISOString(), ms, calls };
+}
+
 /** Max time for one call to the model. Without this a stuck request leaves the chat "typing…" forever. */
 const STEP_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 30000;
 
@@ -67,9 +84,26 @@ export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI'): Prom
 }
 
 async function callGemini(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }) {
+  const modes: ThinkMode[] = thinkMode ? [thinkMode] : ['level', 'budget', 'none'];
+  let last: any;
+  for (const m of modes) {
+    try {
+      const res = await callOnce(model, args, thinkingFor(m));
+      thinkMode = m;
+      return res;
+    } catch (err) {
+      last = err;
+      if (!isThinkingProblem(clean(err))) throw err;
+    }
+  }
+  throw last;
+}
+
+async function callOnce(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number }, thinkingConfig?: object) {
   // The key stays on the server: this file only runs in server.ts, never in the browser.
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const config: any = { systemInstruction: args.system, temperature: args.temperature };
+  if (thinkingConfig) config.thinkingConfig = thinkingConfig;
   if (args.tools?.length) {
     config.tools = [{ functionDeclarations: args.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }];
     config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } };
@@ -130,6 +164,8 @@ export function aiStatus() {
     candidates: CANDIDATES,
     lastOk,
     lastError,
+    thinking: thinkMode === 'level' ? 'low' : thinkMode === 'budget' ? 'off' : thinkMode === 'none' ? 'model default' : 'not tried yet',
+    lastTurn,
   };
 }
 
