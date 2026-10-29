@@ -12,6 +12,8 @@ interface Props {
   onFrame: (what: string) => void;
   onOpenHelper: (helperId: string) => void;
   onOpenConversation: (id: string) => void;
+  onDeleteChat?: (id: string) => void;
+  onDeleteAllChats?: () => void;
   onOpenPage: (page: string) => void;
   onOpenUsers: () => void;
   onConfirm: (e: CabinetEntry) => void;
@@ -169,33 +171,40 @@ export const HomePage: React.FC<Props> = (p) => {
           </div>
         </div>
 
-        <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} />
+        <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} onDelete={p.onDeleteChat} onDeleteAll={p.onDeleteAllChats} />
         <p className="foot-note">Nothing is used without your OK. Every fact shows where it came from.</p>
       </div>
     </>
   );
 };
 
-export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: () => void; onOpen: (id: string) => void }> = ({ state, all, onToggle, onOpen }) => {
+export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: () => void; onOpen: (id: string) => void; onDelete?: (id: string) => void; onDeleteAll?: () => void }> = ({ state, all, onToggle, onOpen, onDelete, onDeleteAll }) => {
   const list = state.conversations;
   const shown = all ? list : list.slice(0, 3);
   return (
     <div className="ncard">
-      <div className="nhead-row"><h3>Recent chats</h3></div>
+      <div className="nhead-row"><h3>Recent chats</h3>{list.length > 1 && onDeleteAll && <button className="btn link small" onClick={onDeleteAll}>Delete all</button>}</div>
       {list.length ? (
         <>
           {shown.map((c) => {
             const h = HELPERS[c.helperId] || HELPERS.abel;
             return (
-              <button key={c.id} className="hist-row" onClick={() => onOpen(c.id)}>
-                <span className={`hist-ico ${h.cls}`} aria-hidden="true"><Icon name={h.icon} /></span>
-                <span className="hist-t">
-                  <b>{c.title.slice(0, 60)}</b>
-                  <span>{h.name}{c.snippet ? ' · ' + c.snippet.slice(0, 60) : ''}</span>
-                </span>
-                <span className="hist-when">{ago(c.updatedAt)}</span>
-                <NChev />
-              </button>
+              <div key={c.id} className="hist-wrap">
+                <button className="hist-row" onClick={() => onOpen(c.id)}>
+                  <span className={`hist-ico ${h.cls}`} aria-hidden="true"><Icon name={h.icon} /></span>
+                  <span className="hist-t">
+                    <b>{c.title.slice(0, 60)}</b>
+                    <span>{h.name}{c.snippet ? ' · ' + c.snippet.slice(0, 60) : ''}</span>
+                  </span>
+                  <span className="hist-when">{ago(c.updatedAt)}</span>
+                  {!onDelete && <NChev />}
+                </button>
+                {onDelete && (
+                  <button className="hist-del" onClick={() => onDelete(c.id)} aria-label={`Delete chat: ${c.title.slice(0, 40)}`} title="Delete this chat">
+                    <Icon name="trash" size={18} />
+                  </button>
+                )}
+              </div>
             );
           })}
           {list.length > 3 && <button className="nshowall" onClick={onToggle}>{all ? 'Show less' : 'Show all'}</button>}

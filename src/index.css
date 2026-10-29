@@ -488,6 +488,11 @@ body{font-size:16px}
 .hist-ico.h-abel{color:#fff}
 .hist-t{flex:1;min-width:0;display:flex;flex-direction:column}.hist-t b{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hist-t span{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hist-when{flex:none;font-size:12px;color:var(--muted)}
+.hist-wrap{display:flex;align-items:stretch;border-top:1px solid var(--line)}
+.hist-wrap .hist-row{border-top:0;flex:1;min-width:0;padding-right:4px}
+.hist-del{flex:none;width:44px;border:0;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.hist-del:hover,.hist-del:focus-visible{color:var(--bad,#b3261e)}
+.nhead-row .btn.link{font-size:13px;padding:0;min-height:0}
 .hist-empty{padding:0 16px 16px;font-size:14px;color:var(--muted)}
 .pg-head{background:var(--brand);color:#fff;padding:14px 20px 40px}
 .pg-head h1{font-size:22px;font-weight:700}.pg-head p{font-size:14px;opacity:.85;margin-top:4px;color:#fff}
