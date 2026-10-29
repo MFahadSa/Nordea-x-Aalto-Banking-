@@ -22,7 +22,8 @@ export const providerLabel = () => labelFor(envBase());
 /** Other free models on the same service, tried when the first one is at its limit (Groq counts limits per model). */
 export function fallbackModels(): string[] {
   if (process.env.LLM_FALLBACK_MODELS !== undefined) return process.env.LLM_FALLBACK_MODELS.split(',').map((s) => s.trim()).filter(Boolean);
-  if (/groq\.com/i.test(envBase())) return ['qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
+  // Only one backup: the small gpt-oss-20b gave broken answers in testing, so it isn't used by default.
+  if (/groq\.com/i.test(envBase())) return ['qwen/qwen3.8-27b'];
   return [];
 }
 

@@ -32,7 +32,7 @@ function amountIn(text: string): number | undefined {
   return n > 0 ? n : undefined;
 }
 
-export function offlineAnswer(userId: string, text: string, allowed: CabinetEntry[]): OfflineReply {
+export function offlineAnswer(userId: string, text: string, allowed: CabinetEntry[], reason: 'no_ai' | 'unclear' = 'no_ai'): OfflineReply {
   const t = text.toLowerCase();
   const u = db.getUser(userId)!;
   const allowedIds = new Set(allowed.map((e) => e.id));
@@ -144,7 +144,9 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
 
   // Anything else: honest and short, with options.
   return {
-    text: 'I can answer that properly in a few minutes. Right now I can help straight away with your goals, your spending, your pay and whether something is affordable.',
+    text: reason === 'unclear'
+      ? 'Sorry, I didn’t get that right. Could you say it another way? I can also help straight away with your goals, your spending, your pay or whether something is affordable.'
+      : 'I can answer that properly in a few minutes. Right now I can help straight away with your goals, your spending, your pay and whether something is affordable.',
     suggestions: pills,
     usedEntryIds: [],
     topic: 'other',
