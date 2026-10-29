@@ -1,3 +1,5 @@
+// Reads a .env file when the app runs on a laptop. In AI Studio the secrets come from Settings → Secrets.
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,12 +8,16 @@ import { readCabinetThroughGateway } from './src/server/accessGateway.js';
 import { getAllAgents, getAgentManifest } from './src/server/agentRegistry.js';
 import { CabinetEntry, UndoRecord } from './src/types.js';
 import { registerV14Routes } from './src/server/routes.js';
-import { setProviderForTests } from './src/server/llm.js';
+import { setProvider } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
+import { openAiProvider } from './src/server/llmOpenAI.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
 
 // Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.
-if (process.env.LLM_PROVIDER === 'mock') setProviderForTests(mockProvider);
+if (process.env.LLM_PROVIDER === 'mock') setProvider(mockProvider);
+// LLM_PROVIDER=openai: the Aalto LLM gateway (or another OpenAI-compatible API). Needs the Aalto VPN.
+if (process.env.LLM_PROVIDER === 'openai') setProvider(openAiProvider);
+console.log(`AI provider: ${process.env.LLM_PROVIDER === 'openai' ? `Aalto LLM (${process.env.LLM_MODEL || 'Qwen/Qwen3.8-27B-FP8'})` : process.env.LLM_PROVIDER === 'mock' ? 'scripted test stand-in' : 'Gemini'}`);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

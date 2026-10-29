@@ -422,8 +422,8 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
   collectNumbers(facts, known);
 
   let retried = false;
-  // An answer must arrive within 75 seconds overall, however many tool steps it takes.
-  const deadline = Date.now() + 75000;
+  // An answer must arrive within 75 seconds overall (LLM_TURN_MS, longer for the slower Aalto LLM).
+  const deadline = Date.now() + (Number(process.env.LLM_TURN_MS) || 75000);
   for (let step = 0; step < 6; step++) {
     if (Date.now() > deadline) break;
     let res;
@@ -434,7 +434,9 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
       console.error('LLM error:', err?.message || err);
       const detail = lastErrorText() || String(err?.message || err).slice(0, 300);
       return {
-        text: isBusy(detail)
+        text: /daily|per ?day|free_tier|exceeded your current quota/i.test(detail)
+          ? 'Sorry, my free AI limit for today is used up, so I can’t answer right now. It resets in a few hours.'
+          : isBusy(detail)
           ? 'Sorry, Google’s AI is very busy right now, so I couldn’t answer. Could you try again in a minute?'
           : /timeout/i.test(detail)
             ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?'
@@ -569,7 +571,19 @@ export async function proposeFromContent(
 ): Promise<ProposeResult> {
   if (input.text === null && !input.file) return { items: dedupe(userId, SAMPLE_ITEMS), lines: SAMPLE_CHAT.length, source: 'chat-lauri-and-mia.txt', kind: 'chat' };
   const provider = getProvider();
-  const text = input.text || '';
+  let text = input.text || '';
+  // Only Gemini reads PDFs directly. For other models (e.g. the Aalto LLM), take the text out of the PDF first.
+  if (input.file?.mimeType === 'application/pdf' && provider.name !== 'gemini') {
+    try {
+      const { extractText, getDocumentProxy } = await import('unpdf');
+      const pdf = await getDocumentProxy(new Uint8Array(Buffer.from(input.file.data, 'base64')));
+      text = String((await extractText(pdf, { mergePages: true })).text || '').trim();
+      input = { text: text || '(This PDF has no text layer, e.g. a scan.)' };
+      text = input.text!;
+    } catch (err) {
+      console.error('Could not take text out of the PDF:', err);
+    }
+  }
   if (!provider.isConfigured()) return { items: [], lines: text.split('\n').length, source: 'file' };
   const tool: ToolDecl = {
     name: 'proposeEntries',
