@@ -172,7 +172,13 @@ export function affordability(userId: string, amount: number) {
     currentBalance: acc.current.balance,
     canCoverFromSavings: acc.savings.balance >= amount,
     goalAffected: goal ? goal.title : null,
-    monthsOfSavingSetBack: goal && monthly > 0 ? Math.round((amount / monthly) * 10) / 10 : null,
+    // Only for costs the savings can cover; "660 months" for a flat's price means nothing.
+    monthsOfSavingSetBack: goal && monthly > 0 && acc.savings.balance >= amount ? Math.round((amount / monthly) * 10) / 10 : null,
+    ...(acc.savings.balance < amount
+      ? { note: amount > (acc.savings.balance + acc.current.balance) * 3
+          ? 'Far more than all savings: something this size (like a home) is paid mostly with a loan. Do not calculate months or years of saving; offer a Nordea adviser.'
+          : 'More than the savings right now. Say how much is missing (amount minus savings); do not calculate months.' }
+      : {}),
   };
 }
 
