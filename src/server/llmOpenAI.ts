@@ -81,6 +81,18 @@ function parseArgs(s: unknown): Record<string, any> {
   }
 }
 
+/** "Please try again in 682.5ms" / "1.2s" / "1m4.5s" → milliseconds, or null. */
+export function retryWaitMs(msg: string): number | null {
+  const m = msg.match(/try again in ((?:\d+h)?(?:\d+m(?!s))?(?:[\d.]+(?:ms|s))?)/i);
+  if (!m || !m[1]) return null;
+  const t = m[1];
+  const h = Number((t.match(/(\d+)h/) || [])[1] || 0);
+  const min = Number((t.match(/(\d+)m(?!s)/) || [])[1] || 0);
+  const ms = t.match(/([\d.]+)ms$/);
+  const sec = ms ? 0 : Number((t.match(/([\d.]+)s$/) || [])[1] || 0);
+  return Math.round(h * 3600000 + min * 60000 + sec * 1000 + (ms ? Number(ms[1]) : 0));
+}
+
 async function post(body: any, timeoutMs: number) {
   const res = await withTimeout(
     fetch(`${base()}/chat/completions`, {
@@ -102,7 +114,8 @@ async function chat(args: { system: string; turns: Turn[]; tools: ToolDecl[]; te
     body.tools = args.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   }
   const timeout = Math.max(args.timeoutMs || 0, TIMEOUT_MS);
-  for (let attempt = 0; attempt < 3; attempt++) {
+  let waits = 0;
+  for (let attempt = 0; attempt < 6; attempt++) {
     if (args.tools.length) body.tool_choice = toolChoice;
     if (noThink) body.chat_template_kwargs = { enable_thinking: false }; // vLLM + Qwen: answer without a long think
     else delete body.chat_template_kwargs;
@@ -119,10 +132,11 @@ async function chat(args: { system: string; turns: Turn[]; tools: ToolDecl[]; te
       // Not every server accepts these extras. Drop them and try again.
       if (/^4\d\d/.test(msg) && noThink && /chat_template|enable_thinking|extra|unrecognized|not permitted|unsupported/i.test(msg)) { noThink = false; continue; }
       if (/^4\d\d/.test(msg) && lowEffort && /reasoning_effort|unrecognized|unsupported/i.test(msg)) { lowEffort = false; continue; }
-      // Free tiers limit tokens per minute (Groq: 8 000). If the wait is short, wait once and retry.
-      const wait = msg.match(/try again in ([\d.]+)s/i);
-      if (/^429/.test(msg) && /per minute|TPM|RPM/i.test(msg) && wait && Number(wait[1]) <= 20 && attempt < 2) {
-        await new Promise((r) => setTimeout(r, Math.ceil(Number(wait[1]) * 1000) + 300));
+      // Free tiers limit tokens per minute (Groq: 8 000). If the server says how long to wait and it's short, wait and retry.
+      const wait = retryWaitMs(msg);
+      if (/^429/.test(msg) && /per minute|TPM|RPM/i.test(msg) && wait !== null && wait <= 25000 && waits < 2) {
+        waits++;
+        await new Promise((r) => setTimeout(r, wait + 400));
         continue;
       }
       if (/^4\d\d/.test(msg) && toolChoice === 'required' && /tool_choice|required/i.test(msg)) { toolChoice = 'auto'; continue; }
