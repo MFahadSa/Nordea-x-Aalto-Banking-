@@ -587,7 +587,7 @@ body{font-size:16px}
 /* ---- v12–v14 additions ---- */
 [hidden]:not([hidden=until-found i]){display:none!important}
 /* ===== v14 ===== */
-.used-l{display:inline-flex;align-items:center;gap:6px;margin:2px 0 0 2px;border:0;background:none;padding:3px 2px;font:inherit;font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer;border-radius:6px}
+.used-l{display:inline-flex;align-items:center;gap:6px;text-align:left;margin:2px 0 0 2px;border:0;background:none;padding:3px 2px;font:inherit;font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer;border-radius:6px}
 .used-l:hover{color:var(--ink-2)}.used-l .v14chev{transition:transform .2s}
 .used-l .ud{display:inline-flex}.used-l .ud i{width:9px;height:9px;border-radius:50%;border:2px solid var(--surface);margin-right:-4px}
 .used-l .ud i:last-child{margin-right:0}.used-l .ud i.you{background:var(--you)}.used-l .ud i.bank{background:var(--bank)}
@@ -595,6 +595,7 @@ body{font-size:16px}
 .used-i{display:flex;align-items:center;gap:10px;padding:9px 0}.used-i+.used-i{border-top:1px solid var(--line)}
 .used-t{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}.used-t b{font-size:14px;font-weight:600;color:var(--ink)}.used-t span{font-size:12.5px;color:var(--muted)}
 .used-i .btn.link{font-size:13px;padding:4px 0}
+.used-note{margin:8px 0;font-size:12.5px;line-height:1.45;color:var(--ink-2)}.used-note+.used-i{border-top:1px solid var(--line)}
 @keyframes v14in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 .mrow.bot.wide .mcol{max-width:88%;width:88%}
 .offer,.imp{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;width:100%;box-shadow:0 1px 2px rgba(16,19,43,.05)}
@@ -747,3 +748,16 @@ span.cam-x{background:none}
 
 .bub:has(.bank-note){background:none;padding:0 4px}
 .bank-note{font-size:12px;color:var(--muted)}
+
+/* Data rewards (Rewards page) */
+.dr-card .dr-sub .n-name{font-weight:500;font-size:14px;padding-left:12px}
+.dr-card .dr-sub .n-sub{padding-left:12px}
+.dr-more{display:block;margin:4px 16px 12px;font-size:13.5px}
+.dr-detail{border-top:1px solid var(--line)}
+.dr-h{margin:12px 16px 2px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+
+/* Nordea account data (More → Demo) */
+.nd-row{border-top:1px solid var(--line)}
+.nd-act{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 10px}
+.nd-msg{margin:0 16px 12px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.nd-msg.up{color:var(--ok)}.nd-msg.ai-bad{color:var(--danger)}

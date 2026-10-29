@@ -453,6 +453,7 @@ export default function App() {
               onCalm={async () => { await updateUserViewMode(state.user.id, isCalm ? 'full' : 'calm'); refresh(); }}
               onDark={toggleTheme}
               onReset={async () => { await resetDatabase(); refresh(); setToast({ message: 'Demo data reset' }); }}
+              onRefresh={() => refresh()}
             />
           )}
         </PhoneFrame>

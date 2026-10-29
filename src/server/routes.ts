@@ -2,7 +2,10 @@
 // one-time sharing, imports and the data the screens need. Money and fees are computed in code.
 import type { Express, Request, Response } from 'express';
 import { db } from './db.js';
-import { previewCabinetForAgent } from './accessGateway.js';
+import { previewCabinetForAgent, readCabinetThroughGateway } from './accessGateway.js';
+import { summary as dataRewardsSummary } from './dataRewards.js';
+import { applyNordeaData, readNordeaFile, NordeaData } from './nordeaData.js';
+import { checkFeed, feedStatus } from './nordeaFeed.js';
 import { getPartner, getAllPartners } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { abelTurn, proposeFromContent, offerHeadline, SAMPLE_CHAT, ImportItem } from './abel.js';
@@ -132,6 +135,7 @@ export function registerV14Routes(app: Express) {
       cards: reply.cards,
       notes: reply.notes,
       usedEntryIds: reply.usedEntryIds,
+      supplied: reply.supplied,
       errorInfo: reply.errorDetail,
       answeredBy: reply.offline ? 'bank_code' : undefined,
     });
@@ -247,6 +251,8 @@ export function registerV14Routes(app: Express) {
         const prev = previewCabinetForAgent(userId, 'adviser');
         const today = now().slice(0, 10);
         const share = db.addShare({ id: id('share'), userId, agentId: 'adviser', items: prev.allowed.map((e) => e.title), createdAt: now(), until: fin.addDays(today, 7), revoked: false });
+        // The adviser reads what was shared (a logged gateway read, which also earns the customer points).
+        readCabinetThroughGateway(userId, 'adviser', 'Meeting prep: what you shared');
         db.updateMessage(msg.id, { resolved: 'Connect me' });
         out.push(agentMsg(userId, conv, helper, `Connected ✓ A Nordea adviser will contact you. They see ${share.items.length} things you approved, once, until ${fmtDay(share.until)}.`, {
           cards: [{ type: 'info', data: { shareId: share.id, label: 'Stop sharing now' } }],
@@ -258,7 +264,8 @@ export function registerV14Routes(app: Express) {
         const c = card('import');
         if (!c) return res.status(400).json({ error: 'No import on this message' });
         if (action === 'import_no') {
-          db.updateMessage(msg.id, { resolved: 'Not now' });
+          // Nothing was approved: the suggestions are dropped from the card, so they can't reach Abel later.
+          db.updateMessage(msg.id, { resolved: 'Not now', cards: msg.cards!.map((x) => (x === c ? { ...x, data: { ...x.data, items: [], savedIds: [] } } : x)) });
           const kept = c.data!.documentId ? db.getDocument(c.data!.documentId) : undefined;
           out.push(agentMsg(userId, conv, helper, kept ? `Okay, nothing saved from it. Your copy stays in Your documents until ${fmtDay(kept.expiresAt.slice(0, 10))}, and you can delete it any time.` : 'Okay, nothing saved. I don’t keep the file.'));
           break;
@@ -270,10 +277,12 @@ export function registerV14Routes(app: Express) {
         const ids: string[] = [];
         let updated = 0;
         const undoNotes: NonNullable<ChatMessage['notes']> = [];
+        const touched: string[] = [];
         for (const i of picked) {
           const x = items[i];
           const old = x.updates && x.duplicateOfId ? db.getCabinetEntry(x.duplicateOfId) : undefined;
           if (old && old.userId === userId && old.status !== 'archived') {
+            touched.push(old.id);
             // Ticking a "Changes …" line updates the existing thing instead of adding a second copy.
             const prev = { ...old };
             db.updateCabinetEntry(old.id, { target: x.target || old.target, status: old.status === 'stale' ? 'active' : old.status, confirmedAt: now() }, { by: 'you', how });
@@ -287,7 +296,7 @@ export function registerV14Routes(app: Express) {
           const detail = x.note || !/^(Looks private|Already in what Abel knows|Changes “)/.test(x.detail || '') ? x.detail || '' : '';
           const e: CabinetEntry = {
             id: id('entry'), userId, type: x.type, title: x.title, detail: `${detail}${detail ? ' · ' : ''}From ${c.data!.source}`, source: 'document',
-            status: 'active', private: !!x.sensitive, readableBy: { abel: true, offers: false }, provenance: { channel: 'app', documentId: c.data!.documentId || c.data!.source, messageId: msg.id },
+            status: 'active', private: !!x.sensitive, readableBy: { abel: true, offers: false }, provenance: { channel: c.data!.channel === 'whatsapp' ? 'whatsapp' : 'app', documentId: c.data!.documentId || c.data!.source, messageId: msg.id },
             target: x.target, goalType: x.type === 'goal' ? x.goalType || 'other' : undefined, reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(),
           };
           db.addCabinetEntry(e, { by: 'you', how });
@@ -303,7 +312,12 @@ export function registerV14Routes(app: Express) {
           notes.unshift({ text: `📌 Abel will remember ${ids.length === 1 ? 'this' : 'these'}`, undoToken });
         }
         const total = ids.length + updated;
-        db.updateMessage(msg.id, { resolved: `Save ${total} ${total === 1 ? 'thing' : 'things'}` });
+        // Only what was ticked stays on the card (unticked suggestions are dropped), and the card remembers
+        // which entries came from it, so Abel's history can show their current state.
+        db.updateMessage(msg.id, {
+          resolved: `Save ${total} ${total === 1 ? 'thing' : 'things'}`,
+          cards: msg.cards!.map((x) => (x === c ? { ...x, data: { ...x.data, items: picked.map((i: number) => items[i]), savedIds: [...ids, ...touched] } } : x)),
+        });
         const parts = [ids.length ? `Saved ${ids.length}` : '', updated ? `updated ${updated}` : ''].filter(Boolean).join(' and ');
         out.push(agentMsg(userId, conv, helper, `${parts.charAt(0).toUpperCase() + parts.slice(1)} ✓ I’ll use ${total === 1 ? 'it' : 'them'} from now on. Offers can’t read any of it unless you allow it.`, { notes }));
         break;
@@ -351,6 +365,38 @@ export function registerV14Routes(app: Express) {
 
   // Rewards: example rewards, points are really spent, the level never drops.
   app.get('/api/rewards', (_req, res) => res.json({ rewards: REWARDS }));
+  // ---- Nordea account data (fictional): upload a file, or add a row to Supabase → nordea_feed ----
+  app.get('/api/nordea-data', (req, res) => {
+    const userId = String(req.query.userId || 'lauri');
+    const u = db.getUser(userId);
+    if (!u) return res.status(404).json({ error: 'Unknown customer' });
+    res.json({ info: u.nordeaData || null, transactions: db.getTransactions(userId).length, feed: feedStatus() });
+  });
+  app.post('/api/nordea-data', (req, res) => {
+    const { userId = 'lauri', text, fileName = '', data } = req.body || {};
+    if (!db.getUser(userId)) return res.status(404).json({ error: 'Unknown customer' });
+    let parsed: NordeaData;
+    try {
+      parsed = data && typeof data === 'object' ? data : readNordeaFile(String(text || ''), String(fileName));
+    } catch (err: any) {
+      return res.status(400).json({ error: `Couldn’t read the file: ${String(err?.message || err).slice(0, 200)}. Use the JSON or CSV format of the example files.` });
+    }
+    const r = applyNordeaData(userId, parsed, fileName ? `Uploaded ${String(fileName).slice(0, 60)}` : 'Uploaded data');
+    if (!r.ok) return res.status(400).json({ error: r.message });
+    res.json({ result: r });
+  });
+  app.post('/api/nordea-data/check', async (req, res) => {
+    const userId = String((req.body || {}).userId || 'lauri');
+    const out = await checkFeed();
+    res.json({ applied: out.applied.filter((a) => a.userId === userId || !userId), feed: out.status });
+  });
+
+  // Points from the customer's data: for what they share and for how often it's read.
+  app.get('/api/data-rewards', (req, res) => {
+    const userId = String(req.query.userId || 'lauri');
+    if (!db.getUser(userId)) return res.status(404).json({ error: 'Unknown customer' });
+    res.json(dataRewardsSummary(userId));
+  });
   app.post('/api/rewards/redeem', (req, res) => {
     const { userId = 'lauri', rewardId } = req.body || {};
     const u = db.getUser(userId);
@@ -391,6 +437,9 @@ export function registerV14Routes(app: Express) {
     if (fileBase64 && String(fileBase64).length > 11_000_000) return res.status(413).json({ error: 'That file is too big. Try one under 8 MB.' });
 
     const plain = /\.csv$/i.test(String(fileName || '')) ? csvText(String(text || '')).text : String(text || '');
+    // A WhatsApp export ("30/10/2026, 14:05 - Mia: …" or "[30.10.26, 14.05.12] Mia: …"): its entries say so.
+    const waLines = (plain.match(/^\[?\d{1,2}[./-]\d{1,2}[./-]\d{2,4},?\s+\d{1,2}[:.]\d{2}(?:[:.]\d{2})?\]?\s*(?:-\s*)?[^:\n]{1,40}:/gm) || []).length;
+    const channel: 'whatsapp' | 'app' = !fileBase64 && waLines >= 2 ? 'whatsapp' : 'app';
     const r = await proposeFromContent(userId, fileBase64 ? { file: { mimeType, data: String(fileBase64) } } : { text: sample ? null : plain });
     const source = sample ? r.source : String(fileName || (isImage ? 'Photo' : 'your file')).slice(0, 80);
     const kind: 'image' | 'pdf' | 'text' | 'sheet' = isImage ? 'image' : isPdf ? 'pdf' : isSheet ? 'sheet' : 'text';
@@ -413,7 +462,7 @@ export function registerV14Routes(app: Express) {
       attachment: { name: source, kind, documentId: doc?.id, thumb: doc && isImage && typeof thumb === 'string' && thumb.length < 60000 ? thumb : undefined },
     };
     db.addMessage(u);
-    if (doc) db.updateDocument(doc.id, { messageId: u.id, ...(r.text ? { readText: r.text.slice(0, 4000) } : {}) });
+    if (doc) db.updateDocument(doc.id, { messageId: u.id });
     const keptLine = sample ? '' : doc ? `\n\nI kept a copy in Your documents until ${fmtDay(doc.expiresAt.slice(0, 10))}. You can delete it any time.` : keepError ? '\n\nI couldn’t keep a copy this time, so the file isn’t stored.' : '';
     const body = sample ? SAMPLE_CHAT.map(([w, t]) => `${w}: ${t}`).join('\n') : undefined;
 
@@ -430,7 +479,7 @@ export function registerV14Routes(app: Express) {
       if (r.amount && ['price_tag', 'receipt', 'bill', 'other'].includes(r.kind || '')) suggestions.push(r.kind === 'bill' ? `Can I pay ${fmt(r.amount, r.amount % 1 ? 2 : 0)} this month?` : `Can I afford ${fmt(r.amount, r.amount % 1 ? 2 : 0)}?`);
       a = r.items.length
         ? agentMsg(userId, conv.id, conv.helperId, `${what}${keptLine}\n\nHere’s what I’d remember. Untick anything you’d rather I didn’t keep:`, {
-            cards: [{ type: 'import', data: { items: r.items, source, transcript: body, documentId: doc?.id } }],
+            cards: [{ type: 'import', data: { items: r.items, source, transcript: body, documentId: doc?.id, channel } }],
           })
         : agentMsg(userId, conv.id, conv.helperId, doc ? `${what}\n\nI didn’t find anything about your goals or plans worth remembering.${keptLine}` : `${what}\n\nI didn’t find anything about your goals or plans worth remembering, so I won’t keep it.`, { suggestions });
     }

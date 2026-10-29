@@ -1,6 +1,7 @@
 import { db } from './db.js';
 import { getAgentManifest } from './agentRegistry.js';
 import { CabinetEntry, AccessLogEntry } from '../types.js';
+import { rewardRead } from './dataRewards.js';
 
 export interface AccessGatewayResult {
   allowed: CabinetEntry[];
@@ -35,10 +36,13 @@ export function readCabinetThroughGateway(
     itemsReadCount: allowed.length,
     blockedCount: blocked.length,
     allowedItems: allowed.map((e) => e.title),
+    allowedIds: allowed.map((e) => e.id),
     blockedReasons: blocked,
   };
 
   db.addAccessLogEntry(logEntry);
+  // The customer's data earns points when it's shared and when it's really read (not for previews).
+  rewardRead(userId, agentId, allowed);
 
   return {
     allowed,

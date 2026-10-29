@@ -117,3 +117,30 @@ export const localFiles = {
     paths.forEach((p) => fs.rmSync(safe(p), { force: true }));
   },
 };
+
+// ---------------- Nordea account data feed ----------------
+// The table "nordea_feed" is where new (fictional) Nordea account data can be dropped in Supabase:
+// add a row with user_id 'lauri' and the data as JSON, and the app applies it within about 20 seconds
+// (or straight away with More → Nordea account data → Check Supabase now). Created by supabase/nordea-feed.sql.
+export const FEED_TABLE = 'nordea_feed';
+export interface FeedRow { id: number; user_id: string; data: any; note?: string | null; created_at: string }
+
+let feedClient: SupabaseClient | null = null;
+const feed = () => (feedClient ||= createClient(process.env.SUPABASE_URL!, key(), { auth: { persistSession: false, autoRefreshToken: false } }));
+
+/** Rows not applied yet, oldest first. */
+export async function feedPending(): Promise<FeedRow[]> {
+  const { data, error } = await feed().from(FEED_TABLE).select('id,user_id,data,note,created_at').is('applied_at', null).order('id').limit(20);
+  if (error) {
+    const msg = cleanErr(error);
+    if (/nordea_feed|does not exist|PGRST205|schema cache/i.test(msg)) throw new Error(`The table "${FEED_TABLE}" is missing. Run supabase/nordea-feed.sql once in Supabase → SQL Editor.`);
+    throw new Error(`Could not read ${FEED_TABLE}: ${msg}`);
+  }
+  return (data || []) as FeedRow[];
+}
+
+/** Marks a row as done, with what happened (shown in Supabase too). */
+export async function feedDone(id: number, result: string) {
+  const { error } = await feed().from(FEED_TABLE).update({ applied_at: new Date().toISOString(), result: result.slice(0, 500) }).eq('id', id);
+  if (error) throw new Error(`Could not mark ${FEED_TABLE} row ${id} as applied: ${cleanErr(error)}`);
+}

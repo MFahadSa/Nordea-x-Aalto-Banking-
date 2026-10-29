@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { AppState, Reward, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
+import React, { useEffect, useState } from 'react';
+import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
@@ -372,6 +372,10 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
   const level = levelOf(pts + (state.user.pointsSpent || 0));
   const waiting = state.entries.filter((e) => (e.source === 'nordea' && !e.reviewed && e.status === 'active') || e.status === 'stale').length;
   const used = state.user.redeemed || [];
+  const [dr, setDr] = useState<DataRewards | null>(null);
+  const [drOpen, setDrOpen] = useState(false);
+  // Refreshed whenever the points change (a reply, an offer, a share all add points).
+  useEffect(() => { fetchDataRewards(state.user.id).then(setDr).catch(() => setDr(null)); }, [state.user.id, pts]);
   return (
     <>
       <DetailHead
@@ -385,6 +389,41 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
         ]}
       />
       <div className="nbody">
+        {dr && (
+          <>
+            <Band left="Your data earns points" right={`${dr.sharing.points + dr.use.points} so far`} />
+            <div className="ncard flat dr-card">
+              <NRow name="For what you share" sub={`${dr.sharing.notesNow} ${dr.sharing.notesNow === 1 ? 'note' : 'notes'} shared now · ${dr.rules.sharedPerNote} points each, once`} amount={`+${dr.sharing.points}`} chevron={false} />
+              <NRow
+                name="For how it’s used"
+                sub={`Read ${dr.use.reads} ${dr.use.reads === 1 ? 'time' : 'times'} · ${dr.use.readsThisMonth} this month`}
+                amount={`+${dr.use.points}`}
+                chevron={false}
+              />
+              {dr.use.byAgent.filter((a) => a.reads > 0).map((a) => (
+                <NRow key={a.agentId} className="dr-sub" name={a.name} sub={`${a.reads} ${a.reads === 1 ? 'read' : 'reads'} · ${dr.rules.used.find((r) => r.agentId === a.agentId)?.points} point${dr.rules.used.find((r) => r.agentId === a.agentId)?.points === 1 ? '' : 's'} each, up to ${dr.rules.used.find((r) => r.agentId === a.agentId)?.dailyCap} a day`} amount={`+${a.points}`} chevron={false} />
+              ))}
+              {dr.moneyBack > 0 && <NRow name="Money back from partners" sub="Your share of what Nordea earned when you bought through a partner" amount={eur(dr.moneyBack)} chevron={false} />}
+              <button className="btn link dr-more" onClick={() => setDrOpen(!drOpen)}>{drOpen ? 'Show less' : 'Which notes are used most'}</button>
+              {drOpen && (
+                <div className="dr-detail">
+                  {dr.mostUsed.length ? (
+                    dr.mostUsed.map((n) => <NRow key={n.id} name={n.title} sub={n.removed ? 'Removed, no longer read' : 'Still shared'} amount={`${n.reads}×`} chevron={false} />)
+                  ) : (
+                    <p className="foot-note">Nothing has been read yet. Ask Abel something to start.</p>
+                  )}
+                  {dr.recent.length > 0 && (
+                    <>
+                      <p className="dr-h">Latest</p>
+                      {dr.recent.map((r, i) => <NRow key={i} name={r.what} sub={dayMonth(r.at.slice(0, 10))} amount={r.points ? `+${r.points}` : '0'} note={!r.points && r.kind === 'used' ? 'daily cap' : undefined} chevron={false} />)}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <p className="foot-note">Points come only from real reads through the access log, so a note nobody may read earns nothing. Remove a note or stop sharing and it stops earning. Fictional points.</p>
+          </>
+        )}
         <Band left="Use your points" right={`${pts} to spend`} />
         <div className="ncard flat" id="use-points">
           {rewards.map((r) => {
@@ -471,6 +510,45 @@ const DbCheck: React.FC = () => {
   React.useEffect(() => { load(); }, []);
   const text = !s ? 'Checking…' : s.mode === 'supabase' ? (s.ok ? `Saved in Supabase${s.rows ? ` · ${s.rows} records` : ''}${s.waiting ? ` · ${s.waiting} waiting` : ''}` : s.message) : s.message;
   return <NRow name="Saved data" sub={<span className={s && s.mode === 'supabase' && s.ok ? 'up' : s && !s.ok ? 'ai-bad' : ''}>{text}</span>} right={<button className="btn small" onClick={load}>Check</button>} />;
+};
+
+/** Nordea's (fictional) account data: where it came from, upload a new file, or pull new rows from Supabase. */
+const NordeaDataRow: React.FC<{ userId: string; onChanged: () => void }> = ({ userId, onChanged }) => {
+  const [s, setS] = useState<NordeaDataInfo | null>(null);
+  const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const input = React.useRef<HTMLInputElement>(null);
+  const load = () => fetchNordeaData(userId).then(setS).catch(() => setS(null));
+  React.useEffect(() => { load(); }, [userId]);
+  const done = (text: string, bad = false) => { setMsg({ text, bad }); setBusy(false); load(); if (!bad) onChanged(); };
+  const pick = async (f: File) => {
+    setBusy(true);
+    try { const r = await uploadNordeaData(userId, await f.text(), f.name); done(r.message); }
+    catch (e: any) { done(String(e?.message || e), true); }
+  };
+  const check = async () => {
+    setBusy(true);
+    try {
+      const r = await checkNordeaFeed(userId);
+      if (!r.feed.enabled) return done('Supabase isn’t set up in this copy, so there’s no feed. Upload a file instead.', true);
+      if (!r.feed.ok) return done(r.feed.message, true);
+      done(r.applied.length ? r.applied.map((a) => `Row ${a.rowId}: ${a.result.message}`).join(' ') : 'No new rows in Supabase → nordea_feed.');
+    } catch (e: any) { done(String(e?.message || e), true); }
+  };
+  const src = s?.info ? `${s.info.from} · ${dayMonth(s.info.at.slice(0, 10))}` : 'The demo’s original data';
+  return (
+    <div className="nd-row">
+      <NRow name="Nordea account data" sub={`${src} · ${s?.transactions ?? '…'} transactions`} chevron={false} />
+      <div className="nd-act">
+        <button className="btn small" disabled={busy} onClick={() => input.current?.click()}>Upload file</button>
+        <button className="btn small" disabled={busy} onClick={check}>Check Supabase now</button>
+        <input ref={input} type="file" accept=".json,.csv,application/json,text/csv" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pick(f); }} />
+      </div>
+      {busy && <p className="nd-msg">Working…</p>}
+      {msg && !busy && <p className={`nd-msg ${msg.bad ? 'ai-bad' : 'up'}`}>{msg.text}</p>}
+      {s?.feed.enabled && !msg && <p className={`nd-msg ${s.feed.ok ? '' : 'ai-bad'}`}>{s.feed.ok ? 'Watching Supabase → nordea_feed (every 20 s).' : s.feed.message}</p>}
+    </div>
+  );
 };
 
 /** Short, readable reason for the team (the full text is in the chat's technical details). */
@@ -578,7 +656,7 @@ const DebugToggle: React.FC = () => {
 };
 
 // ---------------- More ----------------
-export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: string) => void; onUsers: () => void; onCalm: () => void; onDark: () => void; onReset: () => void }> = ({ state, isDark, onPage, onUsers, onCalm, onDark, onReset }) => (
+export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: string) => void; onUsers: () => void; onCalm: () => void; onDark: () => void; onReset: () => void; onRefresh?: () => void }> = ({ state, isDark, onPage, onUsers, onCalm, onDark, onReset, onRefresh }) => (
   <>
     <DetailHead title="More" />
     <div className="nbody">
@@ -598,6 +676,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
         <AiCheck />
         <SelfTest />
         <DbCheck />
+        <NordeaDataRow userId={state.user.id} onChanged={() => onRefresh?.()} />
         <DebugToggle />
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
         <NRow name="Reset demo data" sub="Start again" onClick={onReset} />
