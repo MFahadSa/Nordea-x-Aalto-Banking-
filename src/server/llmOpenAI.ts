@@ -23,8 +23,9 @@ export const providerLabel = () => labelFor(envBase());
 /** Other free models on the same service, tried when the first one is at its limit (Groq counts limits per model). */
 export function fallbackModels(): string[] {
   if (process.env.LLM_FALLBACK_MODELS !== undefined) return process.env.LLM_FALLBACK_MODELS.split(',').map((s) => s.trim()).filter(Boolean);
-  // Only one backup: the small gpt-oss-20b gave broken answers in testing, so it isn't used by default.
-  if (/groq\.com/i.test(envBase())) return ['qwen/qwen3.8-27b'];
+  // Groq counts limits per model, so each extra model adds its own free allowance. gpt-oss-20b is last: it's
+  // the weakest, but the reply checks (code, empty or broken answers go back to the AI once) catch its slips.
+  if (/groq\.com/i.test(envBase())) return ['qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
   return [];
 }
 
@@ -122,7 +123,9 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
   let toolChoice: 'required' | 'auto' = 'required';
   // vLLM + Qwen (Aalto) understand chat_template_kwargs; gpt-oss models take reasoning_effort. Both make answers faster.
   let noThink = /aalto/i.test(o.baseUrl);
-  let lowEffort = /gpt-oss/i.test(o.model);
+  // gpt-oss: "low"; Qwen on Groq: "none" (no thinking). Dropped automatically if a server rejects it.
+  let lowEffort = /gpt-oss/i.test(o.model) || (/qwen/i.test(o.model) && !/aalto/i.test(o.baseUrl));
+  const effort = /qwen/i.test(o.model) ? 'none' : 'low';
 
   async function post(body: any, timeoutMs: number) {
     const res = await withTimeout(
@@ -149,7 +152,9 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
   }
 
   async function chat(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number }) {
-    const body: any = { model: o.model, messages: toMessages(args.system, args.turns), temperature: args.temperature ?? 0.3 };
+    // A cap on the answer's length: Groq's free tier counts output tokens per minute (qwen: 1 000), and a
+    // request asking for more than that is refused outright. A chat reply needs far less; reading a file a bit more.
+    const body: any = { model: o.model, messages: toMessages(args.system, args.turns), temperature: args.temperature ?? 0.3, max_tokens: args.tools.length === 1 ? 950 : 700 };
     if (args.tools.length) body.tools = args.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
     const timeout = Math.max(args.timeoutMs || 0, TIMEOUT_MS);
     const maxWait = args.maxWaitMs ?? 25000;
@@ -162,7 +167,7 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
       else if (args.tools.length) body.tool_choice = autoNow ? 'auto' : toolChoice;
       if (noThink) body.chat_template_kwargs = { enable_thinking: false };
       else delete body.chat_template_kwargs;
-      if (lowEffort) body.reasoning_effort = 'low';
+      if (lowEffort) body.reasoning_effort = effort;
       else delete body.reasoning_effort;
       try {
         const out = await post(body, timeout);
@@ -187,7 +192,8 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
         console.error(`${label} error (${o.model}):`, msg);
         // Not every server accepts these extras. Drop them and try again.
         if (/^4\d\d/.test(msg) && noThink && /chat_template|enable_thinking|extra|unrecognized|not permitted|unsupported/i.test(msg)) { noThink = false; continue; }
-        if (/^4\d\d/.test(msg) && lowEffort && /reasoning_effort|unrecognized|unsupported/i.test(msg)) { lowEffort = false; continue; }
+        if (/^4\d\d/.test(msg) && lowEffort && /reasoning|unrecognized|unsupported/i.test(msg) && !/rate limit/i.test(msg)) { lowEffort = false; continue; }
+        if (/^4\d\d/.test(msg) && body.max_tokens && /max_tokens|max_completion_tokens/i.test(msg) && !/rate limit|too large/i.test(msg)) { delete body.max_tokens; continue; }
         if (/^4\d\d/.test(msg) && toolChoice === 'required' && /tool_choice|required/i.test(msg) && !/rate limit/i.test(msg)) { toolChoice = 'auto'; continue; }
         // Per-minute limit with a short wait: wait it out (the chain gives a small maxWait so it can switch models instead).
         const wait = retryWaitMs(msg);
