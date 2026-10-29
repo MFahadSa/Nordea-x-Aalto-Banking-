@@ -67,21 +67,27 @@ export function makeChain(members: LlmProvider[]): ChainProvider {
       const usable = members.filter((m) => m.isConfigured() && (!needsVision || m.vision));
       if (!usable.length) throw new Error(needsVision ? 'NO_VISION: none of the AI models here can read photos' : 'No AI model is set up');
       let last: any;
-      const now = Date.now();
-      const ready = usable.filter((m) => st.get(m)!.restUntil <= now);
-      for (let i = 0; i < ready.length; i++) {
-        try {
-          return await tryOne(ready[i], args, i === ready.length - 1);
-        } catch (err) {
-          last = err;
+      // Up to two rounds: everyone who's free tries once; if all are only busy for a short while
+      // (a per-minute limit), wait for the first one to be free again and try again.
+      for (let round = 0; round < 2; round++) {
+        const now = Date.now();
+        const ready = usable.filter((m) => st.get(m)!.restUntil <= now);
+        for (let i = 0; i < ready.length; i++) {
+          try {
+            return await tryOne(ready[i], args, i === ready.length - 1);
+          } catch (err) {
+            last = err;
+          }
         }
-      }
-      // Everyone is resting. If one is back within 35 seconds, wait for it once (better than a canned answer).
-      const soonest = usable.reduce((a, m) => (st.get(m)!.restUntil < st.get(a)!.restUntil ? m : a), usable[0]);
-      const waitMs = st.get(soonest)!.restUntil - Date.now();
-      if (waitMs <= 35000) {
-        await new Promise((r) => setTimeout(r, Math.max(waitMs, 0) + 200));
-        return tryOne(soonest, args, true);
+        if (round === 1) break;
+        // Only a model that's busy (per-minute limit, server hiccup) is worth waiting for; a model that
+        // can't do this request or is out for the day isn't.
+        const busy = usable.filter((m) => ['minute', 'server'].includes(st.get(m)!.lastFail?.kind || '') && st.get(m)!.restUntil - Date.now() <= 35000);
+        if (!busy.length) break;
+        const soonest = busy.reduce((a, m) => (st.get(m)!.restUntil < st.get(a)!.restUntil ? m : a), busy[0]);
+        const waitMs = st.get(soonest)!.restUntil - Date.now();
+        console.log(`AI chain: all models busy; waiting ${Math.round(Math.max(waitMs, 0) / 1000)} s for ${name(soonest)}.`);
+        await new Promise((r) => setTimeout(r, Math.max(waitMs, 0) + 300));
       }
       throw last || new Error(`All AI models are resting: ${usable.map(name).join(', ')}`);
     },
