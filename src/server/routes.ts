@@ -413,7 +413,7 @@ export function registerV14Routes(app: Express) {
       attachment: { name: source, kind, documentId: doc?.id, thumb: doc && isImage && typeof thumb === 'string' && thumb.length < 60000 ? thumb : undefined },
     };
     db.addMessage(u);
-    if (doc) db.updateDocument(doc.id, { messageId: u.id });
+    if (doc) db.updateDocument(doc.id, { messageId: u.id, ...(r.text ? { readText: r.text.slice(0, 4000) } : {}) });
     const keptLine = sample ? '' : doc ? `\n\nI kept a copy in Your documents until ${fmtDay(doc.expiresAt.slice(0, 10))}. You can delete it any time.` : keepError ? '\n\nI couldn’t keep a copy this time, so the file isn’t stored.' : '';
     const body = sample ? SAMPLE_CHAT.map(([w, t]) => `${w}: ${t}`).join('\n') : undefined;
 

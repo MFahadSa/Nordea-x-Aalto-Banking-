@@ -72,7 +72,7 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
     const out = [
       a.canCoverFromSavings ? `Yes, ${eur(amt)} is covered by your savings (${eur(a.savingsBalance)}).` : `${eur(amt)} is more than your savings right now (${eur(a.savingsBalance)}).`,
       a.goalAffected && a.monthsOfSavingSetBack ? `It would set “${a.goalAffected}” back by about ${String(a.monthsOfSavingSetBack).replace('.', ',')} months of saving.` : '',
-      `Your current account has ${eur(a.currentBalance)}.`,
+      !a.canCoverFromSavings && amt > (a.savingsBalance + a.currentBalance) * 3 ? 'Something this size, like a home, is usually paid mostly with a loan. A Nordea adviser can tell you what’s possible, free.' : `Your current account has ${eur(a.currentBalance)}.`,
     ].filter(Boolean);
     return { text: out.join('\n\n'), suggestions: ['Am I on track?', 'Plan my next payday'], usedEntryIds: main ? [main.id] : [], topic: 'afford' };
   }

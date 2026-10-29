@@ -3,6 +3,7 @@
 // and optionally LLM_FALLBACK_MODELS (AI Studio → Settings → Secrets, or .env on a laptop; never in code).
 // Each model is its own provider with its own state, so the chain in llmChain.ts can switch between them.
 import { LlmProvider, ToolDecl, Turn, ToolCall, withTimeout } from './llm.js';
+import { callsInText } from './replyParse.js';
 
 export const envBase = () => (process.env.LLM_BASE_URL || 'https://llm-gateway.k8s.aalto.fi/api/v1').replace(/\/+$/, '');
 export const envModel = () => process.env.LLM_MODEL || 'Qwen/Qwen3.8-27B-FP8';
@@ -153,8 +154,12 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
     const timeout = Math.max(args.timeoutMs || 0, TIMEOUT_MS);
     const maxWait = args.maxWaitMs ?? 25000;
     let waits = 0;
+    // "auto" only for this one request, after the model failed to call a tool (it wanted to answer in words).
+    let autoNow = false;
     for (let attempt = 0; attempt < 6; attempt++) {
-      if (args.tools.length) body.tool_choice = toolChoice;
+      // One tool (reading a file): ask for exactly that tool. Several (a chat reply): any of them.
+      if (args.tools.length === 1 && toolChoice === 'required' && !autoNow) body.tool_choice = { type: 'function', function: { name: args.tools[0].name } };
+      else if (args.tools.length) body.tool_choice = autoNow ? 'auto' : toolChoice;
       if (noThink) body.chat_template_kwargs = { enable_thinking: false };
       else delete body.chat_template_kwargs;
       if (lowEffort) body.reasoning_effort = 'low';
@@ -165,14 +170,17 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
         return out;
       } catch (err: any) {
         const msg = clean(err);
-        // Groq's "tool_use_failed": the model answered in plain words (fine for small talk). Use those words,
-        // and from now on let this model choose between a tool and plain text.
+        // Groq's "tool_use_failed": the model answered in plain words (fine for small talk) or wrote the
+        // tool call as text. Use what it wrote (step() turns a written tool call into a real one).
+        // Only this request changes: "required" stays the default, because with "auto" these models often
+        // write their tool calls as text.
         if (err?.code === 'tool_use_failed' || /tool_use_failed|Failed to call a function/i.test(msg)) {
-          toolChoice = 'auto';
-          if (typeof err?.failedGeneration === 'string' && err.failedGeneration.trim()) {
+          if (!autoNow && typeof err?.failedGeneration === 'string' && err.failedGeneration.trim()) {
             lastOk = { at: new Date().toISOString(), model: o.model };
             return { choices: [{ message: { role: 'assistant', content: err.failedGeneration } }] };
           }
+          if (autoNow) throw new Error(msg);
+          autoNow = true;
           continue; // retry once with tool_choice "auto"
         }
         lastError = { at: new Date().toISOString(), message: msg, model: o.model };
@@ -180,7 +188,7 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
         // Not every server accepts these extras. Drop them and try again.
         if (/^4\d\d/.test(msg) && noThink && /chat_template|enable_thinking|extra|unrecognized|not permitted|unsupported/i.test(msg)) { noThink = false; continue; }
         if (/^4\d\d/.test(msg) && lowEffort && /reasoning_effort|unrecognized|unsupported/i.test(msg)) { lowEffort = false; continue; }
-        if (/^4\d\d/.test(msg) && toolChoice === 'required' && /tool_choice|required/i.test(msg)) { toolChoice = 'auto'; continue; }
+        if (/^4\d\d/.test(msg) && toolChoice === 'required' && /tool_choice|required/i.test(msg) && !/rate limit/i.test(msg)) { toolChoice = 'auto'; continue; }
         // Per-minute limit with a short wait: wait it out (the chain gives a small maxWait so it can switch models instead).
         const wait = retryWaitMs(msg);
         if (classify(msg) === 'minute' && wait !== null && wait <= maxWait && waits < 2) {
@@ -206,7 +214,17 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
       const out = await chat(args);
       const msg = out?.choices?.[0]?.message || {};
       const calls: ToolCall[] = (msg.tool_calls || []).map((c: any) => ({ id: c.id, name: c.function?.name || '', args: parseArgs(c.function?.arguments) }));
-      return { calls, text: stripThinking(String(msg.content || '')) };
+      let text = stripThinking(String(msg.content || ''));
+      // A tool call written as text ({"name":"getSpending",…} or finishReply's fields as lines): run it as a real call.
+      if (args.tools.length && text) {
+        const found = callsInText(text, args.tools.map((t) => t.name), args.tools.length === 1 ? { name: args.tools[0].name, required: (args.tools[0].parameters as any)?.required || [] } : undefined);
+        if (found.calls.length) {
+          if (!calls.length) calls.push(...found.calls);
+          else calls.push(...found.calls.filter((c) => !calls.some((x) => x.name === c.name)));
+          text = found.rest;
+        }
+      }
+      return { calls, text };
     },
     status: () => ({ provider: label, keyPresent: !!o.apiKey, model: o.model, candidates: [o.model], lastOk, lastError, thinking: noThink ? 'off' : lowEffort ? 'low' : 'model default', baseUrl: o.baseUrl }),
     async ping() {

@@ -259,6 +259,8 @@ export interface StoredDocument {
   entryIds: string[];
   createdAt: string;
   expiresAt: string;
+  /** The text Abel read from it (kept copies only, deleted with the file), so Abel can answer questions about it. */
+  readText?: string;
 }
 
 /** One change to one thing in What Abel knows. Labels and values only, never chat text. */
