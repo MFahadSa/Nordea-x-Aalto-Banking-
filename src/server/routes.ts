@@ -415,7 +415,7 @@ export function registerV14Routes(app: Express) {
     if (!getProvider().isConfigured() && !sample) {
       a = agentMsg(userId, conv.id, conv.helperId, 'I can read photos and files once my AI connection is set up. In this copy of the app it isn’t, but the sample chat works.');
     } else if (r.kind === 'error') {
-      a = agentMsg(userId, conv.id, conv.helperId, `Sorry, I couldn’t read ${isImage ? 'that photo' : `“${source}”`}. Could you try again, or tell me the important part?${keptLine}`);
+      a = agentMsg(userId, conv.id, conv.helperId, `Sorry, I couldn’t read ${isImage ? 'that photo' : `“${source}”`}. Could you try again, or tell me the important part?${keptLine}`, { errorInfo: r.errorDetail });
     } else {
       const what = sample ? `I read your chat with Mia (${r.lines} messages).` : r.summary ? r.summary : `I read “${source}”.`;
       const suggestions: string[] = [];

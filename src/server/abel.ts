@@ -555,6 +555,8 @@ export interface ProposeResult {
   kind?: string;
   summary?: string;
   amount?: number;
+  /** Why reading failed (shown small under Abel's message, like chat errors). */
+  errorDetail?: string;
 }
 
 /**
@@ -607,6 +609,8 @@ export async function proposeFromContent(
       ],
       tools: [tool],
       temperature: 0.1,
+      // Reading a PDF or photo takes longer than a chat reply. If a model is too slow, the next one is tried.
+      timeoutMs: 45000,
     });
     const args = res.calls.find((c) => c.name === 'proposeEntries')?.args || {};
     const raw = (args.items || []) as any[];
@@ -632,6 +636,6 @@ export async function proposeFromContent(
     };
   } catch (err) {
     console.error('File reading failed:', err);
-    return { items: [], lines: 0, source: 'file', kind: 'error' };
+    return { items: [], lines: 0, source: 'file', kind: 'error', errorDetail: lastErrorText() || String((err as any)?.message || err).slice(0, 300) };
   }
 }
