@@ -20,6 +20,15 @@ export const mockProvider: LlmProvider = {
     if (tools.some((t) => t.name === 'proposeEntries') && last.role === 'user' && last.files?.length) {
       return { calls: [call('proposeEntries', { kind: 'price_tag', summary: 'A price tag for a sofa: 1 290 €.', amount: 1290, items: [] })] };
     }
+    if (tools.some((t) => t.name === 'proposeEntries') && last.role === 'user' && /Planning evening/.test(last.text)) {
+      // Shaped like a real Gemini answer to lauri-planning-notes.md: month-only dates, an amount as text.
+      return { calls: [call('proposeEntries', { kind: 'notes', summary: 'Notes from a planning evening with Mia.', items: [
+        { type: 'goal', title: 'Honeymoon in Japan', detail: 'Trip right after the wedding', quote: 'about 4 000 €, trip in August 2027', sensitive: true, targetAmount: '4 000 €', targetDate: '2027-08' },
+        { type: 'goal', title: 'Flat deposit in Espoo', detail: 'Deposit 35 000 € instead of 30 000 €', quote: 'the deposit should be 35 000 €', sensitive: false, targetAmount: 35000, targetDate: 'April 2028', goalType: 'home' },
+        { type: 'preference', title: 'Minimum balance', detail: 'At least 2 000 € in the current account', quote: 'at least 2 000 €', sensitive: false },
+        { type: 'life_event', title: 'Mia starts a new job', detail: 'January 2027, about 3 200 € a month', quote: "Mia's new job starts in January 2027", sensitive: false },
+      ] })] };
+    }
     if (tools.some((t) => t.name === 'proposeEntries')) {
       return { calls: [call('proposeEntries', { kind: 'notes', summary: 'Your travel notes.', items: [{ type: 'goal', title: 'Trip to Japan', quote: 'Japan next spring, about 4000', sensitive: false, targetAmount: 4000, targetDate: '2027-04-30' }] })] };
     }

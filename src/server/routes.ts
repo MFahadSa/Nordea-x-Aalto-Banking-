@@ -280,11 +280,12 @@ export function registerV14Routes(app: Express) {
             updated++;
             continue;
           }
-          const detail = x.duplicateOfId ? '' : x.detail;
+          // Older cards put the note into detail; never save those notes as the detail.
+          const detail = x.note || !/^(Looks private|Already in what Abel knows|Changes “)/.test(x.detail || '') ? x.detail || '' : '';
           const e: CabinetEntry = {
-            id: id('entry'), userId, type: x.type, title: x.title, detail: `${x.sensitive ? 'Private' : detail}${detail || x.sensitive ? ' · ' : ''}From ${c.data!.source}`, source: 'document',
+            id: id('entry'), userId, type: x.type, title: x.title, detail: `${detail}${detail ? ' · ' : ''}From ${c.data!.source}`, source: 'document',
             status: 'active', private: !!x.sensitive, readableBy: { abel: true, offers: false }, provenance: { channel: 'app', documentId: c.data!.documentId || c.data!.source, messageId: msg.id },
-            target: x.target, goalType: x.target ? 'other' : undefined, reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(),
+            target: x.target, goalType: x.type === 'goal' ? x.goalType || 'other' : undefined, reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(),
           };
           db.addCabinetEntry(e, { by: 'you', how });
           ids.push(e.id);

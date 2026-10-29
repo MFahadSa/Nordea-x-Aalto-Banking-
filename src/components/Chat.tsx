@@ -294,7 +294,7 @@ export const Chat: React.FC<Props> = (p) => {
             {items.map((x, j) => (
               <button key={j} className={`imp-i${sel[j] ? ' on' : ''}`} disabled={!open} aria-pressed={sel[j]} onClick={() => setImpSel({ ...impSel, [m.id]: sel.map((v, k) => (k === j ? !v : v)) })}>
                 <span className="imp-ck" aria-hidden="true">{sel[j] && <Icon name="check" />}</span>
-                <span className="imp-t"><b>{x.sensitive ? '🔒 ' : ''}{x.title}</b><span>{x.detail}</span>{x.quote && <q>{x.quote}</q>}</span>
+                <span className="imp-t"><b>{x.sensitive ? '🔒 ' : ''}{x.title}</b>{x.detail && <span>{x.detail}</span>}{x.target && <span>{eur(x.target.amount)} by {monthShort(String(x.target.date).slice(0, 7))}</span>}{x.note && <span className="imp-note">{x.note}</span>}{x.quote && <q>{x.quote}</q>}</span>
               </button>
             ))}
             {impShow === m.id && d.transcript && <div className="imp-src">{String(d.transcript).split('\n').map((l: string, k: number) => { const [w, ...rest] = l.split(': '); return <p key={k}><b>{w}:</b> {rest.join(': ')}</p>; })}</div>}

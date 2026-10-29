@@ -27,7 +27,10 @@ export function findSimilar(userId: string, c: Candidate): CabinetEntry | undefi
     if (e.status === 'archived' || e.type === 'blind_spot') continue;
     const theirs = words(`${e.title} ${e.detail}`);
     const overlap = [...mine].filter((w) => theirs.has(w)).length;
-    const titleHit = [...titleW].filter((w) => theirs.has(w)).length;
+    // One shared word counts only between the two names, not the details:
+    // "Save for a wedding" is not the same as "Honeymoon (trip right after the wedding)".
+    const theirTitle = words(e.title);
+    const titleHit = [...titleW].filter((w) => theirTitle.has(w)).length;
     const sameGoalKind = c.type === 'goal' && e.type === 'goal' && !!c.goalType && c.goalType !== 'other' && c.goalType === e.goalType;
     const ok = sameGoalKind || overlap >= 2 || (c.type === e.type && titleHit >= 1);
     if (!ok) continue;
