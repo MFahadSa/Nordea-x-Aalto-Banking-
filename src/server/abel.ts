@@ -469,11 +469,20 @@ export async function abelTurn(userId: string, conversationId: string, helperId:
     } catch (err: any) {
       console.error('LLM error:', err?.message || err);
       const detail = lastErrorText() || String(err?.message || err).slice(0, 300);
+      // A card or a saved note is already prepared (e.g. the transfer to confirm): show it with a short line
+      // instead of an error, so the work isn't lost.
+      if (ctx.cards.length || ctx.notes.length) {
+        recordTurn(Date.now() - t0, modelCalls);
+        return {
+          text: ctx.cards.length ? 'Here’s what I prepared for you. Just confirm below 👇' : 'Done, I’ve noted that.',
+          suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: true,
+        };
+      }
       return {
         text: /daily|per ?day|free_tier|exceeded your current quota/i.test(detail)
           ? 'Sorry, my free AI limit for today is used up, so I can’t answer right now. It resets in a few hours.'
           : isBusy(detail)
-          ? 'Sorry, Google’s AI is very busy right now, so I couldn’t answer. Could you try again in a minute?'
+          ? 'Sorry, the AI service is very busy right now, so I couldn’t answer. Could you try again in a minute?'
           : /timeout/i.test(detail)
             ? 'Sorry, that took too long and I didn’t get an answer. Could you try again?'
             : 'Sorry, I couldn’t answer just now. Could you try again in a moment?',
