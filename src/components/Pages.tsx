@@ -77,8 +77,8 @@ export const HistoryList: React.FC<{ userId: string; entryId: string }> = ({ use
 function seenLine(e: CabinetEntry): string {
   // Only say something when it isn't the obvious "Abel uses it".
   if (e.type === 'blind_spot' || e.status === 'archived') return '';
-  if (e.source === 'nordea' && !e.reviewed) return 'Not used until you confirm it';
   if (e.status === 'disputed') return 'Not used: you said it’s wrong';
+  if (e.source === 'nordea' && !e.reviewed) return 'Not used until you confirm it';
   if (e.readableBy?.abel === false) return 'Not used: you turned it off';
   if (e.readableBy?.offers && !e.private) return 'Offers can use it';
   return '';
@@ -100,7 +100,7 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
         </div>
         <button className="more" onClick={onMenu} aria-expanded={open} aria-label={`Options for ${e.title}`}>{open ? '×' : '⋯'}</button>
       </div>
-      {whyOpen && e.why && <p className="why">{e.why}</p>}
+      {open && whyOpen && e.why && <p className="why">{e.why}</p>}
       {open && (
         <div className="row-opts">
           {e.status === 'archived' ? (
@@ -113,7 +113,7 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
           ) : (
             <>
               {e.source === 'nordea' && e.type !== 'blind_spot' && <button className="btn small" onClick={() => onUpdate(e, { status: 'disputed' })}>That’s wrong</button>}
-              {e.why && <button className="btn small quiet" onClick={onWhy}>How do we know?</button>}
+              {e.why && <button className="btn small quiet" aria-expanded={whyOpen} onClick={onWhy}>{whyOpen ? 'Hide' : 'How do we know?'}</button>}
               <button className="btn small quiet" aria-expanded={hist} onClick={() => setHist(!hist)}>{hist ? 'Hide history' : 'History'}</button>
               {e.type !== 'blind_spot' && <button className="btn small quiet" onClick={() => onArchive(e)}>Remove</button>}
               {e.type !== 'blind_spot' && (
@@ -179,7 +179,8 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   const hasBlind = active.some((e) => e.type === 'blind_spot');
   const removed = state.entries.filter((e) => e.status === 'archived');
   // Waiting for the customer: what Nordea noticed (not used until confirmed) and goals that look out of date.
-  const waiting = active.filter((e) => e.source === 'nordea' && !e.reviewed && e.type !== 'blind_spot');
+  // (Something marked wrong isn't waiting any more: it moves down, labelled "Not used: you said it's wrong".)
+  const waiting = active.filter((e) => e.source === 'nordea' && !e.reviewed && e.status === 'active' && e.type !== 'blind_spot');
   const staleGoals = active.filter((e) => e.type === 'goal' && e.status === 'stale' && !tracked.has(e.id));
   const inUse = state.readable.abel;
   // Not shared: everything Abel can't read, except what's only waiting for a confirm. (An out-of-date goal Abel
@@ -220,7 +221,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                     <span className="wait-act">
                       <button className="btn small primary" onClick={() => p.onConfirm(e)}>Confirm</button>
                       <button className="btn small" onClick={() => p.onUpdate(e, { status: 'disputed' })}>That’s wrong</button>
-                      {e.why && <button className="btn small quiet" onClick={() => setWhy(why === e.id ? null : e.id)}>How do we know?</button>}
+                      {e.why && <button className="btn small quiet" aria-expanded={why === e.id} onClick={() => setWhy(why === e.id ? null : e.id)}>{why === e.id ? 'Hide' : 'How do we know?'}</button>}
                     </span>
                     {why === e.id && e.why && <span className="n-sub why-l">{e.why}</span>}
                   </span>
@@ -301,7 +302,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                   </div>
                   <div className="list">
                     {items.map((e) => (
-                      <ItemRow key={e.id} e={e} open={menu === e.id} onMenu={() => setMenu(menu === e.id ? null : e.id)} whyOpen={why === e.id} onWhy={() => setWhy(why === e.id ? null : e.id)} onUpdate={p.onUpdate} onArchive={p.onArchive} />
+                      <ItemRow key={e.id} e={e} open={menu === e.id} onMenu={() => { setMenu(menu === e.id ? null : e.id); setWhy(null); }} whyOpen={why === e.id} onWhy={() => setWhy(why === e.id ? null : e.id)} onUpdate={p.onUpdate} onArchive={p.onArchive} />
                     ))}
                   </div>
                 </div>
@@ -313,7 +314,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 <div className="sec-title"><h2>Removed</h2><span className="kicker">kept in history</span></div>
                 <div className="list">
                   {removed.map((e) => (
-                    <ItemRow key={e.id} e={e} open={menu === e.id} onMenu={() => setMenu(menu === e.id ? null : e.id)} whyOpen={false} onWhy={() => {}} onUpdate={p.onUpdate} onArchive={p.onArchive} />
+                    <ItemRow key={e.id} e={e} open={menu === e.id} onMenu={() => { setMenu(menu === e.id ? null : e.id); setWhy(null); }} whyOpen={false} onWhy={() => {}} onUpdate={p.onUpdate} onArchive={p.onArchive} />
                   ))}
                 </div>
               </>

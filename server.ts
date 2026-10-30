@@ -147,7 +147,7 @@ app.post('/api/cabinet', (req, res) => {
   res.status(201).json({
     entry: newEntry,
     undoToken,
-    message: '📌 Noted in your cabinet',
+    message: '📌 Abel will remember this',
   });
 });
 
@@ -175,7 +175,8 @@ app.patch('/api/cabinet/:id', (req, res) => {
   res.json({
     entry: updated,
     undoToken,
-    message: 'Updated in your cabinet',
+    // Plain words for what changed (no "cabinet").
+    message: req.body?.status === 'disputed' ? 'Marked as wrong. Abel won’t use it.' : req.body?.status === 'active' && existing.status === 'stale' ? 'Kept. Abel will keep using it.' : req.body?.status === 'active' && existing.status === 'disputed' ? 'Okay, Abel will use it again.' : req.body?.status === 'active' && existing.status === 'archived' ? 'Brought back.' : 'Saved',
   });
 });
 
@@ -204,7 +205,7 @@ app.delete('/api/cabinet/:id', (req, res) => {
   res.json({
     entry: archived,
     undoToken,
-    message: 'Removed from active cabinet (kept in history)',
+    message: 'Removed. It’s kept in your history.',
   });
 });
 

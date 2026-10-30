@@ -569,7 +569,8 @@ export function registerV14Routes(app: Express) {
     db.updateCabinetEntry(e.id, { reviewed: true, confirmedAt: now() }, { by: 'you', how: 'You confirmed it' });
     const u = db.getUser(userId)!;
     db.updateUser(userId, { points: (u.points || 0) + 10 });
-    if (!/salary|pay/i.test(e.title)) return res.json({ entry: db.getCabinetEntry(e.id) });
+    // Only a salary (or pension) change gets Abel's follow-up. ("New regular payment: …" is not one.)
+    if (!(e.id.endsWith('-obs-salary') || /\b(salary|pension)\b/i.test(e.title))) return res.json({ entry: db.getCabinetEntry(e.id) });
     const sal = fin.salaryInfo(userId);
     const acc = fin.accounts(userId)!;
     const goal = fin.primaryGoal(userId);
