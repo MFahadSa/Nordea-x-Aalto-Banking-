@@ -255,14 +255,9 @@ export default function App() {
   };
   const confirm = async (e: CabinetEntry) => {
     const r = await confirmObservation(state!.user.id, e.id);
-    setToast({ message: 'Thanks · +10 points' });
+    // Confirming only confirms: you stay where you are. For a salary change Abel leaves a tip in Recent chats.
+    setToast({ message: r.conversationId ? 'Thanks · +10 points · Abel left you a tip in Recent chats' : 'Thanks · +10 points' });
     await refresh();
-    if (r.conversationId) {
-      setHelperId('abel');
-      setConversationId(r.conversationId);
-      setMessages(await fetchConversationMessages(r.conversationId));
-      setChatOpen(true);
-    }
   };
 
   if (error && !state) {
