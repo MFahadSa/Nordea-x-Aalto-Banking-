@@ -426,6 +426,8 @@ export default function App() {
               onAskAbout={(t) => startChat('abel', t)}
               onUpdate={update}
               onArchive={archive}
+              onConfirm={confirm}
+              onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
               onDeleteDoc={setDelDocId}
             />
           )}

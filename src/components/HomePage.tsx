@@ -46,12 +46,17 @@ export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame:
     <img className="nlogo c" src={LOGO_WHITE} alt="Nordea" />
     <p className="nwelcome">Welcome, {state.user.name}!</p>
     {/* Pay, Scan invoice and Transfer belong to the existing Nordea app. "Ask Abel" is what this concept adds. */}
+    {/* Abel first: a bar that opens the chat. Pay, Scan invoice and Transfer belong to the existing Nordea app. */}
+    <button className="ask-bar" onClick={onAsk}>
+      <Icon name="spark" />
+      <span>Ask Abel anything…</span>
+      <i className="live-dot" aria-hidden="true" />
+    </button>
     <RoundActions
       actions={[
         { icon: 'pay', label: 'Pay', onClick: () => onFrame('Payments') },
         { icon: 'scan', label: 'Scan invoice', onClick: () => onFrame('Scanning invoices') },
         { icon: 'transfer', label: 'Transfer', onClick: () => onFrame('Transfers') },
-        { icon: 'spark', label: 'Ask Abel', onClick: onAsk, dot: true },
       ]}
     />
   </header>
@@ -70,7 +75,7 @@ export const HomePage: React.FC<Props> = (p) => {
   const card = (e: CabinetEntry) =>
     e.status === 'stale' ? (
       <div className="card" key={e.id}>
-        <span className="from bank">Nordea noticed</span>
+        <span className="from you">Your goal</span>
         <div>
           <h3>Is “{e.title}” still a plan?</h3>
           <p>Its date has passed and no money has been added for a long time.</p>
@@ -85,20 +90,14 @@ export const HomePage: React.FC<Props> = (p) => {
         <span className="from bank">Nordea noticed</span>
         <div>
           <h3>{e.title}</h3>
-          <p>{e.detail.replace(/\s*Is this right\?$/, '')} Is this right?</p>
+          <p>{e.detail.replace(/\s*Is this right\?$/, '')}</p>
         </div>
         <div className="btns">
-          <button className="btn primary" onClick={() => p.onConfirm(e)}>Yes</button>
-          <button className="btn" onClick={() => p.onWrong(e)}>No</button>
+          <button className="btn primary" onClick={() => p.onConfirm(e)}>Confirm</button>
+          <button className="btn" onClick={() => p.onWrong(e)}>That’s wrong</button>
+          {e.why && <button className="btn quiet" onClick={() => setWhyId(whyId === e.id ? null : e.id)}>{whyId === e.id ? 'Hide' : 'How do we know?'}</button>}
         </div>
-        {e.why && (
-          <>
-            {whyId === e.id && <p className="why">{e.why}</p>}
-            <button className="btn link" onClick={() => setWhyId(whyId === e.id ? null : e.id)}>
-              {whyId === e.id ? 'Hide' : 'How do we know?'}
-            </button>
-          </>
-        )}
+        {e.why && whyId === e.id && <p className="why">{e.why}</p>}
       </div>
     );
 
@@ -172,7 +171,7 @@ export const HomePage: React.FC<Props> = (p) => {
         </div>
 
         <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} onDelete={p.onDeleteChat} onDeleteAll={p.onDeleteAllChats} />
-        <p className="foot-note">Nothing is used without your OK. Every fact shows where it came from.</p>
+        <p className="foot-note">Nothing is used without your OK.</p>
       </div>
     </>
   );
@@ -181,6 +180,8 @@ export const HomePage: React.FC<Props> = (p) => {
 export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: () => void; onOpen: (id: string) => void; onDelete?: (id: string) => void; onDeleteAll?: () => void }> = ({ state, all, onToggle, onOpen, onDelete, onDeleteAll }) => {
   const list = state.conversations;
   const shown = all ? list : list.slice(0, 3);
+  // No chats yet: no empty box (Abel's helpers and "Ask Abel" are right there).
+  if (!list.length) return null;
   return (
     <div className="ncard">
       <div className="nhead-row"><h3>Recent chats</h3>{list.length > 1 && onDeleteAll && <button className="btn link small" onClick={onDeleteAll}>Delete all</button>}</div>

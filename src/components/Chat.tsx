@@ -58,6 +58,8 @@ interface Props {
   onDeleteDoc: (id: string) => void;
 }
 
+/** "15 000 €" never splits over two lines in a bubble. */
+const keepNumbers = (t: string) => String(t || '').replace(/(\d) (?=\d{3}(?!\d))/g, '$1\u202f').replace(/(\d) €/g, '$1\u00a0€');
 type Item = { who: 'me' | 'bot'; key: string; node: React.ReactNode; rich?: boolean; after?: React.ReactNode };
 
 export const Chat: React.FC<Props> = (p) => {
@@ -217,7 +219,7 @@ export const Chat: React.FC<Props> = (p) => {
     if (!sup && !es.length) return null;
     const open = usedOpen === m.id;
     const label = sup
-      ? `Abel could see: ${sup.notes} saved ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ', your demo account data' : ''}`
+      ? `Abel could see ${sup.notes} ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ' + account data' : ''}`
       : `Abel says it used ${es.length} ${es.length === 1 ? 'thing' : 'things'}`;
     return (
       <>
@@ -314,7 +316,7 @@ export const Chat: React.FC<Props> = (p) => {
               {(d.gets || []).slice(0, 6).map((g: any, k: number) => <li key={k}><span className={`dotc ${g.source === 'nordea' ? 'bank' : 'you'}`} />{g.title}</li>)}
               {(d.gets || []).length > 6 && <li className="more-l">…and {d.gets.length - 6} more</li>}
             </ul>
-            {d.heldBack > 0 && <p className="rc-n">Held back: {d.heldBack} not approved by you, private, or not checked yet.</p>}
+            {d.heldBack > 0 && <p className="rc-n">{d.heldBack} held back: not approved, private or not checked yet.</p>}
             <span className="earns no">{d.earns}</span>
             <p className="rc-n share-n"><Icon name="cal" /><span>{d.share}</span></p>
             {open && <div className="of-act" style={{ padding: '4px 0 0' }}><button className="btn primary" onClick={() => act('handoff_connect')}>Connect me</button><button className="btn" onClick={() => act('handoff_no')}>Not now</button></div>}
@@ -376,6 +378,7 @@ export const Chat: React.FC<Props> = (p) => {
   const items: Item[] = [];
   const [g1, g2] = h.greet(p.userName);
   items.push({ who: 'bot', key: 'g1' + p.helperId, node: g1 }, { who: 'bot', key: 'g2' + p.helperId, node: g2 });
+  const latestAgentId = [...p.messages].reverse().find((m) => m.sender === 'agent' && (m.supplied || m.usedEntryIds?.length))?.id;
   p.messages.forEach((m) => {
     if (m.sender === 'user') {
       if (m.attachment) {
@@ -404,10 +407,10 @@ export const Chat: React.FC<Props> = (p) => {
         });
         return;
       }
-      items.push({ who: 'me', key: m.id, node: m.text });
+      items.push({ who: 'me', key: m.id, node: keepNumbers(m.text) });
       return;
     }
-    const parts = String(m.text || '').split(/\n{2,}/).filter(Boolean);
+    const parts = keepNumbers(String(m.text || '')).split(/\n{2,}/).filter(Boolean);
     const cards = (m.cards || []).map((c, ci) => ({ c, ci, node: cardNode(m, c, ci) })).filter((x) => x.node);
     const inlineInfo = cards.filter((x) => x.c.type === 'info');
     const richCards = cards.filter((x) => x.c.type !== 'info');
@@ -431,7 +434,8 @@ export const Chat: React.FC<Props> = (p) => {
     if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">Quick answer from your account data · Abel’s AI is taking a short break</span> });
     if (m.errorInfo && debug) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
-    if (lastBot) lastBot.after = usedLine(m);
+    // "Abel could see …" only under Abel's latest reply, so it isn't repeated down the whole chat.
+    if (lastBot && m.id === latestAgentId) lastBot.after = usedLine(m);
     if (m.resolved && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
   });
 
@@ -498,7 +502,7 @@ export const Chat: React.FC<Props> = (p) => {
               <span className="keep-t"><b>Keep a copy</b><span>{keepCopy ? 'Saved in Your documents for 30 days. Delete it any time.' : 'Off: Abel reads the file once, then it’s gone.'}</span></span>
               <span className={`tgl${keepCopy ? ' on' : ''}`} aria-hidden="true"><i /></span>
             </button>
-            <p className="att-note"><Icon name="shield" size={16} /><span>Abel reads it to suggest what to remember: a payslip, a receipt, a price tag, a flat listing, or an Excel of your budget. Nothing is saved without your OK. Use fictional documents only.</span></p>
+            <p className="att-note"><Icon name="shield" size={16} /><span>Abel suggests what to remember from it. Nothing is saved without your OK. Use fictional documents only.</span></p>
           </div>
         </>
       )}

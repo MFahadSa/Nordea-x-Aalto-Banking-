@@ -518,7 +518,7 @@ function getInitialState(): DatabaseState {
       userId: 'lauri',
       agentId: 'abel',
       agentName: 'Abel',
-      purpose: 'Initial welcome check and goal pacing preview',
+      purpose: 'Your first chat with Abel',
       itemsReadCount: 4,
       blockedCount: 1,
       allowedItems: [
