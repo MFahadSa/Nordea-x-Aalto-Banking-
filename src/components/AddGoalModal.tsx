@@ -186,7 +186,7 @@ export const AddGoalModal: React.FC<Props> = ({ isOpen, onClose, userId, onGoalA
           </div>
 
           <p style={{ fontSize: '12.5px', color: 'var(--muted)', margin: '4px 0' }}>
-            📌 Saved to your cabinet with instant Undo. Abel will track your pacing.
+            📌 You can undo it straight away. Abel will track it with you.
           </p>
 
           <div className="btns" style={{ marginTop: '4px' }}>
@@ -196,7 +196,7 @@ export const AddGoalModal: React.FC<Props> = ({ isOpen, onClose, userId, onGoalA
               className="btn primary block"
               style={{ minHeight: '44px' }}
             >
-              {loading ? 'Saving…' : 'Add to cabinet'}
+              {loading ? 'Saving…' : 'Add goal'}
             </button>
             <button
               type="button"

@@ -511,8 +511,8 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
           agentId: 'adviser',
           gets: prev.allowed.map((e) => ({ title: e.title, source: e.source })),
           heldBack: prev.blocked.length,
-          earns: 'Booking is free and commits you to nothing',
-          share: 'Shared once, for this meeting only. It ends after 7 days, and you can stop it any time.',
+          earns: 'Free, and commits you to nothing',
+          share: 'Shared once, for 7 days. You can stop it any time.',
         },
       });
       return { shown: true, note: 'The card lists what would be shared. Nothing is shared until the customer taps Connect me.' };

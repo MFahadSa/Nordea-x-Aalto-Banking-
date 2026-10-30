@@ -3,7 +3,7 @@ import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchN
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
-import { DetailHead, NRow, Band, Toggle } from './Nordea.js';
+import { DetailHead, NRow, Band, Toggle, RoundActions, BAND_BG } from './Nordea.js';
 import { HistoryCard } from './HomePage.js';
 
 // ---------------- What Abel knows ----------------
@@ -24,6 +24,10 @@ interface KnowsProps {
   onAskAbout: (text: string) => void;
   onUpdate: (e: CabinetEntry, updates: Partial<CabinetEntry>) => void;
   onArchive: (e: CabinetEntry) => void;
+  /** Same as on Home: confirming what Nordea noticed (+10 points, and Abel follows up on a salary change). */
+  onConfirm: (e: CabinetEntry) => void;
+  /** An out-of-date goal is still a plan. */
+  onKeep: (e: CabinetEntry) => void;
   onDeleteDoc: (id: string) => void;
 }
 
@@ -158,7 +162,7 @@ const DocsSection: React.FC<{ userId: string; docs: DocInfo[]; onDelete: (id: st
         ))}
       </div>
     ) : (
-      <div className="card"><p>Files you add to a chat aren’t kept. Switch on “Keep a copy” when adding one, and it’s stored here for 30 days. You can delete it any time.</p></div>
+      <div className="card"><p>None kept. Switch on “Keep a copy” when you add a file to a chat.</p></div>
     )}
   </>
 );
@@ -174,23 +178,60 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   const listed = active.filter((e) => !tracked.has(e.id));
   const hasBlind = active.some((e) => e.type === 'blind_spot');
   const removed = state.entries.filter((e) => e.status === 'archived');
-  const known = active.filter((e) => e.type !== 'blind_spot').length;
+  // Waiting for the customer: what Nordea noticed (not used until confirmed) and goals that look out of date.
+  const waiting = active.filter((e) => e.source === 'nordea' && !e.reviewed && e.type !== 'blind_spot');
+  const staleGoals = active.filter((e) => e.type === 'goal' && e.status === 'stale' && !tracked.has(e.id));
+  const inUse = state.readable.abel;
+  // Not shared: everything Abel can't read, except what's only waiting for a confirm. (An out-of-date goal Abel
+  // still reads counts as in use and as waiting: it is both.)
+  const notShared = Math.max(0, active.length - inUse - waiting.length);
+  const [allWaiting, setAllWaiting] = useState(false);
+  const shownWaiting = allWaiting ? waiting : waiting.slice(0, 2);
+  const listedRest = listed.filter((e) => !waiting.includes(e) && !staleGoals.includes(e));
   return (
     <>
-      <DetailHead
-        title="What Abel knows"
-        big={String(known)}
-        sub="things Abel uses to help you. You decide what’s in it."
-        actions={[
+      <header className="nhead detail kn-head" style={{ backgroundImage: BAND_BG }}>
+        <div className="dh-top">
+          <span className="dh-back" />
+          <b>What Abel knows</b>
+          <button className="dh-side" onClick={p.onPrivacy}><Icon name="shield" />Who sees it</button>
+        </div>
+        <div className="kn-sum">
+          <div><b>{inUse}</b><span>In use</span></div>
+          <div className={waiting.length + staleGoals.length ? 'hl' : ''}><b>{waiting.length + staleGoals.length}</b><span>Waiting for you</span></div>
+          <div><b>{notShared}</b><span>Not shared</span></div>
+        </div>
+        <RoundActions actions={[
           { icon: 'plus', label: 'Add a goal', onClick: p.onAddGoal },
           { icon: 'spark', label: 'Tell Abel', onClick: p.onTellAbel },
           { icon: 'file', label: 'Import a chat', onClick: p.onImport },
-          { icon: 'shield', label: 'Who sees it', onClick: p.onPrivacy },
-        ]}
-      />
+        ]} />
+      </header>
       <div className="nbody">
-        <Band left="Goals" right={state.goals.length} />
-        {state.goals.length ? (
+        {waiting.length > 0 && (
+          <>
+            <Band left="Waiting for you" right={<span className="band-note">Not used until you confirm</span>} />
+            <div className="ncard flat">
+              {shownWaiting.map((e) => (
+                <div className="nrow2 static wait" key={e.id}>
+                  <span className="n-l">
+                    <span className="n-name"><span className="dotc bank" />{e.title}</span>
+                    {e.detail && <span className="n-sub">{e.detail}</span>}
+                    <span className="wait-act">
+                      <button className="btn small primary" onClick={() => p.onConfirm(e)}>Confirm</button>
+                      <button className="btn small" onClick={() => p.onUpdate(e, { status: 'disputed' })}>That’s wrong</button>
+                      {e.why && <button className="btn small quiet" onClick={() => setWhy(why === e.id ? null : e.id)}>How do we know?</button>}
+                    </span>
+                    {why === e.id && e.why && <span className="n-sub why-l">{e.why}</span>}
+                  </span>
+                </div>
+              ))}
+              {waiting.length > 2 && <NRow name={allWaiting ? 'Show less' : `${waiting.length - 2} more from Nordea`} className="link-row" onClick={() => setAllWaiting(!allWaiting)} />}
+            </div>
+          </>
+        )}
+        <Band left="Goals" right={state.goals.length + staleGoals.length} />
+        {state.goals.length || staleGoals.length ? (
           <div className="ncard flat">
             {state.goals.map((g) => (
               <React.Fragment key={g.goalId}>
@@ -221,6 +262,19 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 )}
               </React.Fragment>
             ))}
+            {staleGoals.map((e) => (
+              <div className="nrow2 static" key={e.id}>
+                <span className="n-l">
+                  <span className="n-name">{e.title}</span>
+                  <span className="n-sub">{e.target ? `${eur(e.target.amount)} by ${monthShort(e.target.date.slice(0, 7))}` : e.detail} · Still a plan?</span>
+                  <span className="wait-act">
+                    <button className="btn small" onClick={() => p.onKeep(e)}>Yes, keep it</button>
+                    <button className="btn small quiet" onClick={() => p.onArchive(e)}>No, remove it</button>
+                  </span>
+                </span>
+                <span className="n-r"><span className="npill grey">Out of date</span></span>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="nempty">
@@ -234,9 +288,9 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
           <div className="body">
             <div className="sec-title"><h2>Everything else</h2></div>
             <div className="legend"><span className="from you">You told us</span><span className="from bank">Nordea noticed</span>{hasBlind && <span className="from grey">Not shared</span>}</div>
-            {listed.length === 0 && <div className="card"><p>Nothing else yet. Tell Abel about plans or changes in your life.</p></div>}
+            {listedRest.length === 0 && <div className="card"><p>Nothing else yet. Tell Abel about plans or changes in your life.</p></div>}
             {DRAWERS.map((dw) => {
-              const items = listed.filter(dw.has);
+              const items = listedRest.filter(dw.has);
               if (!items.length) return null;
               return (
                 <div className="drawer" key={dw.name}>
@@ -281,7 +335,7 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
   const off = !!state.user.offersOff;
   return (
     <>
-      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="times something read what Abel knows. Every read is logged." onBack={onBack} />
+      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="reads of what Abel knows, each one logged" onBack={onBack} />
       <div className="nbody">
         <Band left="Who can read" />
         <div className="ncard flat">
@@ -376,52 +430,34 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
   const [drOpen, setDrOpen] = useState(false);
   // Refreshed whenever the points change (a reply, an offer, a share all add points).
   useEffect(() => { fetchDataRewards(state.user.id).then(setDr).catch(() => setDr(null)); }, [state.user.id, pts]);
+  const lifetime = pts + (state.user.pointsSpent || 0);
+  const next = lifetime < 150 ? { name: 'Silver', at: 150, from: 0 } : lifetime < 300 ? { name: 'Gold', at: 300, from: 150 } : null;
+  const [how, setHow] = useState(false);
   return (
     <>
-      <DetailHead
-        title="Rewards"
-        big={String(pts)}
-        sub={`points to spend · ${level} level`}
-        actions={[
-          { icon: 'check', label: 'Earn points', onClick: onEarn },
-          { icon: 'gift', label: 'Use points', onClick: () => document.getElementById('use-points')?.scrollIntoView({ behavior: 'smooth' }) },
-          { icon: 'spark', label: 'Ask Abel', onClick: onAsk },
-        ]}
-      />
+      <header className="nhead detail rw-head" style={{ backgroundImage: BAND_BG }}>
+        <div className="dh-top"><span className="dh-back" /><b>Rewards</b><span className="dh-back" /></div>
+        <p className="dh-big">{pts}</p>
+        <p className="dh-sub">points to spend</p>
+        <div className="rw-lvl">
+          <span className="rw-lv-row"><span>{level} level</span><span>{next ? `${next.at - lifetime} points to ${next.name}` : 'Top level'}</span></span>
+          <span className="lbar"><i style={{ width: `${next ? Math.round(((lifetime - next.from) / (next.at - next.from)) * 100) : 100}%` }} /></span>
+        </div>
+      </header>
       <div className="nbody">
         {dr && (
           <>
-            <Band left="Your data earns points" right={`${dr.sharing.points + dr.use.points} so far`} />
-            <div className="ncard flat dr-card">
-              <NRow name="For what you share" sub={`${dr.sharing.notesNow} ${dr.sharing.notesNow === 1 ? 'note' : 'notes'} shared now · ${dr.rules.sharedPerNote} points each, once`} amount={`+${dr.sharing.points}`} chevron={false} />
-              <NRow
-                name="For how it’s used"
-                sub={`Read ${dr.use.reads} ${dr.use.reads === 1 ? 'time' : 'times'} · ${dr.use.readsThisMonth} this month`}
-                amount={`+${dr.use.points}`}
-                chevron={false}
-              />
-              {dr.use.byAgent.filter((a) => a.reads > 0).map((a) => (
-                <NRow key={a.agentId} className="dr-sub" name={a.name} sub={`${a.reads} ${a.reads === 1 ? 'read' : 'reads'} · ${dr.rules.used.find((r) => r.agentId === a.agentId)?.points} point${dr.rules.used.find((r) => r.agentId === a.agentId)?.points === 1 ? '' : 's'} each, up to ${dr.rules.used.find((r) => r.agentId === a.agentId)?.dailyCap} a day`} amount={`+${a.points}`} chevron={false} />
-              ))}
-              {dr.moneyBack > 0 && <NRow name="Money back from partners" sub="Your share of what Nordea earned when you bought through a partner" amount={eur(dr.moneyBack)} chevron={false} />}
-              <button className="btn link dr-more" onClick={() => setDrOpen(!drOpen)}>{drOpen ? 'Show less' : 'Which notes are used most'}</button>
-              {drOpen && (
-                <div className="dr-detail">
-                  {dr.mostUsed.length ? (
-                    dr.mostUsed.map((n) => <NRow key={n.id} name={n.title} sub={n.removed ? 'Removed, no longer read' : 'Still shared'} amount={`${n.reads}×`} chevron={false} />)
-                  ) : (
-                    <p className="foot-note">Nothing has been read yet. Ask Abel something to start.</p>
-                  )}
-                  {dr.recent.length > 0 && (
-                    <>
-                      <p className="dr-h">Latest</p>
-                      {dr.recent.map((r, i) => <NRow key={i} name={r.what} sub={dayMonth(r.at.slice(0, 10))} amount={r.points ? `+${r.points}` : '0'} note={!r.points && r.kind === 'used' ? 'daily cap' : undefined} chevron={false} />)}
-                    </>
-                  )}
-                </div>
-              )}
+            <Band left="Your data earns" right={<button className="band-link" onClick={() => setHow(!how)}>{how ? 'Close' : 'How it works'}</button>} />
+            <div className="dr-tiles">
+              <div className="ncard dr-tile"><b>+{dr.sharing.points}</b><span className="n-name">For what you share</span><span className="n-sub">{dr.sharing.points ? `${dr.sharing.notesNow} ${dr.sharing.notesNow === 1 ? 'note' : 'notes'} · ${dr.rules.sharedPerNote} each, once` : 'Starts with the first note Abel reads'}</span></div>
+              <button className="ncard dr-tile" onClick={() => setDrOpen(!drOpen)}><b>+{dr.use.points}</b><span className="n-name">For how it’s used</span><span className="n-sub">{dr.use.reads ? `Read ${dr.use.readsThisMonth} ${dr.use.readsThisMonth === 1 ? 'time' : 'times'} this month` : 'Starts when Abel uses your notes'}</span></button>
             </div>
-            <p className="foot-note">Points come only from real reads through the access log, so a note nobody may read earns nothing. Remove a note or stop sharing and it stops earning. Fictional points.</p>
+            {how && <p className="dr-how">You earn {dr.rules.sharedPerNote} points once for each note you share, and points each time it’s really read: Abel 1 a reply (up to 10 a day), a partner offer 3, your adviser 10. Remove a note and it stops earning.</p>}
+            {drOpen && (
+              <div className="ncard flat">
+                {dr.mostUsed.length ? dr.mostUsed.map((n) => <NRow key={n.id} name={n.title} sub={n.removed ? 'Removed' : 'Still shared'} amount={`${n.reads}×`} chevron={false} />) : <NRow name="Nothing read yet" sub="Ask Abel something to start" chevron={false} />}
+              </div>
+            )}
           </>
         )}
         <Band left="Use your points" right={`${pts} to spend`} />
@@ -624,7 +660,7 @@ const SelfTest: React.FC = () => {
     <>
       <NRow
         name="Check Abel’s answers"
-        sub={busy ? 'Asking 12 questions… this takes 2–3 minutes' : err ? <span className="ai-bad">{err}</span> : out ? <span className={out.passed === out.total ? 'up' : 'ai-bad'}>{out.passed} of {out.total} passed</span> : 'Real questions to the real AI, on a copy of Lauri. Uses about 15–20 AI requests'}
+        sub={busy ? 'Asking 12 questions… this takes 2–3 minutes' : err ? <span className="ai-bad">{err}</span> : out ? <span className={out.passed === out.total ? 'up' : 'ai-bad'}>{out.passed} of {out.total} passed</span> : '12 test questions · uses about 15–20 AI requests'}
         right={<button className="btn small" onClick={run} disabled={busy}>Run</button>}
       />
       {out && (
@@ -652,7 +688,7 @@ const DebugToggle: React.FC = () => {
     try { localStorage.setItem('abel-debug', v ? '1' : '0'); } catch { /* storage may be blocked */ }
     window.dispatchEvent(new Event('abel-debug'));
   };
-  return <NRow name="Show technical details" sub="For your team: why an answer failed, under the message" right={<Toggle on={on} onChange={flip} label="Show technical details" />} />;
+  return <NRow name="Show technical details" sub="Shows why an answer failed" right={<Toggle on={on} onChange={flip} label="Show technical details" />} />;
 };
 
 // ---------------- More ----------------
@@ -669,7 +705,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="Settings" />
       <div className="ncard flat">
         <NRow name="Calm view" sub="Bigger text, fewer things" right={<Toggle on={state.user.viewMode === 'calm'} onChange={onCalm} label="Calm view" />} />
-        <NRow name="Dark mode" sub="Light is the default" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
+        <NRow name="Dark mode" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
       </div>
       <Band left="Demo" />
       <div className="ncard flat">

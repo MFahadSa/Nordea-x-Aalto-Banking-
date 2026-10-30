@@ -763,3 +763,42 @@ span.cam-x{background:none}
 .nd-msg{margin:0 16px 12px;font-size:12.5px;line-height:1.45;color:var(--muted)}
 .nd-msg.up{color:var(--ok)}.nd-msg.ai-bad{color:var(--danger)}
 .chat-in .chat-plus,.chat-in .chat-mic{margin-bottom:3px}.chat-in .chat-send{margin-bottom:1px}
+
+/* ---- What Abel knows (summary, waiting items) and Rewards (level bar, data tiles): same fonts and sizes as the rest of the app ---- */
+.dh-side{border:0;background:none;color:#fff;font:inherit;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 0}
+.dh-side svg{width:17px;height:17px}
+.kn-head{padding-bottom:18px}
+.kn-sum{display:grid;grid-template-columns:repeat(3,1fr);margin:14px 0 4px;background:rgba(255,255,255,.1);border-radius:10px;padding:10px 4px}
+.kn-sum div{display:flex;flex-direction:column;align-items:center;gap:1px;color:#fff}
+.kn-sum div+div{border-left:1px solid rgba(255,255,255,.18)}
+.kn-sum b{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.kn-sum span{font-size:13px;color:rgba(255,255,255,.88)}
+.kn-sum .hl b{color:#FFD08A}
+.band-note{font-size:12.5px;font-weight:400;color:var(--muted)}
+.nrow2.wait .n-name{display:flex;align-items:center;gap:8px}
+.nrow2.wait .dotc{flex:none}
+.wait-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.why-l{margin-top:8px}
+.npill.grey{background:var(--surface-2);color:var(--ink-2)}
+.link-row .n-name{color:var(--brand-soft);font-weight:600;font-size:15px}
+.rw-head{padding-bottom:20px}
+.rw-head .dh-big{margin-top:10px}
+.rw-lvl{display:grid;gap:6px;margin:14px auto 0;max-width:320px;font-size:13px;color:rgba(255,255,255,.88)}
+.rw-lvl .rw-lv-row{display:flex;justify-content:space-between}
+.lbar{display:block;height:6px;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden}.lbar i{display:block;height:100%;background:#fff;border-radius:99px}
+.band-link{border:0;background:none;font:inherit;font-size:13.5px;font-weight:600;color:var(--brand-soft);cursor:pointer;padding:0}
+.dr-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 2px}
+.dr-tile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;text-align:left;border:0;font:inherit;color:var(--ink);cursor:pointer}
+.dr-tile b{font-size:22px;font-weight:700;color:var(--you)}
+.dr-tile .n-name{font-size:15px}
+.dr-tile .n-sub{font-size:13px}
+.dr-how{font-size:13.5px;color:var(--ink-2);line-height:1.45;margin:10px 2px 0}
+.kn-head .dh-top{display:grid;grid-template-columns:1fr auto 1fr}.kn-head .dh-top b{text-align:center}.kn-head .dh-side{justify-self:end}
+
+/* Quick replies sit under Abel's reply, on the left, so they don't look like your own messages */
+.qr{justify-content:flex-start!important;align-items:flex-start!important}.qr-b{text-align:left}
+
+/* Home: "Ask Abel anything…" bar above the bank's own buttons */
+.ask-bar{display:flex;align-items:center;gap:10px;width:100%;margin:14px 0 4px;padding:12px 16px;border:0;border-radius:999px;background:#fff;color:#6B7090;font:inherit;font-size:15.5px;cursor:pointer;position:relative;box-shadow:0 2px 8px rgba(0,0,40,.25);text-align:left}
+.ask-bar svg{width:22px;height:22px;color:#0000A0;flex:none}
+.ask-bar .live-dot{position:absolute;right:16px;top:50%;margin-top:-5px;width:10px;height:10px;border-radius:50%;background:#2BB673}
