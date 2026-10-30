@@ -1,5 +1,5 @@
-// Reads a .env file when the app runs on a laptop. In AI Studio the secrets come from Settings → Secrets.
-import 'dotenv/config';
+// Reads .env and .env.local when the app runs on a laptop. In AI Studio the secrets come from Settings -> Secrets.
+import dotenv from 'dotenv';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,6 +15,9 @@ import { openAiProvidersFromEnv } from './src/server/llmOpenAI.js';
 import { makeChain } from './src/server/llmChain.js';
 import { gemini, geminiConfigured } from './src/server/llm.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
+
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '.env.local', override: true });
 
 // Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.
 if (process.env.LLM_PROVIDER === 'mock') setProvider(mockProvider);
