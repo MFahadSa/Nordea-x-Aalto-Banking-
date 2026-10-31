@@ -1,9 +1,5 @@
-Test
+<img width="1900" height="1000" alt="WhatsApp Image 2026-10-30 at 5 25 40 PM" src="https://github.com/user-attachments/assets/29cb5da6-584e-4264-bf98-a026b911e060" />
 
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src=<img width="1900" height="1000" alt="image" src="https://github.com/user-attachments/assets/4a303176-1976-45cb-be0e-a65e7bf77de3" />
- />
-</div>
 
 # Run and deploy your AI Studio app
 
