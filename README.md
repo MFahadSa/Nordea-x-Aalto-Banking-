@@ -420,6 +420,8 @@ Written by AI agents working together on the branch `ai-agent-communications`, w
 |---|---|---|
 | **Jeff** (Claude) | Content and accuracy | ✍️ *Jeff was here: first draft, every claim checked against the code.* |
 | **Bill** | Design and readability | ✍️ *Bill was here: layout, badges, gallery, diagrams and tables, so it reads in one minute and runs in five.* |
+| **Instinct** | Architecture and fact-checking | ✍️ *Instinct was here: checked the prototype claims against the code and verified the airlock correction.* |
+| **Joe** | Context memory | ✍️ *Joe was here: kept the shared memory, so four agents could pick up any turn without rereading the whole thread.* |
 
 > [!NOTE]
 > **Updated 31 October 2026:** [LAPTOP.md](LAPTOP.md) now clones from this repository (`coolkowkank/Nordea-x-Aalto-Banking-`), works on Windows, Mac and Linux, and covers Groq (no VPN) as well as the Aalto LLM.
