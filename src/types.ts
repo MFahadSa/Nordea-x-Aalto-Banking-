@@ -63,6 +63,18 @@ export interface CabinetEntry {
     lastContribution?: string;
   };
   why?: string;
+  /** For Nordea observations: what the conclusion rests on, so it can be checked and redone. */
+  evidence?: {
+    /** Transactions the observation was computed from. */
+    transactionIds?: string[];
+    /** Analysis window (YYYY-MM or YYYY-MM-DD). */
+    periodFrom?: string;
+    periodTo?: string;
+    /** When the app last computed this from the account data. */
+    computedAt: string;
+    /** Fingerprint of the inputs; a mismatch means the data moved on and this needs recomputing. */
+    inputsHash?: string;
+  };
   reviewed: boolean;
   goalType?: 'home' | 'car' | 'travel' | 'buffer' | 'other';
   confirmedAt?: string;
@@ -133,11 +145,79 @@ export interface UndoRecord {
 export interface Transaction {
   id: string;
   userId: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD booking date
   category: 'salary' | 'housing' | 'groceries' | 'restaurants' | 'transport' | 'bills' | 'subscriptions' | 'shopping' | 'pharmacy' | 'savings_transfer' | 'savings_transfer_in' | 'pension' | 'other';
   amount: number;
   account: 'current' | 'savings';
   description?: string;
+  // ---- Banking detail (all optional; unknown stays unknown, never invented) ----
+  /** The bank's own stable reference for this transaction, when the feed supplies one. */
+  bankId?: string;
+  /** YYYY-MM-DD value date, when supplied and different from the booking date. */
+  valueDate?: string;
+  /** Booked transactions are final; pending ones can still change or disappear. */
+  status?: 'booked' | 'pending';
+  /** ISO 4217 currency, e.g. 'EUR'. Only set when the data says so. */
+  currency?: string;
+  /** Payee/payer name as the bank recorded it. */
+  counterparty?: string;
+  /** Payment reference or message as recorded by the bank. */
+  reference?: string;
+  /** How the payment was made (card purchase, credit transfer, direct debit…), when supplied. */
+  paymentMethod?: string;
+  /** The category exactly as the feed supplied it, before the app normalized it. */
+  originalCategory?: string;
+  /** Who assigned `category`: the feed supplied it ('feed' - which is NOT proof the bank authored it;
+      upstream tooling may already have normalized it), or the app's keyword guess ('app'). */
+  categorySource?: 'feed' | 'app';
+  /** Which import brought this transaction in (see ImportBatch). */
+  batchId?: string;
+}
+
+/** One explicit account record per account the customer has. The app's User.accounts stays the live
+    view; this is the stable registry that transactions, balance snapshots and feeds refer to.
+    Fields are only set when known - never invented. */
+export interface BankAccount {
+  id: string;
+  userId: string;
+  /** Stable key transactions and balance snapshots use: 'current' | 'savings' | 'carFund' | future keys. */
+  key: string;
+  /** Product type when known ('current account', 'savings', 'ASP'...). Unknown stays unknown. */
+  type?: string;
+  iban?: string;
+  currency?: string;
+}
+
+/** A dated balance for one account, kept so balance history survives later imports. */
+export interface BalanceSnapshot {
+  id: string;
+  userId: string;
+  /** Which account: 'current' | 'savings' | 'carFund' (or a future account key). */
+  accountKey: string;
+  balance: number;
+  /** ISO date the balance is for (the import day, unless the feed says otherwise). */
+  at: string;
+  /** Where it came from, e.g. 'Supabase nordea_feed row 12' or 'Uploaded file'. */
+  source: string;
+  batchId?: string;
+}
+
+/** One application of new Nordea account data: what came in and what the app did with it. */
+export interface ImportBatch {
+  id: string;
+  userId: string;
+  /** Where the data came from (feed row, uploaded file). */
+  source: string;
+  /** snapshot = the feed replaced the whole statement; incremental = new rows were merged in. */
+  mode: 'snapshot' | 'incremental';
+  at: string;
+  /** Rows received, newly stored, skipped as duplicates, rejected as unreadable. */
+  received: number;
+  added: number;
+  skipped: number;
+  rejected: number;
+  /** Rows the bank re-sent with changed content (e.g. pending -> booked): corrected in place. */
+  updated?: number;
 }
 
 export interface MessageCard {
