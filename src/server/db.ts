@@ -14,10 +14,13 @@ import {
   StoredDocument,
   EntryEvent,
   DataReward,
+  BalanceSnapshot,
+  ImportBatch,
+  BankAccount,
 } from '../types.js';
 import { Remote, Row, supabaseConfigured, supabaseRemote, cleanErr } from './store.js';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = process.env.CABINET_DATA_DIR ? path.resolve(process.env.CABINET_DATA_DIR) : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'cabinet-db.json');
 
 export interface DatabaseState {
@@ -34,6 +37,9 @@ export interface DatabaseState {
   documents: StoredDocument[];
   entryHistory: EntryEvent[];
   dataRewards: DataReward[];
+  balanceSnapshots: BalanceSnapshot[];
+  importBatches: ImportBatch[];
+  bankAccounts: BankAccount[];
 }
 
 /** Who changed something in What Abel knows, and where. Recorded in the entry's history. */
@@ -60,7 +66,7 @@ function historyFor(entries: CabinetEntry[]): EntryEvent[] {
 }
 
 /** Each kind of record and how it's keyed. Users are a map, the rest are lists. */
-const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory', 'dataRewards'] as const;
+const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory', 'dataRewards', 'balanceSnapshots', 'importBatches', 'bankAccounts'] as const;
 type ListKind = (typeof LISTS)[number];
 const keyOf = (kind: ListKind, x: any): string => (kind === 'undoRecords' ? x.undoToken : x.id);
 // Rows come back unordered, so restore the order the app expects.
@@ -77,6 +83,9 @@ const ORDER: Record<ListKind, { field: string; desc?: boolean }> = {
   documents: { field: 'createdAt' },
   entryHistory: { field: 'at' },
   dataRewards: { field: 'at' },
+  balanceSnapshots: { field: 'at' },
+  importBatches: { field: 'at' },
+  bankAccounts: { field: 'id' },
 };
 
 function toRows(state: DatabaseState): Row[] {
@@ -560,6 +569,9 @@ function getInitialState(): DatabaseState {
     documents: [],
     entryHistory: historyFor(cabinetEntries),
     dataRewards: [],
+    balanceSnapshots: [],
+    importBatches: [],
+    bankAccounts: [],
   };
 }
 
@@ -571,6 +583,21 @@ function migrate(state: DatabaseState): DatabaseState {
   state.documents = state.documents || [];
   if (!state.entryHistory) state.entryHistory = historyFor(state.cabinetEntries || []);
   state.dataRewards = state.dataRewards || [];
+  state.balanceSnapshots = state.balanceSnapshots || [];
+  state.importBatches = state.importBatches || [];
+  // Explicit account records, derived from what the customer record already knows. Nothing invented:
+  // iban comes from the existing accounts, currency/type stay unset until a feed supplies them.
+  state.bankAccounts = state.bankAccounts || [];
+  for (const u of Object.values(state.users || {})) {
+    for (const key of ['current', 'savings', 'carFund'] as const) {
+      const a = (u.accounts as any)?.[key];
+      if (!a) continue;
+      const id = `acc-${u.id}-${key}`;
+      const existing = state.bankAccounts.find((x) => x.id === id);
+      if (existing) { if (a.iban && !existing.iban) existing.iban = a.iban; }
+      else state.bankAccounts.push({ id, userId: u.id, key, iban: a.iban || undefined });
+    }
+  }
   return state;
 }
 
@@ -682,7 +709,7 @@ class Database {
         console.warn('Could not read existing DB file. Initializing fresh seed.', err);
       }
     }
-    const seed = getInitialState();
+    const seed = migrate(getInitialState());
     this.state = seed;
     this.writeFile();
     return seed;
@@ -879,10 +906,91 @@ class Database {
     return this.state.transactions.filter((t) => t.userId === userId);
   }
 
-  /** New Nordea account data for a customer: their transactions are replaced by these. */
+  /** New Nordea account data for a customer, snapshot mode: their transactions are replaced by these. */
   public replaceTransactions(userId: string, list: Transaction[]) {
     this.state.transactions = [...this.state.transactions.filter((t) => t.userId !== userId), ...list];
     this.saveState(this.state);
+  }
+
+  /**
+   * New Nordea account data, incremental mode: merge by stable transaction id.
+   * Rows whose id the customer already has are skipped (re-imports never duplicate).
+   */
+  public upsertTransactions(userId: string, list: Transaction[]): { added: Transaction[]; skipped: Transaction[]; updated: Transaction[] } {
+    const mine = this.state.transactions.filter((t) => t.userId === userId);
+    const byId = new Map(mine.map((t) => [t.id, t]));
+    const seen = new Set<string>();
+    const added: Transaction[] = [];
+    const skipped: Transaction[] = [];
+    const updated: Transaction[] = [];
+    // Fields a bank correction may legitimately change between feeds (never the identity fields).
+    const CORRECTABLE: (keyof Transaction)[] = ['date', 'amount', 'category', 'account', 'description', 'valueDate', 'status', 'currency', 'counterparty', 'reference', 'paymentMethod', 'originalCategory', 'categorySource'];
+    for (const t of list) {
+      const existing = byId.get(t.id);
+      if (existing || seen.has(t.id)) {
+        // A row the bank re-sent under its own stable reference with changed content (e.g. a pending
+        // transaction booking) is a correction, not a duplicate: update it in place, keep the id.
+        if (existing && existing.bankId && t.bankId) {
+          const diff = CORRECTABLE.filter((f) => (existing as any)[f] !== (t as any)[f]);
+          if (diff.length) {
+            for (const f of diff) { if ((t as any)[f] === undefined) delete (existing as any)[f]; else (existing as any)[f] = (t as any)[f]; }
+            existing.batchId = t.batchId;
+            updated.push(existing);
+            continue;
+          }
+        }
+        skipped.push(t);
+        continue;
+      }
+      seen.add(t.id);
+      added.push(t);
+    }
+    this.state.transactions.push(...added);
+    this.state.transactions.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    this.saveState(this.state);
+    return { added, skipped, updated };
+  }
+
+  // ---- Explicit account records: one per account, derived from the customer record, extended by feeds ----
+  public getBankAccounts(userId: string): BankAccount[] {
+    return this.state.bankAccounts.filter((x) => x.userId === userId);
+  }
+
+  /** Add or enrich an account record. Only the fields supplied are set; nothing is invented. */
+  public upsertBankAccount(userId: string, key: string, fields: { type?: string; iban?: string; currency?: string }): BankAccount {
+    const id = `acc-${userId}-${key}`;
+    let a = this.state.bankAccounts.find((x) => x.id === id);
+    if (!a) {
+      a = { id, userId, key };
+      this.state.bankAccounts.push(a);
+    }
+    if (fields.type !== undefined) a.type = fields.type;
+    if (fields.iban !== undefined) a.iban = fields.iban;
+    if (fields.currency !== undefined) a.currency = fields.currency;
+    this.saveState(this.state);
+    return a;
+  }
+
+  // ---- Balance snapshots: dated balances per account, kept across imports ----
+  public getBalanceSnapshots(userId: string, accountKey?: string): BalanceSnapshot[] {
+    return this.state.balanceSnapshots.filter((x) => x.userId === userId && (!accountKey || x.accountKey === accountKey));
+  }
+
+  public addBalanceSnapshot(x: BalanceSnapshot) {
+    this.state.balanceSnapshots.push(x);
+    this.saveState(this.state);
+    return x;
+  }
+
+  // ---- Import batches: what was applied, when, and what it did ----
+  public getImportBatches(userId: string): ImportBatch[] {
+    return this.state.importBatches.filter((x) => x.userId === userId);
+  }
+
+  public addImportBatch(x: ImportBatch) {
+    this.state.importBatches.push(x);
+    this.saveState(this.state);
+    return x;
   }
 
   // ---- Data rewards: points for what the customer shares and for how often it's read ----

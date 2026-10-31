@@ -370,7 +370,7 @@ export function registerV14Routes(app: Express) {
     const userId = String(req.query.userId || 'lauri');
     const u = db.getUser(userId);
     if (!u) return res.status(404).json({ error: 'Unknown customer' });
-    res.json({ info: u.nordeaData || null, transactions: db.getTransactions(userId).length, feed: feedStatus() });
+    res.json({ info: u.nordeaData || null, transactions: db.getTransactions(userId).length, batches: db.getImportBatches(userId).slice(-10), balanceSnapshots: db.getBalanceSnapshots(userId).length, feed: feedStatus() });
   });
   app.post('/api/nordea-data', (req, res) => {
     const { userId = 'lauri', text, fileName = '', data } = req.body || {};
