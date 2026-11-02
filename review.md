@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -66,4 +66,14 @@ OWNER (01:39, chat to Bill) changes rule 22: "From now on, when I tell Christina
 merge words verbatim with ts (rule 28), AND Bill's QC is green on the exact head to be merged. The owner's quote of his words to Christina
 was not pasted to Bill (placeholder) - the Coordinator supplies it with the merge request.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 01:41
+```
+CMP: dataset only, 3 NEW files scripts/prep-r2/ (Christina patch, sha256 0a1ac283c1c5..., bytes unchanged), on 97d6cb1. green @this: arch 406/0.
+Validator node scripts/prep-r2/validate-r2-cases.mjs: 74/0. No runtime imports, no existing file edited, no provider calls. Synthetic, NOT live.
+Caveat: static cases, no lifecycle, stale-hash/time or over-assignment pin. README wording ("future", "unaccepted L1") predates R2 @385bb2a.
+Not a feature gate. D8 (cycles + failure reply) stays the Coordinator's ask.
+STATE: separate commit; no merge/spend/live/paid. Pin gap (initial review before gather) is a test-hardening followup.
+NEXT: Bill
 ```

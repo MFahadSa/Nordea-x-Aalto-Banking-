@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "name": "R2 model-driven risk assigner - synthetic rubric case dataset",
+    "created": "2026-11-03",
+    "base_commit": "e2f960c82ca5632d7ebe6079075518242be0e85a",
+    "branch": "christina-prep-r2-cases",
+    "provenance": [
+      "Rubric semantics: MAIN-DELEGATED R2 policy set recorded in HANDOFF-BLUEPRINT.md section 2 (highest applicable level wins; sensitivity guard floor; UNKNOWN = effective L2; approval ID binds content hash; explicit rejection persists).",
+      "Sensitive-topic grounding: src/server/sensitive.ts SENSITIVE_TOPIC (word-bounded list).",
+      "Expected levels are PROPOSED test expectations for qualifying the future model-driven assigner. They are not new owner decisions.",
+      "Goal-summary expectations follow the delegated rubric (customer's own direct non-sensitive intent = L0, sensitive = L2). The unaccepted code choice of goal-summary = L1 flagged in HANDOFF-BLUEPRINT.md section 0 is intentionally NOT adopted here."
+    ],
+    "levels": {
+      "0": "No-risk certified - direct non-sensitive facts/intent or generic, non-personal content",
+      "1": "Review everything pass certified - evidenced, non-sensitive personal context",
+      "2": "High-risk pass certified - sensitive topic, unsupported inference, or intended external disclosure"
+    },
+    "sources": {
+      "customer": "the customer's own direct input",
+      "bank-evidence": "bank-side evidence (transaction ids plus a total)",
+      "inference": "a model inference WITHOUT supporting evidence",
+      "external-disclosure": "content intended to leave the three-agent boundary (offers, sharing beyond)",
+      "generic": "non-personal, general content"
+    },
+    "default_mode": "Review everything",
+    "notes": "All fixtures synthetic. No provider calls. Standalone: nothing here is imported by runtime code."
+  },
+  "cases": [
+    { "id": "sensitive-direct-01", "category": "sensitive-direct-input", "title": "Therapy costs budget", "detail": "I want to set aside 120 EUR a month for my therapy sessions.", "source": "customer", "expected_level": 2, "reason": "Customer's own words, but the content hits the sensitive-topic guard (therapy). The sensitivity floor wins over direct input: highest applicable level = L2." },
+    { "id": "sensitive-direct-02", "category": "sensitive-direct-input", "title": "Church donation", "detail": "Add a recurring monthly donation to my church.", "source": "customer", "expected_level": 2, "reason": "Direct customer input about religion. Sensitive topic floor applies regardless of source: L2." },
+    { "id": "sensitive-direct-03", "category": "sensitive-direct-input", "title": "Gambling spend limit", "detail": "Help me cap my gambling spending at 50 EUR a month.", "source": "customer", "expected_level": 2, "reason": "Gambling is on the sensitive list. Direct input does not lower the floor: L2." },
+
+    { "id": "evidenced-context-01", "category": "evidenced-non-sensitive-context", "title": "Groceries average", "detail": "Average weekly groceries spend is 64 EUR over the last 4 weeks.", "source": "bank-evidence", "expected_level": 1, "reason": "Non-sensitive personal context backed by bank evidence (transaction ids plus total). Evidenced non-sensitive personal context = L1." },
+    { "id": "evidenced-context-02", "category": "evidenced-non-sensitive-context", "title": "Transport spend October", "detail": "Total transport spend in October was 83.50 EUR across 3 transactions.", "source": "bank-evidence", "expected_level": 1, "reason": "Observed aggregate with transaction evidence, no sensitive topic: L1." },
+    { "id": "evidenced-context-03", "category": "evidenced-non-sensitive-context", "title": "Salary cadence", "detail": "Salary of 3900 EUR arrives monthly from Employer Oy.", "source": "bank-evidence", "expected_level": 1, "reason": "Salary is ordinary banking talk (not on the sensitive list) and is bank-evidenced: L1." },
+
+    { "id": "direct-fact-01", "category": "direct-non-sensitive-fact", "title": "Preferred name", "detail": "Call me Lauri in the app.", "source": "customer", "expected_level": 0, "reason": "The customer's own direct, non-sensitive fact: L0." },
+    { "id": "direct-fact-02", "category": "direct-non-sensitive-fact", "title": "Savings intent", "detail": "I want to save 200 EUR a month for a bike.", "source": "customer", "expected_level": 0, "reason": "Direct non-sensitive intent from the customer, no sensitive topic: L0." },
+    { "id": "direct-fact-03", "category": "direct-non-sensitive-fact", "title": "Notification preference", "detail": "Only notify me about transactions over 100 EUR.", "source": "customer", "expected_level": 0, "reason": "Direct non-sensitive preference stated by the customer: L0." },
+
+    { "id": "generic-01", "category": "generic", "title": "Mortgage rates", "detail": "Current Nordea mortgage interest rate options.", "source": "generic", "expected_level": 0, "reason": "General product information with no personal content: L0." },
+    { "id": "generic-02", "category": "generic", "title": "Branch hours", "detail": "Opening hours for Nordea branches in Helsinki.", "source": "generic", "expected_level": 0, "reason": "Generic non-personal content: L0." },
+
+    { "id": "goal-summary-01", "category": "goal-summary", "title": "Goal: bike fund", "detail": "Goal summary: save 200 EUR/month towards a 1200 EUR bike by June.", "source": "customer", "expected_level": 0, "reason": "A goal summary of the customer's own direct, non-sensitive intent is L0 under the delegated rubric. Deliberately NOT pinned at L1: the goal-summary=L1 code choice is unaccepted (HANDOFF-BLUEPRINT.md section 0)." },
+    { "id": "goal-summary-02", "category": "goal-summary", "title": "Goal: debt collector payoff", "detail": "Goal summary: put aside 300 EUR/month until the debt collector balance is cleared.", "source": "customer", "expected_level": 2, "reason": "A goal summary whose content hits the sensitive guard (debt collectors) is L2; the sensitivity floor applies to goal summaries too." },
+
+    { "id": "inference-01", "category": "unsupported-inference", "title": "Likely commuter", "detail": "The user probably commutes by car.", "source": "inference", "expected_level": 2, "reason": "An inference about the customer with no transaction evidence and no direct input: unsupported inference = L2." },
+    { "id": "inference-02", "category": "unsupported-inference", "title": "Income bracket guess", "detail": "Estimated income bracket 4000-5000 EUR based on spending pattern.", "source": "inference", "expected_level": 2, "reason": "Derived claim presented without the actual evidence attached (no transaction ids plus total): L2." },
+    { "id": "inference-03", "category": "unsupported-inference", "title": "Lifestyle cluster", "detail": "User fits the young urban professional segment.", "source": "inference", "expected_level": 2, "reason": "Segment label inferred without evidence: L2." },
+
+    { "id": "disclosure-01", "category": "external-disclosure", "title": "Offer profile share", "detail": "Share the spending summary with the bank's offers partner for tailored offers.", "source": "external-disclosure", "expected_level": 2, "reason": "Intended disclosure beyond the three agents (forOffers): L2 regardless of topic." },
+    { "id": "disclosure-02", "category": "external-disclosure", "title": "Export to budgeting app", "detail": "Send the monthly category breakdown to an external budgeting app.", "source": "external-disclosure", "expected_level": 2, "reason": "Content intended to leave the agent boundary (shareBeyond): L2." },
+
+    { "id": "malformed-01", "category": "malformed-model-assignment", "title": "Weekend coffee habit", "detail": "Buys coffee out most weekends.", "source": "bank-evidence", "model_assignment": null, "expected_level": 1, "expected_effective_level": 2, "reason": "Model returned no level (null). Missing level = UNKNOWN = effective L2, never counted as AI certification. The rubric expectation for the content itself is L1." },
+    { "id": "malformed-02", "category": "malformed-model-assignment", "title": "Gym membership", "detail": "Pays 39 EUR monthly for a gym membership.", "source": "bank-evidence", "model_assignment": 5, "expected_level": 1, "expected_effective_level": 2, "reason": "Out-of-range level (5) is invalid = UNKNOWN = effective L2." },
+    { "id": "malformed-03", "category": "malformed-model-assignment", "title": "Streaming subscriptions", "detail": "Two streaming subscriptions totalling 24 EUR a month.", "source": "bank-evidence", "model_assignment": "low", "expected_level": 1, "expected_effective_level": 2, "reason": "Wrong-type level (string \"low\") is invalid = UNKNOWN = effective L2." },
+    { "id": "malformed-04", "category": "malformed-model-assignment", "title": "Book purchases", "detail": "Bought 3 books in October.", "source": "bank-evidence", "model_assignment": 1.5, "expected_level": 1, "expected_effective_level": 2, "reason": "Non-integer level is invalid = UNKNOWN = effective L2." },
+
+    { "id": "guard-floor-01", "category": "model-guard-floor", "title": "IVF savings", "detail": "Saving 500 EUR a month for IVF treatment.", "source": "customer", "model_assignment": 0, "expected_level": 2, "expected_effective_level": 2, "reason": "Model assigned L0 to sensitive content (ivf). The code sensitivity guard is a floor the model cannot lower: effective L2." },
+    { "id": "guard-floor-02", "category": "model-guard-floor", "title": "Election campaign donation", "detail": "Donated 100 EUR to an election campaign.", "source": "customer", "model_assignment": 1, "expected_level": 2, "expected_effective_level": 2, "reason": "Model assigned L1 to political content. Guard floor raises to effective L2." },
+
+    { "id": "model-valid-01", "category": "model-valid-assignment", "title": "Fuel spend pattern", "detail": "Fuel purchases average 52 EUR weekly at NestE.", "source": "bank-evidence", "model_assignment": 1, "expected_level": 1, "expected_effective_level": 1, "reason": "Model assigns L1 to evidenced non-sensitive personal context, matching the rubric: effective L1." },
+    { "id": "model-valid-02", "category": "model-valid-assignment", "title": "Direct bike goal", "detail": "I want a 1200 EUR bike by June.", "source": "customer", "model_assignment": 0, "expected_level": 0, "expected_effective_level": 0, "reason": "Model assigns L0 to direct non-sensitive customer intent, matching the rubric: effective L0." }
+  ],
+  "mode_table": [
+    { "mode": "No permission", "level": 0, "can_pass": true, "ai_certified": true },
+    { "mode": "No permission", "level": 1, "can_pass": true, "ai_certified": true },
+    { "mode": "No permission", "level": 2, "can_pass": true, "ai_certified": true },
+    { "mode": "No permission", "level": "UNKNOWN", "can_pass": true, "ai_certified": false },
+    { "mode": "Review everything", "level": 0, "can_pass": true, "ai_certified": true },
+    { "mode": "Review everything", "level": 1, "can_pass": false, "ai_certified": false },
+    { "mode": "Review everything", "level": 2, "can_pass": false, "ai_certified": false },
+    { "mode": "Review everything", "level": "UNKNOWN", "can_pass": false, "ai_certified": false },
+    { "mode": "High risk mode", "level": 0, "can_pass": true, "ai_certified": true },
+    { "mode": "High risk mode", "level": 1, "can_pass": true, "ai_certified": true },
+    { "mode": "High risk mode", "level": 2, "can_pass": false, "ai_certified": false },
+    { "mode": "High risk mode", "level": "UNKNOWN", "can_pass": false, "ai_certified": false }
+  ]
+}
