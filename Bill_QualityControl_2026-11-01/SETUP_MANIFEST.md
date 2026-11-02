@@ -20,13 +20,14 @@ npm install --legacy-peer-deps && git checkout -- package-lock.json
 git config core.hooksPath .githooks
 git config --local user.name Bill     # owner request: Bill's commits show author "Bill"
 cp Bill_QualityControl_2026-11-01/poll.sh <scratchpad>/poll.sh
-# run it as: REPO=<repo> TZ=Europe/Helsinki bash <scratchpad>/poll.sh <last-hash>   (in the background)
-for t in test:arch test:adapter test:e2e test:remote test:env test:selftest; do
-  npm run -s $t > "/tmp/$t.log" 2>&1; echo "$t exit=$?"; grep -E "passed, [0-9]+ failed" "/tmp/$t.log"
+# run it as: REPO=<repo> INTERVAL=60 TZ=Europe/Helsinki bash <scratchpad>/poll.sh $(git -C <repo> rev-parse HEAD)   (background; FULL hash)
+for t in test:arch test:adapter test:e2e test:remote test:env test:selftest test:load; do
+  npm run -s $t > "/tmp/$t.log" 2>&1; echo "$t exit=$?"; grep -E "passed, [0-9]+ failed|all checks passed" "/tmp/$t.log"
 done
 npm test > /tmp/npmtest.log 2>&1; echo "npm test exit=$?"
 npm run -s lint > /tmp/lint.log 2>&1; echo "lint exit=$?"
 npm run -s check:review; echo "guard exit=$?"   # never piped
+node scripts/prep-r2/validate-r2-cases.mjs   # R2 dataset, 74/0 at 207f384
 # when a suite fails, read its full /tmp/<name>.log
 ```
 
