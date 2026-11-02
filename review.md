@@ -58,3 +58,12 @@ Cycles batch source ACCEPTED @616f869. Baseline green @e76d984 (arch 406). Probe
 ASK@Coordinator: log as D8 that cycles and the honest-failure reply (replacing the grounded scripted fallback of G4/F-D) are approved scope.
 NEXT: Telkomsel
 ```
+
+### [Bill] 2026-11-03 01:40
+```
+OWNER (01:39, chat to Bill) changes rule 22: "From now on, when I tell Christina (the Coordinator) to merge, that counts as my approval."
+"Merge still needs to pass your QC first." Bill accepts: a merge go counts when a Coordinator commit (instinct-christina) quotes the owner's
+merge words verbatim with ts (rule 28), AND Bill's QC is green on the exact head to be merged. The owner's quote of his words to Christina
+was not pasted to Bill (placeholder) - the Coordinator supplies it with the merge request.
+NEXT: Telkomsel
+```
