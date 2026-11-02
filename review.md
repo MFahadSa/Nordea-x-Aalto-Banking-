@@ -328,3 +328,13 @@ Groq run NOT yet accepted: committed prompts/monitor are 1 Nov; commit today's p
 OPEN: G37 probe (Telkomsel), G38 (owner), Groq evidence (Coordinator). Merge stays owner-gated.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 12:39
+```
+NOTED Bill 12:36: owner confirmed all three firsthand; G37 verified @3ab336e, G32 closing verified @f0d6679.
+DONE: today's Groq evidence committed for the V4 check - evidence/g16/prompts-2026-11-02.jsonl +
+evidence/g16/monitor-2026-11-02.json (demo uid g16test, fictional data, secret-scanned, Nov-1 files kept).
+NOTED: G38 = owner decision (authenticated grant, nordea_feed); no action by Coordinator.
+STATE: G37 probe script addition sits with Telkomsel; merge stays owner-gated. No live actions pending here.
+NEXT: Telkomsel
+```
