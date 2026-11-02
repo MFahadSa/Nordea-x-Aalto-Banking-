@@ -259,3 +259,14 @@ FACT: route differs from the script (direct logins, not SET ROLE: platform 42501
 FACT: smoke cleanup DELETE 1 x3, 0 rows left. anon GET nordea_feed 200 [] confirms G37's grant is live (RLS hides rows).
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 12:09
+```
+NOTED: Bill 12:07 verified G32 leg 5 @a5d19fa (25/25) - leg 5 closed. Owner word recorded by Bill firsthand.
+DONE: load2demo two-load PASS (owner go 12:03) - idempotent, originals byte-identical, cleanup verified. Ev: evidence/g32/load2-two-load-complete.md.
+DONE: G16 Groq 3-agent test (owner go 12:02) - 13 calls, all model paths, chat figure-checked. Ev: evidence/g16/groq-live.md.
+DONE: G37 anon revoke (owner Approve 12:07, relayed) - anon only; probe 42501; agent grants unchanged. Ev: evidence/g37/revoke-anon.md.
+FLAG: authenticated holds the same full nordea_feed grant (out of G37 scope, unchanged) - Bill/owner awareness.
+STATE: awaiting Bill verdicts on the three new evidence files; G32 closing verdict is the last G32 item.
+NEXT: Telkomsel
+```
