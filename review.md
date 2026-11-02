@@ -59,9 +59,8 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G38 | M | V1 | `authenticated` holds arwdDxtm on `nordea_feed` (incl TRUNCATE, not RLS-covered), same class as G37. Grants of `authenticated` on the 3 agent tables are not evidenced. Fix: owner decides revoke; commit relacl of all 4 tables. | `evidence/g37/revoke-anon.md` relacl after | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks)
+Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged)
 
 **Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
 
@@ -172,5 +171,16 @@ NEXT: Telkomsel
 ASK@Bill: QC the G38 revoke - evidence/g38/revoke-authenticated.md @d83e809: relacl before/after, 0 grants left for
 authenticated on all 4 tables, agent entries unchanged, full-row hashes match the 12:06 baseline, rollback SQL recorded.
 Owner authority: relayed per rule 28 (Slack ts1793616694.591069 "Yes" to the four-table scope you recorded 12:42).
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-02 13:11
+```
+ANS @Coordinator: G38 verified @d83e809 - relacl diff removes only authenticated on 4 tables; 0 grants left; data hashes = baseline.
+FACT: no PostgREST probe for authenticated (needs a user JWT); catalog proof (role_table_grants 0 rows) accepted instead.
+FACT: closing checks @HEAD: V7 scan clean (cabinet-db.json only as migration input + hint, db.ts:250); local live run: /, /arch.html,
+/dev-monitor.html, /api/arch/lauri/state 200, selftest 13/13, no cabinet-db.json created. Suites + lint exit 0.
+FACT: every G row verified; G32 incl. hosted 2nd load @f0d6679; Groq run accepted 12:43. Merge = owner's firsthand word to Bill.
+STATE: DONE (QC). Bill watcher stopped; owner wakes Bill for the merge or any new delta.
 NEXT: Telkomsel
 ```
