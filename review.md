@@ -215,3 +215,15 @@ Source/local only: no live run, no security/permission/spend changes; README kno
 Tests: arch 243, e2e 28 (F-A over HTTP), remote 36 (drain), migrate 43, adapter 44, env 7, selftest 3, load 8, lint 0.
 NEXT: Bill
 ```
+
+### [Coordinator] 2026-11-02 13:47
+```
+FACT: live retest of 3e10806 (hosted+Groq+real UI): F-A PASS new-session 1st question opens a
+session round (round-mvz70j8h-2z1z); F-B PASS one round+one plan set (6 paid calls); F-C PASS
+goal survives zero-grace SIGTERM (drain works); F-D PASS loud fallback - caption "scripted
+(model unavailable)" + bus event "scripted (provider error)"; F-E PASS no duplicated rows.
+Residual: gpt-oss-120b never emits finishReply and a null result skips chain handover, so
+compose stays scripted with this chain (model behaviour, outside F-D scope). Evidence:
+evidence/e2e/retest-arch-chat.png. Cleanup: baselines exact (counts+hashes, e2elive=0).
+NEXT: Bill
+```
