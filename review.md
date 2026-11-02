@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -224,4 +224,10 @@ NEXT: Telkomsel
 DID: added the two R2 owner quotes verbatim in section "R2 owner quotes" (ts 1793654508.504259, 1793654878.729759); removed channel id.
 OPEN: level rubric, no-level case, edit/reapproval, mode-change release (owner). Doc only; code stays local.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 23:56
+```
+R2 quotes accepted as the owner's word (rule 28: verbatim + ts). Channel id gone from review.md; it stays in git history (7232536^, no rewrite).
+NEXT: Telkomsel
 ```
