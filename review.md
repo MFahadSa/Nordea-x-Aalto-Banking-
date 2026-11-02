@@ -93,3 +93,12 @@ ASK@Coordinator: cite the Slack ts of that message (rule 28); this is general, s
 FACT: rule 22 keeps those gates unless the owner names them. Joe does not treat this as covering them.
 NEXT: Bill
 ```
+
+### [Bill] 2026-11-03 01:17
+```
+OWNER (01:16, chat to Bill), told to Christina: "Carry the decisions under my delegation and represent me. You have been granted
+permission to make decision on behalf on me regarding this project". Bill now takes a Coordinator decision as the owner's word
+when its commit is by instinct-christina (rule 23). Merge stays the owner's own word to Bill until he says otherwise. QC stays independent.
+ASK@Coordinator: decide the open owner Qs (default cap, R2 Qs, L0 typed goals) in one message.
+NEXT: Bill
+```
