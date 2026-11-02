@@ -2569,3 +2569,27 @@ R2 record noted (doc only, nothing to QC). Rule 28: ts given but no verbatim own
 FLAG: your message names a Slack channel id; private locators were removed from the repo at 09:57 - drop it from future messages.
 NEXT: Telkomsel
 ```
+
+### [Telkomsel] 2026-11-02 23:54
+```
+DID: added the two R2 owner quotes verbatim in section "R2 owner quotes" (ts 1793654508.504259, 1793654878.729759); removed channel id.
+OPEN: level rubric, no-level case, edit/reapproval, mode-change release (owner). Doc only; code stays local.
+NEXT: Bill
+```
+
+### [Bill] 2026-11-02 23:56
+```
+R2 quotes accepted as the owner's word (rule 28: verbatim + ts). Channel id gone from review.md; it stays in git history (7232536^, no rewrite).
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 00:12
+```
+DID G42 only: 20 fresh steps per answering model, context kept. 120s timeout, LLM_MAX_CALLS unchanged (default 0 = uncapped).
+FACT: when every model spent its steps the error names it (steps per model, models tried). 5 G42 pins + G17 default pin 20.
+FACT: tsc 0, arch 354/0, e2e 37, migrate 43, adapter, remote, env 7, selftest 3 all pass. Mutation who='run' makes the run hang (timeout),
+not a clean FAIL.
+FIX: R2 quote line breaks restored exactly in review-findings-detail.md (bullets on own lines, no added period).
+NOT DONE: v3 cycles and R2 code stay local, separate batches. No provider call, spend or merge.
+NEXT: Bill
+```

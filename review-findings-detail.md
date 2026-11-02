@@ -32,3 +32,7 @@ Owner message ts 1793654878.729759:
 ```
 The app gateway should now only apply to user, no connection to Bank. The user AI will determine the risk level.
 ```
+
+| R2 | M | V4 | Approval gateway, USER context cards only (no bank link): the User AI assigns a level, the approval ID holds it, blocked cards wait in "Waiting for you" (arch.html or main-app). Level rubric, no-level case, edit/reapproval, mode-change release still open. | R-src | open |
+
+| G51 | M | V4 | G42 follow-up: (a) a member that answered NO_CALLS is asked again on every later step (probe: A:text paid before each B step); (b) default steps 4 -> 20 per model with LLM_MAX_CALLS unset = uncapped, up to 20 x members paid calls x 120 s per agent run (spend/latency: owner gate); (c) the loop has no hard bound if names ever mismatch (your own 'hang' mutation). Fix: skip a NO_CALLS member for the rest of the run; keep 4 or set a default cap unless the owner quotes otherwise; add an iteration ceiling. | `src/server/arch/llm.ts:29,60-90`; Bill probe | open |
