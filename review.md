@@ -54,7 +54,6 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 |:-:|:-:|:-:|---|---|:-:|
 | G46 | M | V7 | Main merge 9969f07 brought v2 README back: abel.ts/abelOffline.ts, cabinet-db.json store, partner offers, 188 assertions. | `README.md:206,214-220,307,316,331-345,390` | open |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
-| G46 | M | V7 | Owner's main merge 9969f07 restored v2 README parts (removed files, old store, offers); V7 needs v3 match. | `9969f07`, README | open |
 | R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | R-src | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
 | R3 | M | V4 | CM window shows the retrieved/processed contribution cards, not the whole cabinet. | R-src | open |
