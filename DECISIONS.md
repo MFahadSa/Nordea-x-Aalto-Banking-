@@ -82,6 +82,20 @@ No open finding rows.").
   spend, live or security, so those stay with the owner.
 - **Status:** recorded @ `a71a17b`; acknowledged by Bill @ `2bcddad`.
 
+## D8 - Cycles + honest-failure reply (approved scope)
+- **Question (Bill ASK @ `97d6cb1`):** log that the cycles batch (User AI > CM > Nordea > User AI,
+  max 5) and the honest-failure reply - replacing the grounded scripted fallback of G4/F-D - are
+  approved scope.
+- **Decision:** approved scope. Cycles @ `616f869` accepted by Bill @ `97d6cb1` (probe: session +
+  4 top-ups = 5 cycles, 5 reviews, 1 compose, then stops; a compose provider error returns an
+  honest failure reply, no scripted figures).
+- **Owner basis:** cycle definition, owner ts `1793656059.606069`: "Ok, the cycle i mean is the
+  cycles which 1 cycle is equal to user > cm > nordea > user". Assistant proposal ts
+  `1793656064.471519` (up to five cycles; partial answers or a clear failure instead of a scripted
+  fallback; paid testing and merge stay on hold). Owner approval ts `1793656080.483389`:
+  "Yes, add this".
+- **Status:** recorded @ `D8COMMIT`.
+
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
   Coordinator's delegated interpretation; D4 scope narrowed to unchanged approved/stored content with
