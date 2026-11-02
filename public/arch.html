@@ -269,7 +269,7 @@ $('btn-chat').onclick = async () => {
   if (j.category) cap.push(j.category);
   const prov = j.provider ? ' [' + j.provider + ']' : '';
   if (j.source) cap.push(j.source === 'model' ? 'reply: model' + prov : j.source === 'scripted-error' ? 'reply: scripted (model unavailable)' + prov : 'reply: scripted' + prov);
-  if (j.plan) cap.push('round plan: cm ' + j.plan.cm + ', nordea ' + j.plan.nordea);
+  if (j.plan) cap.push('round plan: cm ' + j.plan.cm + ', nordea ' + j.plan.nordea + (j.plan.provider ? ' on ' + j.plan.provider : ''));
   if (cap.length) { const d = document.createElement('div'); d.className = 'agent'; d.style.fontSize = '11px'; d.style.opacity = '0.65'; d.textContent = cap.join(' - '); $('chatlog').appendChild(d); $('chatlog').scrollTop = 1e9; }
   refresh();
 };

@@ -1381,7 +1381,7 @@ check('Q2: mobile caption = category, client-measured elapsed, actual answerer, 
   const say = (reply: string, readGoals = false) => setProviderForTests({ name: 'cap2', isConfigured: () => true, step: async (args: { turns?: unknown[] }) => ({ calls: readGoals && !(JSON.stringify(args.turns ?? []).includes('listMyGoals result')) && !JSON.stringify(args.turns ?? []).includes('"name":"listMyGoals"') ? [{ id: 'g1', name: 'listMyGoals', args: {} }] : [{ id: 'c1', name: 'finishReply', args: { reply } }] }) } as never);
   say('The median salary there is 4 100 per month.');
   const a = await A.chat(UIDG, 'What is the typical pay for a nurse in Finland?');
-  check('Q4: a General reply mentioning salary/money terms and an ungrounded figure drops to the scripted reply', a.category === 'General Question' && a.source !== 'model', `${a.source}: ${a.reply}`);
+  check('Q4: a reply mentioning salary/money terms and an ungrounded figure drops to the scripted reply', a.source !== 'model', `${a.source}: ${a.reply}`);
   say('Helsinki has about 660 000 residents.');
   const b = await A.chat(UIDG, 'How many people live in Helsinki?');
   check('Q4: a plain General reply with a general figure is kept', b.category === 'General Question' && b.source === 'model' && /660/.test(b.reply), `${b.source}: ${b.reply}`);
@@ -1434,8 +1434,50 @@ check('timeout: Gemini and OpenAI-compatible adapters both default to 120 s (no 
   const clash = await CR.runOnce('u-fp', 'id1', ok, 'something else');
   check('Q3: a requestId reused for DIFFERENT text is refused (409), never answered with the old reply', clash.status === 409, JSON.stringify(clash));
   const { classifyQuestion } = await import('../src/server/arch/orchestrator.js');
-  check('Q4: uncertain questions are Related (guards on): non-English, non-ASCII, first-person, too short', ['Paljonko maksoin ruokakaupassa viime kuussa?', 'Mitä maksoin kahvilassa?', 'How much did I pay at the cafe?', 'Wages?'].every((q) => classifyQuestion(q, []) === 'Related Question'), '');
+  check('Q4: private-looking questions in Finnish/first-person/short form are still Related', ['Paljonko maksoin ruokakaupassa viime kuussa?', 'How much did I pay at the cafe?', 'Mikä on saldoni?'].every((q) => classifyQuestion(q, []) === 'Related Question'), '');
+  check('Q4: ordinary first-person, short and non-English general questions are labelled General (not blanket Related)', ['What should I cook for a village festival?', 'Wages?', 'Milloin Aalto-yliopisto perustettiin?', 'Can I visit the Aalto campus?', 'How do I get to Otaniemi?', 'Mikä on Suomen pääkaupunki?', 'Vad är Finlands huvudstad?'].every((q) => classifyQuestion(q, []) === 'General Question'), '');
   check('Q4: grocery spending is Related', classifyQuestion('What did I pay for groceries last month?', []) === 'Related Question', '');
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const reply = (r: string) => setProviderForTests({ name: 'neg2', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: r } }] }) } as never);
+  reply('Try a big pot of soup and fresh bread for everyone.');
+  const a = await A.chat('negq5', 'What should I cook for a village festival?');
+  check('Q4: first-person General question with a no-figure answer is answered (label General, no disclaimer)', a.category === 'General Question' && a.source === 'model', `${a.source}: ${a.reply}`);
+  reply('Plan about 312.40 euros of food.');
+  const b = await A.chat('negq6', 'What should I cook for a village festival?');
+  check('Q4: first-person General question with an ungrounded figure keeps the guard (neutral fallback)', b.category === 'General Question' && b.source !== 'model' && !/User DB|cabinet|bank/i.test(b.reply), `${b.source}: ${b.reply}`);
+  reply('Aalto-yliopisto perustettiin vuonna 2010.');
+  const c = await A.chat('negq7', 'Milloin Aalto-yliopisto perustettiin?');
+  check('Q4: non-English General figure is guarded (cannot verify it is non-private)', c.category === 'General Question' && c.source !== 'model', `${c.source}: ${c.reply}`);
+  reply('Aalto-yliopisto sijaitsee Espoossa.');
+  const d = await A.chat('negq8', 'Missä Aalto-yliopisto sijaitsee?');
+  check('Q4: non-English General answer without figures is answered', d.category === 'General Question' && d.source === 'model', `${d.source}: ${d.reply}`);
+  setProviderForTests(null);
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const reply = (r: string) => setProviderForTests({ name: 'g45', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: r } }] }) } as never);
+  reply('The last electricity invoice was 84.20.');
+  const a = await A.chat('g45a', 'What was the total of the last electricity invoice?');
+  check('G45: an impersonal question about a bill-like item never ships an invented figure', a.source !== 'model' && !/84\.20/.test(a.reply), `${a.category}/${a.source}: ${a.reply}`);
+  reply('The last concert tickets cost 95.');
+  const b = await A.chat('g45b', 'What was the amount on the previous ticket purchase?');
+  check('G45: specific-item wording ("previous", "amount") without a listed bill word still keeps the guard', b.source !== 'model' && !/95/.test(b.reply), `${b.category}/${b.source}: ${b.reply}`);
+  reply('Paris has about 2 100 000 residents.');
+  const c = await A.chat('g45c', 'How many people live in Paris?');
+  check('G45: a plain general figure ships, marked as a general answer not from the customer\'s records', c.source === 'model' && /General answer - not from your records/.test(c.reply), `${c.source}: ${c.reply}`);
+  reply('Helsinki is the capital of Finland.');
+  const d = await A.chat('g45d', 'What is the capital of Finland?');
+  check('G45: a no-figure general answer carries no extra note', d.source === 'model' && !/not from your records/.test(d.reply), d.reply);
+  setProviderForTests(null);
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  setProviderForTests({ name: 'g45b', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: 'An electricity invoice is often 84.20.' } }] }) } as never);
+  const w = await A.chat('g45w', 'What does an electricity invoice usually show?');
+  check('G45: a bill-like word alone (no last/total/amount wording) is Related and keeps the figure guard', w.category === 'Related Question' && w.source !== 'model' && !/84\.20/.test(w.reply), `${w.category}/${w.source}: ${w.reply}`);
+  setProviderForTests(null);
 }
 const chatSrcQ2 = readSrc('../src/components/Chat.tsx'), archHtmlQ2 = readSrc('../public/arch.html');
 check('Q2: caption order is elapsed (client-measured) first, then the exact category, on mobile and arch.html', /\[el, sup\?\.category\]/.test(chatSrcQ2) && /client-measured' \+ \(late[^\n]*\n  if \(j\.category\)/.test(archHtmlQ2) && /s client-measured/.test(chatSrcQ2), '');

@@ -129,12 +129,13 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
     answeredBy = composed.answeredBy;
     // A General Question carries no customer figures, so general numeric facts need no customer record;
     // a Related (or uncertain/mixed) question keeps the figure guard.
-    if (composed.plan && ((general && !(composed.seenFacts ?? []).length && !customerFigureClaim(composed.plan)) || figuresGrounded(composed.plan, [...answer.factSources, ...(composed.seenFacts ?? [])]))) {
-      answer = { ...answer, reply: composed.plan };
+    if (composed.plan && ((general && figureExempt(text) && !(composed.seenFacts ?? []).length && !customerFigureClaim(composed.plan)) || figuresGrounded(composed.plan, [...answer.factSources, ...(composed.seenFacts ?? [])]))) {
+      // A General reply that carries a figure says so in its text: it is not from the customer's records.
+      answer = { ...answer, reply: general && /\d/.test(composed.plan) ? `${composed.plan} (General answer - not from your records.)` : composed.plan };
       source = 'model';
       // Suggestions face the same guard: any figure the facts do not contain drops that suggestion.
       const facts = [...answer.factSources, ...(composed.seenFacts ?? [])];
-      suggestions = general && !(composed.seenFacts ?? []).length ? (composed.suggestions ?? []).filter((sg) => !customerFigureClaim(sg) || figuresGrounded(sg, facts)) : (composed.suggestions ?? []).filter((sg) => figuresGrounded(sg, facts));
+      suggestions = general && figureExempt(text) && !(composed.seenFacts ?? []).length ? (composed.suggestions ?? []).filter((sg) => !customerFigureClaim(sg) || figuresGrounded(sg, facts)) : (composed.suggestions ?? []).filter((sg) => figuresGrounded(sg, facts));
     } else if (composed.status === 'error') source = 'scripted-error';
     // No irrelevant bank disclaimer: when a General Question gets no model answer, say so neutrally.
     if (general && source !== 'model') {
@@ -161,12 +162,13 @@ export type QuestionCategory = 'General Question' | 'Related Question';
  *  goals (a banking word in the question, OR rows of the customer's own User DB / shared context
  *  matched). Everything else is a "General Question". Uncertain or mixed questions land on
  *  Related, so the private-fact grounding and the figure guard stay on for them. */
-const RELATED_RE = /\b(balance|balances|account|accounts|spent|spend|spending|transaction|transactions|salary|income|money|save|saving|savings|goal|goals|card|cards|loan|loans|mortgage|payment|payments|bill|bills|budget|bank|nordea|iban|rent|debt|invest\w*|pension|grocer\w*|insight\w*|expens\w*|subscription\w*|eating out|my (?:data|facts|notes))\b|[€$£]/i;
+const RELATED_RE = /\b(balance|balances|account|accounts|spent|spend|spending|transaction|transactions|salary|income|money|save|saving|savings|goal|goals|card|cards|loan|loans|mortgage|payment|payments|bill|bills|budget|bank|nordea|iban|rent|debt|invest\w*|pension|grocer\w*|insight\w*|expens\w*|subscription\w*|eating out|invoice\w*|electricity|utilit\w+|receipt\w*|statement\w*|pay|paid|bought|earn\w*|maks\w+|raha\w*|tili\w*|saldo\w*|palk\w+|sääst\w+|laskut?|pankki\w*|lainan?|ruokakauppa\w*|kuluj?\w*|kostnad\w*|lön\w*|konto\w*|my (?:data|facts|notes))\b|[€$£]/i;
 /** A General Question may carry general figures. A reply is a customer claim (still guarded) when it uses banking/money wording or says what the customer spent/earned/paid - a bare "you" next to a number is not. */
 function customerFigureClaim(t: string): boolean { return RELATED_RE.test(t) || /(you|your|you've|you're)[^.;!?]*(spent|spend|earn|earned|paid|pay|owe|owed|saved|have saved|made|received)/i.test(t); }
 const EN_WORDS = /\b(the|is|are|was|were|what|who|whom|when|where|why|how|which|does|do|did|can|could|tell|explain|about|of|in|on|a|an|to|for|and|it|there|that|this)\b/gi;
-/** English-looking, impersonal text. Anything else (other languages, non-ASCII letters, first-person
- *  wording, too short to tell) is UNCERTAIN, so it is treated as Related and keeps the guards. */
+/** Confident general English: only then may a General reply carry figures with no customer record behind
+ *  them. Other languages, non-ASCII letters, first-person wording or very short text are UNCERTAIN: the
+ *  question keeps its label (no bank disclaimer, neutral fallback) but the figure guard stays ON. */
 function plainGeneralEnglish(t: string): boolean {
   if (/[^\x00-\x7F]/.test(t)) return false;
   if (/\b(i|me|my|mine|myself|we|our|ours|us)\b/i.test(t)) return false;
@@ -174,8 +176,12 @@ function plainGeneralEnglish(t: string): boolean {
   const hits = (t.match(EN_WORDS) ?? []).length;
   return words >= 3 && hits >= 2 && hits / words >= 0.3;
 }
+/** Wording that points at a specific item of the asker's ("the last invoice", "this month", "the total of ..."):
+ *  the label may stay General, but such a question never earns the no-record figure exemption. */
+const SPECIFIC_ITEM_RE = /\b(last|previous|recent|latest|current|this (?:month|week|year)|next|today|yesterday|total|amount|average|monthly|weekly|annual|due|owed|outstanding)\b/i;
+export function figureExempt(text: string): boolean { return plainGeneralEnglish(text) && !SPECIFIC_ITEM_RE.test(text); }
 export function classifyQuestion(text: string, factSources: string[]): QuestionCategory {
-  return RELATED_RE.test(text) || factSources.length > 0 || !plainGeneralEnglish(text) ? 'Related Question' : 'General Question';
+  return RELATED_RE.test(text) || factSources.length > 0 ? 'Related Question' : 'General Question';
 }
 
 /** Every figure in the model's reply must come from the facts code selected. Figures are
