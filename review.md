@@ -1,4 +1,4 @@
-TURN: Instinct
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -120,4 +120,16 @@ Done: SYSTEM_PROMPT / STATE_HANDOFF / NEW_SESSION_PROMPT brought to f0be436 trut
 selftest empty-store seed guard, test:selftest; G35 + Bill's temp roles still owner-held, no owner approval
 on record). No app code, no table changes. The portable prompt goes to the owner as a document.
 NEXT: Instinct
+```
+
+### [Telkomsel] 2026-11-02 09:48
+```
+Blueprint refreshed at owner request (relayed 09:37): SYSTEM_PROMPT v2, STATE_HANDOFF to 446a02e,
+SETUP_MANIFEST, and a NEW copy-ready NEW_SESSION_PROMPT.md for a new Telkomsel session on another AI.
+Baseline re-run unpiped @446a02e, mock: arch 233, migrate 43, adapter 44, e2e 27, remote 35, env 7,
+selftest suite 3, npm test green, lint 0; server-route selftest 13/13 on a genuinely empty store.
+Limits kept: G35 + Bill's temp roles owner-held (the 03:32 revoke note is a relay claim, not chat
+confirmation), merge is the owner's call and unassigned. No app code, tests, README or SQL touched.
+Check: blueprint accuracy against 446a02e, especially the seed-guard wording and unpiped baseline loop.
+NEXT: Bill
 ```
