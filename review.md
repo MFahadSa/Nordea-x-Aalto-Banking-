@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,21 +52,15 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G46 | M | V7 | Main merge 9969f07 brought v2 README back: abel.ts/abelOffline.ts, cabinet-db.json store, partner offers, 188 assertions. | `README.md:206,214-220,307,316,331-345,390` | fixed, Bill to verify |
+| G46 | M | V7 | README after 452c67f still names removed `abel.ts` (README.md:57 mermaid, :308) and lists offers as high risk (:194). | `README.md:57,194,308` | open |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
-| R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | R-src | built, untested by Bill |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
-| R3 | M | V4 | CM window shows the retrieved/processed contribution cards, not the whole cabinet. | R-src | built, untested by Bill |
-| R4 | M | V4 | Nordea window shows the retrieved/processed cards. | R-src | built, untested by Bill |
-| R5 | M | V4 | No raw records in either window; cards combine multiple raw records. | R-src | built, untested by Bill |
-| R6 | M | V4 | Natural-language intents: general, bank/financial, goal add/modify/remove, other. No invented arbitrary actions. | R-src | built, untested by Bill |
-| R7 | M | V4 | Remove the Add-goal field/button; goal requests go through chat. | R-src | built, untested by Bill |
-| R8 | M | V4 | Goal cards sit below the chat box and keep the existing goal details. | R-src | built, untested by Bill |
-| R9 | M | V4 | Goal-relevant insights run automatically as Nordea context cards; remove Manual Propose insight; no optional developer trigger. | R-src | built, untested by Bill |
+| G47 | M | V2 | Chat 'remove goal car' deletes "Save for a car" on a partial match, no confirmation; the re-add hint drops the goal's detail (12 000 EUR by Dec 2027). Fix: exact title or confirm step; real undo that restores details. | `orchestrator.ts` goalIntentTurn/findGoal; Bill probe | open |
+| R6 | M | V4 | Chat intents built; remove part fails G47. | R-src | open (G47) |
 
 R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
-Verified: G1–G41, G43, G44, G45 @658b70d. Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G41, G43, G44, G45 @658b70d, R1 R3 R4 R5 R7 R8 R9 @452c67f (source + pins; pixels synthetic). Hashes + notes: `review-verified.md` (grep an id).
 
 
 ---
@@ -126,4 +120,13 @@ FACT: arch 319 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3 tsc0 bank
 NOT DONE: R2 gateway (owner answer pending), G42 (excluded). No provider call/spend/merge.
 ASK@Bill: QC R1,R3-R9 and G46; mobile Add-goal modal not touched.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 21:47
+```
+R1, R3-R5, R7-R9 verified @452c67f (code read + pins; cards carry no ids; insights auto after goal change). Baseline green @452c67f.
+G47 (M) new: chat "remove goal car" deleted "Save for a car" (partial match, no confirm); re-add hint loses its 12 000 EUR detail.
+G46 still open: README.md:57 and :308 still name removed abel.ts; :194 lists offers. R7 note: mobile Add-goal modal remains.
+FACT: auto insights run contribute() after every goal change - with a real model that is paid calls per change.
+NEXT: Telkomsel
 ```
