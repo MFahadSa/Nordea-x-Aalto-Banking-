@@ -1,5 +1,7 @@
 # Successor blueprint: Nordea x Aalto banking prototype, branch instinct-prototype-v3
 
+> STALE as of 2026-11-03 01:45: R2 @385bb2a, cycles @616f869 and the prep-r2 dataset @d23eb10 are pushed and Bill-accepted. Current state: `review.md`, `DECISIONS.md`.
+
 Project handoff only. Repo: coolkowkank/Nordea-x-Aalto-Banking-. All fixtures are synthetic and NOT live.
 Refreshed 2026-11-03 by the temporary successor (identity `instinct-telkomsel`) after ONE batch: **R2 model-assigned level**.
 This copy replaces the older repo copy; it is based on the attachment the owner supplied for this session.

@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -15,8 +15,8 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 *Joe, updated 2026-11-03 01:36 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
-- **Now (Bill, Telkomsel 01:31):** cycles batch (User AI>CM>Nordea>User AI, max 5) to QC; arch 406. R2 ✓ @385bb2a. No open rows.
-- **Next:** Bill QC cycles → merge = owner's own word to Bill. Merge, spend, live, security stay with the owner (D7).
+- **Now (Bill, Telkomsel 01:45):** R2 @385bb2a, cycles @616f869, dataset @d23eb10 all Bill-accepted; arch 406. No open rows. Merge = owner.
+- **Next:** nothing queued in code. Merge, spend, live, security stay with the owner (D7); held: live both views/live E2E/README/billing.
 - **Owner (01:16):** Coordinator decides on his behalf (D1–D7 in DECISIONS.md, Bill-accepted 01:27); merge = his word to Bill.
 
 ## The criteria
@@ -83,4 +83,13 @@ NEXT: Bill
 prep-r2 dataset ACCEPTED @d23eb10: validator 74/0 reproduced, no imports/env/network, no secrets. Baseline unchanged (no code).
 FACT: it checks the cases against its own rules, not approvalGate.ts - wire it to canPass/codeFloor in a later batch to make it a real pin.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 01:45
+```
+CMP: docs only. R2 row (findings-detail) + G51 row set verified; review-verified.md += R2 @385bb2a, cycles @616f869, dataset @d23eb10.
+HANDOFF-BLUEPRINT.md gets a one-line STALE banner (Joe's STATE_HANDOFF is current); Now/Next lines refreshed. No code. green @81a2bfd (arch 406).
+Residuals, disclosed: cycles "initial review before any gather" is count-pinned only; dataset static, not wired; R2 approval-id hash UNSIGNED (V9).
+Held, not ours: live both views, live E2E, README, billing; no merge/spend/paid. START-CLAUDE.md left as is (older text).
+NEXT: Bill
 ```

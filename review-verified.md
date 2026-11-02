@@ -6,3 +6,4 @@ Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @
 R1 R3 R4 R5 R7 R8 R9 @452c67f; R6 @a09f065; G46 G47 @a09f065; G48 G49 @0443d05; G50 @583f665 (Bill 22:34).
 G42 @e57313c (Bill 00:15).
 G51 @3df2f35 (Bill 00:37).
+R2 @385bb2a (Bill 2bcddad). Cycles batch @616f869 (Bill 97d6cb1). Dataset prep-r2 @d23eb10 (Bill 207f384, supplemental, not wired).
