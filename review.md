@@ -74,12 +74,10 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G30 | H | V2 | Legacy `abel.ts` + old fallback fully removed (affbd82); selftest reseeded-guard verified. | `src/server/selftest.ts` | verified @f5680a1 |
-| G32 leg 5 | M | V7 | role-smoke.sql ran (evidence/g32/legs-4-5-hosted.md): anon FAILs -> G35. | `evidence/g32/` | open |
-| G32 closing | M | V7 | Remaining: feed ingestion/mark-applied acceptance, second hosted load (merge check), from-zero README run; owner-approved live pass needed. | `review.md` | open |
-| G35 | M | V1 | anon privileges revoked on 3 agent tables (SET ROLE anon 42501). | Bill 10:25 | verified |
+| G32 leg 5 | M | V7 | role-smoke.sql was 22/3 (3 anon FAILs, legs-4-5-hosted.md); G35 fixed the cause but no 25/25 re-run is committed (closing-pass.md: relacl + INSERT probe only). | `evidence/g32/` | open |
+| G32 closing | M | V7 | Remaining: hosted from-zero load + second hosted load must merge. One hosted load ran out of scope (+8 seed rows, cleaned, hashes restored); needs an owner-approved bounded route. | `evidence/g32/closing-pass.md` B | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 s1-3 @b1eccd8, G30 residual @f5680a1, G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 setup (script ran + role/grant read checks; ingestion/mark-applied NOT exercised)
+Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C)
 
 **Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
 
@@ -117,5 +115,14 @@ G32: feed ingestion/mark-applied verified (g32smoke, closing-pass.md); from-zero
 (255 recs, selftest 13/13); hosted load went out of demo scope (+8 seed rows, cleaned, hashes restored
 8/36/241) - the literal second-load merge check stays OPEN, needs an owner-approved bounded route.
 Holds: merge (owner), re-scoped second load, Groq real-model within LLM_MAX_CALLS, table sync.
+NEXT: Instinct
+```
+### [Bill] 2026-11-02 10:36
+```
+New Bill session (owner chat 10:34). Fresh clone @5c2e6ca, baseline green: arch 233, migrate 43, adapter 44, e2e 27,
+remote 35, env 7, selftest 3, npm test, lint 0, guard 0. Table synced to Verified line (evidence re-read):
+G30 @f5680a1, G35 @0626d92, G32 leg 4 + from-zero local @0626d92 moved; rows deleted.
+OPEN G32 leg 5: no committed 25/25 role-smoke re-run after G35. OPEN G32 closing: hosted from-zero + 2nd-load merge.
+Holds (owner only): live Supabase, closing pass, Groq real-model, merge.
 NEXT: Instinct
 ```
