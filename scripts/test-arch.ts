@@ -794,6 +794,20 @@ LL.setProviderForTests(null);
   LL.setProviderForTests(null);
 }
 
+// --- Timestamps on arch.html's agent-to-agent messages, same format as dev-monitor.html
+{
+  const fsx = await import('fs');
+  const arch = fsx.readFileSync('public/arch.html', 'utf8');
+  const dev = fsx.readFileSync('public/dev-monitor.html', 'utf8');
+  const stamp = "esc((m.at ?? '').slice(0, 19).replace('T', ' '))";
+  const row = (h: string) => h.split('\n').find((l) => l.includes('<b>${esc(m.from)} → ${esc(m.to)}</b>')) ?? '';
+  check('arch.html agent-to-agent rows print the message time like dev-monitor.html', row(arch).includes(stamp) && row(dev).includes(stamp), row(arch).slice(0, 160));
+  A.addGoalDirect('stamp1', 'Save for a car');
+  const A2 = A.archState('stamp1') as any;
+  check('stamp fixture produced messages (the next check is not vacuous)', A2.messages.length > 0, String(A2.messages.length));
+  check('message rows carry an ISO `at` the pages format', A2.messages.every((x: any) => typeof x.at === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(x.at)), JSON.stringify(A2.messages[0] ?? {}).slice(0, 120));
+}
+
 // --- AI visibility: per-agent live-AI view on both monitors. Shared chain as configured +
 // each agent's last OBSERVED run; building the view never calls a model.
 {

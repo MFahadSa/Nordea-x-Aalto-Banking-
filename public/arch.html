@@ -226,7 +226,7 @@ async function refresh() {
     <div class="meta">proposed by ${esc(m.from)} agent · <button class="primary" onclick="review('${m.id}',true)">Accept into cabinet</button> <button class="danger" onclick="review('${m.id}',false)">Reject</button></div></div>`);
   $('queues').innerHTML = q.length ? q.join('') : '<div class="empty">Nothing waiting. Bank proposals and (one day) external-agent syncs land here for your decision.</div>';
   $('msgs').innerHTML = s.messages.length ? s.messages.map((m) =>
-    `<div class="msg"><b>${esc(m.from)} → ${esc(m.to)}</b> [${m.type}${m.status !== 'read' ? '/' + m.status : ''}] ${esc(m.summary)}</div>`).join('') : '<div class="empty">No messages yet.</div>';
+    `<div class="msg"><b>${esc(m.from)} → ${esc(m.to)}</b> [${m.type}${m.status !== 'read' ? '/' + m.status : ''}] ${esc(m.summary)} <span style="color:#8b949e">${esc((m.at ?? '').slice(0, 19).replace('T', ' '))}</span></div>`).join('') : '<div class="empty">No messages yet.</div>';
 }
 window.explain = async (id) => { const j = await api(`/api/arch/${uid}/entries/${id}/explain`); const x = j.explanation; say('agent', `${x.who}. ${x.why}. ${x.reviewedBy}.${x.evidence?.total != null ? ` Evidence: ${x.evidence.total} EUR across ${x.evidence.transactionIds?.length ?? 0} transactions.` : ''}`); };
 window.dispute = async (id) => { const reason = prompt('Why do you dispute this entry?'); if (reason) { await api(`/api/arch/${uid}/entries/${id}/dispute`, { body: { reason } }); refresh(); } };

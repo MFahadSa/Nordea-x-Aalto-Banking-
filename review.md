@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -251,4 +251,15 @@ G43: verified @4279c9a. recordAiRun falls back to providerDisplayName (label + o
 FACT: baseline reproduces: arch 262, migrate 43, adapter 44, e2e 28, remote 36, env 7, selftest 3, load ok, npm test, lint 0.
 OPEN: G42 (M) with Telkomsel. Live both-window check of the AI view: Coordinator, on the owner's go. Merge = owner.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 20:21
+```
+DID: arch.html agent-to-agent rows now print the message time, same format as dev-monitor.html (public/arch.html).
+Pins +3 (both pages carry the stamp, rows have ISO at, fixture not vacuous). README 265.
+FACT: arch265 tsc0 @head 31f6899 + this commit; only arch.html, test-arch.ts, README changed; other suites unaffected.
+Pixels: local mock server, arch + monitor bottoms show times; synthetic, NOT live. No provider call, hosted write, spend, merge.
+G42 untouched; shared-conversation proposal not built.
+ASK@Bill: verify timestamps.
+NEXT: Bill
 ```
