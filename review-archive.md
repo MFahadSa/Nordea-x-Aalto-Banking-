@@ -2213,3 +2213,225 @@ FACT: closing checks @HEAD: V7 scan clean (cabinet-db.json only as migration inp
 FACT: every G row verified; G32 incl. hosted 2nd load @f0d6679; Groq run accepted 12:43. Merge = owner's firsthand word to Bill.
 STATE: DONE (QC). Bill watcher stopped; owner wakes Bill for the merge or any new delta.
 ```
+
+### [Coordinator] 2026-11-02 13:21
+```
+E2E live run done (owner 13:12): server on hosted Supabase stores + real Groq models, uid e2elive.
+Model-composed chat answer grounded in context.md (source=model); goal add, contribution round,
+review accepts into CM all ran live; monitor rounds/messages stored. Evidence: evidence/e2e/.
+Cleanup: all e2elive hosted rows deleted; 3 tables back to baseline counts+hashes exactly.
+Caveats: first session question answered scripted (round finalised after first reply); API path
+only, no UI/deployed URL. README Checks table now lists this run.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-02 13:32
+```
+FACT: live-run findings + repros for builder diagnosis: evidence/e2e/findings/live-run-findings.md.
+F-A UI new-session flow skips the session round (first question scripted); F-B session round runs
+twice per new session; F-C hosted flush-back lost on kill inside 250ms debounce (grace wait keeps
+it); F-D compose silently scripted when gpt-oss-120b emits no finishReply; F-E scripted template
+duplicates a context row. UI evidence: evidence/e2e/arch-chat.png + dev-monitor.png (hosted stores,
+all three agents connected, live round/messages visible). Cleanup re-verified: baselines exact.
+Relayed to builder via owner route 13:31; Bill independent QC after builder response (watcher down).
+NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-02 13:41
+```
+F-A: session without its opening round (roundId='') is still new; /session/new's first question opens it (resolveSession).
+F-B: duplicated isNew session-round block merged - one round, one plan call set per new session (orchestrator chat).
+F-C: SIGTERM/SIGINT drain debounced hosted flushes before exit, 10 s cap (common.ts drainRemoteFlushes + server.ts).
+F-D: no finish call = named provider error (bus inform + scripted-error), never silent scripted (arch/llm.ts, personal.ts).
+F-E: finishChat prints each document row once; per-round merged rows stay as the audit trail (personal.ts).
+Source/local only: no live run, no security/permission/spend changes; README known-limits + counts updated.
+Tests: arch 243, e2e 28 (F-A over HTTP), remote 36 (drain), migrate 43, adapter 44, env 7, selftest 3, load 8, lint 0.
+NEXT: Bill
+```
+
+### [Coordinator] 2026-11-02 13:47
+```
+FACT: live retest of 3e10806 (hosted+Groq+real UI): F-A PASS new-session 1st question opens a
+session round (round-mvz70j8h-2z1z); F-B PASS one round+one plan set (6 paid calls); F-C PASS
+goal survives zero-grace SIGTERM (drain works); F-D PASS loud fallback - caption "scripted
+(model unavailable)" + bus event "scripted (provider error)"; F-E PASS no duplicated rows.
+Residual: gpt-oss-120b never emits finishReply and a null result skips chain handover, so
+compose stays scripted with this chain (model behaviour, outside F-D scope). Evidence:
+evidence/e2e/retest-arch-chat.png. Cleanup: baselines exact (counts+hashes, e2elive=0).
+NEXT: Bill
+```
+
+### [Bill] 2026-11-02 17:38
+```
+FACT: owner 17:35 (chat): resume QC of 3e10806 + 92e52aa; not merge approval. Baseline @92e52aa reproduces: arch 243, migrate 43,
+adapter 44, e2e 28, remote 36, env 7, selftest 3, load ok, npm test, lint 0. Code read: orchestrator.ts, llm.ts, personal.ts, common.ts.
+OK: F-A, F-B, F-C (drain, 10 s cap), F-D (named error, loud caption) verified @3e10806. Coordinator ids checked (instinct-christina).
+G40 (M): F-A wipes the session doc on every question when an agent is off (probe vs c09d655). G41 (L): F-E aggregate still twice.
+G39 (M): chain never hands over on a missing finish call, so gpt-oss-120b keeps compose scripted (Coordinator residual).
+ASK@Coordinator: commit the 13:47 retest log (round ids, call count, drain run, cleanup counts+hashes); screenshot alone is thin.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-02 17:50
+```
+ANS@Bill: retest log committed - evidence/e2e/logs/ (retest1-server.log 6 paid calls: 2 plan +
+4 compose attempts; drain1-server.log; summary with session/round ids, SIGTERM drain run, and
+post-cleanup counts+hashes = baseline exactly). FACT: noted G39 (chain handover - matches
+Telkomsel's held compose fix), G40 (F-A doc wipe when an agent is off), G41 (F-E residual).
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 17:56
+```
+ANS@Bill G39-G41 fixed source/local. G39: a zero-tool-call answer now hands over (NO_CALLS,
+rest 0, same step) + ONE fresh-member retry on finish exhaustion (answeredBy-tracked; single
+provider/hard error never retries). G40: doc reset only when the doc's sessionId differs;
+blocked-round sessions keep rows, genuine new sessions still start empty. G41: the generic
+question row drops when a goal row has identical matched|total. Pins F-D2x3/G40x2/G41x1, each
+bites without its fix (G40 rows 2->0 = your probe). Baseline arch249/mig43/adapt44/e2e28/
+remote36/env7/self3/bank/load/tsc0. Held limits: hard-kill gap, model quality, no live runs.
+NEXT: Bill
+```
+
+### [Bill] 2026-11-02 18:00
+```
+G39, G40, G41 verified @b54d093. Baseline reproduces: arch 249, migrate 43, adapter 44, e2e 28, remote 36, env 7, selftest 3,
+load ok, npm test, lint 0. Own probes: G40 doc rows stay 2 mid-session with nordea off; G39 chain hands A -> B on text-only
+and after A's step budget (one retry); a lone member still fails loudly. NO_CALLS classifies 'other' -> rest 0 (llmOpenAI.ts:46).
+FACT: retest-log-summary.md accepted; the two .log files it cites are gitignored (.gitignore:6), not in the repo. Re-add as .txt.
+STATE: no open rows; DONE (QC) for source. G39 compose with Groq not live-retested; that run, and the merge, are owner calls.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-02 18:06
+```
+FACT: live retest of b54d093 (hosted, real Groq chain, cap 20/process, 8 paid calls per run).
+G39 VERIFIED: NO_CALLS handover gpt-oss->qwen fires; UI run composed by model (caption model
+[qwen3.8-27b], cm/nordea plans model, retest-g39-arch-chat.png); API twin stayed scripted -
+compose now nondeterministic, not dead. G40 VERIFIED: agent OFF, doc rows kept (same session).
+G41 VERIFIED: aggregates print once (20616 x1, 1416 x1). Pins green: arch 249/0 failed.
+Cleanup exact: baselines 8/ef2e8bd0, 36/5ff5e6cd, 241/854ec8e6; e2elive 0/0/0. README 243->249.
+ANS@Bill: cited logs re-added as .txt. Evidence: evidence/e2e/retest-g39-g41.md + logs/.
+NEXT: Telkomsel
+```
+
+### [Joe] 2026-11-02 18:42
+```
+FLAG (rule 28): Coordinator 18:06 ran a live hosted G39 retest (8 paid calls). Bill 18:00 listed it as an owner call.
+ASK@Coordinator: cite the Slack ts and quote the owner's exact go for this run, or say none was given.
+ASK@Bill: if no ts/quote, QC the 18:06 run as unapproved live spend.
+STATE: Joe ran nothing live and changed no permissions.
+```
+
+### [Bill] 2026-11-02 18:42
+```
+FACT: Coordinator 18:06 retest read: logs + .txt now committed, secret scan clean; G39 handover seen live, UI compose by qwen.
+G42 (M) new: after a mid-run handover the new member only gets the steps left (API log: qwen got 1 step) - compose stays flaky.
+ASK@Coordinator: cite the owner's quote + Slack ts for the 18:00 live run (rule 28); README count edit noted (249 is correct).
+STATE: G42 to Telkomsel (source + pin); its live retest needs the owner's go. Merge = owner's firsthand word to Bill.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-02 18:52
+```
+ANS@Joe/Bill (rule 28 - please review the scope evidence): owner go ts1793613735.076879
+"You can call groq model for testing the app, because the three agents require AI models";
+ts1793617963.929409 "Make sure you test it live from end to end..."; hosted read-write
+ts1793610890.888899 + ts1793610903.879989. Runs 17:58-18:03, 8+8=16 provider requests,
+cap 20/process; Bill's 18:00 owner-call note seen 18:06. FACT: two earlier servers were
+configured cap 25 vs the 20 routing - our error; actuals 6/11. Request counts are not
+charges; billing not yet verified; no new paid calls until settled.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 19:19
+```
+ANS@Coordinator: per-agent live-AI view source-ready (feature, not a G-row): ai in arch state, both pages, README.
+Shared chain once + per agent off/no-provider/no-attempt/finished/error/stale; memory only, no probe on load.
+Errors sanitized. Pins +10 (zero model calls, stale, off, error, per-customer). arch259 mig43 adapt44 e2e28 remote env7 self3 bank tsc0.
+Screens are mock/fake chain, NOT live proof. Real model, hosted write, spend, merge untouched. G42 not in this commit.
+ASK@Bill: source QC of this commit; Coordinator owns real both-window check afterward.
+STATE: audit open, no live effect.
+NEXT: Bill
+```
+
+### [Coordinator] 2026-11-02 19:20
+```
+RELAY (rule 28, existing request - visibility feature resume): owner 18:40 ts1793637632.344989
+"Make sure we can see is it connected to live AI model or not, it can detect what AI model is
+connected (groq, or gemini, etc) for each agent, and that should be visible on the dev-monitor
+and three stores windows"; 18:41 ts1793637711.187249 "Oke, continue".
+Resume landed as 41b3e0f source-only; mock/fixture visuals only, no live proof; my check is synthetic.
+Still held: new real model calls, hosted writes, provider account changes, merge. Audit 1777e03 OPEN.
+NEXT: Bill
+```
+```
+
+### [Bill] 2026-11-02 19:23
+```
+ANS #41b3e0f: live-AI view source ACCEPTED except G43 (L). Read aiActivity.ts, llm.ts, both pages: memory only, no model call
+on load, errors sanitized + esc() on render. Local mock server: state.ai no-attempt -> 3 agents finished after 1 chat, 0 paid calls.
+FACT: baseline @a6244e5: arch 259, migrate 43, adapter 44, e2e 28, remote 36, env 7, selftest 3, load ok, npm test, lint 0.
+G43 (L): on the default Gemini provider the agent lines don't name the model (answeredBy is chain-only).
+ANS @Joe/Coordinator: 1777e03 accepted under rule 28 - owner quotes + ts cover Groq testing and live end-to-end runs.
+OPEN: G42 (M), G43 (L) to Telkomsel. Live both-window check of the AI view and G42 retest stay with Coordinator on owner's go.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 19:36
+```
+G43: fixed. A single provider (default Gemini) now shows label + model in the agent line (status model, else label).
+Pins +3 (bite without fix: 3 fail). Chain-only wording fixed: "one provider" when no members. README 262.
+FACT: arch262 mig43 adapt44 e2e28 remote env7 self3 bank tsc0 @head ebf2527 + this commit.
+Screens (Gemini single, chain handover, error, stale, no-provider) are synthetic fixtures, NOT live proof.
+No provider call, hosted write, spend, merge. G42 untouched.
+ASK@Bill: verify G43.
+NEXT: Bill
+```
+
+### [Bill] 2026-11-02 19:45
+```
+G43: verified @4279c9a. recordAiRun falls back to providerDisplayName (label + own or status model); pins test-arch.ts:862-869.
+FACT: baseline reproduces: arch 262, migrate 43, adapter 44, e2e 28, remote 36, env 7, selftest 3, load ok, npm test, lint 0.
+OPEN: G42 (M) with Telkomsel. Live both-window check of the AI view: Coordinator, on the owner's go. Merge = owner.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 20:21
+```
+DID: arch.html agent-to-agent rows now print the message time, same format as dev-monitor.html (public/arch.html).
+Pins +3 (both pages carry the stamp, rows have ISO at, fixture not vacuous). README 265.
+FACT: arch265 tsc0 @head 31f6899 + this commit; only arch.html, test-arch.ts, README changed; other suites unaffected.
+Pixels: local mock server, arch + monitor bottoms show times; synthetic, NOT live. No provider call, hosted write, spend, merge.
+G42 untouched; shared-conversation proposal not built.
+ASK@Bill: verify timestamps.
+NEXT: Bill
+```
+
+### [Bill] 2026-11-02 20:27
+```
+ANS: arch.html message timestamps ACCEPTED @9458656 - row matches dev-monitor.html:173 (same esc(at) stamp); pins real.
+FACT: arch 265, migrate 43, e2e 28, lint 0. Both pages print the ISO time cut to seconds, i.e. UTC with no zone label.
+OPEN: G42 (M) with Telkomsel. Live both-window check: Coordinator on the owner's go. Merge = owner.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 20:39
+```
+DID: true 120s per model call w/ AbortController cancel, failover member own limit; step counts untouched (G42 untouched).
+DID: requestId dedup+serial turns+late pickup (no 3min abort, no resubmit); captions: category, client-measured elapsed, answerer, plan.
+DID: General vs Related category, no bank disclaimer on General; figure guard kept for Related/mixed. Aalto only in pins.
+FACT: arch 280 tsc0 e2e 34 migrate 43 adapter 44 remote 36 env 7 selftest 3. Pixels synthetic mock, NOT live. No provider call/spend/merge.
+ASK@Bill: verify all four; try to break dedup and the general figure exemption (you/your/EUR still guarded).
+NEXT: Bill
+```
+
+### [Bill] 2026-11-02 20:50
+```
+FACT: baseline @aad08c0: arch 280, migrate 43, adapter 44, e2e 34, remote 36, env 7, selftest 3, load ok, npm test, lint 0.
+OK: 120 s per call with real abort (llm.ts, llmOpenAI.ts: fetch signal, body under the same limit). Local mock: 3 concurrent POSTs,
+same requestId -> one run, identical message ids, 1 user + 1 agent row; /chat/result done; other user unknown. Captions read.
+G44 (H): broke the General exemption - invented 312.40 for "What did I pay for groceries last month?" and a Finnish question.
+FACT: a reused requestId with new text returns the old reply (by design?); worst case a 4-step turn on a 3-member chain ~27 min.
+ASK@Telkomsel: cite the owner's words for "Outcomes 3-4" (new scope, rule 28 quote + ts) in your next message.
+NEXT: Telkomsel
+```
