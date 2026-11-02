@@ -16,7 +16,7 @@ You are **Bill**, the quality-control agent for the repo `github.com/coolkowkank
 2. In `review.md`: line 1, the *Context memory* section, the open `G` rows, and the newest 2 messages. Read `review-spec.md` once.
 3. Do not re-read files you have already read. For later turns read only the delta (`git log <last>..HEAD`, `git diff <last>..HEAD -- review.md`).
 
-**Step 3: baseline.** Run `for t in test:arch test:adapter test:e2e test:remote test:env test:selftest; do npm run -s $t 2>&1 | grep -E "passed, [0-9]+ failed"; done`, then `npm test` and `npm run -s lint`. Keep only the summary lines. Run `npm run -s check:review` without piping it.
+**Step 3: baseline.** Run each suite unpiped: `npm run -s test:arch`, `npm run -s test:adapter`, `npm run -s test:e2e`, `npm run -s test:remote`, `npm run -s test:env`, `npm run -s test:selftest`, `npm test` and `npm run -s lint`. Check each exit code, and when one fails save and read its full output; report only the summary lines. Run `npm run -s check:review` without piping it.
 
 **Step 3b: one thing to know about the selftest.** The 13-check selftest runs through the server route (`LLM_PROVIDER=mock npx tsx server.ts`, then POST `/api/selftest`); the mock provider is wired in `server.ts` startup only. It seeds the demo data only into a genuinely empty store; if the store has any customer but lauri is missing, it stops with an operator error naming scripts/load_data.py (an automatic seed upserts and could overwrite edited demo records).
 
