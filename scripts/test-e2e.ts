@@ -134,7 +134,7 @@ try {
   const preChat = await api('POST', `/api/arch/${UID}/chat`, { text: 'how much have I saved for the car?' });
   check('V7: before review the chat cannot answer from the Context Memory DB', !(preChat.json?.used ?? []).includes('context-memory-db'), preChat.json?.used);
   let review = (await api('GET', `/api/arch/${UID}/review`)).json?.proposals ?? [];
-  if (!review.some((m: any) => m.from === 'nordea')) { await api('POST', `/api/arch/${UID}/nordea/contribute`); review = (await api('GET', `/api/arch/${UID}/review`)).json?.proposals ?? []; }
+  if (!review.some((m: any) => m.from === 'nordea')) { await api('POST', `/api/arch/${UID}/goals`, { title: 'Save for a trip to Japan' }); review = (await api('GET', `/api/arch/${UID}/review`)).json?.proposals ?? []; }
   const prop = review.find((m: any) => m.from === 'nordea' && String(m.summary ?? '').includes('Activity related to goal'));
   check('V7: the goal-matching Nordea proposal waits in review', !!prop, review.map((m: any) => `${m.from}:${m.summary}`));
   const acc = await api('POST', `/api/arch/${UID}/review/${prop.id}/accept`);

@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,17 +52,17 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G46 | M | V7 | Main merge 9969f07 brought v2 README back: abel.ts/abelOffline.ts, cabinet-db.json store, partner offers, 188 assertions. | `README.md:206,214-220,307,316,331-345,390` | open |
+| G46 | M | V7 | Main merge 9969f07 brought v2 README back: abel.ts/abelOffline.ts, cabinet-db.json store, partner offers, 188 assertions. | `README.md:206,214-220,307,316,331-345,390` | fixed, Bill to verify |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
-| R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | R-src | open |
+| R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | R-src | built, untested by Bill |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
-| R3 | M | V4 | CM window shows the retrieved/processed contribution cards, not the whole cabinet. | R-src | open |
-| R4 | M | V4 | Nordea window shows the retrieved/processed cards. | R-src | open |
-| R5 | M | V4 | No raw records in either window; cards combine multiple raw records. | R-src | open |
-| R6 | M | V4 | Natural-language intents: general, bank/financial, goal add/modify/remove, other. No invented arbitrary actions. | R-src | open |
-| R7 | M | V4 | Remove the Add-goal field/button; goal requests go through chat. | R-src | open |
-| R8 | M | V4 | Goal cards sit below the chat box and keep the existing goal details. | R-src | open |
-| R9 | M | V4 | Goal-relevant insights run automatically as Nordea context cards; remove Manual Propose insight; no optional developer trigger. | R-src | open |
+| R3 | M | V4 | CM window shows the retrieved/processed contribution cards, not the whole cabinet. | R-src | built, untested by Bill |
+| R4 | M | V4 | Nordea window shows the retrieved/processed cards. | R-src | built, untested by Bill |
+| R5 | M | V4 | No raw records in either window; cards combine multiple raw records. | R-src | built, untested by Bill |
+| R6 | M | V4 | Natural-language intents: general, bank/financial, goal add/modify/remove, other. No invented arbitrary actions. | R-src | built, untested by Bill |
+| R7 | M | V4 | Remove the Add-goal field/button; goal requests go through chat. | R-src | built, untested by Bill |
+| R8 | M | V4 | Goal cards sit below the chat box and keep the existing goal details. | R-src | built, untested by Bill |
+| R9 | M | V4 | Goal-relevant insights run automatically as Nordea context cards; remove Manual Propose insight; no optional developer trigger. | R-src | built, untested by Bill |
 
 R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
@@ -115,4 +115,15 @@ G45 verified @658b70d: invoice/groceries/Finnish -> guarded; leftover exempt fig
 G46 (M) new: owner's main merge 9969f07 restored v2 README parts (removed files, old store, offers); V7 needs it to match v3.
 FACT: review-verified.md / detail file need G45 + G46 synced by Joe (Bill edits review.md only). R1-R9 noted, not QC'd (not built).
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 21:41
+```
+DID R1,R3-R9 (R2 held): chat intents (goal add/modify/remove, bank, general, other); Add-goal + Propose-insight removed; goal cards below chat.
+DID: CM/Nordea windows show context.md cards, each combining records (no raw rows/ids); insights run automatically after a goal change.
+DID G46: README restored to v3 (v2 parts out) + chat goals/cards text. Owner merge 9969f07: owner said "Yes, I merged but I didn't check it fully".
+FACT: arch 319 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3 tsc0 bank. Pins fail without fixes. Pixels: synthetic mock, NOT live.
+NOT DONE: R2 gateway (owner answer pending), G42 (excluded). No provider call/spend/merge.
+ASK@Bill: QC R1,R3-R9 and G46; mobile Add-goal modal not touched.
+NEXT: Bill
 ```

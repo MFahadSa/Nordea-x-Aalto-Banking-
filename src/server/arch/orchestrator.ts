@@ -7,6 +7,7 @@
 import { ArchError, newId, now } from './types.js';
 import type { AgentId, ArchEntry, BuildRound, Goal } from './types.js';
 import { overlaps, words } from './text.js';
+import { addGoalDirect } from './agents/personal.js';
 import { dispatchPending } from './dispatcher.js';
 import { runRound, loadLatestRound } from './rounds.js';
 import {
@@ -77,12 +78,16 @@ function saveSession(uid: string, session: ChatSession) { busKvSet(uid, 'chatSes
  * has nothing from the Context Memory agent for a follow-up, a top-up round adds rows to the
  * same document (never a fresh one).
  */
-export async function chat(uid: string, text: string, clientSessionId?: string): Promise<{ reply: string; used: string[]; sessionId: string; category?: QuestionCategory; source: 'model' | 'scripted' | 'scripted-error'; provider?: string; suggestions?: string[]; plan?: { cm: string; nordea: string; provider?: string; error?: string } }> {
+export async function chat(uid: string, text: string, clientSessionId?: string): Promise<{ reply: string; used: string[]; sessionId: string; category?: QuestionCategory; intent?: ChatIntent; source: 'model' | 'scripted' | 'scripted-error'; provider?: string; suggestions?: string[]; plan?: { cm: string; nordea: string; provider?: string; error?: string } }> {
   const parked = getCabinetParkedMirror(uid); // the personal agent's parked gate, no status ping
   const { session, isNew } = resolveSession(uid, clientSessionId);
   // F17: direct input (a typed goal) is saved BEFORE any round opens, so the session round's
   // Customer section already includes it.
-  let begin = beginChat(uid, text, session.id);
+  // Outcome R6: the goal intents (add / modify / remove) are recognised by code from what the customer
+  // typed and act on the User DB; nothing else is invented as an action.
+  const goalDirect = goalIntentTurn(uid, text);
+  if (goalDirect && (goalDirect.intent === 'goal_add' || goalDirect.intent === 'goal_modify') ) await autoInsights(uid);
+  let begin: ReturnType<typeof beginChat> = goalDirect ? { kind: 'direct', direct: goalDirect } : beginChat(uid, text, session.id);
   // The plan is only computed when a round will actually use it (a provider call per plan).
   let planStatus: { cm: 'model' | 'scripted' | 'error'; nordea: 'model' | 'scripted' | 'error'; provider?: string; error?: string } | undefined;
   if (isNew) {
@@ -153,7 +158,7 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // V4: a model reply names the model that answered it (the chain member on this call);
   // a scripted fallback keeps the configured-provider name and never implies a model answered.
   const provider = (source === 'model' ? answeredBy ?? archLlmProviderName() : archLlmProviderName()) ?? undefined;
-  return { reply: answer.reply, used: answer.used, sessionId: session.id, source, category, ...(provider ? { provider } : {}), ...(planStatus ? { plan: planStatus } : {}) };
+  return { reply: answer.reply, used: answer.used, sessionId: session.id, source, category, intent: chatIntent(text, category), ...(provider ? { provider } : {}), ...(planStatus ? { plan: planStatus } : {}) };
 }
 
 
@@ -165,6 +170,66 @@ export type QuestionCategory = 'General Question' | 'Related Question';
 const RELATED_RE = /\b(balance|balances|account|accounts|spent|spend|spending|transaction|transactions|salary|income|money|save|saving|savings|goal|goals|card|cards|loan|loans|mortgage|payment|payments|bill|bills|budget|bank|nordea|iban|rent|debt|invest\w*|pension|grocer\w*|insight\w*|expens\w*|subscription\w*|eating out|invoice\w*|electricity|utilit\w+|receipt\w*|statement\w*|pay|paid|bought|earn\w*|maks\w+|raha\w*|tili\w*|saldo\w*|palk\w+|sääst\w+|laskut?|pankki\w*|lainan?|ruokakauppa\w*|kuluj?\w*|kostnad\w*|lön\w*|konto\w*|my (?:data|facts|notes))\b|[€$£]/i;
 /** A General Question may carry general figures. A reply is a customer claim (still guarded) when it uses banking/money wording or says what the customer spent/earned/paid - a bare "you" next to a number is not. */
 function customerFigureClaim(t: string): boolean { return RELATED_RE.test(t) || /(you|your|you've|you're)[^.;!?]*(spent|spend|earn|earned|paid|pay|owe|owed|saved|have saved|made|received)/i.test(t); }
+
+export type ChatIntent = 'general' | 'bank_financial' | 'goal_add' | 'goal_modify' | 'goal_remove' | 'other';
+/** The intent of a chat turn, decided by code. Goal intents are decided in goalIntentTurn; the rest come from
+ *  the question category, with plain greetings/thanks as "other". */
+export function chatIntent(text: string, category: QuestionCategory): ChatIntent {
+  if (/^\s*(hi|hello|hey|thanks|thank you|ok|okay|cool|bye)\b[\s!.?]*$/i.test(text)) return 'other';
+  return category === 'Related Question' ? 'bank_financial' : 'general';
+}
+const GOAL_REMOVE = /^\s*(?:please\s+)?(?:remove|delete|drop|cancel)\s+(?:my\s+|the\s+)?(?:goal\b\s*[:\-]?\s*)(.+?)[.!]?\s*$/i;
+const GOAL_MODIFY_HEAD = /^\s*(?:please\s+)?(?:change|rename|update|edit)\s+(?:my\s+|the\s+)?goal\s*[:\-]?\s*(.+?)[.!]?\s*$/i;
+/** "X to Y": the goal title itself may contain "to", so pick the split whose left side is an existing goal. */
+function splitModify(rest: string, goals: Goal[]): [string, string] | null {
+  const seps = [...rest.matchAll(/\s+(?:to|into|as)\s+/gi)];
+  let fallback: [string, string] | null = null;
+  for (const m of seps) {
+    const left = rest.slice(0, m.index).trim(), right = rest.slice((m.index ?? 0) + m[0].length).trim();
+    if (!left || !right) continue;
+    fallback ??= [left, right];
+    if (goals.some((g) => g.title.trim().toLowerCase() === left.toLowerCase())) return [left, right];
+  }
+  for (const m of seps) {
+    const left = rest.slice(0, m.index).trim(), right = rest.slice((m.index ?? 0) + m[0].length).trim();
+    if (left && right && findGoal(goals, left).goal) return [left, right];
+  }
+  return fallback;
+}
+const GOAL_ADD = /^\s*(?:please\s+)?(?:add\s+(?:a\s+|new\s+|another\s+)?goal|new goal|my goal is|goal:)\s*[:\-]?\s*(.+?)[.!]?\s*$/i;
+function findGoal(goals: Goal[], target: string): { goal?: Goal; candidates: Goal[] } {
+  const t = target.trim().toLowerCase();
+  const exact = goals.filter((g) => g.title.trim().toLowerCase() === t);
+  if (exact.length === 1) return { goal: exact[0], candidates: exact };
+  const part = goals.filter((g) => g.title.toLowerCase().includes(t) || (t.length > 3 && t.includes(g.title.toLowerCase())));
+  return part.length === 1 ? { goal: part[0], candidates: part } : { candidates: exact.length > 1 ? exact : part };
+}
+/** Add / modify / remove a goal from chat. Ambiguous or unmatched targets ask instead of acting. */
+function goalIntentTurn(uid: string, text: string): { reply: string; used: string[]; intent: ChatIntent } | null {
+  const used = ['user-db'];
+  const head = text.match(GOAL_MODIFY_HEAD);
+  const split = head ? splitModify(head[1], loadUserDb(uid).goals) : null;
+  const mod = split ? [text, split[0], split[1]] : null, rem = text.match(GOAL_REMOVE), add = text.match(GOAL_ADD);
+  if (!mod && !rem && !add) return null;
+  if (add && !mod && !rem) {
+    const g = addGoalDirect(uid, add[1]);
+    return { reply: `Saved "${g.title}" as a goal in your User DB. Direct input goes straight in - the sync airlock only gates things your connected personal agent pulls in from WhatsApp, calendar, notes or email.`, used, intent: 'goal_add' };
+  }
+  const goals = loadUserDb(uid).goals;
+  const list = goals.map((g) => `"${g.title}"`).join(', ') || 'none yet';
+  const target = (mod ? mod[1] : rem![1]);
+  const found = findGoal(goals, target);
+  if (!found.goal) {
+    return { reply: found.candidates.length > 1 ? `More than one goal matches "${target.trim()}" (${found.candidates.map((g) => `"${g.title}"`).join(', ')}). Say which one, using its full title. Nothing changed.` : `I couldn't find a goal called "${target.trim()}". Your goals: ${list}. Nothing changed.`, used, intent: mod ? 'goal_modify' : 'goal_remove' };
+  }
+  if (mod) {
+    appWrites.updateGoal(uid, found.goal.id, { title: mod[2].trim() });
+    return { reply: `Changed the goal "${found.goal.title}" to "${mod[2].trim()}".`, used, intent: 'goal_modify' };
+  }
+  appWrites.removeGoal(uid, found.goal.id);
+  return { reply: `Removed the goal "${found.goal.title}" from your User DB. To bring it back, say: add goal ${found.goal.title}.`, used, intent: 'goal_remove' };
+}
+
 const EN_WORDS = /\b(the|is|are|was|were|what|who|whom|when|where|why|how|which|does|do|did|can|could|tell|explain|about|of|in|on|a|an|to|for|and|it|there|that|this)\b/gi;
 /** Confident general English: only then may a General reply carry figures with no customer record behind
  *  them. Other languages, non-ASCII letters, first-person wording or very short text are UNCERTAIN: the
@@ -315,6 +380,20 @@ async function planRoundLlm(uid: string, question: string): Promise<NonNullable<
   const say = (s: 'model' | 'scripted' | 'error') => s === 'model' ? 'model' : s === 'error' ? 'scripted (provider error)' : 'scripted';
   appendMessage(uid, { from: 'cm', to: 'app', type: 'inform', summary: `Round plan: cm ${say(cmPlan.status)}, nordea ${say(nordeaPlan.status)}.`, payload: { llm: true, status } });
   return { ...(cmPlan.plan ? { goalTitles: cmPlan.plan } : {}), ...(nordeaPlan.plan ? { terms: nordeaPlan.plan } : {}), status };
+}
+
+export interface ContextCard { id: string; title: string; detail: string; status?: string; conflict?: boolean; combines: number; unit: 'bank records' | 'sources'; source: string; at: string }
+function contextCards(rows: { id: string; title: string; detail: string; status?: string; conflict?: boolean; source: string; evidence?: Record<string, unknown> | null; at: string }[]): ContextCard[] {
+  return rows.map((r) => {
+    const m = Number(r.evidence?.matched ?? (Array.isArray(r.evidence?.transactionIds) ? (r.evidence!.transactionIds as unknown[]).length : 0));
+    return { id: r.id, title: r.title, detail: r.detail, status: r.status, conflict: r.conflict, combines: m > 0 ? m : 1, unit: m > 0 ? 'bank records' : 'sources', source: r.source, at: r.at };
+  });
+}
+
+/** Outcome R9: goal-relevant Nordea insights run by themselves after a goal is added or changed. Best effort:
+ *  a parked cabinet, an agent that is off or an empty Nordea DB simply means no cards this time. */
+export async function autoInsights(uid: string): Promise<number> {
+  try { return (await contribute(uid)).proposals.length; } catch { return 0; }
 }
 
 export async function contribute(uid: string) {
@@ -599,11 +678,15 @@ export function archState(uid: string) {
       nordea: nordea ? { accounts: nordea.accounts.length, transactions: nordea.transactions.length } : null,
     },
     contextMd: ctxDoc ? renderContextMd(uid, ctxDoc) : null,
+    // Outcomes R3-R5: the CM and Nordea windows show the processed cards the agents put on the shared
+    // context.md - one card per row, each combining several raw records. No cabinet list, no raw record
+    // (no transaction ids, no account identifiers).
+    contextCards: ctxDoc ? { memory: contextCards(ctxDoc.sections.memory.rows), nordea: contextCards(ctxDoc.sections.nordea.rows) } : { memory: [], nordea: [] },
     queues: {
       airlock: bus.airlock.filter((b) => b.status === 'pending'),
       review: bus.messages.filter((m) => m.type === 'propose' && m.status === 'pending'),
     },
-    messages: bus.messages.slice(-40).reverse(),
+    messages: bus.messages.slice(-80).reverse(),
   };
 }
 

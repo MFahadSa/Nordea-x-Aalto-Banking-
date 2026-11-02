@@ -1482,5 +1482,44 @@ check('timeout: Gemini and OpenAI-compatible adapters both default to 120 s (no 
 const chatSrcQ2 = readSrc('../src/components/Chat.tsx'), archHtmlQ2 = readSrc('../public/arch.html');
 check('Q2: caption order is elapsed (client-measured) first, then the exact category, on mobile and arch.html', /\[el, sup\?\.category\]/.test(chatSrcQ2) && /client-measured' \+ \(late[^\n]*\n  if \(j\.category\)/.test(archHtmlQ2) && /s client-measured/.test(chatSrcQ2), '');
 
+// ---------- R6/R7/R8/R9: goal intents in chat; no Add-goal field; goals below the chat; automatic insights ----------
+{
+  const U = 'intentuser';
+  const goalsOf = () => (S.loadUserDb(U).goals ?? []).map((g: any) => g.title);
+  const say = async (t: string) => A.chat(U, t, 'sess-r6');
+  const g1 = await say('add goal Learn Finnish');
+  check('R6: "add goal ..." in chat adds the goal and the intent is goal_add', goalsOf().includes('Learn Finnish') && (g1 as any).intent === 'goal_add', JSON.stringify(g1));
+  const g2 = await say('change goal Learn Finnish to Learn Swedish');
+  check('R6: "change goal X to Y" modifies it (goal_modify)', goalsOf().includes('Learn Swedish') && !goalsOf().includes('Learn Finnish') && (g2 as any).intent === 'goal_modify', JSON.stringify(g2));
+  await say('add goal Save for a trip to Japan');
+  const gT = await say('change goal Save for a trip to Japan to Save for a trip to Tokyo');
+  check('R6: a goal title that itself contains "to" is split at the right place', goalsOf().includes('Save for a trip to Tokyo') && !goalsOf().includes('Save for a trip to Japan'), gT.reply);
+  await say('remove goal Save for a trip to Tokyo');
+  const g3 = await say('remove goal Learn Norwegian');
+  check('R6: an unknown goal target changes nothing and says so', goalsOf().includes('Learn Swedish') && /couldn't find/.test(g3.reply), g3.reply);
+  const g4 = await say('remove goal Learn Swedish');
+  check('R6: "remove goal X" removes it (goal_remove)', !goalsOf().includes('Learn Swedish') && (g4 as any).intent === 'goal_remove', JSON.stringify(g4));
+  await say('add goal Save for a bike'); await say('add goal Save for a boat');
+  const g5 = await say('delete goal Save for a');
+  check('R6: an ambiguous target asks which one and changes nothing', goalsOf().length === 2 && /More than one/.test(g5.reply), g5.reply);
+  const q = await say('hello');
+  check('R6: a plain greeting is intent "other", not an invented action', (q as any).intent === 'other' && goalsOf().length === 2, JSON.stringify(q));
+  {
+    const T = 'cardsuser';
+    S.saveNordeaDb({ ...(S.loadNordeaDb(UID) as any), userId: T });
+    await A.chat(T, 'add goal Save for a car');
+    const st = A.archState(T) as any;
+    const all = [...st.contextCards.memory, ...st.contextCards.nordea];
+    const nord = st.contextCards.nordea;
+    check('R4/R5: the Nordea window gets processed cards that combine several bank records', nord.length > 0 && nord.some((c: any) => c.combines > 1 && c.unit === 'bank records'), JSON.stringify(nord).slice(0, 300));
+    check('R5: no card carries a raw record (no transaction ids, no evidence, no account fields)', all.every((c: any) => !('evidence' in c) && !('transactionIds' in c)) && !/\btx-|IBAN|FI\d{2}/i.test(JSON.stringify(all)), JSON.stringify(all).slice(0, 300));
+    check('R3/R5: the CM window cards come from context.md, not from the whole cabinet', !/entries\.entries|\/entries`\)/.test(readSrc('../public/arch.html').split('const cards =')[1] ?? ''));
+  }
+  const html = readSrc('../public/arch.html');
+  check('R7: the Add-goal field and button are gone from arch.html', !/id="goal-in"|id="btn-goal"|Add goal/.test(html));
+  check('R8: the goal cards sit below the chat box', html.indexOf('id="chat-in"') > 0 && html.indexOf('id="user-goals"') > html.indexOf('id="chat-in"'));
+  check('R9: no manual "Propose insight" button and no contribute route remain', !/btn-contribute|Propose goal-relevant/.test(html) && !/nordea\/contribute/.test(readSrc('../src/server/arch/routes.ts')));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

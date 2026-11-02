@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import {
   agentQuery, archState, archCustomers, newSession, chat, addGoalDirect,
-  decideAirlock, contribute, reviewQueue, decideProposal, setStandingPermissions, undoEntry,
+  decideAirlock, autoInsights, reviewQueue, decideProposal, setStandingPermissions, undoEntry,
   explainEntry, disputeEntry, setAgentOff, deleteDatabase, parkCabinet, listEntries, ArchError,
   appWrites,
 } from './orchestrator.js';
@@ -66,16 +66,19 @@ export function registerArchRoutes(app: Express) {
   }));
 
   // Direct manual goal input - never through the sync airlock.
-  app.post('/api/arch/:uid/goals', h((req, res) => {
+  app.post('/api/arch/:uid/goals', h(async (req, res) => {
     const title = String(req.body?.title ?? '').trim();
     if (!title) { res.status(400).json({ error: 'A goal needs a title.' }); return; }
-    res.json(addGoalDirect(uid(req), title, String(req.body?.detail ?? '')));
+    const goal = addGoalDirect(uid(req), title, String(req.body?.detail ?? ''));
+    await autoInsights(uid(req));
+    res.json(goal);
   }));
-  app.post('/api/arch/:uid/goals/:goalId', h((req, res) => {
+  app.post('/api/arch/:uid/goals/:goalId', h(async (req, res) => {
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : undefined;
     const detail = typeof req.body?.detail === 'string' ? req.body.detail : undefined;
     if (!title && detail === undefined) { res.status(400).json({ error: 'Nothing to update.' }); return; }
     appWrites.updateGoal(uid(req), String(req.params.goalId), { title, detail });
+    await autoInsights(uid(req));
     res.json({ ok: true });
   }));
   app.post('/api/arch/:uid/goals/:goalId/delete', h((req, res) => {
@@ -89,7 +92,6 @@ export function registerArchRoutes(app: Express) {
   app.post('/api/arch/:uid/airlock/:batchId/reject', h((req, res) => res.json(decideAirlock(uid(req), String(req.params.batchId), false))));
 
   // Goal-filtered bank contributions + merge review.
-  app.post('/api/arch/:uid/nordea/contribute', h(async (req, res) => res.json(await contribute(uid(req)))));
   app.get('/api/arch/:uid/review', h((req, res) => res.json({ proposals: reviewQueue(uid(req)) })));
   app.post('/api/arch/:uid/review/:messageId/accept', h((req, res) => res.json(decideProposal(uid(req), String(req.params.messageId), true))));
   app.post('/api/arch/:uid/review/:messageId/reject', h((req, res) => res.json(decideProposal(uid(req), String(req.params.messageId), false))));

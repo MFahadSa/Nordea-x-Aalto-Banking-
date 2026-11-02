@@ -78,16 +78,15 @@
     <div class="connline" id="conn-user"></div>
     <div class="body">
       <div id="user-summary"></div>
-      <div id="user-goals"></div>
       <div id="user-facts"></div>
       <div class="controls">
-        <input id="goal-in" placeholder="Add a goal..." style="border:1px solid #c9ced6;border-radius:8px;padding:5px 9px;font-size:12.5px;width:150px;">
-        <button id="btn-goal" class="primary">Add goal</button>
         <button id="btn-off-personal">Turn off</button>
         <button id="btn-del-user" class="danger">Delete DB</button>
       </div>
       <div class="chatlog" id="chatlog"></div>
       <div class="chatrow"><input id="chat-in" placeholder='Talk to your personal agent... try "my goal is to visit Japan"'><button id="btn-chat" class="primary">Send</button></div>
+      <div class="meta" style="margin-top:8px">Goals - add, change or remove them by telling Abel in the chat above.</div>
+      <div id="user-goals"></div>
     </div>
   </div>
   <div class="window w-cm">
@@ -112,8 +111,8 @@
     <div class="connline" id="conn-nordea"></div>
     <div class="body">
       <div id="nordea-summary"></div>
+      <div id="nordea-cards"></div>
       <div class="controls">
-        <button id="btn-contribute" class="primary">Propose goal-relevant insights</button>
         <button id="btn-upload">Upload bank file</button><input type="file" id="bank-file" accept=".json,.csv,.txt" style="display:none">
         <button id="btn-feed">Check feed</button>
         <button id="btn-off-nordea">Turn off</button>
@@ -220,7 +219,7 @@ async function refresh() {
   $('user-goals').innerHTML = (s.goals ?? []).length ? (s.goals ?? []).map((g) =>
     `<div class="entry"><b>${esc(g.title)}</b>${g.detail ? ` - ${esc(g.detail)}` : ''}
      <div class="meta">in Abel's knowledge (User DB) · <a href="#" onclick="editGoal('${g.id}','${esc(g.title).replace(/'/g, '')}');return false;">edit</a> · <a href="#" onclick="deleteGoal('${g.id}','${esc(g.title).replace(/'/g, '')}');return false;">delete</a></div></div>`).join('')
-    : '<div class="empty">No goals yet - add one above or tell Abel.</div>';
+    : '<div class="empty">No goals yet - tell Abel in the chat, for example "my goal is to visit Japan".</div>';
   $('cm-summary').innerHTML = `Cabinet entries: <b>${s.databases.contextMemory.entries}</b>${s.databases.contextMemory.disputed ? ` · <span style="color:#a4352c">${s.databases.contextMemory.disputed} disputed</span>` : ''}`;
   $('perm').value = s.databases.contextMemory.permissions?.reviewLevel ?? 'all';
   $('nordea-summary').innerHTML = s.databases.nordea ? `Accounts: <b>${s.databases.nordea.accounts}</b> · Transactions: <b>${s.databases.nordea.transactions}</b>` : 'Empty until bank data is loaded (scripts/load_data.py).';
@@ -238,10 +237,11 @@ async function refresh() {
   $('ctx-md').textContent = s.contextMd ?? '';
   for (const a of ['personal', 'cm', 'nordea']) $(`ai-${a}`).innerHTML = aiLine(s.ai?.agents?.[a]);
   $('ai-chain').innerHTML = aiChain(s.ai);
-  const entries = await api(`/api/arch/${uid}/entries`);
-  $('cm-entries').innerHTML = entries.entries.length ? entries.entries.map((e) =>
-    `<div class="item ${e.status === 'disputed' ? 'entrydisputed' : ''}"><b>${esc(e.title)}</b> ${e.status === 'disputed' ? '<span class="pill off">disputed</span>' : ''}<br>${esc(e.detail)}
-     <div class="meta">proposed by ${esc(e.proposedBy)} · ${esc(e.createdAt.slice(0, 10))} · <a href="#" onclick="explain('${e.id}');return false;">why is this here?</a> · <a href="#" onclick="dispute('${e.id}');return false;">dispute</a>${e.autoAccepted ? ` · <a href="#" onclick="undoEntry('${e.id}');return false;">undo</a>` : ''}</div></div>`).join('') : '<div class="empty">No shared context yet. Ask the Nordea agent to propose goal-relevant insights.</div>';
+  const cards = (list, cm) => list.length ? list.map((c) =>
+    `<div class="item ${c.conflict ? 'entrydisputed' : ''}"><b>${esc(c.title)}</b> ${c.conflict ? '<span class="pill off">conflict</span>' : ''}<br>${esc(c.detail)}
+     <div class="meta">${c.combines > 1 ? `combines ${c.combines} ${esc(c.unit)}` : 'from 1 stored entry'} · ${esc(c.source)} agent${cm ? ' · <a href="#" onclick="explain(\'' + esc(c.id) + '\');return false;">why is this here?</a>' : ''}</div></div>`).join('') : null;
+  $('cm-entries').innerHTML = cards(s.contextCards?.memory ?? [], true) ?? '<div class="empty">No context cards from the Context Memory agent for this session yet. Say something to Abel and its retrieved cards land on context.md.</div>';
+  $('nordea-cards').innerHTML = cards(s.contextCards?.nordea ?? [], false) ?? '<div class="empty">No Nordea context cards for this session yet. They appear after a goal or a question that relates to your bank data.</div>';
   const q = [];
   for (const b of s.queues.airlock) q.push(`<div class="item"><b>Airlock:</b> ${b.items.length} item(s) from ${esc(b.source)}<br>${b.items.map((i) => esc(i.text)).join('<br>')}
     <div class="meta"><button class="primary" onclick="airlock('${b.id}',true)">Approve into User DB</button> <button class="danger" onclick="airlock('${b.id}',false)">Reject</button></div></div>`);
@@ -277,11 +277,9 @@ $('btn-chat').onclick = async () => {
 // verify the model/scripted caption under the reply.
 if (location.hash === '#autotest-chat') { $('chat-in').value = 'how much did I spend on my car?'; $('btn-chat').click(); }
 $('chat-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-chat').click(); });
-$('btn-goal').onclick = async () => { const t = $('goal-in').value.trim(); if (!t) return; $('goal-in').value = ''; await api(`/api/arch/${uid}/goals`, { body: { title: t } }); refresh(); };
 window.editGoal = async (id, old) => { const t = prompt('Edit the goal - Abel remembers the new version.', old); if (!t || !t.trim() || t.trim() === old) return; await api(`/api/arch/${uid}/goals/${id}`, { body: { title: t.trim() } }); refresh(); };
 window.deleteGoal = async (id, title) => { if (!confirm(`Delete goal "${title}"? It is removed from Abel's knowledge (the User DB).`)) return; await api(`/api/arch/${uid}/goals/${id}/delete`, {}); refresh(); };
 $('btn-perm').onclick = async () => { await api(`/api/arch/${uid}/permissions`, { body: { reviewLevel: $('perm').value } }); refresh(); };
-$('btn-contribute').onclick = async () => { const j = await api(`/api/arch/${uid}/nordea/contribute`, {}); say('agent', j.proposals.length ? `Nordea agent proposed ${j.proposals.length} insight(s) - see "Waiting for you".` : 'No goal-relevant activity found to propose.'); refresh(); };
 $('btn-upload').onclick = () => $('bank-file').click();
 $('bank-file').onchange = async () => {
   const f = $('bank-file').files[0]; if (!f) return;
