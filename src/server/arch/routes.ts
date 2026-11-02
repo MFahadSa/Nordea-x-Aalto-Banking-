@@ -7,6 +7,7 @@ import {
 } from './orchestrator.js';
 import { hostedClearOutcome } from './store/common.js';
 import type { AgentId } from './types.js';
+import { runOnce, requestState } from '../chatRequests.js';
 
 /**
  * The three-database architecture: User DB (personal agent), Context Memory DB
@@ -41,7 +42,17 @@ export function registerArchRoutes(app: Express) {
     const text = String(req.body?.text ?? '').trim();
     if (!text) { res.status(400).json({ error: 'Say something first.' }); return; }
     const sessionId = typeof req.body?.sessionId === 'string' && req.body.sessionId.trim() ? req.body.sessionId.trim() : undefined;
-    res.json(await chat(uid(req), text, sessionId));
+    const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim() ? req.body.requestId.trim().slice(0, 80) : undefined;
+    const user = uid(req);
+    const out = await runOnce(`arch:${user}`, requestId, async () => ({ status: 200, body: await chat(user, text, sessionId) }), text);
+    res.status(out.status).json(out.body);
+  }));
+  // Late pickup for a chat turn by its requestId (pending / done + result / unknown). Never reruns a turn.
+  app.get('/api/arch/:uid/chat/result', h((req, res) => {
+    const requestId = String(req.query.requestId || '');
+    if (!requestId) { res.status(400).json({ error: 'requestId is required' }); return; }
+    const st = requestState(`arch:${uid(req)}`, requestId);
+    res.json(st.status === 'done' ? { status: 'done', result: st.result.body } : st);
   }));
 
   // Agent-to-agent query transport: the personal agent (in-app or the separate demo client

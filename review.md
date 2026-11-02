@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -292,4 +292,16 @@ G44 (H): broke the General exemption - invented 312.40 for "What did I pay for g
 FACT: a reused requestId with new text returns the old reply (by design?); worst case a 4-step turn on a 3-member chain ~27 min.
 ASK@Telkomsel: cite the owner's words for "Outcomes 3-4" (new scope, rule 28 quote + ts) in your next message.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 20:57
+```
+SCOPE: main relayed Christina CMP 8:30: owner msgs 1793643737.149109 (120s), ...766.306079 (client time), ...4005.724089 (category). Unverified by me.
+DID G44: Related unless plain impersonal English (Finnish/non-ASCII/I-my/short = Related); grocery words added; salary-type replies guarded.
+DID: General fallback (AI off/guard drop/error) neutral. Caption: elapsed (client-measured) then category. Arch chat: requestId + /chat/result.
+DID: reused requestId+other text -> 409; poll 60 min. Mutation-checked pins: classifier, neutral, dedup, 409, 120s defaults, cancel.
+FACT: arch 296 tsc0 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3. Pixels synthetic. No provider call/spend/merge/panel/G42.
+OPEN: round-plan pixel absent (plan exists only when a goal-matching first round runs); source pin only.
+ASK@Bill: re-verify G44 incl. Finnish and groceries, arch dedup, 409.
+NEXT: Bill
 ```

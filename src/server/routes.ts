@@ -9,6 +9,7 @@ import { checkFeed, feedStatus } from './nordeaFeed.js';
 import { applyBankImportToArch } from './arch/orchestrator.js';
 import * as fin from './finance.js';
 import { proposeFromContent, SAMPLE_CHAT, ImportItem } from './importPropose.js';
+import { runOnce, requestState } from './chatRequests.js';
 import { chat as archChat } from './arch/orchestrator.js';
 import { loadContext } from './arch/store/contextStore.js';
 import { getProvider, aiStatus, aiPing } from './llm.js';
@@ -137,8 +138,6 @@ export function registerV14Routes(app: Express) {
   // most ONCE per requestId (a repeat of the same id joins the running turn or returns the stored
   // reply - never a second model call), turns of one user run one after another, and the reply is
   // findable by requestId (GET /api/chat/result) so a slow or dropped connection can pick it up late.
-  const chatInflight = new Map<string, Promise<{ status: number; body: unknown }>>();
-  const chatQueue = new Map<string, Promise<unknown>>();
   const storedReply = (userId: string, requestId: string) => {
     const all = db.getMessages(userId);
     const a = all.find((m) => m.sender === 'agent' && m.replyToRequestId === requestId);
@@ -170,25 +169,18 @@ export function registerV14Routes(app: Express) {
     const { userId = 'lauri', text, conversationId, helperId = 'abel' } = req.body || {};
     if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text is required' });
     const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim() ? req.body.requestId.trim().slice(0, 80) : undefined;
-    const key = requestId ? `${userId}:${requestId}` : '';
-    if (requestId) {
-      const done = storedReply(userId, requestId);
-      if (done) return res.status(200).json(done);
-      const running = chatInflight.get(key);
-      if (running) { const out = await running; return res.status(out.status).json(out.body); }
+    const done = requestId ? storedReply(userId, requestId) : null; // kept across a server restart
+    if (done) {
+      const mine = done.messages.find((m) => m.sender === 'user');
+      if (mine && mine.text !== text.slice(0, 2000)) return res.status(409).json({ error: 'That request id was already used for a different message.' });
+      return res.status(200).json(done);
     }
-    const prev = chatQueue.get(userId) ?? Promise.resolve();
-    const turn = prev.catch(() => undefined).then(() => runChatTurn(userId, text, conversationId, helperId, requestId));
-    chatQueue.set(userId, turn);
-    if (requestId) chatInflight.set(key, turn);
     try {
-      const out = await turn;
+      // 'app-' keeps ids apart from the arch route's; the queue key is shared so turns of one user never overlap.
+      const out = await runOnce(`arch:${userId}`, requestId ? `app-${requestId}` : undefined, () => runChatTurn(userId, text, conversationId, helperId, requestId), text);
       res.status(out.status).json(out.body);
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'The chat failed' });
-    } finally {
-      if (requestId) chatInflight.delete(key);
-      if (chatQueue.get(userId) === turn) chatQueue.delete(userId);
     }
   });
   // Late pickup: where is the reply for this requestId? pending = still running here;
@@ -200,7 +192,7 @@ export function registerV14Routes(app: Express) {
     if (!requestId) return res.status(400).json({ error: 'requestId is required' });
     const done = storedReply(userId, requestId);
     if (done) return res.json({ status: 'done', ...done });
-    if (chatInflight.has(`${userId}:${requestId}`)) return res.json({ status: 'pending' });
+    if (requestState(`arch:${userId}`, `app-${requestId}`).status === 'pending') return res.json({ status: 'pending' });
     res.json({ status: 'unknown' });
   });
 

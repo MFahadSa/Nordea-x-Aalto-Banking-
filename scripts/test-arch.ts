@@ -99,8 +99,8 @@ check('dispute marks the entry and keeps it visible', disputed.status === 'dispu
 // --- Decision 5: answer guardrails, honest thin-context answers
 const bankAnswer = await A.chat(UID, 'what is my account balance?');
 check('personal agent never reads the Nordea DB (guardrail)', bankAnswer.reply.includes("don't have your bank data"), bankAnswer.reply);
-const thin = await A.chat(UID, 'what should I cook for a village festival?');
-check('unknown topics get an honest thin-context answer', thin.reply.includes("don't have enough context"), thin.reply);
+const thin = await A.chat(UID, 'What should be cooked for a village festival?');
+check('unknown General topics get a neutral answer with no User-DB/cabinet/bank disclaimer (AI off)', thin.category === 'General Question' && /general question/.test(thin.reply) && !/User DB|cabinet|bank|goal/i.test(thin.reply), thin.reply);
 const chatGoal = await A.chat(UID, 'my goal is to visit Japan next summer');
 check('a goal typed in chat is direct input (no airlock)', S.loadUserDb(UID).goals.length === 2 && S.loadBus(UID).airlock.length === 2);
 
@@ -1371,8 +1371,74 @@ check('F10p2: the personal agent answers abel-facts from its own User DB (the ow
 }
 const appSrcQ = readSrc('../src/App.tsx'), apiSrcQ = readSrc('../src/services/api.ts'), routesSrcQ = readSrc('../src/server/routes.ts'), chatSrcQ = readSrc('../src/components/Chat.tsx'), archHtmlQ = readSrc('../public/arch.html');
 check('Q3: no fixed 180 s client abort; requestId sent; late pickup by requestId, never an automatic resubmit', !/180000/.test(apiSrcQ) && /requestId/.test(apiSrcQ) && /api\/chat\/result/.test(apiSrcQ) && (apiSrcQ.match(/fetch\('\/api\/chat'/g) ?? []).length === 1, '');
-check('Q3: server runs a requestId once (join in-flight / stored reply) and serialises a user\'s turns', /chatInflight/.test(routesSrcQ) && /storedReply\(userId, requestId\)/.test(routesSrcQ) && /chatQueue/.test(routesSrcQ), '');
+check('Q3: server runs a requestId once (join in-flight / stored reply) and serialises a user\'s turns', /storedReply\(userId, requestId\)/.test(routesSrcQ) && /runOnce\(/.test(routesSrcQ) && /enqueue/.test(readSrc('../src/server/chatRequests.ts')) && /runOnce/.test(readSrc('../src/server/arch/routes.ts')) && /chat\/result/.test(archHtmlQ) && /chatOnce/.test(archHtmlQ), '');
 check('Q2: mobile caption = category, client-measured elapsed, actual answerer, round plan; arch.html shows category + client-measured elapsed', /performance\.now\(\) - sentAt/.test(appSrcQ) && /sup\?\.plan/.test(chatSrcQ) && /sup\?\.category/.test(chatSrcQ) && /client-measured/.test(archHtmlQ), '');
+
+// --- Q4 conservative grounding: a General classification never lets a customer-looking figure through
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const UIDG = 'catq2';
+  const say = (reply: string, readGoals = false) => setProviderForTests({ name: 'cap2', isConfigured: () => true, step: async (args: { turns?: unknown[] }) => ({ calls: readGoals && !(JSON.stringify(args.turns ?? []).includes('listMyGoals result')) && !JSON.stringify(args.turns ?? []).includes('"name":"listMyGoals"') ? [{ id: 'g1', name: 'listMyGoals', args: {} }] : [{ id: 'c1', name: 'finishReply', args: { reply } }] }) } as never);
+  say('The median salary there is 4 100 per month.');
+  const a = await A.chat(UIDG, 'What is the typical pay for a nurse in Finland?');
+  check('Q4: a General reply mentioning salary/money terms and an ungrounded figure drops to the scripted reply', a.category === 'General Question' && a.source !== 'model', `${a.source}: ${a.reply}`);
+  say('Helsinki has about 660 000 residents.');
+  const b = await A.chat(UIDG, 'How many people live in Helsinki?');
+  check('Q4: a plain General reply with a general figure is kept', b.category === 'General Question' && b.source === 'model' && /660/.test(b.reply), `${b.source}: ${b.reply}`);
+  setProviderForTests(null);
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  let n = 0;
+  setProviderForTests({ name: 'cap3', isConfigured: () => true, step: async () => ({ calls: [n++ === 0 ? { id: 'g1', name: 'listMyGoals', args: {} } : { id: 'c1', name: 'finishReply', args: { reply: 'That would be about 777 units.' } }] }) } as never);
+  const m = await A.chat('catq3', 'How many units are in a standard crate?');
+  check('Q4: a General question where the model also read the customer User DB (mixed) keeps the figure guard', m.category === 'General Question' && m.source !== 'model' && !m.reply.includes('777'), `${m.source}: ${m.reply}`);
+  setProviderForTests(null);
+}
+check('timeout: Gemini and OpenAI-compatible adapters both default to 120 s (no 15/30/60 s floor left)', /LLM_TIMEOUT_MS\) \|\| 120000/.test(readSrc('../src/server/llm.ts')) && /LLM_TIMEOUT_MS\) \|\| 120000/.test(readSrc('../src/server/llmOpenAI.ts')) && !/Math\.max\(60000/.test(readSrc('../src/server/llmOpenAI.ts')), '');
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const reply = (r: string) => setProviderForTests({ name: 'neg', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: r } }] }) } as never);
+  reply('You can visit the Otaniemi campus; Aalto University was founded in 2010.');
+  const fp = await A.chat('negq1', 'What is Aalto University like?');
+  check('Q4 negative (false positive): "you" next to a general figure is NOT dropped', fp.category === 'General Question' && fp.source === 'model' && /2010/.test(fp.reply), `${fp.source}: ${fp.reply}`);
+  reply('The salary went from 3400 to 3900 recently.');
+  const fn = await A.chat('negq2', 'How did wages develop in Finland recently?');
+  check('Q4 negative (false negative): an ungrounded salary figure with no you/currency is dropped, neutral reply, no bank text', fn.source !== 'model' && !/3900/.test(fn.reply) && !/User DB|cabinet|bank/i.test(fn.reply), `${fn.category}/${fn.source}: ${fn.reply}`);
+  reply('You spent 480 last month on that.');
+  const fn2 = await A.chat('negq3', 'What is Helsinki known for?');
+  check('Q4 negative: "you spent 480" is dropped even when the question looked general', fn2.source !== 'model' && !/480/.test(fn2.reply), `${fn2.source}: ${fn2.reply}`);
+  setProviderForTests(null);
+  const off = await A.chat('negq4', 'What is Aalto University like?');
+  check('Q4: General with the AI off gets a neutral reply (no User DB/cabinet/bank disclaimer)', off.category === 'General Question' && !/User DB|cabinet|bank|goal/i.test(off.reply), off.reply);
+}
+{
+  const CR = await import('../src/server/chatRequests.js');
+  let runs = 0, active = 0, maxActive = 0;
+  const slow = (v: string) => async () => { runs++; active++; maxActive = Math.max(maxActive, active); await new Promise((r) => setTimeout(r, 40)); active--; return { status: 200, body: { v } }; };
+  const [r1, r2] = await Promise.all([CR.runOnce('u-q3', 'same-id', slow('a')), CR.runOnce('u-q3', 'same-id', slow('b'))]);
+  const r3 = await CR.runOnce('u-q3', 'same-id', slow('c'));
+  check('Q3: a requestId runs exactly ONCE (concurrent repeat joins, later repeat gets the kept result)', runs === 1 && JSON.stringify(r1) === JSON.stringify(r2) && JSON.stringify(r3.body) === JSON.stringify(r1.body), `runs=${runs}`);
+  check('Q3: requestState reports done / unknown', CR.requestState('u-q3', 'same-id').status === 'done' && CR.requestState('u-q3', 'never').status === 'unknown', '');
+  runs = 0;
+  await Promise.all([CR.runOnce('u-q3b', 'x1', slow('a')), CR.runOnce('u-q3b', 'x2', slow('b')), CR.runOnce('u-q3b', 'x3', slow('c'))]);
+  check('Q3: one user\'s different requests run serially (never overlapping), none lost', runs === 3 && maxActive === 1, `runs=${runs} maxActive=${maxActive}`);
+  const pend = CR.runOnce('u-q3c', 'slowid', slow('p'));
+  check('Q3: an in-flight requestId reads pending', CR.requestState('u-q3c', 'slowid').status === 'pending', '');
+  await pend;
+}
+{
+  const CR = await import('../src/server/chatRequests.js');
+  const ok = async () => ({ status: 200, body: { v: 1 } });
+  await CR.runOnce('u-fp', 'id1', ok, 'hello');
+  const clash = await CR.runOnce('u-fp', 'id1', ok, 'something else');
+  check('Q3: a requestId reused for DIFFERENT text is refused (409), never answered with the old reply', clash.status === 409, JSON.stringify(clash));
+  const { classifyQuestion } = await import('../src/server/arch/orchestrator.js');
+  check('Q4: uncertain questions are Related (guards on): non-English, non-ASCII, first-person, too short', ['Paljonko maksoin ruokakaupassa viime kuussa?', 'Mitä maksoin kahvilassa?', 'How much did I pay at the cafe?', 'Wages?'].every((q) => classifyQuestion(q, []) === 'Related Question'), '');
+  check('Q4: grocery spending is Related', classifyQuestion('What did I pay for groceries last month?', []) === 'Related Question', '');
+}
+const chatSrcQ2 = readSrc('../src/components/Chat.tsx'), archHtmlQ2 = readSrc('../public/arch.html');
+check('Q2: caption order is elapsed (client-measured) first, then the exact category, on mobile and arch.html', /\[el, sup\?\.category\]/.test(chatSrcQ2) && /client-measured' \+ \(late[^\n]*\n  if \(j\.category\)/.test(archHtmlQ2) && /s client-measured/.test(chatSrcQ2), '');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -207,6 +207,16 @@ try {
     check('Q4: the stored reply carries its exact question category and round-plan info', ['General Question', 'Related Question'].includes(a.json?.messages?.[1]?.supplied?.category), a.json?.messages?.[1]?.supplied);
   }
 
+  {
+    const rid = 'req-arch-1';
+    const body = { text: 'what do you know about my car saving?', requestId: rid };
+    const [a, b] = await Promise.all([api('POST', `/api/arch/${UID}/chat`, body), api('POST', `/api/arch/${UID}/chat`, body)]);
+    check('Q3 arch: the same requestId sent twice runs ONE turn (identical reply + session)', a.json?.reply && a.json.reply === b.json?.reply && a.json.sessionId === b.json.sessionId, [a.json?.reply?.slice(0, 40), b.json?.reply?.slice(0, 40)]);
+    const st = await api('GET', `/api/arch/${UID}/chat/result?requestId=${rid}`);
+    check('Q3 arch: late pickup by requestId returns the same reply', st.json?.status === 'done' && st.json.result?.reply === a.json.reply, st.json?.status);
+    const unk = await api('GET', `/api/arch/${UID}/chat/result?requestId=req-arch-never`);
+    check('Q3 arch: an unknown requestId is reported unknown', unk.json?.status === 'unknown', unk.json?.status);
+  }
   // 5. Source scan: no app/arch code reads customer data from the old store
   const read = (f: string) => fs.readFileSync(f, 'utf-8');
   const appFiles = ['importPropose.ts', 'finance.ts', 'routes.ts', 'devMonitor.ts', 'dataRewards.ts', 'documents.ts'].map((f) => `src/server/${f}`);

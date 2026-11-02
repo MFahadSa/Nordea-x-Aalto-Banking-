@@ -216,7 +216,7 @@ export type ChatResult = { conversationId: string; messages: ChatMessage[]; erro
 export const newRequestId = () => 'req-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 async function pollResult(userId: string, requestId: string, onlyDone: boolean, stop: { done: boolean }): Promise<ChatResult | null> {
   const every = onlyDone ? 20000 : 3000;
-  const until = Date.now() + 30 * 60 * 1000;
+  const until = Date.now() + 60 * 60 * 1000;
   while (!stop.done && Date.now() < until) {
     await new Promise((r) => setTimeout(r, every));
     if (stop.done) return null;

@@ -146,6 +146,29 @@ const api = async (path, opts) => {
   return j;
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// One POST per message, no client deadline. If the connection drops or hangs, the reply is picked up
+// by requestId from the result endpoint - the message is never sent again on its own.
+async function chatOnce(text, requestId, onLate) {
+  const stop = { done: false };
+  const post = fetch(`/api/arch/${uid}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, sessionId, requestId }) })
+    .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) { say('agent', j.error || 'Request failed'); throw new Error(j.error); } return j; })
+    .catch(async (e) => { if (e instanceof TypeError) { const got = await pickup(requestId, 3000, false, stop); if (got) { onLate(); return got; } } throw e; });
+  const watch = pickup(requestId, 20000, true, stop).then((got) => got ? (onLate(), got) : new Promise(() => {}));
+  try { return await Promise.race([post, watch]); } finally { stop.done = true; }
+}
+async function pickup(requestId, every, onlyDone, stop) {
+  const until = Date.now() + 60 * 60 * 1000;
+  while (!stop.done && Date.now() < until) {
+    await new Promise((r) => setTimeout(r, every));
+    if (stop.done) return null;
+    try {
+      const x = await (await fetch(`/api/arch/${uid}/chat/result?requestId=${encodeURIComponent(requestId)}`)).json();
+      if (x.status === 'done') return x.result;
+      if (x.status === 'unknown' && !onlyDone) { say('agent', 'The server has no record of that message (it may have restarted). It was not sent again - ask again if you still want an answer.'); throw new Error('unknown request'); }
+    } catch (e) { if (/unknown request/.test(e.message)) throw e; }
+  }
+  return null;
+}
 function say(who, text) {
   const d = document.createElement('div');
   d.className = who;
@@ -236,11 +259,14 @@ window.review = async (id, ok) => { await api(`/api/arch/${uid}/review/${id}/${o
 $('btn-chat').onclick = async () => {
   const t = $('chat-in').value.trim(); if (!t) return; $('chat-in').value = ''; say('me', t);
   const t0 = performance.now(); // client-measured: send to reply arrival
-  const j = await api(`/api/arch/${uid}/chat`, { body: { text: t, sessionId } }); say('agent', j.reply);
+  const requestId = 'req-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  let late = false;
+  const j = await chatOnce(t, requestId, () => { late = true; });
+  say('agent', j.reply);
   const elapsed = ((performance.now() - t0) / 1000);
   const cap = [];
+  cap.push(elapsed.toFixed(elapsed < 10 ? 1 : 0) + ' s client-measured' + (late ? ', picked up late' : ''));
   if (j.category) cap.push(j.category);
-  cap.push(elapsed.toFixed(elapsed < 10 ? 1 : 0) + ' s (client-measured)');
   const prov = j.provider ? ' [' + j.provider + ']' : '';
   if (j.source) cap.push(j.source === 'model' ? 'reply: model' + prov : j.source === 'scripted-error' ? 'reply: scripted (model unavailable)' + prov : 'reply: scripted' + prov);
   if (j.plan) cap.push('round plan: cm ' + j.plan.cm + ', nordea ' + j.plan.nordea);
