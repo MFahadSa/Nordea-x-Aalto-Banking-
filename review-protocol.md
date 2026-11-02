@@ -64,3 +64,15 @@ Moved out of review.md by Joe 2026-11-02 12:42 (OWNER 12:41). review.md keeps a 
 | **Coordinator** (`instinct-christina`) | Routine coordination, live checks on the owner's go (rules 20–28). |
 | **Habibil** (owner) | Approved this plan on 1 Nov 02:27. Gates: scope, spend, live, security, merge. |
 
+**Settled owner decisions (moved from 🧠 by Joe 00:11, OWNER 00:10)**
+- **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
+- **Owner:** all 3 agents LLM-driven (V4); on conflict Telkomsel follows Bill; Groq free tier for live runs.
+- **Owner (16:22):** Abel answers ONLY from finalised context.md; Bill's 4 conditions (16:26) are the QC gate.
+- **Owner (16:35–17:44):** cabinet-db.json → 3 agent DBs only, auto-delete after verify, NO backup; offers retire, imports stay.
+- **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
+- **Naming (owner 02:03):** builder = **Telkomsel**; TURN/NEXT token `Telkomsel`; branch stays `instinct-prototype-v3`.
+- **Owner (10:41, 12:41):** token cuts, rules 14/18/19 + 26–29; protocol moved to review-protocol.md.
+- **Owner (12:48):** rule 28 relays (Slack ts + verbatim) also cover permission changes (G37/G38); merge stays firsthand to Bill.
+- **Owner (10:55):** Coordinator `instinct-christina` = routine coordination; owner gates + Bill QC unchanged.
+- **Owner (12:36, to Bill):** approved Coordinator's G37 anon revoke, load2demo hosted test, Groq run. Merge still his call.
+

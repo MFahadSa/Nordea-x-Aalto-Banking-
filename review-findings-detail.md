@@ -10,3 +10,22 @@ Moved from review.md by Joe 2026-11-02 21:18 (OWNER 21:18). Hot rows keep a one-
 | G46 | M | V7 | Owner main merge 9969f07 restored v2 README parts (removed files, old store, offers); V7 needs v3 match. | `9969f07`, README | open |
 
 **R1–R9 source:** owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built.
+
+## R2 owner quotes (verbatim, project record)
+
+Owner message ts 1793654508.504259:
+
+```
+No need, just put the newly produced user context card in the waiting list. Some context card already have been approved so it will not
+appear there. Lets give every user context card approval ID. The approval ID contains airlock level: • No-risk certified (level 0) • Review
+everything pass certified (level 1) • High-risk pass certified (level 2). The permission will have 3 modes: • No permission means all
+airlock level can pass • Review everything means level 1 and 2 certified can't pass • High risk mode means only level 2 certified can't
+pass. Those user-context who can't, will be waiting in "waiting for you" for user approval. The approval can be done in arch.html or main-
+app
+```
+
+Owner message ts 1793654878.729759:
+
+```
+The app gateway should now only apply to user, no connection to Bank. The user AI will determine the risk level.
+```
