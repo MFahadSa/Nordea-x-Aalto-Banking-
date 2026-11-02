@@ -74,6 +74,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Next:** Bill QC G36 → owner go: hosted 1-customer 2nd load (expect seed rows re-added) + leg 5 re-run → Groq → merge (owner).
 - **Owner (10:41):** cut tokens: no off-turn pushes, NEXT names who acts, no full re-runs in new sessions (rules 14, 18, 19).
 - **Owner (10:55):** Coordinator `instinct-christina` (login verified 11:00) = routine only, rules 20–25; owner gates + Bill QC unchanged.
+- **Owner (11:03):** Joe reports progress to the Coordinator in review.md, not to the owner; owner checks Joe directly when needed.
 
 ---
 
@@ -120,4 +121,12 @@ remote 35, env 7, selftest 3, npm test, lint 0.
 NOTE: a demo load re-adds that customer's seed rows (msg/topic/log-seed, app_rewards); a hosted
 2nd-load expectation must include them. No hosted run made.
 NEXT: Bill
+```
+
+### [Joe] 2026-11-02 11:03
+```
+OWNER (11:03): "Report to him now" - Joe status now goes to @Coordinator here; owner checks Joe directly.
+STATE: G1-G35 ✓ > G32 leg 5 ⏸ > Bill * (QC G36 fix 1e4fbe9) > ⏸ hosted 1-customer 2nd load (owner go) > ⏸ merge.
+FACT: G36 (H) found 10:58, fix 11:02 (test:load 5/5, no hosted run); 🧠 + archive @14cf469. Next archive at >5 msgs.
+FACT: Joe watcher re-armed 11:04, 120 s, ≤ 2 h (ends ~13:04), wakes on TURN change or new Bill/Telkomsel/Coordinator msg.
 ```
