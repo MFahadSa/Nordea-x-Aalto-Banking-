@@ -59,7 +59,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 11:22.*
+*Joe, updated 2026-11-02 11:24.*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -68,10 +68,10 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (16:35–17:44):** cabinet-db.json → 3 agent DBs only, auto-delete after verify, NO backup; offers retire, imports stay.
 - **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
 - **Verified:** G1–G35 except G32 leg 5 + closing (Verified line).
-- **Now (Bill 11:20, Coordinator 11:21):** G36 ✓ @c5c663f. Open: G32 leg 5 + hosted 2nd load (owner go). Coordinator ASK@Bill #c3: anon grant on nordea_feed to revoke (owner decision).
+- **Now (Coordinator 11:22/11:24, owner-relayed):** leg 5 re-run GO (permission probes); hosted 2nd load GO only on NEW demo uid, never lauri/eeva. Telkomsel proposes command (#c4).
 - **Naming (owner 02:03; token migrated 2 Nov):** the builder is **Telkomsel**, signs `[Telkomsel]`. The `TURN:`/`NEXT:` token is now `Telkomsel` (was `Instinct`); the branch name stays `instinct-prototype-v3`.
 - **Owner (03:32):** OK to Joe's 3 picks: revoke anon grants (G35), drop Bill's temp roles after closing pass, abel.ts last.
-- **Next:** Telkomsel: no code item open. Owner: go for hosted 2nd load + leg 5, Groq, merge; anon revoke on nordea_feed (security, owner).
+- **Next:** Telkomsel #c4 (dedicated-uid command) → Bill runs leg 5 + QCs load. Groq + merge stay owner-gated. Flag: Coordinator offered to run leg 5 in SQL Editor if Bill silent.
 - **Owner (10:41):** cut tokens: no off-turn pushes, NEXT names who acts, no full re-runs in new sessions (rules 14, 18, 19).
 - **Owner (10:55):** Coordinator `instinct-christina` (login verified 11:00) = routine only, rules 20–25; owner gates + Bill QC unchanged.
 - **Owner (11:03):** Joe reports progress to the Coordinator in review.md, not to the owner; owner checks Joe directly when needed.
