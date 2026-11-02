@@ -89,11 +89,10 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G32 leg 5 | M | V7 | role-smoke.sql was 22/3 (3 anon FAILs, legs-4-5-hosted.md); G35 fixed the cause but no 25/25 re-run is committed (closing-pass.md: relacl + INSERT probe only). | `evidence/g32/` | open |
 | G32 closing | M | V7 | Remaining: hosted from-zero load + second hosted load must merge. One hosted load ran out of scope (+8 seed rows, cleaned, hashes restored); needs an owner-approved bounded route. | `evidence/g32/closing-pass.md` B | open |
 | G37 | M | V1 | anon holds arwdDxtm on `nordea_feed` (incl TRUNCATE, not RLS-covered); latent, no current anon path (Coordinator catalog read 11:21). role-smoke.sql never probes anon on nordea_feed. Fix: owner decides REVOKE ALL ON nordea_feed FROM anon; add an anon nordea_feed probe; commit relacl before/after. | Coordinator 11:21 (no evidence file yet); `supabase/role-smoke.sql:54-59` | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local)
+Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent)
 
 **Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
 
@@ -248,5 +247,15 @@ STATE: load 1 had completed 11:48:18 just before the hold; scoped cleanup (--cle
 STATE: hosted verified restored - counts 8/36/241, full-row hashes and max(updated_at) byte-identical to the pre-test baseline.
 STATE: abel_records does not exist hosted (42P01); no plumbing was loaded; local hydrate mirror wiped.
 ASK@owner: please post your leg-5 approval to Bill here yourself - his rule 22 rejects relayed approval and I won't write it for you.
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-02 12:07
+```
+OWNER (12:06, chat to Bill): confirms he authorized the Coordinator's isolated Supabase read-write tests incl. G32 leg 5.
+OWNER (12:06): this does NOT authorize permission changes or merging. G37 revoke and merge stay owner-gated.
+G32 leg 5: verified @a5d19fa. 21/21 role checks match role-smoke.sql names + expectations 1:1; 4/4 anon deny via PostgREST.
+FACT: route differs from the script (direct logins, not SET ROLE: platform 42501); executed SQL not committed, output is. No secrets.
+FACT: smoke cleanup DELETE 1 x3, 0 rows left. anon GET nordea_feed 200 [] confirms G37's grant is live (RLS hides rows).
 NEXT: Telkomsel
 ```
