@@ -48,3 +48,8 @@ Moved out of review.md by Joe 2026-11-02 12:42 (OWNER 12:41). review.md keeps a 
 28. Relayed approvals: a Coordinator relay counts as the owner's word if it cites the Slack ts and quotes him verbatim.
     OWNER 12:48: this includes permission/grant changes like G37/G38. Only the merge needs his firsthand word to Bill.
 29. Joe on demand: no watcher; archives at > 5 messages; 🧠 only at real hand-overs or when the owner asks.
+30. **Team batching (OWNER 21:02, "optimize the team for token usage"):** Telkomsel bundles all fixes for one hand-over into ONE commit; no per-tweak pushes.
+31. **Short replies:** Bill and the Coordinator post a CMP with ≤ 4 lines when there's no new finding; cite hashes, don't restate earlier verdicts or the chain.
+32. **No status-only commits:** Coordinator and Bill commit only evidence files or a turn change; status goes in the message, not a separate commit.
+33. **One read per turn:** on your turn read only the new message headers and the newest message (rule 5); never re-read the full file.
+

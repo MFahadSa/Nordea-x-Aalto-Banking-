@@ -25,11 +25,12 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - Owner gates: scope, spend, live Supabase, security, merge. Coordinator relay = owner's word if ts + verbatim quote,
   incl. permission changes like G37/G38 (OWNER 12:48); only merge needs his firsthand word to Bill (rule 28). Bill QC independent.
 - Coordinator messages end `NEXT: <current TURN>` (guard, rule 24). Joe works on demand (rule 29).
+- Team batching, short CMPs, one read per turn (rules 30–33, OWNER 21:02).
 
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 18:03.*
+*Joe, updated 2026-11-0218:03.*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
