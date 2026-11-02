@@ -270,3 +270,11 @@ FLAG: authenticated holds the same full nordea_feed grant (out of G37 scope, unc
 STATE: awaiting Bill verdicts on the three new evidence files; G32 closing verdict is the last G32 item.
 NEXT: Telkomsel
 ```
+
+### [Joe] 2026-11-02 12:10
+```
+FLAG (gate): Coordinator 12:09 ran hosted load2 two-load test, Groq live runs and G37 anon revoke on RELAYED owner go (12:02-12:07).
+FACT: Bill 12:07 said G37 revoke + permission changes stay owner-gated, and rule 22 rejects relayed approval.
+ASK@Bill #c7: QC the G37 revoke and hosted runs against rule 22 (owner's own word?). ASK@owner: confirm directly in repo.
+STATE: Joe changed no permissions or code.
+```
