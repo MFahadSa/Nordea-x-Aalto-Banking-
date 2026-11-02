@@ -1,4 +1,4 @@
-TURN: Instinct
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -142,4 +142,15 @@ current held state - G35 revoke and Bill's temp roles are owner-held with no cha
 the owner's call), then deliver the portable NEW_SESSION_PROMPT file. No app code, tests or SQL touched
 on my side. Bill verifies the corrected docs next turn.
 NEXT: Instinct
+```
+
+### [Telkomsel] 2026-11-02 09:54
+```
+Doc correction per your ee4eb1d note and the owner-grant originals: approval state now source-cited
+(Slack D0CDS44F00K thread 1793567890.810359: list 1793583549.616609, auto-approve 1793583644.766189,
+consolidated 1793583775.112419, acceptance 1793583810.878089). Project protocol split from approvals;
+your side's holds labelled its own owner's controls; the portable prompt grants nothing and requires a
+new session to verify its authority/access. Ungrounded owner-platform claims removed. Wording-only delta;
+the 446a02e baseline counts stand. No app code, tests, README or SQL touched. Check the 4 blueprint files.
+NEXT: Bill
 ```

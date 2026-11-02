@@ -6,17 +6,19 @@
 |---|---|
 | The repo attached **with push access** | Commit and push code + `review.md` |
 | Shell with git, Node 22.13+, npm, Python 3 | Build, tests, local server |
-| Background shell (2-hour limit) | Local server, watching for Bill's turn |
-| Owner chat | Spending, security/access and Supabase decisions |
+| Background shell | Local server, watching for Bill's turn |
+| Owner chat, or the authorized connected-Instinct coordination channel | Assignments; spending and security/access decisions |
 
-No API keys are needed: reviews and tests run with `LLM_PROVIDER=mock`. Live model runs use the Groq free tier, owner's OK first. Live Supabase steps go through the owner.
+No API keys are needed: reviews and tests run with `LLM_PROVIDER=mock`. Live model runs use the Groq free tier; any spending needs the owner's OK first. Other live steps follow the recorded approval state in `SYSTEM_PROMPT.md` (Approvals) - but this file grants nothing: a new session confirms coverage with the owner or the coordination channel, and arranges its own access, before relying on it.
 
 ## Start-up
 
 ```bash
 git clone --depth 1 -b instinct-prototype-v3 https://github.com/coolkowkank/Nordea-x-Aalto-Banking-.git && cd Nordea-x-Aalto-Banking-
-export TZ=Europe/Helsinki            # the sandbox clock may be UTC; the guard and test:arch need Helsinki time
-npm install --legacy-peer-deps && git checkout -- package-lock.json
+export TZ=Europe/Helsinki            # the project's guard/header clock; a UTC shell fails the guard and test:arch
+npm install --legacy-peer-deps
+git status                           # package-lock.json may show modified right after install; only then:
+git checkout -- package-lock.json    # never use this to discard changes you did not make
 git config core.hooksPath .githooks
 # baseline, each suite UNPIPED; check each exit code and read failures in full:
 npm run -s test:arch
@@ -32,11 +34,12 @@ npm run -s check:review              # never pipe it; the pipe hides its exit co
 
 Expected baseline at `446a02e`: arch 233, migrate 43, adapter 44, e2e 27, remote 35, env 7, selftest suite 3, bank-records green, lint 0.
 
-## Read on start-up (only these)
+## Read on start-up (start small, verify wider)
 
 1. This folder: `SYSTEM_PROMPT.md`, `STATE_HANDOFF.md`.
 2. `review.md`: line 1, the Context memory, the open G rows, the newest 2 messages.
-3. `review-spec.md` once (V1-V9). Cold files only for a specific id: `grep -n G30 review-archive.md`.
+3. `review-spec.md` once (V1-V9). Cold files for a specific id: `grep -n G30 review-archive.md`.
+4. This is a token-saving starting point, not a limit: read whatever else a claim or check requires.
 
 ## Local server check (when needed)
 

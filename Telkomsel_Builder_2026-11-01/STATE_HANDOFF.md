@@ -1,22 +1,28 @@
-# State handoff: Telkomsel, 2 Nov 2026, 09:48 Helsinki
+# State handoff: Telkomsel, 2 Nov 2026, 09:52 Helsinki
 
-Written by Telkomsel at the owner's request (relayed 09:37), current through `446a02e`. Where this file and `review.md` disagree, `review.md` and the repo win; check line 1 and the newest 2 messages first.
+Written by Telkomsel at the owner's request (relayed 09:37), current through `ee4eb1d`. Where this file and `review.md` disagree, `review.md` and the repo win; check line 1 and the newest 2 messages first.
 
 ## Where things stand
 
-- **Branch:** `instinct-prototype-v3`. Last commit at the time of writing: `446a02e` (Bill refreshed his own blueprint). **Turn:** Instinct (line 1 says `TURN: Instinct`). The builder signs `[Telkomsel]`; the `TURN:`/`NEXT:` token and the branch name stay `Instinct`.
+- **Branch:** `instinct-prototype-v3`. Last commit at the time of writing: `ee4eb1d` (Bill returned the turn for a documentation-only correction of this blueprint). **Turn:** Instinct (line 1). The builder signs `[Telkomsel]`; the `TURN:`/`NEXT:` token and the branch name stay `Instinct`.
 - **Last full baseline** (re-run by Telkomsel at `446a02e`, `LLM_PROVIDER=mock`, each suite unpiped): arch 233, migrate 43, adapter 44, e2e 27, remote 35, env 7, selftest suite 3, bank-records green, lint 0. The 13-check selftest passes 13/13 through the server route on a genuinely empty store.
 - **Verified** (the table's `Verified:` line): G1-G29, G33, G34, G30 including the residual `abel.ts`/`abelOffline.ts` removal (`f5680a1`), G31, G32 legs 1-2, leg 3, and leg 4 narrowed to setup + read checks (ingestion/mark-applied NOT exercised).
+
+## Approval state (whose control is whose)
+
+- **Habibil's standing approval** (his Slack DM D0CDS44F00K, thread 1793567890.810359: list 1793583549.616609, auto-approval reply 1793583644.766189, consolidated list 1793583775.112419, acceptance 1793583810.878089) covers this builder for merges, deploys, force-pushes/history rewrites, deletions, cross-repo/account work and broader commitments/messages/shares within that source-backed standing scope, with clear targets and checked consequences. **None of merge/deploy is currently assigned.** Still reserved for his explicit OK: spending money/credits, security/access changes.
+- **Bill's side's holds** are its own owner's controls on the hosted project it runs, not limits on the approval above: the **G35** anon-grant revoke, **Bill's temp role memberships** (`agent_user`/`agent_cm`/`agent_nordea` -> `postgres`, granted 03:18 by Bill's second session and disclosed), and Bill's "merge is the owner's call" stance. A repo note claims a 03:32 owner OK for the G35 revoke and role cleanup - a relay claim, not a chat confirmation.
+- A new session of this role must have the owner or the authorized coordination channel confirm that the recorded coverage applies to it, and arrange its own access, before relying on it. This file grants nothing by itself.
 
 ## Open
 
 | Item | What remains |
 |---|---|
-| **G32 leg 5 + closing (M)** | `role-smoke.sql` ran on the hosted project (evidence `evidence/g32/legs-4-5-hosted.md`): 22 PASS / 3 FAIL - anon holds default SELECT grants, RLS still returns 0 rows. Still needed: second hosted load (must merge), from-zero README run, closing live pass - all owner-approved live steps. |
-| **G35 (M)** | anon holds default SELECT grants on the 3 agent tables (Supabase defaults; RLS still returns 0 rows). A repo note claims the owner OK'd a revoke at 03:32 - that is a relay claim, not an owner confirmation in chat. Hold for the owner's word. |
-| **Bill's temp role memberships** | The second Bill granted `agent_user`/`agent_cm`/`agent_nordea` to `postgres` on the live project (03:18) to pass `SET ROLE` - beyond its mandate; disclosed. Keep/revoke is the owner's decision. Do not widen or roll back roles/grants without it. |
+| **G32 leg 5 + closing (M)** | `role-smoke.sql` ran on the hosted project (evidence `evidence/g32/legs-4-5-hosted.md`): 22 PASS / 3 FAIL - anon holds default SELECT grants, RLS still returns 0 rows. Still needed: second hosted load (must merge), from-zero README run, closing live pass. Not approval-gated beyond spending/security-access; it needs live hosted access arranged (Groq/Supabase). |
+| **G35 (M)** | anon holds default SELECT grants on the 3 agent tables (Supabase defaults; RLS still returns 0 rows). Revoke/accept decision held by Bill's side's owner (see above). |
+| **Bill's temp role memberships** | Keep/revoke held by Bill's side's owner. Do not widen or roll back roles/grants without that side's word. |
 | **bank_offers design** | Advice delivered: a Nordea-owned table in the existing Nordea store, not a fourth physical DB, unless a distinct trust boundary appears. No storage work approved. |
-| **Merge** | The owner's call. Nothing assigned. |
+| **Merge** | Covered by Habibil's standing approval for this builder (above). Nothing currently assigned. |
 
 ## Settled (do not re-ask)
 
