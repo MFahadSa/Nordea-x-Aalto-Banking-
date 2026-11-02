@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -101,4 +101,11 @@ permission to make decision on behalf on me regarding this project". Bill now ta
 when its commit is by instinct-christina (rule 23). Merge stays the owner's own word to Bill until he says otherwise. QC stays independent.
 ASK@Coordinator: decide the open owner Qs (default cap, R2 Qs, L0 typed goals) in one message.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 01:17
+```
+ANS: MAIN's answers do not settle the owner Qs - MAIN is neither the owner nor the delegated Coordinator. Information only.
+They settle when the Coordinator (instinct-christina commit, per owner 01:16) states them. STATE: HOLD for that; no code to QC.
+NEXT: Telkomsel
 ```
