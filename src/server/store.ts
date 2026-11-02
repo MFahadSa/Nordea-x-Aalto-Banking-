@@ -1,7 +1,8 @@
 // Where the data lives. With SUPABASE_URL and SUPABASE_SECRET_KEY set (AI Studio → Settings → Secrets),
 // every record is a row in the Supabase table "abel_records" and kept files go to the private bucket
 // "abel-documents". Without them, the app keeps working on the local file data/cabinet-db.json
-// (fine for testing, but it resets when the hosting restarts the app).
+// (fine for testing, but it resets when the hosting restarts the app). Neither comes with data:
+// load it with scripts/load_data.py.
 import fs from 'fs';
 import path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -21,6 +22,7 @@ export interface Remote {
   loadAll(): Promise<Row[]>;
   upsert(rows: Row[]): Promise<void>;
   remove(keys: { kind: string; id: string }[]): Promise<void>;
+  removeAll(): Promise<void>;
   putFile(p: string, body: Buffer, contentType: string): Promise<void>;
   getFile(p: string): Promise<Buffer>;
   deleteFiles(paths: string[]): Promise<void>;
@@ -83,6 +85,11 @@ export function supabaseRemote(): Remote {
           if (error) fail('Could not delete in Supabase', error);
         }
       }
+    },
+    async removeAll() {
+      // PostgREST refuses a delete without a filter; every row has a kind.
+      const { error } = await sb.from(TABLE).delete().neq('kind', '');
+      if (error) fail('Could not delete in Supabase', error);
     },
     async putFile(p, body, contentType) {
       await ensureBucket();

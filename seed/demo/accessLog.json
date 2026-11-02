@@ -1,0 +1,24 @@
+[
+  {
+    "id": "log-seed-1",
+    "timestamp": "2026-10-28T09:00:00.000Z",
+    "userId": "lauri",
+    "agentId": "abel",
+    "agentName": "Abel",
+    "purpose": "Your first chat with Abel",
+    "itemsReadCount": 4,
+    "blockedCount": 1,
+    "allowedItems": [
+      "Buy a flat with my partner",
+      "Save for a car",
+      "I prefer low-risk saving",
+      "Salary increased to 3 900 €"
+    ],
+    "blockedReasons": [
+      {
+        "title": "Dining out rose to ~390 €/mo",
+        "reason": "Observation pending customer review/approval"
+      }
+    ]
+  }
+]

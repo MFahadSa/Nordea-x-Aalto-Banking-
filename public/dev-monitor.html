@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Context Cabinet - Developer Monitor</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', 'Helvetica Neue', Arial, sans-serif; }
+  body { background:#2b2f36; min-height:100vh; padding:26px 30px 22px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+  .title { color:#fff; font-size:28px; font-weight:700; }
+  .title small { display:block; font-size:14px; font-weight:400; color:#aab2bd; margin-top:4px; }
+  .badges { display:flex; gap:10px; align-items:center; }
+  .badge-ro { background:#8a1f1f; color:#fff; font-size:14px; font-weight:700; padding:8px 16px; border-radius:8px; letter-spacing:1px; }
+  .badge-ro span { font-weight:400; opacity:.85; }
+  .badge-live { background:#14201a; border:1px solid #2ea043; color:#7ee2a0; font-size:13px; padding:8px 14px; border-radius:8px; }
+  .badge-live.err { border-color:#cf222e; color:#ff9b94; background:#241314; }
+  .who { color:#b7bec7; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .who select { background:#1f2329; color:#e6e9ed; border:1px solid #3a4048; border-radius:8px; padding:7px 10px; font-size:13.5px; }
+  .gapnote { background:#3a2f14; border:1px solid #9a6700; color:#e8c468; border-radius:10px; padding:10px 16px;
+             font-size:13.5px; margin-bottom:16px; line-height:1.45; }
+  .windows { display:flex; gap:22px; align-items:stretch; }
+  .window { flex:1; min-width:0; background:#f4f5f7; border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+            box-shadow:0 14px 40px rgba(0,0,0,.45); border-top:6px solid #888; }
+  .w-user { border-top-color:#0000A0; }
+  .w-collab { border-top-color:#0E7A69; }
+  .w-nordea { border-top-color:#20304a; }
+  .wtitle { display:flex; align-items:center; gap:10px; padding:13px 18px 9px; }
+  .dots { display:flex; gap:6px; }
+  .dot { width:11px; height:11px; border-radius:50%; }
+  .wtitle h2 { font-size:20px; color:#1c2128; font-weight:700; }
+  .agentline { display:flex; align-items:flex-start; gap:8px; margin:0 18px 10px; padding:8px 12px; background:#e8eaee;
+               border-radius:8px; font-size:13px; color:#333a45; line-height:1.4; }
+  .agentline b { color:#111; }
+  .visline { margin:0 18px 10px; padding:8px 12px; background:#e2f0ed; border-radius:8px; font-size:13px; color:#0b4f43; line-height:1.4; }
+  .cards { padding:0 18px 14px; display:flex; flex-direction:column; gap:10px; flex:1; overflow-y:auto; max-height:52vh; }
+  .empty { color:#8b949e; font-size:13.5px; text-align:center; padding:26px 10px; border:1px dashed #d0d5db; border-radius:10px; }
+  .card { background:#fff; border:1px solid #d8dce2; border-radius:10px; padding:11px 14px; }
+  .card.new { animation:pulse 2.4s ease-out 1; border-color:#2ea043; }
+  @keyframes pulse { 0% { box-shadow:0 0 0 4px rgba(46,160,67,.55); } 100% { box-shadow:0 0 0 0 rgba(46,160,67,0); } }
+  .chip { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.8px; padding:3px 9px; border-radius:20px; margin-bottom:6px; text-transform:uppercase; }
+  .chip-goal { background:#ddf4e4; color:#1a7f37; }
+  .chip-preference { background:#dbeafe; color:#0958d9; }
+  .chip-observation { background:#fff1e5; color:#b0461f; }
+  .chip-fact { background:#ede9fe; color:#6d28d9; }
+  .chip-life_event { background:#fce7f3; color:#be185d; }
+  .chip-blind_spot { background:#f6f8fa; color:#57606a; }
+  .card h3 { font-size:15.5px; color:#10151b; margin-bottom:3px; }
+  .card p { font-size:12.5px; color:#57606a; line-height:1.35; }
+  .card .meta { margin-top:7px; font-size:11.5px; color:#8b949e; border-top:1px dashed #e2e6ea; padding-top:6px; }
+  .elig { display:inline-block; margin-top:7px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:6px; }
+  .elig-yes { background:#ddf4e4; color:#1a7f37; }
+  .elig-no { background:#ffebe9; color:#cf222e; }
+  .statusbar { margin-top:auto; padding:10px 18px; background:#22262d; color:#d7dce2; font-size:12.5px;
+               display:flex; align-items:flex-start; gap:9px; line-height:1.45; }
+  .statusbar b { color:#fff; }
+  .dbdot { width:10px; height:10px; border-radius:50%; background:#2ea043; flex:none; margin-top:4px; }
+  .dbdot.warn { background:#9a6700; }
+  .dbdot.err { background:#cf222e; }
+  .streams { display:flex; gap:22px; margin-top:20px; }
+  .stream { flex:1; background:#1f2329; border:1px solid #3a4048; border-radius:12px; padding:14px 18px; min-width:0; }
+  .stream h3 { color:#e6e9ed; font-size:15px; margin-bottom:10px; }
+  .stream .rows { max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+  .ev { font-size:12.5px; color:#b7bec7; display:flex; gap:8px; align-items:baseline; }
+  .ev time { color:#6e7681; flex:none; font-variant-numeric:tabular-nums; }
+  .ev .who { font-weight:700; flex:none; }
+  .who-you { color:#79b8ff; } .who-abel { color:#7ee2a0; } .who-nordea { color:#ffb77c; }
+  #arch-window { color:#24292f; }
+  #arch-window h2, #arch-window h3 { color:#24292f; }
+  #arch-window .ev { color:#3d444d; }
+  #arch-window .ev time { color:#6a737d; }
+  #arch-window .agentline { color:#3d444d; }
+  #arch-window .who-abel, #arch-window .who-you { color:#0550ae; }
+  #arch-window .who-nordea { color:#9a4a00; }
+  .sectionlabel { color:#8b949e; font-size:12px; letter-spacing:.08em; text-transform:uppercase; margin:22px 0 8px; }
+  .footnote { margin-top:14px; color:#8b949e; font-size:12.5px; display:flex; justify-content:space-between; gap:40px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">Context Cabinet - Developer Monitor
+      <small id="subtitle">Read-only monitoring of the real app state · polls every 3 s</small>
+    </div>
+    <div class="badges">
+      <label class="who">Customer <select id="who" aria-label="Customer to monitor"></select></label>
+      <div class="badge-live" id="live">connecting…</div>
+      <div class="badge-ro">READ-ONLY <span>· display only, no controls</span></div>
+    </div>
+  </div>
+
+  <div class="gapnote" id="gapnote" style="display:none"></div>
+
+  <div class="sectionlabel">Legacy app model - the original Context Cabinet demo (single store, gateway rules, adviser share). Not the three-database architecture.</div>
+  <div class="windows">
+    <div class="window w-user">
+      <div class="wtitle"><div class="dots"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div></div><h2>User context</h2></div>
+      <div class="agentline"><span>Managing agent: <b>Abel</b> (user agent) - <span id="abel-ai">AI model: …</span><br><span id="abel-activity">observed activity: …</span></span></div>
+      <div class="cards" id="user-cards"></div>
+      <div class="statusbar" id="user-db"></div>
+    </div>
+
+    <div class="window w-collab">
+      <div class="wtitle"><div class="dots"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div></div><h2>Collaborative context</h2></div>
+      <div class="agentline"><span>Managing agent: <b>not assigned</b> · visible to <b>user agent (Abel) + Nordea agent</b></span></div>
+      <div class="visline" id="collab-note"></div>
+      <div class="cards" id="collab-cards"></div>
+      <div class="statusbar" style="background:#0b4f43" id="collab-db"></div>
+    </div>
+
+    <div class="window w-nordea">
+      <div class="wtitle"><div class="dots"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div></div><h2>Nordea agent context</h2></div>
+      <div class="agentline"><span>Managing agent: <b>Nordea adviser</b> - <span id="adviser-ai">AI model: …</span><br><span id="adviser-activity">observed activity: …</span></span></div>
+      <div class="cards" id="nordea-cards"></div>
+      <div class="statusbar" id="nordea-db"></div>
+    </div>
+  </div>
+
+  <div class="streams">
+    <div class="stream"><h3>Context flow (entry history, newest first)</h3><div class="rows" id="events"></div></div>
+    <div class="stream"><h3>Gateway reads (audited, newest first)</h3><div class="rows" id="reads"></div></div>
+  </div>
+
+  <div class="window" id="arch-window" style="display:none;margin-top:18px">
+    <div class="wtitle"><div class="dots"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div></div><h2>Architecture prototype: three databases, three agents (live, local SQLite stores)</h2></div>
+    <div class="agentline"><span id="arch-agents"></span></div>
+    <div class="statusbar" id="arch-stores" style="position:static;margin:8px 12px"></div>
+    <h3 style="margin:8px 12px 4px;font-size:13px">Agent-to-agent bus (newest first, real stored messages; external-agent events are simulated demos, never real external connections)</h3>
+    <div class="rows" id="arch-bus" style="padding:0 12px 10px"></div>
+  </div>
+
+  <div class="footnote">
+    <div>Panels show only what the access gateway allows each side to read. Pending or private cards never appear in the collaborative list.</div>
+    <div>Monitoring has no side effects: gateway rules are evaluated in preview mode (no access-log writes, no reward changes).</div>
+  </div>
+
+<script>
+const params = new URLSearchParams(location.search);
+// Without ?userId the server picks lauri, or the first customer when there is no lauri.
+// The picker changes only which customer is watched (kept in the address as ?userId=), never any data.
+let userId = params.get('userId');
+const who = document.getElementById('who');
+function fillPicker(customers, current) {
+  const key = customers.map((c) => c.id + ':' + c.name).join('|');
+  if (who.dataset.key !== key) {
+    who.innerHTML = customers.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(c.id)})</option>`).join('');
+    who.dataset.key = key;
+  }
+  if (current) who.value = current;
+}
+who.addEventListener('change', () => {
+  userId = who.value;
+  const u = new URL(location.href);
+  u.searchParams.set('userId', userId);
+  history.replaceState(null, '', u);
+  knownIds = new Set();
+  firstLoad = true;
+  tick();
+});
+let knownIds = new Set();
+let firstLoad = true;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString() : '';
+
+function cardHtml(e, opts = {}) {
+  const isNew = !firstLoad && !knownIds.has(e.id);
+  let tags = '';
+  if (opts.collab) {
+    tags = '<span class="elig elig-yes">VISIBLE TO BOTH SIDES NOW - gateway-approved + active share</span>';
+  } else if (e.pendingConfirmation) {
+    tags = '<span class="elig elig-no">NOT SHARED - pending customer confirmation</span>';
+  } else if (e.shared) {
+    tags = '<span class="elig elig-yes">VISIBLE TO NORDEA SIDE NOW</span>';
+  }
+  return `<div class="card${isNew ? ' new' : ''}">
+    <span class="chip chip-${esc(e.type)}">${esc(e.type.replace('_', ' '))}</span>
+    <h3>${esc(e.title)}</h3><p>${esc(e.detail)}</p>
+    <div class="meta">source: ${esc(e.source)} · status: ${esc(e.status)}${e.private ? ' · private' : ''}${opts.userPanel ? ' · Abel can read: ' + (e.agentCanRead ? 'yes' : 'no') : ''}</div>
+    ${tags}</div>`;
+}
+
+function renderCards(el, entries, emptyText, opts) {
+  el.innerHTML = entries.length ? entries.map((e) => cardHtml(e, opts)).join('') : `<div class="empty">${esc(emptyText)}</div>`;
+}
+
+async function tick() {
+  const live = document.getElementById('live');
+  let d;
+  try {
+    const asked = userId;
+    const r = await fetch(`/api/dev/monitor${asked ? `?userId=${encodeURIComponent(asked)}` : ''}`, { cache: 'no-store' });
+    const body = await r.json().catch(() => ({}));
+    // A poll for the previously picked customer may land after a switch: drop it.
+    if (asked !== userId) return;
+    if (body.customers) fillPicker(body.customers, body.userId || (r.ok ? null : ''));
+    if (!r.ok) {
+      // No data / no such customer / monitor off are states, not outages: say which.
+      live.className = 'badge-live err';
+      live.textContent = body.code === 'NO_DATA' ? 'No data loaded yet - load data with scripts/load_data.py'
+        : body.error || `monitor endpoint unreachable - HTTP ${r.status}`;
+      return;
+    }
+    d = body;
+  } catch (err) {
+    live.className = 'badge-live err';
+    live.textContent = `monitor endpoint unreachable - ${err.message}`;
+    return;
+  }
+
+  live.className = 'badge-live';
+  live.textContent = `data read at ${fmtTime(d.generatedAt)}`;
+  document.getElementById('subtitle').textContent =
+    `Monitoring: ${d.userName} (${d.userId}) · read-only · polls every 3 s` +
+    (d.demoPersona ? ' · demo persona from seed/demo - fictional data, not a real customer' : '');
+  const act = (a) => {
+    if (!a) return 'no gateway reads recorded';
+    const what = `read ${a.itemsReadCount} card(s)${a.blockedCount ? `, ${a.blockedCount} blocked` : ''} at ${fmtTime(a.at)}`;
+    return a.sinceStart ? `${what} (this run)` : `${what} (recorded in the loaded dataset, before this run)`;
+  };
+  document.getElementById('abel-activity').textContent = 'Observed activity: ' + act(d.activity && d.activity.abel);
+  document.getElementById('adviser-activity').textContent = 'Observed activity: ' + act(d.activity && d.activity.adviser);
+  // The AI behind Abel (live status from the server). Only Abel uses a language model.
+  const aiLine = (ai) => {
+    if (!ai) return 'AI model: unknown';
+    if (!ai.keyPresent) return 'AI model: none set up (no key) - the bank code answers';
+    const parts = ['AI model: ' + (ai.model || 'unknown') + (ai.lastOk ? ' (answered last at ' + fmtTime(ai.lastOk.at) + ')' : ' (no answer yet in this run)')];
+    if (ai.members && ai.members.length > 1) {
+      parts.push('fallback order: ' + ai.members.map((m) => m.name + (!m.configured ? ' (not set up)' : m.restingFor ? ' (resting ' + m.restingFor + ' s)' : '')).join(' → '));
+    } else if (ai.candidates && ai.candidates.length > 1) {
+      parts.push('tries: ' + ai.candidates.join(' → '));
+    }
+    if (ai.thinking) parts.push('thinking: ' + ai.thinking);
+    if (ai.lastError) parts.push('last error ' + fmtTime(ai.lastError.at) + (ai.lastError.model ? ' (' + ai.lastError.model + ')' : '') + ': ' + ai.lastError.message);
+    return parts.join(' · ');
+  };
+  document.getElementById('abel-ai').textContent = aiLine(d.ai);
+  document.getElementById('adviser-ai').textContent = d.usesLlm && d.usesLlm.adviser ? aiLine(d.ai) : 'No AI model - rules and code: its cards come from account-data analysis, and it reads only during a one-time share';
+
+  // User panel
+  renderCards(document.getElementById('user-cards'), d.panels.user.entries,
+    'No user context cards yet. Add context in the app and it appears here.', { userPanel: true });
+
+  // Collaborative panel: effective access, not potential eligibility. No active
+  // share means the Nordea side can read nothing, so the list is empty and says why.
+  const share = d.panels.collaborative.shareActive;
+  const pot = d.panels.collaborative.potentialCount || 0;
+  document.getElementById('collab-note').textContent = share
+    ? 'One-time share ACTIVE. These cards pass the access gateway for both sides right now.'
+    : `No active one-time share, so the Nordea side can read nothing right now. ${pot} card(s) pass the gateway rules for both sides and would appear here if the customer starts a share.`;
+  renderCards(document.getElementById('collab-cards'), d.panels.collaborative.entries,
+    share ? 'No cards pass the gateway rules for both sides.' : 'Empty - no active share.', { collab: true });
+
+  // Nordea panel
+  renderCards(document.getElementById('nordea-cards'), d.panels.nordea.entries,
+    'No Nordea-produced context cards yet. They appear when account-data analysis runs (nordea_feed row or file upload).', {});
+
+  // Status bars (live values)
+  const st = d.storage;
+  const dbLine = st.mode === 'supabase'
+    ? `Database: <b>Supabase · abel_records</b> - ${st.ok ? 'connected' : 'ERROR'}${st.waiting ? ` · ${st.waiting} change(s) saving` : ''}`
+    : st.mode === 'memory'
+    ? `Database: <b>memory only</b> - ERROR (Supabase is set up but can't be reached; changes are lost on restart)`
+    : `Database: <b>local file data/cabinet-db.json</b> - ${st.ok ? 'in use' : 'ERROR'} (Supabase not configured)`;
+  document.getElementById('user-db').innerHTML =
+    `<div class="dbdot${st.ok ? '' : ' err'}"></div><span>${dbLine}<br><span style="opacity:.65">${esc(st.message || '')}</span></span>`;
+  const storeLabel = st.mode === 'supabase' ? 'Supabase · abel_records' : st.mode === 'memory' ? 'memory only' : 'local file data/cabinet-db.json';
+  document.getElementById('collab-db').innerHTML =
+    `<div class="dbdot${share ? '' : ' warn'}"></div><span>Shared list only - <b>no own database</b><br><span style="opacity:.7">Cards mirror gateway-eligible records from the same store (${storeLabel}) · share ${share ? 'active' : 'inactive'}</span></span>`;
+  const f = d.feed || {};
+  document.getElementById('nordea-db').innerHTML =
+    `<div class="dbdot${st.ok ? '' : ' err'}"></div><span>Database: <b>${storeLabel}</b> - ${st.ok ? (st.mode === 'supabase' ? 'connected' : 'in use') : 'ERROR'} (same store as user window)<br><span style="opacity:.65">Input inbox: Supabase · nordea_feed - ${f.enabled ? (f.ok ? 'watching' : 'ERROR') + (f.lastCheck ? ' · last check ' + fmtTime(f.lastCheck) : '') : 'off (Supabase not configured; file upload still possible)'}${f.lastApplied ? ' · last applied ' + fmtTime(f.lastApplied.at) : ''}</span></span>`;
+
+  // Gap note, shown once we know the state
+  const gn = document.getElementById('gapnote');
+  gn.style.display = 'block';
+  gn.textContent = 'The upper panels are the LEGACY app model (original Context Cabinet); the lower panel is the new architecture prototype. Known gap in the legacy model: the code has no autonomous Nordea agent loop yet. Nordea-side cards appear when account-data analysis runs (a nordea_feed row or a file upload), and the adviser role can only read shared cards during an active one-time share. An agent that analyses and adds cards back to the collaborative cabinet on its own is not implemented; this monitor only displays what the real app does.';
+
+  // Streams
+  document.getElementById('events').innerHTML = (d.events || []).map((h) =>
+    `<div class="ev"><time>${fmtTime(h.at)}</time><span class="who who-${esc(h.by)}">${esc(h.by)}</span><span>${esc(h.action)} “${esc(h.title)}”${h.how ? ' · ' + esc(h.how) : ''}</span></div>`).join('')
+    || '<div class="ev">No context changes recorded yet.</div>';
+  document.getElementById('reads').innerHTML = (d.accessLog || []).map((l) =>
+    `<div class="ev"><time>${fmtTime(l.timestamp)}</time><span class="who who-abel">${esc(l.agentName)}</span><span>read ${l.itemsReadCount} card(s)${l.blockedCount ? `, ${l.blockedCount} blocked` : ''}</span></div>`).join('')
+    || '<div class="ev">No gateway reads recorded yet.</div>';
+
+  // Three-database architecture panel: real state from the arch SQLite stores, when the customer has any.
+  const aw = document.getElementById('arch-window');
+  if (d.arch) {
+    aw.style.display = 'block';
+    const st = d.arch.stores;
+    const pa = d.arch.personalAgent || {};
+    const paLine = pa.mode === 'external'
+      ? `personal agent: EXTERNAL (${esc(pa.externalName || 'unnamed')}) - SIMULATED, no live connection`
+      : 'personal agent: Abel (in-app)';
+    const off = (d.arch.agentsOff || []).length ? ` - agents off: ${d.arch.agentsOff.map(esc).join(', ')}` : '';
+    document.getElementById('arch-agents').innerHTML = `${paLine}${off}`;
+    document.getElementById('arch-stores').textContent =
+      `${st.userDb.file}: ${st.userDb.goals} goals, ${st.userDb.personalFacts} facts | ` +
+      `${st.contextMemoryDb.file}: ${st.contextMemoryDb.entries} entries (${st.contextMemoryDb.active} active, ${st.contextMemoryDb.stale} stale, ${st.contextMemoryDb.disputed} disputed) | ` +
+      (st.nordeaDb ? `${st.nordeaDb.file}: ${st.nordeaDb.accounts} accounts, ${st.nordeaDb.transactions} transactions | ` : 'nordea.db: not created | ') +
+      `${st.busDb.file}: ${st.busDb.messages} messages, ${st.busDb.airlockPending} airlock pending`;
+    document.getElementById('arch-bus').innerHTML = (d.arch.recentMessages || []).map((m) =>
+      `<div class="ev"><time>${fmtTime(m.at)}</time><span class="who who-abel">${esc(m.from)}&rarr;${esc(m.to)}</span><span>[${esc(m.type)}] ${esc(m.summary)}</span></div>`).join('')
+      || '<div class="ev">No architecture messages yet.</div>';
+  } else {
+    aw.style.display = 'none';
+  }
+
+  knownIds = new Set([
+    ...d.panels.user.entries.map((e) => e.id),
+    ...d.panels.collaborative.entries.map((e) => e.id),
+    ...d.panels.nordea.entries.map((e) => e.id),
+  ]);
+  firstLoad = false;
+}
+
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

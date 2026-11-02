@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three stores, three agents (local prototype)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; }
+  body { background:#2b2f36; min-height:100vh; padding:24px 28px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:12px; }
+  .title { color:#fff; font-size:26px; font-weight:700; }
+  .title small { display:block; font-size:13.5px; font-weight:400; color:#aab2bd; margin-top:4px; }
+  .who { color:#b7bec7; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .who input { background:#1f2329; color:#e6e9ed; border:1px solid #3a4048; border-radius:8px; padding:7px 10px; font-size:13.5px; width:110px; }
+  .note { background:#14202e; border:1px solid #1f4e79; color:#9ec5e8; border-radius:10px; padding:10px 16px; font-size:13.5px; margin-bottom:14px; line-height:1.5; }
+  .windows { display:flex; gap:18px; align-items:stretch; }
+  .window { flex:1; min-width:0; background:#f4f5f7; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 14px 40px rgba(0,0,0,.45); border-top:6px solid #888; }
+  .w-user { border-top-color:#0000A0; } .w-cm { border-top-color:#0E7A69; } .w-nordea { border-top-color:#20304a; }
+  .wtitle { padding:12px 16px 6px; } .wtitle h2 { font-size:18px; color:#1c2128; }
+  .agentline { margin:0 16px 8px; padding:7px 11px; background:#e8eaee; border-radius:8px; font-size:12.5px; color:#333a45; line-height:1.45; }
+  .body { padding:0 16px 12px; font-size:13px; color:#24292f; display:flex; flex-direction:column; gap:8px; }
+  .pill { display:inline-block; background:#ddf4e4; color:#116d39; border-radius:99px; padding:2px 10px; font-size:12px; margin:1px 3px 1px 0; }
+  .pill.off { background:#ffe2e0; color:#a4352c; }
+  .controls { display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
+  button { border:1px solid #c9ced6; background:#fff; border-radius:8px; padding:5px 11px; font-size:12.5px; cursor:pointer; }
+  button:hover { background:#eef1f4; }
+  button.primary { background:#0000A0; border-color:#0000A0; color:#fff; }
+  button.danger { color:#a4352c; border-color:#e2b6b2; }
+  .queue { margin-top:18px; background:#f4f5f7; border-radius:14px; padding:14px 18px; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+  .queue h2 { font-size:16px; color:#1c2128; margin-bottom:8px; }
+  .item { background:#fff; border:1px solid #d8dce2; border-radius:10px; padding:9px 13px; margin-bottom:8px; font-size:13px; }
+  .item .meta { color:#6a737d; font-size:12px; margin-top:3px; }
+  .chatlog { background:#fff; border:1px solid #d8dce2; border-radius:10px; padding:10px 13px; max-height:150px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:6px; }
+  .chatlog .me { color:#0000A0; } .chatlog .agent { color:#0b4f43; }
+  .chatrow { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .chatrow input { min-width:0; }
+  .chatrow button { flex:none; }
+  @media (max-width: 1100px) { .windows { flex-direction:column; } }
+  .chatrow input { flex:1; border:1px solid #c9ced6; border-radius:8px; padding:8px 11px; font-size:13.5px; }
+  .msgs { margin-top:18px; background:#20242a; border-radius:14px; padding:14px 18px; }
+  .msgs h2 { font-size:15px; color:#e6e9ed; margin-bottom:8px; }
+  .msg { font-size:12.5px; color:#b7bec7; padding:5px 0; border-bottom:1px solid #2f343b; line-height:1.5; }
+  .msg b { color:#e6e9ed; }
+  .empty { color:#8b949e; font-size:13px; }
+  .entrydisputed { border-color:#e2b6b2; background:#fff5f4; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="title">Three stores, three agents <span style="font-size:13px;background:#5a4a12;color:#e8c468;border-radius:6px;padding:3px 9px;vertical-align:middle;">LOCAL PROTOTYPE</span><small>Three SQLite database files (one per store) in one server process - separation by code convention, not credentials or network isolation. Every exchange between agents is an explicit message you can read below.</small></div>
+  <label class="who">Customer <input id="uid" value="lauri"></label>
+</div>
+<div class="note">The <b>sync airlock</b> gates only what a connected external personal agent pulls in (WhatsApp, calendar, notes, email). What you type to Abel goes straight in. Bank-side proposals are filtered by your goals and wait for your review. The cabinet advises - it never changes your bank data. <b>External-agent mode is simulated: no live connection to Meta or any external service - sync items are posted through a demo endpoint.</b></div>
+<div class="windows">
+  <div class="window w-user">
+    <div class="wtitle"><h2>User DB</h2></div>
+    <div class="agentline" id="a-personal"></div>
+    <div class="body">
+      <div id="user-summary"></div>
+      <div id="user-goals"></div>
+      <div id="user-facts"></div>
+      <div class="controls">
+        <input id="agent-name" placeholder="External agent name" style="border:1px solid #c9ced6;border-radius:8px;padding:5px 9px;font-size:12.5px;width:130px;">
+        <button id="btn-connect" class="primary">Connect (simulated)</button>
+        <button id="btn-disconnect">Disconnect</button>
+        <button id="btn-off-personal">Turn off</button>
+        <button id="btn-del-user" class="danger">Delete DB</button>
+      </div>
+      <div class="chatlog" id="chatlog"></div>
+      <div class="chatrow"><input id="chat-in" placeholder='Talk to your personal agent... try "my goal is to visit Japan"'><button id="btn-chat" class="primary">Send</button></div>
+      <div class="chatrow"><input id="sync-src" placeholder="sync source (whatsapp)" style="flex:0 1 150px;border:1px solid #c9ced6;border-radius:8px;padding:8px 11px;font-size:12.5px;"><input id="sync-text" placeholder="synced item text" style="flex:1 1 140px;"><button id="btn-sync">Simulate sync</button></div>
+    </div>
+  </div>
+  <div class="window w-cm">
+    <div class="wtitle"><h2>Context Memory DB (cabinet)</h2></div>
+    <div class="agentline" id="a-cm"></div>
+    <div class="body">
+      <div id="cm-summary"></div>
+      <div id="cm-entries"></div>
+      <div class="controls"><button id="btn-off-cm">Turn off</button><button id="btn-park-cm">Park cabinet</button><button id="btn-del-cm" class="danger">Delete DB</button></div>
+    </div>
+  </div>
+  <div class="window w-nordea">
+    <div class="wtitle"><h2>Nordea DB</h2></div>
+    <div class="agentline" id="a-nordea"></div>
+    <div class="body">
+      <div id="nordea-summary"></div>
+      <div class="controls">
+        <button id="btn-contribute" class="primary">Propose goal-relevant insights</button>
+        <button id="btn-off-nordea">Turn off</button>
+        <button id="btn-del-nordea" class="danger">Delete DB</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="queue">
+  <h2>Waiting for you</h2>
+  <div id="queues"></div>
+</div>
+<div class="msgs"><h2>Agent-to-agent messages (explicit, auditable)</h2>
+  <div style="font-size:12px;color:#8b949e;margin:-6px 0 8px;">Real stored history, including earlier demo runs. External-agent events (e.g. an external personal agent "connecting" or "syncing") are SIMULATED demos through the local demo endpoint, never real external connections.</div><div id="msgs"></div></div>
+<script>
+let uid = 'lauri';
+const $ = (id) => document.getElementById(id);
+const api = async (path, opts) => {
+  const r = await fetch(path, opts ? { method: opts.method || 'POST', headers: { 'Content-Type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined } : undefined);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { say('agent', j.error || 'Request failed'); throw new Error(j.error); }
+  return j;
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function say(who, text) {
+  const d = document.createElement('div');
+  d.className = who;
+  d.textContent = (who === 'me' ? 'You: ' : 'Agent: ') + text;
+  $('chatlog').appendChild(d); $('chatlog').scrollTop = 1e9;
+}
+async function refresh() {
+  uid = $('uid').value.trim() || 'lauri';
+  const s = await api(`/api/arch/${uid}/state`);
+  $('a-personal').innerHTML = `<b>Personal agent: ${esc(s.agents.personal.name)}</b> ${s.agents.personal.off ? '<span class="pill off">off</span>' : '<span class="pill">on</span>'}<br>Owns the User DB - profile, goals, personal facts. ${s.agents.personal.mode === 'external' ? 'External mode (SIMULATED - no live connection; syncs arrive via the demo endpoint and wait in the airlock).' : 'Abel, in the app. You talk to it here.'}`;
+  $('a-cm').innerHTML = `<b>Context Memory agent</b> ${s.agents.cm.off ? '<span class="pill off">off</span>' : '<span class="pill">on</span>'} ${s.databases.contextMemory.parked ? '<span class="pill off">parked</span>' : ''}<br>Owns the cabinet - the shared context between you and Nordea. Only this agent writes entries here.${s.databases.contextMemory.parked ? ' <b>Parked:</b> entries kept, no agent reads or new contributions until you reconnect.' : ''}`;
+  $('a-nordea').innerHTML = `<b>Nordea agent</b> ${s.agents.nordea.off ? '<span class="pill off">off</span>' : '<span class="pill">on</span>'}<br>Owns the Nordea DB - accounts and transactions. Proposes, never decides.`;
+  $('user-summary').innerHTML = `Goals: <b>${s.databases.user.goals}</b> · Personal facts: <b>${s.databases.user.personalFacts}</b>`;
+  $('cm-summary').innerHTML = `Cabinet entries: <b>${s.databases.contextMemory.entries}</b>${s.databases.contextMemory.disputed ? ` · <span style="color:#a4352c">${s.databases.contextMemory.disputed} disputed</span>` : ''}`;
+  $('nordea-summary').innerHTML = s.databases.nordea ? `Accounts: <b>${s.databases.nordea.accounts}</b> · Transactions: <b>${s.databases.nordea.transactions}</b>` : 'Empty until bank data is loaded (scripts/load_data.py).';
+  $('btn-off-personal').textContent = s.agents.personal.off ? 'Turn on' : 'Turn off';
+  $('btn-off-cm').textContent = s.agents.cm.off ? 'Turn on' : 'Turn off';
+  $('btn-park-cm').textContent = s.databases.contextMemory.parked ? 'Reconnect cabinet' : 'Park cabinet';
+  $('btn-off-nordea').textContent = s.agents.nordea.off ? 'Turn on' : 'Turn off';
+  const entries = await api(`/api/arch/${uid}/entries`);
+  $('cm-entries').innerHTML = entries.entries.length ? entries.entries.map((e) =>
+    `<div class="item ${e.status === 'disputed' ? 'entrydisputed' : ''}"><b>${esc(e.title)}</b> ${e.status === 'disputed' ? '<span class="pill off">disputed</span>' : ''}<br>${esc(e.detail)}
+     <div class="meta">proposed by ${esc(e.proposedBy)} · ${esc(e.createdAt.slice(0, 10))} · <a href="#" onclick="explain('${e.id}');return false;">why is this here?</a> · <a href="#" onclick="dispute('${e.id}');return false;">dispute</a></div></div>`).join('') : '<div class="empty">No shared context yet. Ask the Nordea agent to propose goal-relevant insights.</div>';
+  const q = [];
+  for (const b of s.queues.airlock) q.push(`<div class="item"><b>Airlock:</b> ${b.items.length} item(s) from ${esc(b.source)}<br>${b.items.map((i) => esc(i.text)).join('<br>')}
+    <div class="meta"><button class="primary" onclick="airlock('${b.id}',true)">Approve into User DB</button> <button class="danger" onclick="airlock('${b.id}',false)">Reject</button></div></div>`);
+  for (const m of s.queues.review) q.push(`<div class="item"><b>Merge review:</b> ${esc(m.summary)}<br>${esc(m.payload?.detail ?? '')}
+    <div class="meta">proposed by ${esc(m.from)} agent · <button class="primary" onclick="review('${m.id}',true)">Accept into cabinet</button> <button class="danger" onclick="review('${m.id}',false)">Reject</button></div></div>`);
+  $('queues').innerHTML = q.length ? q.join('') : '<div class="empty">Nothing waiting. Syncs and bank proposals land here for your decision.</div>';
+  $('msgs').innerHTML = s.messages.length ? s.messages.map((m) =>
+    `<div class="msg"><b>${esc(m.from)} → ${esc(m.to)}</b> [${m.type}${m.status !== 'read' ? '/' + m.status : ''}] ${esc(m.summary)}</div>`).join('') : '<div class="empty">No messages yet.</div>';
+}
+window.explain = async (id) => { const j = await api(`/api/arch/${uid}/entries/${id}/explain`); const x = j.explanation; say('agent', `${x.who}. ${x.why}. ${x.reviewedBy}.${x.evidence?.total != null ? ` Evidence: ${x.evidence.total} EUR across ${x.evidence.transactionIds?.length ?? 0} transactions.` : ''}`); };
+window.dispute = async (id) => { const reason = prompt('Why do you dispute this entry?'); if (reason) { await api(`/api/arch/${uid}/entries/${id}/dispute`, { body: { reason } }); refresh(); } };
+window.airlock = async (id, ok) => { await api(`/api/arch/${uid}/airlock/${id}/${ok ? 'approve' : 'reject'}`, {}); refresh(); };
+window.review = async (id, ok) => { await api(`/api/arch/${uid}/review/${id}/${ok ? 'accept' : 'reject'}`, {}); refresh(); };
+$('btn-chat').onclick = async () => { const t = $('chat-in').value.trim(); if (!t) return; $('chat-in').value = ''; say('me', t); const j = await api(`/api/arch/${uid}/chat`, { body: { text: t } }); say('agent', j.reply); refresh(); };
+$('chat-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-chat').click(); });
+$('btn-connect').onclick = async () => { const name = $('agent-name').value.trim() || 'Meta Muse'; await api(`/api/arch/${uid}/personal-agent/connect`, { body: { name } }); refresh(); };
+$('btn-disconnect').onclick = async () => { await api(`/api/arch/${uid}/personal-agent/disconnect`, {}); refresh(); };
+$('btn-sync').onclick = async () => { const source = $('sync-src').value.trim() || 'whatsapp'; const text = $('sync-text').value.trim(); if (!text) return; $('sync-text').value = ''; await api(`/api/arch/${uid}/sync`, { body: { source, items: [{ kind: 'note', text }] } }); refresh(); };
+$('btn-contribute').onclick = async () => { const j = await api(`/api/arch/${uid}/nordea/contribute`, {}); say('agent', j.proposals.length ? `Nordea agent proposed ${j.proposals.length} insight(s) - see "Waiting for you".` : 'No goal-relevant activity found to propose.'); refresh(); };
+$('btn-park-cm').onclick = async () => { const parked = $('btn-park-cm').textContent === 'Reconnect cabinet'; await api(`/api/arch/${uid}/cabinet/${parked ? 'resume' : 'park'}`, {}); refresh(); };
+for (const a of ['personal', 'cm', 'nordea']) $(`btn-off-${a}`).onclick = async () => { const off = $(`btn-off-${a}`).textContent === 'Turn off'; await api(`/api/arch/${uid}/agents/${a}/${off ? 'off' : 'on'}`, {}); refresh(); };
+for (const w of ['user', 'cm', 'nordea']) $(`btn-del-${w}`).onclick = async () => { if (confirm(`Really delete the ${w === 'cm' ? 'Context Memory' : w === 'user' ? 'User' : 'Nordea'} DB? Other databases are not touched.`)) { await api(`/api/arch/${uid}/db/${w}`, { method: 'DELETE' }); refresh(); } };
+$('uid').addEventListener('change', refresh);
+refresh().catch((e) => say('agent', e.message));
+</script>
+</body>
+</html>

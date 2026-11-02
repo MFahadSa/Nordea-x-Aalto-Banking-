@@ -14,10 +14,13 @@ import {
   StoredDocument,
   EntryEvent,
   DataReward,
+  BalanceSnapshot,
+  ImportBatch,
+  BankAccount,
 } from '../types.js';
 import { Remote, Row, supabaseConfigured, supabaseRemote, cleanErr } from './store.js';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = process.env.CABINET_DATA_DIR ? path.resolve(process.env.CABINET_DATA_DIR) : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'cabinet-db.json');
 
 export interface DatabaseState {
@@ -34,6 +37,9 @@ export interface DatabaseState {
   documents: StoredDocument[];
   entryHistory: EntryEvent[];
   dataRewards: DataReward[];
+  balanceSnapshots: BalanceSnapshot[];
+  importBatches: ImportBatch[];
+  bankAccounts: BankAccount[];
 }
 
 /** Who changed something in What Abel knows, and where. Recorded in the entry's history. */
@@ -60,7 +66,7 @@ function historyFor(entries: CabinetEntry[]): EntryEvent[] {
 }
 
 /** Each kind of record and how it's keyed. Users are a map, the rest are lists. */
-const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory', 'dataRewards'] as const;
+const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory', 'dataRewards', 'balanceSnapshots', 'importBatches', 'bankAccounts'] as const;
 type ListKind = (typeof LISTS)[number];
 const keyOf = (kind: ListKind, x: any): string => (kind === 'undoRecords' ? x.undoToken : x.id);
 // Rows come back unordered, so restore the order the app expects.
@@ -77,6 +83,9 @@ const ORDER: Record<ListKind, { field: string; desc?: boolean }> = {
   documents: { field: 'createdAt' },
   entryHistory: { field: 'at' },
   dataRewards: { field: 'at' },
+  balanceSnapshots: { field: 'at' },
+  importBatches: { field: 'at' },
+  bankAccounts: { field: 'id' },
 };
 
 function toRows(state: DatabaseState): Row[] {
@@ -100,7 +109,7 @@ function fromRows(rows: Row[]): DatabaseState {
 }
 
 export interface DbStatus {
-  mode: 'supabase' | 'file';
+  mode: 'supabase' | 'file' | 'memory';
   ok: boolean;
   message: string;
   lastSavedAt?: string;
@@ -109,468 +118,48 @@ export interface DbStatus {
   waiting: number;
 }
 
-function generateTransactionsForLauri(): Transaction[] {
-  const tx: Transaction[] = [];
-  const startYear = 2024;
-  const startMonth = 11; // 24 months ending October 2026
-
-  let curY = startYear;
-  let curM = startMonth;
-
-  for (let i = 0; i < 24; i++) {
-    const monthStr = `${curY}-${String(curM).padStart(2, '0')}`;
-    const isRaisedSalary = i >= 18; // last 6 months (May 2026 - Oct 2026)
-    const isHigherEatingOut = i >= 21; // last 3 months (Aug, Sep, Oct 2026)
-
-    // Salary (25th of month)
-    tx.push({
-      id: `tx-sal-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-25`,
-      category: 'salary',
-      amount: isRaisedSalary ? 3900 : 3400,
-      account: 'current',
-      description: 'Nordea Payroll Deposit',
-    });
-
-    // Housing (1st of month)
-    tx.push({
-      id: `tx-house-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-01`,
-      category: 'housing',
-      amount: -1150,
-      account: 'current',
-      description: 'Rent & Housing charge',
-    });
-
-    // Transport (3rd of month)
-    tx.push({
-      id: `tx-trans-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-03`,
-      category: 'transport',
-      amount: -59,
-      account: 'current',
-      description: 'HSL Regional Transit Card',
-    });
-
-    // Monthly Savings Transfer (26th of month)
-    tx.push({
-      id: `tx-sav-out-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-26`,
-      category: 'savings_transfer',
-      amount: -400,
-      account: 'current',
-      description: 'Monthly Savings Transfer',
-    });
-    tx.push({
-      id: `tx-sav-in-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-26`,
-      category: 'savings_transfer_in',
-      amount: 400,
-      account: 'savings',
-      description: 'Auto deposit from Current Account',
-    });
-
-    // Groceries (spread out)
-    tx.push({
-      id: `tx-groc1-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-07`,
-      category: 'groceries',
-      amount: -195,
-      account: 'current',
-      description: 'K-Supermarket Kamppi',
-    });
-    tx.push({
-      id: `tx-groc2-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-20`,
-      category: 'groceries',
-      amount: -215,
-      account: 'current',
-      description: 'Prisma Kaari',
-    });
-
-    // Restaurants
-    const eatingOutAmount = isHigherEatingOut
-      ? (i === 21 ? -390 : i === 22 ? -420 : -365)
-      : -160;
-    tx.push({
-      id: `tx-rest-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-14`,
-      category: 'restaurants',
-      amount: eatingOutAmount,
-      account: 'current',
-      description: isHigherEatingOut ? 'Restaurants & Dining (Elevated)' : 'Restaurants & Cafes',
-    });
-
-    // Bills & Subscriptions
-    tx.push({
-      id: `tx-bills-${monthStr}`,
-      userId: 'lauri',
-      date: `${monthStr}-18`,
-      category: 'bills',
-      amount: -45,
-      account: 'current',
-      description: 'Electricity & Internet',
-    });
-
-    curM++;
-    if (curM > 12) {
-      curM = 1;
-      curY++;
-    }
-  }
-
-  return tx;
-}
-
-function generateTransactionsForEeva(): Transaction[] {
-  const tx: Transaction[] = [];
-  const months = ['2026-08', '2026-09', '2026-10'];
-  for (const m of months) {
-    tx.push({
-      id: `tx-pension-${m}`,
-      userId: 'eeva',
-      date: `${m}-04`,
-      category: 'pension',
-      amount: 1850,
-      account: 'current',
-      description: 'Keva Retirement Pension',
-    });
-    tx.push({
-      id: `tx-eeva-house-${m}`,
-      userId: 'eeva',
-      date: `${m}-02`,
-      category: 'housing',
-      amount: -520,
-      account: 'current',
-      description: 'Maintenance fee (Vastike)',
-    });
-    tx.push({
-      id: `tx-eeva-pharm-${m}`,
-      userId: 'eeva',
-      date: `${m}-12`,
-      category: 'pharmacy',
-      amount: -45,
-      account: 'current',
-      description: 'Yliopiston Apteekki',
-    });
-    tx.push({
-      id: `tx-eeva-groc-${m}`,
-      userId: 'eeva',
-      date: `${m}-15`,
-      category: 'groceries',
-      amount: -310,
-      account: 'current',
-      description: 'Alepa & Market',
-    });
-  }
-  return tx;
-}
-
-function getInitialState(): DatabaseState {
-  const users: Record<string, User> = {
-    lauri: {
-      id: 'lauri',
-      persona: 'lauri',
-      name: 'Lauri',
-      age: 31,
-      roleDescription: 'Salary grew to 3 900 €; saving for flat with partner in 18 mo; car goal is stale.',
-      viewMode: 'full',
-      layoutPrefs: {
-        widgetsOrder: ['quickActions', 'goals', 'accounts', 'insights', 'cabinet'],
-        hiddenWidgets: [],
-      },
-      accounts: {
-        current: { iban: 'FI29 1234 5678 9012 34', balance: 1420.5 },
-        savings: { iban: 'FI29 1234 5678 9012 35', balance: 14600.0, monthlyDeposit: 400.0 },
-        carFund: { iban: 'FI29 1234 5678 9012 36', balance: 2350.0, lastContribution: '2024-02-28' },
-      },
-      points: 120,
-    },
-    eeva: {
-      id: 'eeva',
-      persona: 'eeva',
-      name: 'Eeva',
-      age: 72,
-      roleDescription: 'Retired, careful with data, pension income, desires calm & simplicity.',
-      viewMode: 'calm',
-      layoutPrefs: {
-        widgetsOrder: ['quickActions', 'accounts', 'goals', 'cabinet'],
-        hiddenWidgets: ['insights'],
-      },
-      accounts: {
-        current: { iban: 'FI88 2345 6789 0123 45', balance: 890.0 },
-        savings: { iban: 'FI88 2345 6789 0123 46', balance: 3200.0, monthlyDeposit: 100.0 },
-      },
-      points: 80,
-    },
-    alex: {
-      id: 'alex',
-      persona: 'alex',
-      name: 'Alex',
-      age: 26,
-      roleDescription: 'New customer with a fresh, empty Context Cabinet.',
-      viewMode: 'full',
-      layoutPrefs: {
-        widgetsOrder: ['quickActions', 'goals', 'accounts', 'cabinet'],
-        hiddenWidgets: [],
-      },
-      accounts: {
-        current: { iban: 'FI44 3456 7890 1234 56', balance: 650.0 },
-        savings: { iban: 'FI44 3456 7890 1234 57', balance: 1200.0, monthlyDeposit: 150.0 },
-      },
-      points: 20,
-    },
-  };
-
-  const cabinetEntries: CabinetEntry[] = [
-    // Lauri's Entries
-    {
-      id: 'lauri-car-goal',
-      userId: 'lauri',
-      type: 'goal',
-      title: 'Save for a car',
-      detail: '12 000 € by December 2025 (no contribution since Feb 2024)',
-      source: 'customer',
-      status: 'stale',
-      private: false,
-      readableBy: { abel: true, offers: true },
-      provenance: { channel: 'app' },
-      target: { amount: 12000, date: '2025-12-31' },
-      linked: { lastContribution: '2024-02-28' },
-      why: 'Target date passed and no funds added in over 12 months.',
-      reviewed: true,
-      goalType: 'car',
-      createdAt: '2023-03-14T10:00:00.000Z',
-      updatedAt: '2024-02-28T10:00:00.000Z',
-    },
-    {
-      id: 'lauri-home-goal',
-      userId: 'lauri',
-      type: 'goal',
-      title: 'Buy a flat with my partner',
-      detail: '30 000 € deposit target in about 18 months',
-      source: 'customer',
-      status: 'active',
-      private: false,
-      readableBy: { abel: true, offers: true },
-      provenance: { channel: 'app' },
-      target: { amount: 30000, date: '2028-04-30' },
-      reviewed: true,
-      goalType: 'home',
-      confirmedAt: '2026-10-01T09:00:00.000Z',
-      createdAt: '2026-05-15T08:00:00.000Z',
-      updatedAt: '2026-10-01T09:00:00.000Z',
-    },
-    {
-      id: 'lauri-pref-risk',
-      userId: 'lauri',
-      type: 'preference',
-      title: 'I prefer low-risk saving',
-      detail: 'Focus on guaranteed deposits; no stock market investing for now',
-      source: 'customer',
-      status: 'active',
-      private: false,
-      readableBy: { abel: true, offers: true },
-      provenance: { channel: 'app' },
-      reviewed: true,
-      confirmedAt: '2025-02-11T12:00:00.000Z',
-      createdAt: '2022-05-09T14:30:00.000Z',
-      updatedAt: '2025-02-11T12:00:00.000Z',
-    },
-    {
-      id: 'lauri-obs-salary',
-      userId: 'lauri',
-      type: 'observation',
-      title: 'Your salary went up in May 2026',
-      detail: 'From 3 400 € to 3 900 € a month.',
-      source: 'nordea',
-      status: 'active',
-      private: false,
-      readableBy: { abel: true, offers: false },
-      provenance: { channel: 'system', detectedFrom: 'transactions' },
-      why: 'Your last 6 salary payments were 3 900 €. Before May they were 3 400 €.',
-      reviewed: false,
-      createdAt: '2026-05-25T16:00:00.000Z',
-      updatedAt: '2026-05-25T16:00:00.000Z',
-    },
-    {
-      id: 'lauri-obs-restaurants',
-      userId: 'lauri',
-      type: 'observation',
-      title: "You've been eating out more",
-      detail: 'About 390 € a month lately. Usually about 160 €.',
-      source: 'nordea',
-      status: 'active',
-      private: false,
-      readableBy: { abel: true, offers: false },
-      provenance: { channel: 'system', detectedFrom: 'transactions' },
-      why: 'Restaurant payments averaged 390 € a month in August–October. In the 12 months before, 160 €. Numbers can’t tell us why, so we ask.',
-      reviewed: false,
-      createdAt: '2026-10-15T09:00:00.000Z',
-      updatedAt: '2026-10-15T09:00:00.000Z',
-    },
-
-    // Eeva's Entries
-    {
-      id: 'eeva-buffer-goal',
-      userId: 'eeva',
-      type: 'goal',
-      title: 'Peace of mind emergency buffer',
-      detail: '3 000 € kept in safe reserve',
-      source: 'customer',
-      status: 'active',
-      private: false,
-      readableBy: { abel: true, offers: false },
-      provenance: { channel: 'app' },
-      target: { amount: 3000, date: '2026-12-31' },
-      reviewed: true,
-      goalType: 'buffer',
-      confirmedAt: '2026-09-10T11:00:00.000Z',
-      createdAt: '2025-01-10T11:00:00.000Z',
-      updatedAt: '2026-09-10T11:00:00.000Z',
-    },
-    {
-      id: 'eeva-pref-calm',
-      userId: 'eeva',
-      type: 'preference',
-      title: 'Plain language and calm interface',
-      detail: 'No complicated financial terminology; always offer a person when in doubt',
-      source: 'customer',
-      status: 'active',
-      private: false,
-      readableBy: { abel: true, offers: false },
-      provenance: { channel: 'app' },
-      reviewed: true,
-      createdAt: '2025-01-10T11:15:00.000Z',
-      updatedAt: '2025-01-10T11:15:00.000Z',
-    },
-    {
-      id: 'eeva-fact-pension',
-      userId: 'eeva',
-      type: 'fact',
-      title: 'Keva retirement pension income',
-      detail: 'Reliable 1 850 €/mo deposited on the 4th of each month',
-      source: 'nordea',
-      status: 'active',
-      private: false,
-      readableBy: { abel: true, offers: false },
-      provenance: { channel: 'system', detectedFrom: 'transactions' },
-      reviewed: true,
-      createdAt: '2025-02-04T10:00:00.000Z',
-      updatedAt: '2025-02-04T10:00:00.000Z',
-    },
-  ];
-
-  const transactions: Transaction[] = [
-    ...generateTransactionsForLauri(),
-    ...generateTransactionsForEeva(),
-  ];
-
-  const messages: ChatMessage[] = [
-    {
-      id: 'msg-seed-1',
-      userId: 'lauri',
-      agentId: 'abel',
-      channel: 'app',
-      sender: 'agent',
-      text: 'Hi Lauri! 👋 I’m Abel, your banking assistant. Everything I know about you is kept in your Context Cabinet. What would you like to explore today?',
-      suggestions: [
-        'Am I on track for my flat deposit?',
-        'What changed in my spending lately?',
-        'Review my old car goal',
-      ],
-      createdAt: '2026-10-28T09:00:00.000Z',
-    },
-    {
-      id: 'msg-seed-eeva-1',
-      userId: 'eeva',
-      agentId: 'abel',
-      channel: 'app',
-      sender: 'agent',
-      text: 'Good day Eeva. I am Abel. I keep things calm and straightforward here. If you ever have a question or wish to speak with an adviser, just let me know.',
-      suggestions: ['Check my emergency buffer', 'Talk to a person at Nordea'],
-      createdAt: '2026-10-28T09:00:00.000Z',
-    },
-    {
-      id: 'msg-seed-alex-1',
-      userId: 'alex',
-      agentId: 'abel',
-      channel: 'app',
-      sender: 'agent',
-      text: 'Welcome to Nordea, Alex! 🎉 I’m Abel. Your Context Cabinet is currently completely empty. Tell me what you are planning or tap a suggestion below!',
-      suggestions: ['Help me set a savings goal', 'How does the Context Cabinet work?'],
-      createdAt: '2026-10-28T09:00:00.000Z',
-    },
-  ];
-
-  const accessLog: AccessLogEntry[] = [
-    {
-      id: 'log-seed-1',
-      timestamp: '2026-10-28T09:00:00.000Z',
-      userId: 'lauri',
-      agentId: 'abel',
-      agentName: 'Abel',
-      purpose: 'Your first chat with Abel',
-      itemsReadCount: 4,
-      blockedCount: 1,
-      allowedItems: [
-        'Buy a flat with my partner',
-        'Save for a car',
-        'I prefer low-risk saving',
-        'Salary increased to 3 900 €',
-      ],
-      blockedReasons: [
-        {
-          title: 'Dining out rose to ~390 €/mo',
-          reason: 'Observation pending customer review/approval',
-        },
-      ],
-    },
-  ];
-
-  const topicLog: TopicLogEntry[] = [
-    {
-      id: 'topic-seed-1',
-      timestamp: '2026-10-28T09:00:00.000Z',
-      userId: 'lauri',
-      topic: 'home_deposit_pacing',
-      couldHelp: true,
-    },
-  ];
-
+function getEmptyState(): DatabaseState {
   return {
-    users,
-    cabinetEntries,
-    transactions,
-    messages,
-    accessLog,
-    topicLog,
+    users: {},
+    cabinetEntries: [],
+    transactions: [],
+    messages: [],
+    accessLog: [],
+    topicLog: [],
     undoRecords: [],
     conversations: [],
     earnings: [],
     shares: [],
     documents: [],
-    entryHistory: historyFor(cabinetEntries),
+    entryHistory: [],
     dataRewards: [],
+    balanceSnapshots: [],
+    importBatches: [],
+    bankAccounts: [],
   };
 }
 
-/** Older saved databases don't have the v14 tables yet: add them without touching anything else. */
+/**
+ * Fills in what loaded data may leave out: older saved databases miss the v14 tables, and data loaded
+ * from outside (scripts/load_data.py) may come without users' lists or without history for its entries.
+ */
 function migrate(state: DatabaseState): DatabaseState {
-  state.conversations = state.conversations || [];
-  state.earnings = state.earnings || [];
-  state.shares = state.shares || [];
-  state.documents = state.documents || [];
-  if (!state.entryHistory) state.entryHistory = historyFor(state.cabinetEntries || []);
-  state.dataRewards = state.dataRewards || [];
+  const empty = getEmptyState();
+  for (const k of Object.keys(empty) as (keyof DatabaseState)[]) (state as any)[k] = state[k] || empty[k];
+  const known = new Set(state.entryHistory.map((h) => h.entryId));
+  state.entryHistory.push(...historyFor(state.cabinetEntries.filter((e) => !known.has(e.id))));
+  // Explicit account records, derived from what the customer record already knows. Nothing invented:
+  // iban comes from the existing accounts, currency/type stay unset until a feed supplies them.
+  for (const u of Object.values(state.users || {})) {
+    for (const key of ['current', 'savings', 'carFund'] as const) {
+      const a = (u.accounts as any)?.[key];
+      if (!a) continue;
+      const id = `acc-${u.id}-${key}`;
+      const existing = state.bankAccounts.find((x) => x.id === id);
+      if (existing) { if (a.iban && !existing.iban) existing.iban = a.iban; }
+      else state.bankAccounts.push({ id, userId: u.id, key, iban: a.iban || undefined });
+    }
+  }
   return state;
 }
 
@@ -582,36 +171,57 @@ class Database {
   private chain: Promise<void> = Promise.resolve();
   private timer: NodeJS.Timeout | null = null;
   private st: DbStatus = { mode: 'file', ok: true, message: 'Saved on this server only. It resets when the app restarts.', waiting: 0 };
+  /** Supabase is set up but couldn't be reached: keep changes in memory only, so no stale local copy appears. */
+  private memoryOnly = false;
 
+  // Nothing is preloaded: the app starts with no data until init() reads what was loaded on purpose.
   constructor() {
-    this.ensureDataDir();
-    this.state = this.loadState();
+    this.state = getEmptyState();
   }
 
   /**
-   * Connect to Supabase if its secrets are set. Called once before the server starts.
-   * An empty table gets today's data (so nothing is lost when switching over); otherwise Supabase wins.
+   * Read the data. Called once before the server starts (and by reload()).
+   * With Supabase set up, only Supabase counts: an empty table means an empty app.
+   * Without it, the local file data/cabinet-db.json (written by this app, never shipped with it).
+   * Load data with scripts/load_data.py.
    */
   public async init() {
-    if (!supabaseConfigured()) return;
+    this.synced.clear();
+    if (!supabaseConfigured()) {
+      this.state = this.loadFile();
+      console.log(`Database: local file (${Object.keys(this.state.users).length} customers)`);
+      return;
+    }
     const remote = supabaseRemote();
     try {
       const rows = await remote.loadAll();
       this.remote = remote;
-      if (rows.length) {
-        this.state = migrate(fromRows(rows));
-        rows.forEach((r) => this.synced.set(`${r.kind}:${r.id}`, JSON.stringify(r.data)));
-        this.writeFile();
-      }
+      this.memoryOnly = false;
+      this.state = migrate(fromRows(rows));
+      rows.forEach((r) => this.synced.set(`${r.kind}:${r.id}`, JSON.stringify(r.data)));
       await this.flush();
-      this.st = { ...this.st, mode: 'supabase', ok: !this.st.lastError, message: 'Saved in Supabase', rows: this.synced.size };
+      this.st = { ...this.st, mode: 'supabase', ok: !this.st.lastError, message: rows.length ? 'Saved in Supabase' : 'Supabase is empty. Load data with scripts/load_data.py.', rows: this.synced.size };
       console.log(`Database: Supabase (${this.synced.size} records)`);
     } catch (err) {
       this.remote = null;
+      this.memoryOnly = true;
+      this.state = getEmptyState();
       const message = cleanErr(err);
-      this.st = { mode: 'file', ok: false, message: `Supabase isn’t working, so data is only kept on this server for now. ${message}`, lastError: { at: new Date().toISOString(), message }, waiting: 0 };
-      console.error('Database: Supabase failed, using the local file.', message);
+      this.st = { mode: 'memory', ok: false, message: `Supabase isn’t working, so the app has no data and changes are kept in memory only. ${message}`, lastError: { at: new Date().toISOString(), message }, waiting: 0 };
+      console.error('Database: Supabase failed, starting with no data.', message);
     }
+  }
+
+  /** Read the data again, e.g. after scripts/load_data.py added rows while the app was running. */
+  public async reload(): Promise<DatabaseState> {
+    await this.chain;
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    await this.init();
+    return this.state;
+  }
+
+  public hasData() {
+    return Object.keys(this.state.users).length > 0;
   }
 
   public status(): DbStatus {
@@ -673,19 +283,14 @@ class Database {
     }
   }
 
-  private loadState(): DatabaseState {
-    if (fs.existsSync(DB_FILE)) {
-      try {
-        const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        return migrate(JSON.parse(raw));
-      } catch (err) {
-        console.warn('Could not read existing DB file. Initializing fresh seed.', err);
-      }
+  private loadFile(): DatabaseState {
+    if (!fs.existsSync(DB_FILE)) return getEmptyState();
+    try {
+      return migrate(JSON.parse(fs.readFileSync(DB_FILE, 'utf-8')));
+    } catch (err) {
+      console.warn('Could not read the local data file. Starting with no data.', err);
+      return getEmptyState();
     }
-    const seed = getInitialState();
-    this.state = seed;
-    this.writeFile();
-    return seed;
   }
 
   private writeFile() {
@@ -697,19 +302,26 @@ class Database {
     }
   }
 
-  /** Every change ends here: write the local copy and queue the Supabase save. */
+  /** Every change ends here: queue the Supabase save, or write the local file when there's no Supabase. */
   private saveState(_state?: DatabaseState) {
-    this.writeFile();
-    this.later();
+    if (this.remote) this.later();
+    else if (!this.memoryOnly) this.writeFile();
   }
 
   public getState(): DatabaseState {
     return this.state;
   }
 
-  public resetToSeed(): DatabaseState {
-    this.state = getInitialState();
-    this.saveState(this.state);
+  /** Delete all data, including rows loaded into Supabase that this app never read. */
+  public async clearAll(): Promise<DatabaseState> {
+    await this.chain;
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    this.state = getEmptyState();
+    if (this.remote) {
+      await this.remote.removeAll();
+      this.synced.clear();
+      this.st = { ...this.st, ok: true, message: 'Supabase is empty. Load data with scripts/load_data.py.', rows: 0 };
+    } else this.saveState();
     return this.state;
   }
 
@@ -879,10 +491,91 @@ class Database {
     return this.state.transactions.filter((t) => t.userId === userId);
   }
 
-  /** New Nordea account data for a customer: their transactions are replaced by these. */
+  /** New Nordea account data for a customer, snapshot mode: their transactions are replaced by these. */
   public replaceTransactions(userId: string, list: Transaction[]) {
     this.state.transactions = [...this.state.transactions.filter((t) => t.userId !== userId), ...list];
     this.saveState(this.state);
+  }
+
+  /**
+   * New Nordea account data, incremental mode: merge by stable transaction id.
+   * Rows whose id the customer already has are skipped (re-imports never duplicate).
+   */
+  public upsertTransactions(userId: string, list: Transaction[]): { added: Transaction[]; skipped: Transaction[]; updated: Transaction[] } {
+    const mine = this.state.transactions.filter((t) => t.userId === userId);
+    const byId = new Map(mine.map((t) => [t.id, t]));
+    const seen = new Set<string>();
+    const added: Transaction[] = [];
+    const skipped: Transaction[] = [];
+    const updated: Transaction[] = [];
+    // Fields a bank correction may legitimately change between feeds (never the identity fields).
+    const CORRECTABLE: (keyof Transaction)[] = ['date', 'amount', 'category', 'account', 'description', 'valueDate', 'status', 'currency', 'counterparty', 'reference', 'paymentMethod', 'originalCategory', 'categorySource'];
+    for (const t of list) {
+      const existing = byId.get(t.id);
+      if (existing || seen.has(t.id)) {
+        // A row the bank re-sent under its own stable reference with changed content (e.g. a pending
+        // transaction booking) is a correction, not a duplicate: update it in place, keep the id.
+        if (existing && existing.bankId && t.bankId) {
+          const diff = CORRECTABLE.filter((f) => (existing as any)[f] !== (t as any)[f]);
+          if (diff.length) {
+            for (const f of diff) { if ((t as any)[f] === undefined) delete (existing as any)[f]; else (existing as any)[f] = (t as any)[f]; }
+            existing.batchId = t.batchId;
+            updated.push(existing);
+            continue;
+          }
+        }
+        skipped.push(t);
+        continue;
+      }
+      seen.add(t.id);
+      added.push(t);
+    }
+    this.state.transactions.push(...added);
+    this.state.transactions.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    this.saveState(this.state);
+    return { added, skipped, updated };
+  }
+
+  // ---- Explicit account records: one per account, derived from the customer record, extended by feeds ----
+  public getBankAccounts(userId: string): BankAccount[] {
+    return this.state.bankAccounts.filter((x) => x.userId === userId);
+  }
+
+  /** Add or enrich an account record. Only the fields supplied are set; nothing is invented. */
+  public upsertBankAccount(userId: string, key: string, fields: { type?: string; iban?: string; currency?: string }): BankAccount {
+    const id = `acc-${userId}-${key}`;
+    let a = this.state.bankAccounts.find((x) => x.id === id);
+    if (!a) {
+      a = { id, userId, key };
+      this.state.bankAccounts.push(a);
+    }
+    if (fields.type !== undefined) a.type = fields.type;
+    if (fields.iban !== undefined) a.iban = fields.iban;
+    if (fields.currency !== undefined) a.currency = fields.currency;
+    this.saveState(this.state);
+    return a;
+  }
+
+  // ---- Balance snapshots: dated balances per account, kept across imports ----
+  public getBalanceSnapshots(userId: string, accountKey?: string): BalanceSnapshot[] {
+    return this.state.balanceSnapshots.filter((x) => x.userId === userId && (!accountKey || x.accountKey === accountKey));
+  }
+
+  public addBalanceSnapshot(x: BalanceSnapshot) {
+    this.state.balanceSnapshots.push(x);
+    this.saveState(this.state);
+    return x;
+  }
+
+  // ---- Import batches: what was applied, when, and what it did ----
+  public getImportBatches(userId: string): ImportBatch[] {
+    return this.state.importBatches.filter((x) => x.userId === userId);
+  }
+
+  public addImportBatch(x: ImportBatch) {
+    this.state.importBatches.push(x);
+    this.saveState(this.state);
+    return x;
   }
 
   // ---- Data rewards: points for what the customer shares and for how often it's read ----

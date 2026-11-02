@@ -1,0 +1,229 @@
+id,userId,date,category,amount,account,description
+tx-sal-2024-11,lauri,2024-11-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2024-11,lauri,2024-11-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2024-11,lauri,2024-11-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2024-11,lauri,2024-11-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2024-11,lauri,2024-11-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2024-11,lauri,2024-11-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2024-11,lauri,2024-11-20,groceries,-215,current,Prisma Kaari
+tx-rest-2024-11,lauri,2024-11-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2024-11,lauri,2024-11-18,bills,-45,current,Electricity & Internet
+tx-sal-2024-12,lauri,2024-12-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2024-12,lauri,2024-12-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2024-12,lauri,2024-12-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2024-12,lauri,2024-12-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2024-12,lauri,2024-12-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2024-12,lauri,2024-12-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2024-12,lauri,2024-12-20,groceries,-215,current,Prisma Kaari
+tx-rest-2024-12,lauri,2024-12-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2024-12,lauri,2024-12-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-01,lauri,2025-01-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-01,lauri,2025-01-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-01,lauri,2025-01-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-01,lauri,2025-01-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-01,lauri,2025-01-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-01,lauri,2025-01-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-01,lauri,2025-01-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-01,lauri,2025-01-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-01,lauri,2025-01-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-02,lauri,2025-02-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-02,lauri,2025-02-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-02,lauri,2025-02-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-02,lauri,2025-02-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-02,lauri,2025-02-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-02,lauri,2025-02-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-02,lauri,2025-02-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-02,lauri,2025-02-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-02,lauri,2025-02-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-03,lauri,2025-03-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-03,lauri,2025-03-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-03,lauri,2025-03-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-03,lauri,2025-03-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-03,lauri,2025-03-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-03,lauri,2025-03-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-03,lauri,2025-03-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-03,lauri,2025-03-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-03,lauri,2025-03-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-04,lauri,2025-04-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-04,lauri,2025-04-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-04,lauri,2025-04-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-04,lauri,2025-04-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-04,lauri,2025-04-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-04,lauri,2025-04-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-04,lauri,2025-04-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-04,lauri,2025-04-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-04,lauri,2025-04-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-05,lauri,2025-05-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-05,lauri,2025-05-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-05,lauri,2025-05-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-05,lauri,2025-05-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-05,lauri,2025-05-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-05,lauri,2025-05-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-05,lauri,2025-05-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-05,lauri,2025-05-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-05,lauri,2025-05-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-06,lauri,2025-06-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-06,lauri,2025-06-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-06,lauri,2025-06-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-06,lauri,2025-06-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-06,lauri,2025-06-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-06,lauri,2025-06-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-06,lauri,2025-06-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-06,lauri,2025-06-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-06,lauri,2025-06-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-07,lauri,2025-07-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-07,lauri,2025-07-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-07,lauri,2025-07-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-07,lauri,2025-07-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-07,lauri,2025-07-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-07,lauri,2025-07-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-07,lauri,2025-07-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-07,lauri,2025-07-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-07,lauri,2025-07-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-08,lauri,2025-08-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-08,lauri,2025-08-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-08,lauri,2025-08-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-08,lauri,2025-08-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-08,lauri,2025-08-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-08,lauri,2025-08-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-08,lauri,2025-08-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-08,lauri,2025-08-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-08,lauri,2025-08-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-09,lauri,2025-09-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-09,lauri,2025-09-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-09,lauri,2025-09-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-09,lauri,2025-09-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-09,lauri,2025-09-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-09,lauri,2025-09-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-09,lauri,2025-09-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-09,lauri,2025-09-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-09,lauri,2025-09-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-10,lauri,2025-10-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-10,lauri,2025-10-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-10,lauri,2025-10-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-10,lauri,2025-10-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-10,lauri,2025-10-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-10,lauri,2025-10-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-10,lauri,2025-10-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-10,lauri,2025-10-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-10,lauri,2025-10-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-11,lauri,2025-11-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-11,lauri,2025-11-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-11,lauri,2025-11-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-11,lauri,2025-11-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-11,lauri,2025-11-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-11,lauri,2025-11-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-11,lauri,2025-11-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-11,lauri,2025-11-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-11,lauri,2025-11-18,bills,-45,current,Electricity & Internet
+tx-sal-2025-12,lauri,2025-12-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2025-12,lauri,2025-12-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2025-12,lauri,2025-12-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2025-12,lauri,2025-12-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2025-12,lauri,2025-12-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2025-12,lauri,2025-12-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2025-12,lauri,2025-12-20,groceries,-215,current,Prisma Kaari
+tx-rest-2025-12,lauri,2025-12-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2025-12,lauri,2025-12-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-01,lauri,2026-01-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2026-01,lauri,2026-01-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-01,lauri,2026-01-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-01,lauri,2026-01-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-01,lauri,2026-01-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-01,lauri,2026-01-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-01,lauri,2026-01-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-01,lauri,2026-01-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2026-01,lauri,2026-01-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-02,lauri,2026-02-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2026-02,lauri,2026-02-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-02,lauri,2026-02-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-02,lauri,2026-02-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-02,lauri,2026-02-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-02,lauri,2026-02-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-02,lauri,2026-02-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-02,lauri,2026-02-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2026-02,lauri,2026-02-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-03,lauri,2026-03-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2026-03,lauri,2026-03-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-03,lauri,2026-03-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-03,lauri,2026-03-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-03,lauri,2026-03-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-03,lauri,2026-03-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-03,lauri,2026-03-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-03,lauri,2026-03-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2026-03,lauri,2026-03-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-04,lauri,2026-04-25,salary,3400,current,Nordea Payroll Deposit
+tx-house-2026-04,lauri,2026-04-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-04,lauri,2026-04-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-04,lauri,2026-04-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-04,lauri,2026-04-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-04,lauri,2026-04-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-04,lauri,2026-04-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-04,lauri,2026-04-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2026-04,lauri,2026-04-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-05,lauri,2026-05-25,salary,3900,current,Nordea Payroll Deposit
+tx-house-2026-05,lauri,2026-05-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-05,lauri,2026-05-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-05,lauri,2026-05-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-05,lauri,2026-05-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-05,lauri,2026-05-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-05,lauri,2026-05-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-05,lauri,2026-05-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2026-05,lauri,2026-05-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-06,lauri,2026-06-25,salary,3900,current,Nordea Payroll Deposit
+tx-house-2026-06,lauri,2026-06-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-06,lauri,2026-06-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-06,lauri,2026-06-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-06,lauri,2026-06-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-06,lauri,2026-06-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-06,lauri,2026-06-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-06,lauri,2026-06-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2026-06,lauri,2026-06-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-07,lauri,2026-07-25,salary,3900,current,Nordea Payroll Deposit
+tx-house-2026-07,lauri,2026-07-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-07,lauri,2026-07-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-07,lauri,2026-07-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-07,lauri,2026-07-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-07,lauri,2026-07-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-07,lauri,2026-07-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-07,lauri,2026-07-14,restaurants,-160,current,Restaurants & Cafes
+tx-bills-2026-07,lauri,2026-07-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-08,lauri,2026-08-25,salary,3900,current,Nordea Payroll Deposit
+tx-house-2026-08,lauri,2026-08-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-08,lauri,2026-08-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-08,lauri,2026-08-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-08,lauri,2026-08-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-08,lauri,2026-08-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-08,lauri,2026-08-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-08,lauri,2026-08-14,restaurants,-390,current,Restaurants & Dining (Elevated)
+tx-bills-2026-08,lauri,2026-08-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-09,lauri,2026-09-25,salary,3900,current,Nordea Payroll Deposit
+tx-house-2026-09,lauri,2026-09-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-09,lauri,2026-09-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-09,lauri,2026-09-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-09,lauri,2026-09-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-09,lauri,2026-09-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-09,lauri,2026-09-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-09,lauri,2026-09-14,restaurants,-420,current,Restaurants & Dining (Elevated)
+tx-bills-2026-09,lauri,2026-09-18,bills,-45,current,Electricity & Internet
+tx-sal-2026-10,lauri,2026-10-25,salary,3900,current,Nordea Payroll Deposit
+tx-house-2026-10,lauri,2026-10-01,housing,-1150,current,Rent & Housing charge
+tx-trans-2026-10,lauri,2026-10-03,transport,-59,current,HSL Regional Transit Card
+tx-sav-out-2026-10,lauri,2026-10-26,savings_transfer,-400,current,Monthly Savings Transfer
+tx-sav-in-2026-10,lauri,2026-10-26,savings_transfer_in,400,savings,Auto deposit from Current Account
+tx-groc1-2026-10,lauri,2026-10-07,groceries,-195,current,K-Supermarket Kamppi
+tx-groc2-2026-10,lauri,2026-10-20,groceries,-215,current,Prisma Kaari
+tx-rest-2026-10,lauri,2026-10-14,restaurants,-365,current,Restaurants & Dining (Elevated)
+tx-bills-2026-10,lauri,2026-10-18,bills,-45,current,Electricity & Internet
+tx-pension-2026-08,eeva,2026-08-04,pension,1850,current,Keva Retirement Pension
+tx-eeva-house-2026-08,eeva,2026-08-02,housing,-520,current,Maintenance fee (Vastike)
+tx-eeva-pharm-2026-08,eeva,2026-08-12,pharmacy,-45,current,Yliopiston Apteekki
+tx-eeva-groc-2026-08,eeva,2026-08-15,groceries,-310,current,Alepa & Market
+tx-pension-2026-09,eeva,2026-09-04,pension,1850,current,Keva Retirement Pension
+tx-eeva-house-2026-09,eeva,2026-09-02,housing,-520,current,Maintenance fee (Vastike)
+tx-eeva-pharm-2026-09,eeva,2026-09-12,pharmacy,-45,current,Yliopiston Apteekki
+tx-eeva-groc-2026-09,eeva,2026-09-15,groceries,-310,current,Alepa & Market
+tx-pension-2026-10,eeva,2026-10-04,pension,1850,current,Keva Retirement Pension
+tx-eeva-house-2026-10,eeva,2026-10-02,housing,-520,current,Maintenance fee (Vastike)
+tx-eeva-pharm-2026-10,eeva,2026-10-12,pharmacy,-45,current,Yliopiston Apteekki
+tx-eeva-groc-2026-10,eeva,2026-10-15,groceries,-310,current,Alepa & Market

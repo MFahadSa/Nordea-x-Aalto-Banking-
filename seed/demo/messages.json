@@ -1,0 +1,42 @@
+[
+  {
+    "id": "msg-seed-1",
+    "userId": "lauri",
+    "agentId": "abel",
+    "channel": "app",
+    "sender": "agent",
+    "text": "Hi Lauri! 👋 I’m Abel, your banking assistant. Everything I know about you is kept in your Context Cabinet. What would you like to explore today?",
+    "suggestions": [
+      "Am I on track for my flat deposit?",
+      "What changed in my spending lately?",
+      "Review my old car goal"
+    ],
+    "createdAt": "2026-10-28T09:00:00.000Z"
+  },
+  {
+    "id": "msg-seed-eeva-1",
+    "userId": "eeva",
+    "agentId": "abel",
+    "channel": "app",
+    "sender": "agent",
+    "text": "Good day Eeva. I am Abel. I keep things calm and straightforward here. If you ever have a question or wish to speak with an adviser, just let me know.",
+    "suggestions": [
+      "Check my emergency buffer",
+      "Talk to a person at Nordea"
+    ],
+    "createdAt": "2026-10-28T09:00:00.000Z"
+  },
+  {
+    "id": "msg-seed-alex-1",
+    "userId": "alex",
+    "agentId": "abel",
+    "channel": "app",
+    "sender": "agent",
+    "text": "Welcome to Nordea, Alex! 🎉 I’m Abel. Your Context Cabinet is currently completely empty. Tell me what you are planning or tap a suggestion below!",
+    "suggestions": [
+      "Help me set a savings goal",
+      "How does the Context Cabinet work?"
+    ],
+    "createdAt": "2026-10-28T09:00:00.000Z"
+  }
+]

@@ -6,9 +6,11 @@ import { previewCabinetForAgent, readCabinetThroughGateway } from './accessGatew
 import { summary as dataRewardsSummary } from './dataRewards.js';
 import { applyNordeaData, readNordeaFile, NordeaData } from './nordeaData.js';
 import { checkFeed, feedStatus } from './nordeaFeed.js';
+import { applyBankImportToArch } from './arch/orchestrator.js';
 import { getPartner, getAllPartners } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { abelTurn, proposeFromContent, offerHeadline, SAMPLE_CHAT, ImportItem } from './abel.js';
+import { abelSharedContext } from './arch/orchestrator.js';
 import { getProvider, aiStatus, aiPing } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } from '../types.js';
 import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } from './documents.js';
@@ -64,6 +66,13 @@ export function registerV14Routes(app: Express) {
   app.get('/api/state', async (req, res) => {
     await sweepExpired().catch(() => 0);
     const userId = String(req.query.userId || 'lauri');
+    if (!db.hasData()) {
+      return res.status(404).json({
+        error: 'No data loaded yet',
+        code: 'NO_DATA',
+        hint: 'Load data with scripts/load_data.py (see seed/README.md).',
+      });
+    }
     const user = db.getUser(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
     const entries = db.getCabinetEntries(userId);
@@ -128,7 +137,9 @@ export function registerV14Routes(app: Express) {
     let conv = conversationId ? db.getConversation(conversationId) : undefined;
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
-    const reply = await abelTurn(userId, conv.id, conv.helperId, u.text);
+    // F10 phase 2 / AC11: Abel mode - the architecture hands Abel this session's facts (by message; empty when unused).
+    const shared = abelSharedContext(userId, conv.id, u.text);
+    const reply = await abelTurn(userId, conv.id, conv.helperId, u.text, shared);
     db.addTopicLogEntry({ id: id('topic'), timestamp: now(), userId, topic: reply.topic, couldHelp: reply.couldHelp });
     const a = agentMsg(userId, conv.id, conv.helperId, reply.text, {
       suggestions: reply.suggestions,
@@ -370,7 +381,7 @@ export function registerV14Routes(app: Express) {
     const userId = String(req.query.userId || 'lauri');
     const u = db.getUser(userId);
     if (!u) return res.status(404).json({ error: 'Unknown customer' });
-    res.json({ info: u.nordeaData || null, transactions: db.getTransactions(userId).length, feed: feedStatus() });
+    res.json({ info: u.nordeaData || null, transactions: db.getTransactions(userId).length, batches: db.getImportBatches(userId).slice(-10), balanceSnapshots: db.getBalanceSnapshots(userId).length, feed: feedStatus() });
   });
   app.post('/api/nordea-data', (req, res) => {
     const { userId = 'lauri', text, fileName = '', data } = req.body || {};
@@ -383,7 +394,10 @@ export function registerV14Routes(app: Express) {
     }
     const r = applyNordeaData(userId, parsed, fileName ? `Uploaded ${String(fileName).slice(0, 60)}` : 'Uploaded data');
     if (!r.ok) return res.status(400).json({ error: r.message });
-    res.json({ result: r });
+    // The import IS the trigger: the Nordea agent (source owner) refreshes its own DB and
+    // staleness detection runs immediately - no manual contribution press, no background loop.
+    const arch = applyBankImportToArch(userId);
+    res.json({ result: r, arch });
   });
   app.post('/api/nordea-data/check', async (req, res) => {
     const userId = String((req.body || {}).userId || 'lauri');

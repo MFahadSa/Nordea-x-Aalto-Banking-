@@ -90,7 +90,7 @@ export const PersonaPickerModal: React.FC<Props> = ({
         <button
           className="btn link"
           onClick={() => {
-            if (window.confirm('Reset all synthetic personas & transactions to default?')) {
+            if (window.confirm('Delete all customers and their data? Load data again with scripts/load_data.py.')) {
               onResetDatabase();
               onClose();
             }
@@ -102,7 +102,7 @@ export const PersonaPickerModal: React.FC<Props> = ({
             fontSize: '13.5px',
           }}
         >
-          Reset all synthetic personas to default
+          Delete all data
         </button>
       </div>
     </div>

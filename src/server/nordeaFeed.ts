@@ -3,6 +3,7 @@
 import { supabaseConfigured, feedPending, feedDone } from './store.js';
 import { applyNordeaData, ApplyResult } from './nordeaData.js';
 import { db } from './db.js';
+import { applyBankImportToArch } from './arch/orchestrator.js';
 
 export interface FeedStatus {
   enabled: boolean;
@@ -35,6 +36,10 @@ export async function checkFeed(): Promise<{ applied: { rowId: number; userId: s
         result = { ok: false, message: `Couldn’t read the data: ${String(err?.message || err).slice(0, 200)}` };
       }
       await feedDone(r.id, `${result.ok ? 'Applied' : 'Not applied'}: ${result.message}`);
+      // The applied feed row IS the trigger: source-owner DB refresh + staleness detection.
+      if (result.ok) {
+        try { applyBankImportToArch(userId); } catch (err) { console.error('arch import hook failed:', err); }
+      }
       applied.push({ rowId: r.id, userId, result });
       status = { ...status, lastApplied: { at: new Date().toISOString(), rowId: r.id, userId, result: result.message } };
     }

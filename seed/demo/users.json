@@ -1,0 +1,97 @@
+[
+  {
+    "id": "lauri",
+    "persona": "lauri",
+    "name": "Lauri",
+    "age": 31,
+    "roleDescription": "Salary grew to 3 900 €; saving for flat with partner in 18 mo; car goal is stale.",
+    "viewMode": "full",
+    "layoutPrefs": {
+      "widgetsOrder": [
+        "quickActions",
+        "goals",
+        "accounts",
+        "insights",
+        "cabinet"
+      ],
+      "hiddenWidgets": []
+    },
+    "accounts": {
+      "current": {
+        "iban": "FI29 1234 5678 9012 34",
+        "balance": 1420.5
+      },
+      "savings": {
+        "iban": "FI29 1234 5678 9012 35",
+        "balance": 14600,
+        "monthlyDeposit": 400
+      },
+      "carFund": {
+        "iban": "FI29 1234 5678 9012 36",
+        "balance": 2350,
+        "lastContribution": "2024-02-28"
+      }
+    },
+    "points": 120
+  },
+  {
+    "id": "eeva",
+    "persona": "eeva",
+    "name": "Eeva",
+    "age": 72,
+    "roleDescription": "Retired, careful with data, pension income, desires calm & simplicity.",
+    "viewMode": "calm",
+    "layoutPrefs": {
+      "widgetsOrder": [
+        "quickActions",
+        "accounts",
+        "goals",
+        "cabinet"
+      ],
+      "hiddenWidgets": [
+        "insights"
+      ]
+    },
+    "accounts": {
+      "current": {
+        "iban": "FI88 2345 6789 0123 45",
+        "balance": 890
+      },
+      "savings": {
+        "iban": "FI88 2345 6789 0123 46",
+        "balance": 3200,
+        "monthlyDeposit": 100
+      }
+    },
+    "points": 80
+  },
+  {
+    "id": "alex",
+    "persona": "alex",
+    "name": "Alex",
+    "age": 26,
+    "roleDescription": "New customer with a fresh, empty Context Cabinet.",
+    "viewMode": "full",
+    "layoutPrefs": {
+      "widgetsOrder": [
+        "quickActions",
+        "goals",
+        "accounts",
+        "cabinet"
+      ],
+      "hiddenWidgets": []
+    },
+    "accounts": {
+      "current": {
+        "iban": "FI44 3456 7890 1234 56",
+        "balance": 650
+      },
+      "savings": {
+        "iban": "FI44 3456 7890 1234 57",
+        "balance": 1200,
+        "monthlyDeposit": 150
+      }
+    },
+    "points": 20
+  }
+]

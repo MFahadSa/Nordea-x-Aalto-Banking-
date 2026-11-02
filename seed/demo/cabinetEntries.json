@@ -1,0 +1,189 @@
+[
+  {
+    "id": "lauri-car-goal",
+    "userId": "lauri",
+    "type": "goal",
+    "title": "Save for a car",
+    "detail": "12 000 € by December 2025 (no contribution since Feb 2024)",
+    "source": "customer",
+    "status": "stale",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": true
+    },
+    "provenance": {
+      "channel": "app"
+    },
+    "target": {
+      "amount": 12000,
+      "date": "2025-12-31"
+    },
+    "linked": {
+      "lastContribution": "2024-02-28"
+    },
+    "why": "Target date passed and no funds added in over 12 months.",
+    "reviewed": true,
+    "goalType": "car",
+    "createdAt": "2023-03-14T10:00:00.000Z",
+    "updatedAt": "2024-02-28T10:00:00.000Z"
+  },
+  {
+    "id": "lauri-home-goal",
+    "userId": "lauri",
+    "type": "goal",
+    "title": "Buy a flat with my partner",
+    "detail": "30 000 € deposit target in about 18 months",
+    "source": "customer",
+    "status": "active",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": true
+    },
+    "provenance": {
+      "channel": "app"
+    },
+    "target": {
+      "amount": 30000,
+      "date": "2028-04-30"
+    },
+    "reviewed": true,
+    "goalType": "home",
+    "confirmedAt": "2026-10-01T09:00:00.000Z",
+    "createdAt": "2026-05-15T08:00:00.000Z",
+    "updatedAt": "2026-10-01T09:00:00.000Z"
+  },
+  {
+    "id": "lauri-pref-risk",
+    "userId": "lauri",
+    "type": "preference",
+    "title": "I prefer low-risk saving",
+    "detail": "Focus on guaranteed deposits; no stock market investing for now",
+    "source": "customer",
+    "status": "active",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": true
+    },
+    "provenance": {
+      "channel": "app"
+    },
+    "reviewed": true,
+    "confirmedAt": "2025-02-11T12:00:00.000Z",
+    "createdAt": "2022-05-09T14:30:00.000Z",
+    "updatedAt": "2025-02-11T12:00:00.000Z"
+  },
+  {
+    "id": "lauri-obs-salary",
+    "userId": "lauri",
+    "type": "observation",
+    "title": "Your salary went up in May 2026",
+    "detail": "From 3 400 € to 3 900 € a month.",
+    "source": "nordea",
+    "status": "active",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": false
+    },
+    "provenance": {
+      "channel": "system",
+      "detectedFrom": "transactions"
+    },
+    "why": "Your last 6 salary payments were 3 900 €. Before May they were 3 400 €.",
+    "reviewed": false,
+    "createdAt": "2026-05-25T16:00:00.000Z",
+    "updatedAt": "2026-05-25T16:00:00.000Z"
+  },
+  {
+    "id": "lauri-obs-restaurants",
+    "userId": "lauri",
+    "type": "observation",
+    "title": "You've been eating out more",
+    "detail": "About 390 € a month lately. Usually about 160 €.",
+    "source": "nordea",
+    "status": "active",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": false
+    },
+    "provenance": {
+      "channel": "system",
+      "detectedFrom": "transactions"
+    },
+    "why": "Restaurant payments averaged 390 € a month in August–October. In the 12 months before, 160 €. Numbers can’t tell us why, so we ask.",
+    "reviewed": false,
+    "createdAt": "2026-10-15T09:00:00.000Z",
+    "updatedAt": "2026-10-15T09:00:00.000Z"
+  },
+  {
+    "id": "eeva-buffer-goal",
+    "userId": "eeva",
+    "type": "goal",
+    "title": "Peace of mind emergency buffer",
+    "detail": "3 000 € kept in safe reserve",
+    "source": "customer",
+    "status": "active",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": false
+    },
+    "provenance": {
+      "channel": "app"
+    },
+    "target": {
+      "amount": 3000,
+      "date": "2026-12-31"
+    },
+    "reviewed": true,
+    "goalType": "buffer",
+    "confirmedAt": "2026-09-10T11:00:00.000Z",
+    "createdAt": "2025-01-10T11:00:00.000Z",
+    "updatedAt": "2026-09-10T11:00:00.000Z"
+  },
+  {
+    "id": "eeva-pref-calm",
+    "userId": "eeva",
+    "type": "preference",
+    "title": "Plain language and calm interface",
+    "detail": "No complicated financial terminology; always offer a person when in doubt",
+    "source": "customer",
+    "status": "active",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": false
+    },
+    "provenance": {
+      "channel": "app"
+    },
+    "reviewed": true,
+    "createdAt": "2025-01-10T11:15:00.000Z",
+    "updatedAt": "2025-01-10T11:15:00.000Z"
+  },
+  {
+    "id": "eeva-fact-pension",
+    "userId": "eeva",
+    "type": "fact",
+    "title": "Keva retirement pension income",
+    "detail": "Reliable 1 850 €/mo deposited on the 4th of each month",
+    "source": "nordea",
+    "status": "active",
+    "private": false,
+    "readableBy": {
+      "abel": true,
+      "offers": false
+    },
+    "provenance": {
+      "channel": "system",
+      "detectedFrom": "transactions"
+    },
+    "reviewed": true,
+    "createdAt": "2025-02-04T10:00:00.000Z",
+    "updatedAt": "2025-02-04T10:00:00.000Z"
+  }
+]

@@ -28,8 +28,10 @@ In AI Studio the key is injected automatically, so the real Abel answers there.
 ## Saved data (Supabase)
 - `src/server/store.ts`: talks to Supabase. Every record is a row in `abel_records` (kind, id, user_id, data). Kept files go to the private bucket `abel-documents`.
 - `src/server/db.ts`: still keeps everything in memory for speed. After each change it sends only the changed records to Supabase. Requests that change data answer only after that save. If Supabase is down, it retries every 5 s and shows it in More → Saved data.
-- Without `SUPABASE_URL` / `SUPABASE_SECRET_KEY` it uses `data/cabinet-db.json` like before (resets on restart).
-- First start with an empty table: today's data is copied into Supabase. After that, Supabase is the source of truth.
+- Without `SUPABASE_URL` / `SUPABASE_SECRET_KEY` it uses `data/cabinet-db.json` (written by the app, ignored by git; resets on restart).
+- No data is built in. With Supabase set up, only Supabase counts: an empty table means the app shows "No data yet" (`/api/state` answers 404 with `code: "NO_DATA"`). The local file is never read or copied into Supabase.
+- Data is loaded separately with `scripts/load_data.py` (CSV, JSON, JSONL, Excel). The fictional demo customers are in `seed/demo/`. See `seed/README.md`.
+- `POST /api/admin/reload` reads the data again without a restart (the loader calls it). More → Delete all data (`POST /api/users/reset`) empties everything, including Supabase.
 - Setup: run `supabase/setup.sql` once, then add the two secrets in AI Studio.
 - Limit: built for one running copy of the app (fine for the demo). Two copies at once could overwrite each other's changes.
 

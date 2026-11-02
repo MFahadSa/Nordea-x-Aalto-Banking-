@@ -35,9 +35,16 @@ export async function updateUserViewMode(userId: string, viewMode: 'full' | 'cal
   return data.user;
 }
 
+/** Deletes all data. Nothing comes back by itself: load data again with scripts/load_data.py. */
 export async function resetDatabase(): Promise<void> {
   const res = await fetch('/api/users/reset', { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to reset database');
+  if (!res.ok) throw new Error('Failed to delete the data');
+}
+
+/** Asks the server to read the data again (after scripts/load_data.py loaded new data). */
+export async function reloadData(): Promise<void> {
+  const res = await fetch('/api/admin/reload', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to read the data again');
 }
 
 export async function fetchCabinetEntries(userId: string, agentId?: string): Promise<{
@@ -186,8 +193,10 @@ export interface DocInfo { id: string; name: string; kind: 'image' | 'pdf' | 'te
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let msg = `Request failed (${res.status})`;
-    try { msg = (await res.json()).error || msg; } catch { /* keep default */ }
-    throw new Error(msg);
+    let code: string | undefined;
+    try { const b = await res.json(); msg = b.error || msg; code = b.code; } catch { /* keep default */ }
+    // The code lets the app tell "no data loaded yet" (NO_DATA) apart from a real failure.
+    throw Object.assign(new Error(msg), { code });
   }
   return res.json();
 }
@@ -257,7 +266,7 @@ export const fetchHistory = (userId: string, entryId: string) =>
 export const deleteChat = (userId: string, id: string) =>
   fetch(`/api/conversations/${id}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' }).then((r) => j<{ message: string }>(r));
 export const deleteChats = (userId: string) => post('/api/chats/delete', { userId }).then((r) => j<{ message: string; deletedMessages: number }>(r));
-export interface DbStatus { mode: 'supabase' | 'file'; ok: boolean; message: string; lastSavedAt?: string; lastError?: { at: string; message: string }; rows?: number; waiting: number }
+export interface DbStatus { mode: 'supabase' | 'file' | 'memory'; ok: boolean; message: string; lastSavedAt?: string; lastError?: { at: string; message: string }; rows?: number; waiting: number }
 export const fetchDbStatus = () => fetch('/api/db-status').then((r) => j<DbStatus>(r));
 
 export interface CheckResult { name: string; asked: string; ok: boolean; why: string; reply: string; cards: string[]; answeredBy: string; ms: number }

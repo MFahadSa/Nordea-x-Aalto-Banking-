@@ -1,0 +1,112 @@
+[
+  {
+    "id": "ev-seed-lauri-car-goal-a",
+    "entryId": "lauri-car-goal",
+    "userId": "lauri",
+    "at": "2023-03-14T10:00:00.000Z",
+    "action": "added",
+    "by": "you",
+    "how": "In the app",
+    "title": "Save for a car"
+  },
+  {
+    "id": "ev-seed-lauri-home-goal-a",
+    "entryId": "lauri-home-goal",
+    "userId": "lauri",
+    "at": "2026-05-15T08:00:00.000Z",
+    "action": "added",
+    "by": "you",
+    "how": "In the app",
+    "title": "Buy a flat with my partner"
+  },
+  {
+    "id": "ev-seed-lauri-home-goal-c",
+    "entryId": "lauri-home-goal",
+    "userId": "lauri",
+    "at": "2026-10-01T09:00:00.000Z",
+    "action": "confirmed",
+    "by": "you",
+    "how": "You said it’s still right",
+    "title": "Buy a flat with my partner"
+  },
+  {
+    "id": "ev-seed-lauri-pref-risk-a",
+    "entryId": "lauri-pref-risk",
+    "userId": "lauri",
+    "at": "2022-05-09T14:30:00.000Z",
+    "action": "added",
+    "by": "you",
+    "how": "In the app",
+    "title": "I prefer low-risk saving"
+  },
+  {
+    "id": "ev-seed-lauri-pref-risk-c",
+    "entryId": "lauri-pref-risk",
+    "userId": "lauri",
+    "at": "2025-02-11T12:00:00.000Z",
+    "action": "confirmed",
+    "by": "you",
+    "how": "You said it’s still right",
+    "title": "I prefer low-risk saving"
+  },
+  {
+    "id": "ev-seed-lauri-obs-salary-a",
+    "entryId": "lauri-obs-salary",
+    "userId": "lauri",
+    "at": "2026-05-25T16:00:00.000Z",
+    "action": "added",
+    "by": "nordea",
+    "how": "Noticed in your transactions",
+    "title": "Your salary went up in May 2026"
+  },
+  {
+    "id": "ev-seed-lauri-obs-restaurants-a",
+    "entryId": "lauri-obs-restaurants",
+    "userId": "lauri",
+    "at": "2026-10-15T09:00:00.000Z",
+    "action": "added",
+    "by": "nordea",
+    "how": "Noticed in your transactions",
+    "title": "You've been eating out more"
+  },
+  {
+    "id": "ev-seed-eeva-buffer-goal-a",
+    "entryId": "eeva-buffer-goal",
+    "userId": "eeva",
+    "at": "2025-01-10T11:00:00.000Z",
+    "action": "added",
+    "by": "you",
+    "how": "In the app",
+    "title": "Peace of mind emergency buffer"
+  },
+  {
+    "id": "ev-seed-eeva-buffer-goal-c",
+    "entryId": "eeva-buffer-goal",
+    "userId": "eeva",
+    "at": "2026-09-10T11:00:00.000Z",
+    "action": "confirmed",
+    "by": "you",
+    "how": "You said it’s still right",
+    "title": "Peace of mind emergency buffer"
+  },
+  {
+    "id": "ev-seed-eeva-pref-calm-a",
+    "entryId": "eeva-pref-calm",
+    "userId": "eeva",
+    "at": "2025-01-10T11:15:00.000Z",
+    "action": "added",
+    "by": "you",
+    "how": "In the app",
+    "title": "Plain language and calm interface"
+  },
+  {
+    "id": "ev-seed-eeva-fact-pension-a",
+    "entryId": "eeva-fact-pension",
+    "userId": "eeva",
+    "at": "2025-02-04T10:00:00.000Z",
+    "action": "added",
+    "by": "nordea",
+    "how": "Noticed in your transactions",
+    "title": "Keva retirement pension income"
+  }
+]

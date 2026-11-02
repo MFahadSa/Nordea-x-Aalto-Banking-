@@ -16,6 +16,7 @@ import {
   undoCabinetAction,
   updateUserViewMode,
   resetDatabase,
+  reloadData,
   sendChat,
   doAction,
   setOffersOff,
@@ -56,6 +57,9 @@ export default function App() {
   const [usersOpen, setUsersOpen] = useState(false);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The app ships with no data: until some is loaded (scripts/load_data.py) it shows "No data yet".
+  const [noData, setNoData] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [redeemAsk, setRedeemAsk] = useState<Reward | null>(null);
   const [delDocId, setDelDocId] = useState<string | null>(null);
@@ -76,10 +80,36 @@ export default function App() {
     try {
       setState(await fetchState(id));
       setError(null);
+      setNoData(false);
     } catch (e: any) {
+      if (e?.code === 'NO_DATA') {
+        setState(null);
+        setError(null);
+        setNoData(true);
+        return;
+      }
+      // Loaded data may not have this customer (e.g. no "lauri"): switch to the first one there is.
+      if (e?.message === 'User not found') {
+        const us = await fetchUsers().catch(() => [] as User[]);
+        setUsers(us);
+        if (us.length && us[0].id !== id) { setPersonaId(us[0].id as PersonaId); return; }
+      }
       setError(e?.message || 'Could not load the app data');
     }
   }, [personaId]);
+
+  const checkAgain = async () => {
+    setChecking(true);
+    try {
+      await reloadData();
+      fetchUsers().then(setUsers).catch(() => {});
+      await refresh();
+    } catch (e: any) {
+      setError(e?.message || 'Could not load the app data');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   useEffect(() => {
     refresh(personaId);
@@ -263,6 +293,15 @@ export default function App() {
   if (error && !state) {
     return <div className="caption" style={{ padding: 40 }}>Couldn’t load the app: {error}</div>;
   }
+  if (noData && !state) {
+    return (
+      <div className="caption" style={{ padding: 40, margin: '40px auto' }}>
+        <p><b>No data yet</b></p>
+        <p>There are no customers or transactions in the app. Load data with <code>scripts/load_data.py</code>, then check again.</p>
+        <button className="btn primary" onClick={checkAgain} disabled={checking}>{checking ? 'Checking…' : 'Check again'}</button>
+      </div>
+    );
+  }
   if (!state) {
     return <div className="caption" style={{ padding: 40 }}>Loading…</div>;
   }
@@ -361,7 +400,7 @@ export default function App() {
                 users={users}
                 currentUserId={state.user.id}
                 onSelectPersona={(p) => { setPersonaId(p); setUsersOpen(false); setChatOpen(false); setPage('home'); }}
-                onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
+                onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'All data deleted' }); }}
               />
               <AddGoalModal
                 isOpen={addGoalOpen}
@@ -449,7 +488,7 @@ export default function App() {
               onUsers={() => setUsersOpen(true)}
               onCalm={async () => { await updateUserViewMode(state.user.id, isCalm ? 'full' : 'calm'); refresh(); }}
               onDark={toggleTheme}
-              onReset={async () => { await resetDatabase(); refresh(); setToast({ message: 'Demo data reset' }); }}
+              onReset={async () => { if (!window.confirm('Delete all customers and their data? Load data again with scripts/load_data.py.')) return; await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'All data deleted' }); }}
               onRefresh={() => refresh()}
             />
           )}

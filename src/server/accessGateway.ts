@@ -52,19 +52,33 @@ export function readCabinetThroughGateway(
 }
 
 function evaluate(userId: string, agentId: string, preview: boolean, purposeContext?: string) {
-  const agent = getAgentManifest(agentId) || {
-    id: agentId,
-    name: agentId === 'abel' ? 'Abel' : agentId,
-    purpose: purposeContext || 'Banking Context Cabinet assistance',
-    needs: ['cabinetEntries'],
-    mayRead: ['goal', 'life_event', 'preference', 'fact', 'observation'],
-    neverRead: ['unconsented_private', 'credentials'],
-    canAct: false,
-    nordeaEarnsMoney: false,
-    avatarColor: '#0000A0',
-  };
-
   const allEntries = db.getCabinetEntries(userId);
+
+  // Fail closed: an agent with no registered manifest gets NOTHING - no read, no preview.
+  // (The previous default manifest here silently granted unknown agents read access.)
+  const manifest = getAgentManifest(agentId);
+  if (!manifest) {
+    const denied = {
+      id: agentId,
+      name: agentId,
+      purpose: purposeContext || 'Unregistered access attempt',
+      needs: [] as string[],
+      mayRead: [] as string[],
+      neverRead: [] as string[],
+      canAct: false,
+      nordeaEarnsMoney: false,
+      avatarColor: '#a4352c',
+    };
+    return {
+      allowed: [] as CabinetEntry[],
+      blocked: allEntries.map((entry) => ({
+        title: entry.title,
+        reason: `Unknown agent '${agentId}': no registered manifest, so the gateway denies access (fail-closed)`,
+      })),
+      agent: denied,
+    };
+  }
+  const agent = manifest;
   const allowed: CabinetEntry[] = [];
   const blocked: { title: string; reason: string }[] = [];
 
