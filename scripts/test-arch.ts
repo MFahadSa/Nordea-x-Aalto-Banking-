@@ -668,7 +668,7 @@ check('G16: the counter resets and the cap lifts when unset', LL.llmCallCount() 
   process.env.LLM_AGENT_MAX_STEPS = '7'; process.env.LLM_STEP_TIMEOUT_MS = '45000';
   const custom = AL.archLlmConfig();
   delete process.env.LLM_AGENT_MAX_STEPS; delete process.env.LLM_STEP_TIMEOUT_MS;
-  check('G17: step budget/timeout configurable via env (defaults 4 steps / 15s)', dflt.maxSteps === 4 && dflt.stepTimeoutMs === 15000 && custom.maxSteps === 7 && custom.stepTimeoutMs === 45000, JSON.stringify({ dflt: { maxSteps: dflt.maxSteps, stepTimeoutMs: dflt.stepTimeoutMs }, custom: { maxSteps: custom.maxSteps, stepTimeoutMs: custom.stepTimeoutMs } }));
+  check('G17: step budget/timeout configurable via env (defaults 4 steps / 120s)', dflt.maxSteps === 4 && dflt.stepTimeoutMs === 120000 && custom.maxSteps === 7 && custom.stepTimeoutMs === 45000, JSON.stringify({ dflt: { maxSteps: dflt.maxSteps, stepTimeoutMs: dflt.stepTimeoutMs }, custom: { maxSteps: custom.maxSteps, stepTimeoutMs: custom.stepTimeoutMs } }));
 }
 
 // G4 (Bill 03:45): the figure guard must match whole numbers - '120' must not pass against '1200'.
@@ -806,6 +806,53 @@ LL.setProviderForTests(null);
   const A2 = A.archState('stamp1') as any;
   check('stamp fixture produced messages (the next check is not vacuous)', A2.messages.length > 0, String(A2.messages.length));
   check('message rows carry an ISO `at` the pages format', A2.messages.every((x: any) => typeof x.at === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(x.at)), JSON.stringify(A2.messages[0] ?? {}).slice(0, 120));
+}
+
+// --- Per-call timeout: a real 120 s per model call, cancelled for real, each failover member its own clock
+{
+  const AL = await import('../src/server/arch/llm.js');
+  const { makeChain } = await import('../src/server/llmChain.js');
+  const { makeOpenAiProvider } = await import('../src/server/llmOpenAI.js');
+  const http = await import('http');
+  const LLmod = await import('../src/server/llm.js');
+  check('timeout: default per-call limit is 120 s', AL.archLlmConfig().stepTimeoutMs === 120000, String(AL.archLlmConfig().stepTimeoutMs));
+  const three = { members: [{ isConfigured: () => true }, { isConfigured: () => true }, { isConfigured: () => true }] };
+  check('timeout: the outer guard gives EACH chain member its own full limit plus slack (not the old 15 s + 5 s)',
+    AL.stepGuardMs(three, 120000) === 3 * 120000 + 40000 && AL.stepGuardMs({}, 120000) === 120000 + 40000 && AL.stepGuardMs(three, 120000, 1) === 2 * 120000 + 40000,
+    `${AL.stepGuardMs(three, 120000)} / ${AL.stepGuardMs({}, 120000)}`);
+  // withTimeout cancels: onTimeout runs at the limit
+  let cancelled = false;
+  const wt = await LLmod.withTimeout(new Promise(() => {}), 60, 'x', () => { cancelled = true; }).then(() => 'resolved', (e: Error) => e.message);
+  check('timeout: withTimeout runs the cancel hook when the time is up', cancelled && /timeout/.test(String(wt)), `${cancelled} ${wt}`);
+  // a REAL request is aborted: a local server that never answers sees the connection close
+  let closed = false;
+  const srv = http.createServer((req) => { req.on('close', () => { closed = true; }); /* never respond */ });
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
+  const port = (srv.address() as { port: number }).port;
+  const prov = makeOpenAiProvider({ baseUrl: `http://127.0.0.1:${port}/v1`, apiKey: 'test-key', model: 'm' });
+  const t0 = Date.now();
+  const msg = await prov.step({ system: 's', turns: [{ role: 'user', text: 'hi' }], tools: [{ name: 'finishReply', description: 'd', parameters: { type: 'object', properties: {} } }], timeoutMs: 400, maxWaitMs: 100 }).then(() => 'ok', (e: Error) => e.message);
+  await new Promise((r) => setTimeout(r, 200));
+  check('timeout: the caller limit is honoured as given (no 60 s floor) and the request is really aborted',
+    /timeout/.test(String(msg)) && Date.now() - t0 < 5000 && closed, `${msg} ${Date.now() - t0}ms closed=${closed}`);
+  // the caller's abort signal cancels too
+  closed = false;
+  const ctl = new AbortController();
+  const p2 = prov.step({ system: 's', turns: [{ role: 'user', text: 'hi' }], tools: [{ name: 'finishReply', description: 'd', parameters: { type: 'object', properties: {} } }], timeoutMs: 30000, maxWaitMs: 100, signal: ctl.signal }).then(() => 'ok', (e: Error) => e.message);
+  setTimeout(() => ctl.abort(), 150);
+  const m2 = await p2; await new Promise((r) => setTimeout(r, 200));
+  check('timeout: an abort signal from the caller cancels the in-flight request', closed && m2 !== 'ok', `${m2} closed=${closed}`);
+  srv.close(); srv.closeAllConnections?.();
+  // failover: the second member is called with the FULL per-call limit and a signal
+  const seen: { n: string; t?: number; sig: boolean }[] = [];
+  const fin = (a: { tools: { name: string }[] }) => { const n = a.tools.map((x) => x.name); return n.includes('finishRetrievalPlan') ? { id: 'q1', name: 'finishRetrievalPlan', args: { goalTitles: [], reason: 'x' } } : n.includes('finishMatchTerms') ? { id: 'q2', name: 'finishMatchTerms', args: { terms: {} } } : { id: 'q3', name: 'finishReply', args: { reply: 'Hello after failover.' } }; };
+  const failing = { name: 'f1', label: 'First', model: 'a', isConfigured: () => true, step: async (a: { timeoutMs?: number; signal?: AbortSignal }) => { seen.push({ n: 'first', t: a.timeoutMs, sig: !!a.signal }); throw new Error('timeout: did not answer (timeout)'); } };
+  const second = { name: 'f2', label: 'Second', model: 'b', isConfigured: () => true, step: async (a: { timeoutMs?: number; signal?: AbortSignal; tools: { name: string }[] }) => { seen.push({ n: 'second', t: a.timeoutMs, sig: !!a.signal }); return { calls: [fin(a)] }; } };
+  LL.setProviderForTests(makeChain([failing as never, second as never]) as never);
+  const rr = await A.chat('timeout1', 'hello timeout', 'timeout-sess-1');
+  LL.setProviderForTests(null);
+  const sec = seen.find((x) => x.n === 'second');
+  check('timeout: a failover member gets its own full 120 s limit and the cancel signal', rr.source === 'model' && sec?.t === 120000 && sec?.sig === true && seen.find((x) => x.n === 'first')?.t === 120000, JSON.stringify(seen.slice(0, 3)));
 }
 
 // --- AI visibility: per-agent live-AI view on both monitors. Shared chain as configured +
@@ -1301,6 +1348,31 @@ check('F10p2: the Abel path opens no agent store at all - only the shared contex
   !/loadUserDb|loadCmDb|loadNordeaDb|userStore|cmStore|nordeaStore/.test(fnBody) && fnBody.includes('loadContext') && fnBody.includes("controlRoundTrip(uid, 'personal'"), '');
 check('F10p2: the personal agent answers abel-facts from its own User DB (the owning agent reads, not the app)',
   personalSrc.includes("control === 'abel-facts'") && /u\.goals\.map/.test(personalSrc));
+
+// --- Outcome 4: General vs Related question category (exact, code-decided) ---
+{
+  const { classifyQuestion } = await import('../src/server/arch/orchestrator.js');
+  check('Q4: banking/account/goal questions are "Related Question"', classifyQuestion('what is my account balance?', []) === 'Related Question' && classifyQuestion('how is my car saving going', []) === 'Related Question' && classifyQuestion('a plain note', ['row']) === 'Related Question', '');
+  check('Q4: other questions are exactly "General Question" (no provider/example hardcode)', classifyQuestion('When was Aalto University founded?', []) === 'General Question' && classifyQuestion('How tall is Mount Everest?', []) === 'General Question', '');
+  const UIDQ = 'catq';
+  const seen: { system: string }[] = [];
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  setProviderForTests({ name: 'capture', isConfigured: () => true, step: async (args: { system?: string }) => { seen.push({ system: args.system ?? '' }); return { calls: [{ id: 'c1', name: 'finishReply', args: { reply: 'Aalto University was founded in 2010 in Espoo.' } }] }; } } as never);
+  const g = await A.chat(UIDQ, 'When was Aalto University founded?');
+  check('Q4: a General Question gets the model answer, category General, and a no-disclaimer instruction', g.category === 'General Question' && g.source === 'model' && /no disclaimer/.test(seen.at(-1)?.system ?? '') && !/bank data|Nordea DB|don't have your bank/i.test(g.reply), g.reply);
+  check('Q4: a General Question keeps its general figure (no customer record needed)', /2010/.test(g.reply), g.reply);
+  const r = await A.chat(UIDQ, 'how much money did I spend on groceries?');
+  check('Q4: a Related Question keeps the figure guard (invented 2010 would drop to the scripted reply)', r.category === 'Related Question' && r.source !== 'model', `${r.category} ${r.source}`);
+  setProviderForTests(null);
+  setProviderForTests({ name: 'down', isConfigured: () => true, step: async () => { throw new Error('provider down'); } } as never);
+  const gd = await A.chat(UIDQ, 'How tall is Mount Everest?');
+  check('Q4: a General Question with no model answer gets no bank disclaimer', gd.category === 'General Question' && !/bank|Nordea|User DB|account/i.test(gd.reply), gd.reply);
+  setProviderForTests(null);
+}
+const appSrcQ = readSrc('../src/App.tsx'), apiSrcQ = readSrc('../src/services/api.ts'), routesSrcQ = readSrc('../src/server/routes.ts'), chatSrcQ = readSrc('../src/components/Chat.tsx'), archHtmlQ = readSrc('../public/arch.html');
+check('Q3: no fixed 180 s client abort; requestId sent; late pickup by requestId, never an automatic resubmit', !/180000/.test(apiSrcQ) && /requestId/.test(apiSrcQ) && /api\/chat\/result/.test(apiSrcQ) && (apiSrcQ.match(/fetch\('\/api\/chat'/g) ?? []).length === 1, '');
+check('Q3: server runs a requestId once (join in-flight / stored reply) and serialises a user\'s turns', /chatInflight/.test(routesSrcQ) && /storedReply\(userId, requestId\)/.test(routesSrcQ) && /chatQueue/.test(routesSrcQ), '');
+check('Q2: mobile caption = category, client-measured elapsed, actual answerer, round plan; arch.html shows category + client-measured elapsed', /performance\.now\(\) - sentAt/.test(appSrcQ) && /sup\?\.plan/.test(chatSrcQ) && /sup\?\.category/.test(chatSrcQ) && /client-measured/.test(archHtmlQ), '');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -9,7 +9,7 @@ export const envBase = () => (process.env.LLM_BASE_URL || 'https://llm-gateway.k
 export const envModel = () => process.env.LLM_MODEL || 'Qwen/Qwen3.8-27B-FP8';
 const envKey = () => process.env.LLM_API_KEY || '';
 /** Shared university GPUs can be slow, and some models need minutes to start. */
-const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 60000;
+const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 120000;
 
 /** A readable name for More → AI connection, from the address. */
 export function labelFor(base: string) {
@@ -127,18 +127,26 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
   let lowEffort = /gpt-oss/i.test(o.model) || (/qwen/i.test(o.model) && !/aalto/i.test(o.baseUrl));
   const effort = /qwen/i.test(o.model) ? 'none' : 'low';
 
-  async function post(body: any, timeoutMs: number) {
+  async function post(body: any, timeoutMs: number, signal?: AbortSignal) {
     countLlmCall(`${label} ${o.model}`); // G16 paid-call cap (LLM_MAX_CALLS)
-    const res = await withTimeout(
-      fetch(`${o.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${o.apiKey}` },
-        body: JSON.stringify(body),
-      }),
+    // The time limit (or the caller's signal) really CANCELS the request, not just stops waiting for it.
+    const ctl = new AbortController();
+    if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', () => ctl.abort(), { once: true }); }
+    // Headers AND body share one limit: a server that sends headers and then stalls must not hang forever.
+    const { res, text } = await withTimeout(
+      (async () => {
+        const r = await fetch(`${o.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${o.apiKey}` },
+          body: JSON.stringify(body),
+          signal: ctl.signal,
+        });
+        return { res: r, text: await r.text() };
+      })(),
       timeoutMs,
       label,
+      () => ctl.abort(),
     );
-    const text = await res.text();
     if (!res.ok) {
       const e: any = new Error(`${res.status}: ${text.slice(0, 400)}`);
       try {
@@ -152,12 +160,12 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
     return JSON.parse(text);
   }
 
-  async function chat(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number }) {
+  async function chat(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number; signal?: AbortSignal }) {
     // A cap on the answer's length: Groq's free tier counts output tokens per minute (qwen: 1 000), and a
     // request asking for more than that is refused outright. A chat reply needs far less; reading a file a bit more.
     const body: any = { model: o.model, messages: toMessages(args.system, args.turns), temperature: args.temperature ?? 0.3, max_tokens: args.tools.length === 1 ? 950 : 700 };
     if (args.tools.length) body.tools = args.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
-    const timeout = Math.max(args.timeoutMs || 0, TIMEOUT_MS);
+    const timeout = args.timeoutMs || TIMEOUT_MS; // the caller's limit is honoured as given (no 60 s floor)
     const maxWait = args.maxWaitMs ?? 25000;
     let waits = 0;
     // "auto" only for this one request, after the model failed to call a tool (it wanted to answer in words).
@@ -171,7 +179,7 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
       if (lowEffort) body.reasoning_effort = effort;
       else delete body.reasoning_effort;
       try {
-        const out = await post(body, timeout);
+        const out = await post(body, timeout, args.signal);
         lastOk = { at: new Date().toISOString(), model: o.model };
         return out;
       } catch (err: any) {

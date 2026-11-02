@@ -235,8 +235,12 @@ window.airlock = async (id, ok) => { await api(`/api/arch/${uid}/airlock/${id}/$
 window.review = async (id, ok) => { await api(`/api/arch/${uid}/review/${id}/${ok ? 'accept' : 'reject'}`, {}); refresh(); };
 $('btn-chat').onclick = async () => {
   const t = $('chat-in').value.trim(); if (!t) return; $('chat-in').value = ''; say('me', t);
+  const t0 = performance.now(); // client-measured: send to reply arrival
   const j = await api(`/api/arch/${uid}/chat`, { body: { text: t, sessionId } }); say('agent', j.reply);
+  const elapsed = ((performance.now() - t0) / 1000);
   const cap = [];
+  if (j.category) cap.push(j.category);
+  cap.push(elapsed.toFixed(elapsed < 10 ? 1 : 0) + ' s (client-measured)');
   const prov = j.provider ? ' [' + j.provider + ']' : '';
   if (j.source) cap.push(j.source === 'model' ? 'reply: model' + prov : j.source === 'scripted-error' ? 'reply: scripted (model unavailable)' + prov : 'reply: scripted' + prov);
   if (j.plan) cap.push('round plan: cm ' + j.plan.cm + ', nordea ' + j.plan.nordea);

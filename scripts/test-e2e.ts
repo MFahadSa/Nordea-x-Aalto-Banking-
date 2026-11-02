@@ -187,6 +187,26 @@ try {
     check('cond-4: the session document belongs to the same session', stOne.includes(convId), convId);
   }
 
+  // Outcome 3 (mock LLM, synthetic): a requestId runs ONCE; a repeat joins it or gets the stored reply; late pickup by requestId.
+  {
+    const rid = 'req-e2e-1';
+    const [a, b] = await Promise.all([
+      api('POST', '/api/chat', { userId: UID, text: 'what do you know about my car saving?', requestId: rid }),
+      api('POST', '/api/chat', { userId: UID, text: 'what do you know about my car saving?', requestId: rid }),
+    ]);
+    const idA = a.json?.messages?.[1]?.id, idB = b.json?.messages?.[1]?.id;
+    check('Q3: the same requestId sent twice at once returns ONE reply (no duplicate turn)', !!idA && idA === idB, [idA, idB]);
+    const again = await api('POST', '/api/chat', { userId: UID, text: 'what do you know about my car saving?', requestId: rid });
+    check('Q3: a later repeat returns the stored reply (200), not a new turn', again.status === 200 && again.json?.messages?.[1]?.id === idA, again.status);
+    const stored = (await api('GET', `/api/conversations/${a.json.conversationId}/messages`)).json?.messages ?? [];
+    check('Q3: exactly one user + one agent message stored for that requestId', stored.filter((m: any) => m.requestId === rid).length === 1 && stored.filter((m: any) => m.replyToRequestId === rid).length === 1, stored.length);
+    const late = await api('GET', `/api/chat/result?userId=${UID}&requestId=${rid}`);
+    check('Q3: late pickup by requestId returns the reply', late.json?.status === 'done' && late.json?.messages?.[1]?.id === idA, late.json?.status);
+    const unk = await api('GET', `/api/chat/result?userId=${UID}&requestId=req-never-sent`);
+    check('Q3: an unknown requestId is reported unknown (never silently resubmitted)', unk.json?.status === 'unknown', unk.json?.status);
+    check('Q4: the stored reply carries its exact question category and round-plan info', ['General Question', 'Related Question'].includes(a.json?.messages?.[1]?.supplied?.category), a.json?.messages?.[1]?.supplied);
+  }
+
   // 5. Source scan: no app/arch code reads customer data from the old store
   const read = (f: string) => fs.readFileSync(f, 'utf-8');
   const appFiles = ['importPropose.ts', 'finance.ts', 'routes.ts', 'devMonitor.ts', 'dataRewards.ts', 'documents.ts'].map((f) => `src/server/${f}`);

@@ -133,12 +133,23 @@ export function registerV14Routes(app: Express) {
   // one chat path - the app's conversation id IS the arch session id, so the app and
   // arch.html share the conversation and its finalised document). helperId is accepted
   // for one release and ignored: v3 has one personal agent.
-  app.post('/api/chat', async (req, res) => {
-    const { userId = 'lauri', text, conversationId, helperId = 'abel' } = req.body || {};
-    if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text is required' });
+  // Outcome 3: every customer message carries a client requestId. The server runs a chat turn at
+  // most ONCE per requestId (a repeat of the same id joins the running turn or returns the stored
+  // reply - never a second model call), turns of one user run one after another, and the reply is
+  // findable by requestId (GET /api/chat/result) so a slow or dropped connection can pick it up late.
+  const chatInflight = new Map<string, Promise<{ status: number; body: unknown }>>();
+  const chatQueue = new Map<string, Promise<unknown>>();
+  const storedReply = (userId: string, requestId: string) => {
+    const all = db.getMessages(userId);
+    const a = all.find((m) => m.sender === 'agent' && m.replyToRequestId === requestId);
+    if (a) { const u = all.find((m) => m.requestId === requestId && m.sender === 'user'); return { conversationId: a.conversationId!, messages: u ? [u, a] : [a] }; }
+    return null;
+  };
+  const runChatTurn = async (userId: string, text: string, conversationId: string | undefined, helperId: string, requestId: string | undefined) => {
     let conv = conversationId ? db.getConversation(conversationId) : undefined;
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
+    if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
     const reply = await archChat(userId, u.text, conv.id);
     // The honesty line reflects THIS pipeline: rows of the session's finalised document,
     // the actual answering source (model+provider / scripted / scripted-error), never a
@@ -148,11 +159,49 @@ export function registerV14Routes(app: Express) {
     const a = agentMsg(userId, conv.id, conv.helperId, reply.reply, {
       suggestions: reply.suggestions ?? [],
       usedEntryIds: reply.used,
-      supplied: { notes: docRows.length, accountData: docRows.some((r) => r.source === 'nordea'), source: reply.source, ...(reply.provider ? { provider: reply.provider } : {}) },
+      supplied: { notes: docRows.length, accountData: docRows.some((r) => r.source === 'nordea'), source: reply.source, ...(reply.provider ? { provider: reply.provider } : {}), ...(reply.category ? { category: reply.category } : {}), ...(reply.plan ? { plan: { cm: reply.plan.cm, nordea: reply.plan.nordea, ...(reply.plan.provider ? { provider: reply.plan.provider } : {}) } } : {}) },
       errorInfo: reply.plan?.error,
       answeredBy: reply.source === 'model' ? undefined : 'bank_code',
+      ...(requestId ? { replyToRequestId: requestId } : {}),
     });
-    res.status(201).json({ conversationId: conv.id, messages: [u, a], error: reply.source === 'scripted-error' ? 'ai' : undefined });
+    return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: reply.source === 'scripted-error' ? 'ai' : undefined } };
+  };
+  app.post('/api/chat', async (req, res) => {
+    const { userId = 'lauri', text, conversationId, helperId = 'abel' } = req.body || {};
+    if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text is required' });
+    const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim() ? req.body.requestId.trim().slice(0, 80) : undefined;
+    const key = requestId ? `${userId}:${requestId}` : '';
+    if (requestId) {
+      const done = storedReply(userId, requestId);
+      if (done) return res.status(200).json(done);
+      const running = chatInflight.get(key);
+      if (running) { const out = await running; return res.status(out.status).json(out.body); }
+    }
+    const prev = chatQueue.get(userId) ?? Promise.resolve();
+    const turn = prev.catch(() => undefined).then(() => runChatTurn(userId, text, conversationId, helperId, requestId));
+    chatQueue.set(userId, turn);
+    if (requestId) chatInflight.set(key, turn);
+    try {
+      const out = await turn;
+      res.status(out.status).json(out.body);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'The chat failed' });
+    } finally {
+      if (requestId) chatInflight.delete(key);
+      if (chatQueue.get(userId) === turn) chatQueue.delete(userId);
+    }
+  });
+  // Late pickup: where is the reply for this requestId? pending = still running here;
+  // done = stored reply; unknown = this server never ran it (or restarted mid-turn) - the client
+  // says so and lets the customer ask again; it never resubmits on its own.
+  app.get('/api/chat/result', (req, res) => {
+    const userId = String(req.query.userId || 'lauri');
+    const requestId = String(req.query.requestId || '');
+    if (!requestId) return res.status(400).json({ error: 'requestId is required' });
+    const done = storedReply(userId, requestId);
+    if (done) return res.json({ status: 'done', ...done });
+    if (chatInflight.has(`${userId}:${requestId}`)) return res.json({ status: 'pending' });
+    res.json({ status: 'unknown' });
   });
 
   // Buttons on cards. The customer acts; code does the work (no model involved).

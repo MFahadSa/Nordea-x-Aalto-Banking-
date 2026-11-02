@@ -269,7 +269,14 @@ export interface ChatMessage {
   /** What this reply is stamped with (not proof of what it used): the actual answering source
    *  (model+provider / scripted / scripted-error) and the rows of the session's finalised
    *  document it was based on. Older messages may lack source/provider. */
-  supplied?: { notes: number; accountData: boolean; source?: 'model' | 'scripted' | 'scripted-error'; provider?: string };
+  supplied?: { notes: number; accountData: boolean; source?: 'model' | 'scripted' | 'scripted-error'; provider?: string;
+    /** Exact question category, decided by code: 'General Question' or 'Related Question'. */
+    category?: 'General Question' | 'Related Question';
+    /** The round plan path of THIS reply's round (absent when no round ran for it). */
+    plan?: { cm: string; nordea: string; provider?: string } };
+  /** Correlates a customer message with its reply (late pickup, no duplicate resubmit). */
+  requestId?: string;
+  replyToRequestId?: string;
   /** Technical reason when Abel couldn't answer (shown small, for debugging the demo). */
   errorInfo?: string;
   /** Set when the customer tapped a button on this message, so it can't be tapped twice. */

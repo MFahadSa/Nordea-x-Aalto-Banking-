@@ -174,7 +174,7 @@ export function finishChat(uid: string, begin: ChatBegin): { reply: string; used
  *  It sees ONLY those parts (its own DB hits + shared-context rows), never a database.
  *  Code validates the reply afterwards: any figure not present in the facts drops the
  *  reply back to the grounded scripted template. */
-export async function llmComposeReply(uid: string, question: string, parts: string[]): Promise<import('../llm.js').PlanOutcome<string> & { seenFacts: string[]; suggestions: string[] }> {
+export async function llmComposeReply(uid: string, question: string, parts: string[], category: 'General Question' | 'Related Question' = 'Related Question'): Promise<import('../llm.js').PlanOutcome<string> & { seenFacts: string[]; suggestions: string[] }> {
   const { archLlmEnabled, runAgentReasoning } = await import('../llm.js');
   if (!archLlmEnabled()) return { plan: null, status: 'scripted', seenFacts: [], suggestions: [] }; // G29: empty parts still compose
   // V4: the personal model reads its OWN User DB through tools (goals, personal facts) -
@@ -188,7 +188,9 @@ export async function llmComposeReply(uid: string, question: string, parts: stri
       'You are Abel, the customer\'s personal banking assistant agent. You answer the customer.',
       'The facts below are rows code selected from your User DB and the shared context; you may read more of YOUR OWN User DB through listMyGoals and listMyFacts. You never see another agent\'s database.',
       'Keep every amount and figure EXACTLY as written in the facts or tool results. Never invent, convert or recompute a number.',
-      'If the available facts do not answer the question, say plainly what is missing.',
+      category === 'General Question'
+        ? 'This is a General Question, not about the customer\'s own banking. Answer it directly from general knowledge. Do not mention bank data, accounts or what you cannot see, and add no disclaimer. General facts and figures are fine.'
+        : 'This is a Related Question (the customer\'s banking, accounts or goals). If the available facts do not answer it, say plainly what is missing. Never state a customer figure that is not in the facts.',
       'Answer in one to three short sentences, then finishReply.',
       'In finishReply, add up to 3 short follow-up questions (suggestions) the customer could ask next, grounded in the same facts - never a figure that is not in them.',
     ].join(' '),

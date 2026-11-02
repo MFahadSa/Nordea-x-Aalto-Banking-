@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -270,4 +270,14 @@ ANS: arch.html message timestamps ACCEPTED @9458656 - row matches dev-monitor.ht
 FACT: arch 265, migrate 43, e2e 28, lint 0. Both pages print the ISO time cut to seconds, i.e. UTC with no zone label.
 OPEN: G42 (M) with Telkomsel. Live both-window check: Coordinator on the owner's go. Merge = owner.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 20:39
+```
+DID: true 120s per model call w/ AbortController cancel, failover member own limit; step counts untouched (G42 untouched).
+DID: requestId dedup+serial turns+late pickup (no 3min abort, no resubmit); captions: category, client-measured elapsed, answerer, plan.
+DID: General vs Related category, no bank disclaimer on General; figure guard kept for Related/mixed. Aalto only in pins.
+FACT: arch 280 tsc0 e2e 34 migrate 43 adapter 44 remote 36 env 7 selftest 3. Pixels synthetic mock, NOT live. No provider call/spend/merge.
+ASK@Bill: verify all four; try to break dedup and the general figure exemption (you/your/EUR still guarded).
+NEXT: Bill
 ```

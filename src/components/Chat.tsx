@@ -40,6 +40,8 @@ interface Props {
   userName: string;
   messages: ChatMessage[];
   waiting: boolean;
+  /** Client-measured send-to-arrival time per agent reply id (absent after a reload). */
+  timings?: Record<string, { ms: number; late: boolean }>;
   entries: CabinetEntry[];
   shares: Share[];
   onClose: () => void;
@@ -227,8 +229,13 @@ export const Chat: React.FC<Props> = (p) => {
         : sup.source === 'scripted-error'
           ? `Scripted answer after an AI error · ${docStamp}`
           : `Scripted answer · ${docStamp}`;
+    // Order: question category, client-measured elapsed time, the actual answerer, the round plan.
+    const tm = p.timings?.[m.id];
+    const el = tm ? `${(tm.ms / 1000).toFixed(tm.ms < 10000 ? 1 : 0)} s${tm.late ? ' (picked up late)' : ''}` : '';
+    const planStamp = sup?.plan ? `round plan: cm ${sup.plan.cm}, nordea ${sup.plan.nordea}${sup.plan.provider ? ` on ${sup.plan.provider}` : ''}` : '';
+    const head = [sup?.category, el].filter(Boolean).join(' · ');
     const label = sup
-      ? sourceStamp
+      ? [head, sourceStamp, planStamp].filter(Boolean).join(' · ')
       : `Abel says it used ${es.length} ${es.length === 1 ? 'thing' : 'things'}`;
     return (
       <>

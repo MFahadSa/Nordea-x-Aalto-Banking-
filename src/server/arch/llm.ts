@@ -26,8 +26,17 @@ export function archLlmProviderName(): string | null {
  *  the previous hardcoded behaviour (4 steps, 15s per step + 5s outer guard). */
 export function archLlmConfig(): { provider: string | null; maxSteps: number; stepTimeoutMs: number } {
   const maxSteps = Math.max(1, Number(process.env.LLM_AGENT_MAX_STEPS) || 4);
-  const stepTimeoutMs = Math.max(1000, Number(process.env.LLM_STEP_TIMEOUT_MS) || 15000);
+  const stepTimeoutMs = Math.max(1000, Number(process.env.LLM_STEP_TIMEOUT_MS) || 120000);
   return { provider: archLlmProviderName(), maxSteps, stepTimeoutMs };
+}
+
+/** The outer guard around ONE reasoning step. Each usable chain member gets its own full
+ *  per-call limit (a failover must not inherit a nearly spent clock), plus slack for the
+ *  rest period a chain may wait out. It only exists so a provider that ignores its own limit
+ *  cannot hang a reply; it is never the limit a healthy call meets first. */
+export function stepGuardMs(provider: { members?: { isConfigured(): boolean }[] }, stepTimeoutMs: number, skipped = 0, slackMs = 40000): number {
+  const members = Array.isArray(provider.members) ? provider.members.filter((m) => m.isConfigured()).length - skipped : 1;
+  return Math.max(1, members) * stepTimeoutMs + slackMs;
 }
 
 interface AgentRunArgs {
@@ -74,9 +83,11 @@ async function runLoop(args: AgentRunArgs): Promise<RunOutcome> {
     for (let step = 0; step < maxSteps; step++) {
       let r;
       try {
+        // On the guard the request is CANCELLED (abort signal), not just abandoned.
+        const ctl = new AbortController();
         r = await withTimeout(
-          provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs, skipMembers }),
-          stepTimeoutMs + 5000, `${args.agent} agent reasoning`);
+          provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs, skipMembers, signal: ctl.signal }),
+          stepGuardMs(provider as never, stepTimeoutMs, skipMembers?.length ?? 0), `${args.agent} agent reasoning`, () => ctl.abort());
       } catch (e) { return { result: null, error: e instanceof Error ? e.message : String(e) }; }
       if (r.answeredBy && !tried.includes(r.answeredBy)) tried.push(r.answeredBy);
       // F-D: a configured provider that produces no usable finish call is a provider failure,

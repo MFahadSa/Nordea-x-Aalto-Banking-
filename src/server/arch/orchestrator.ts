@@ -77,7 +77,7 @@ function saveSession(uid: string, session: ChatSession) { busKvSet(uid, 'chatSes
  * has nothing from the Context Memory agent for a follow-up, a top-up round adds rows to the
  * same document (never a fresh one).
  */
-export async function chat(uid: string, text: string, clientSessionId?: string): Promise<{ reply: string; used: string[]; sessionId: string; source: 'model' | 'scripted' | 'scripted-error'; provider?: string; suggestions?: string[]; plan?: { cm: string; nordea: string; provider?: string; error?: string } }> {
+export async function chat(uid: string, text: string, clientSessionId?: string): Promise<{ reply: string; used: string[]; sessionId: string; category?: QuestionCategory; source: 'model' | 'scripted' | 'scripted-error'; provider?: string; suggestions?: string[]; plan?: { cm: string; nordea: string; provider?: string; error?: string } }> {
   const parked = getCabinetParkedMirror(uid); // the personal agent's parked gate, no status ping
   const { session, isNew } = resolveSession(uid, clientSessionId);
   // F17: direct input (a typed goal) is saved BEFORE any round opens, so the session round's
@@ -115,6 +115,8 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // G4: the personal agent's model composes the reply from the parts code selected; the
   // grounded template stays as fallback. Every figure in the model's reply must already
   // exist in the selected facts, or the scripted reply stands (no invented numbers).
+  const category = classifyQuestion(text, answer.factSources);
+  const general = category === 'General Question';
   let source: 'model' | 'scripted' | 'scripted-error' = 'scripted';
   let suggestions: string[] = [];
   let answeredBy: string | undefined; // V4: the chain member that actually answered THIS reply
@@ -123,15 +125,19 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // is unchanged, so without sourced facts any invented number drops it back to the scripted text.
   if (!parked && !getOff(uid).includes('personal')) {
     const { llmComposeReply } = await import('./agents/personal.js');
-    const composed = await llmComposeReply(uid, text, answer.parts);
+    const composed = await llmComposeReply(uid, text, answer.parts, category);
     answeredBy = composed.answeredBy;
-    if (composed.plan && figuresGrounded(composed.plan, [...answer.factSources, ...(composed.seenFacts ?? [])])) {
+    // A General Question carries no customer figures, so general numeric facts need no customer record;
+    // a Related (or uncertain/mixed) question keeps the figure guard.
+    if (composed.plan && ((general && !customerFigureClaim(composed.plan)) || figuresGrounded(composed.plan, [...answer.factSources, ...(composed.seenFacts ?? [])]))) {
       answer = { ...answer, reply: composed.plan };
       source = 'model';
       // Suggestions face the same guard: any figure the facts do not contain drops that suggestion.
       const facts = [...answer.factSources, ...(composed.seenFacts ?? [])];
-      suggestions = (composed.suggestions ?? []).filter((sg) => figuresGrounded(sg, facts));
+      suggestions = general ? (composed.suggestions ?? []).filter((sg) => !customerFigureClaim(sg) || figuresGrounded(sg, facts)) : (composed.suggestions ?? []).filter((sg) => figuresGrounded(sg, facts));
     } else if (composed.status === 'error') source = 'scripted-error';
+    // No irrelevant bank disclaimer: when a General Question gets no model answer, say so neutrally.
+    if (general && source !== 'model' && composed.status === 'error') answer = { ...answer, reply: `I couldn't get an AI answer to that general question just now - please try again.` };
     if (composed.status !== 'scripted' || source !== 'scripted') {
       appendMessage(uid, { from: 'personal', to: 'app', type: 'inform', summary: `Chat reply: ${source === 'model' ? 'composed by the model' : source === 'scripted-error' ? 'scripted (provider error)' : 'scripted'}.`, payload: { llm: true, kind: 'chat-reply', source } });
     }
@@ -141,7 +147,20 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // V4: a model reply names the model that answered it (the chain member on this call);
   // a scripted fallback keeps the configured-provider name and never implies a model answered.
   const provider = (source === 'model' ? answeredBy ?? archLlmProviderName() : archLlmProviderName()) ?? undefined;
-  return { reply: answer.reply, used: answer.used, sessionId: session.id, source, ...(provider ? { provider } : {}), ...(planStatus ? { plan: planStatus } : {}) };
+  return { reply: answer.reply, used: answer.used, sessionId: session.id, source, category, ...(provider ? { provider } : {}), ...(planStatus ? { plan: planStatus } : {}) };
+}
+
+
+export type QuestionCategory = 'General Question' | 'Related Question';
+/** Outcome 4: an exact, code-decided category. "Related Question" = customer banking, accounts,
+ *  goals (a banking word in the question, OR rows of the customer's own User DB / shared context
+ *  matched). Everything else is a "General Question". Uncertain or mixed questions land on
+ *  Related, so the private-fact grounding and the figure guard stay on for them. */
+const RELATED_RE = /\b(balance|balances|account|accounts|spent|spend|spending|transaction|transactions|salary|income|money|save|saving|savings|goal|goals|card|cards|loan|loans|mortgage|payment|payments|bill|bills|budget|bank|nordea|iban|rent|debt|invest\w*|pension|my (?:data|facts|notes))\b|[€$£]/i;
+/** A General Question may carry general figures; a reply that talks about the customer (you/your) or money amounts is a customer claim and still needs grounding. */
+function customerFigureClaim(t: string): boolean { return /\b(you|your|you're|you've)\b/i.test(t) || /EUR|€|\$|£/.test(t); }
+export function classifyQuestion(text: string, factSources: string[]): QuestionCategory {
+  return RELATED_RE.test(text) || factSources.length > 0 ? 'Related Question' : 'General Question';
 }
 
 /** Every figure in the model's reply must come from the facts code selected. Figures are

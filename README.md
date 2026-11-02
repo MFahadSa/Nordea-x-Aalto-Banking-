@@ -111,7 +111,7 @@ Open **http://localhost:3000/arch.html** for the three-agent demo UI. Its contro
 | `LLM_GEMINI_FIRST=true` | Try Gemini before the OpenAI-compatible models (default: they answer first, Gemini is the last fallback) |
 | `LLM_MAX_CALLS` | Cap on real provider HTTP calls per process; past the cap the agents run scripted and say so |
 | `LLM_AGENT_MAX_STEPS` | Tool-call steps an agent's model may take per run (default 4) |
-| `LLM_STEP_TIMEOUT_MS` | Timeout per model step in milliseconds (default 15000) |
+| `LLM_STEP_TIMEOUT_MS` | Timeout per model call in milliseconds (default 120000; a timed-out request is cancelled) |
 | `USER_DB_URL` · `CM_DB_URL` · `NORDEA_DB_URL` | The hosted agent stores (below); unset = local SQLite |
 | `SUPABASE_URL` + `SUPABASE_SECRET_KEY` | Only the kept-documents bucket still uses these (below); unset = local files |
 
@@ -253,8 +253,8 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 
 | Check | Command | Covers |
 |---|---|---|
-| Architecture tests | `npm run test:arch` | 265 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
-| End-to-end | `npm run test:e2e` | 28 checks over a real booted server: a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
+| Architecture tests | `npm run test:arch` | 280 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
+| End-to-end | `npm run test:e2e` | 34 checks over a real booted server (incl. requestId dedup + late pickup): a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
 | Data-layer adapter | `npm run test:adapter` | 43 checks: the old app store as an adapter over the three agent databases, legacy migration, and plumbing separation |
 | Hosted sync | `npm run test:remote` | 36 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
 | Live hosted three-agent run | manual, evidence in `evidence/e2e/` | A real server booted against the hosted Supabase stores with a real model: session round with model plans, a model-composed chat answer grounded in context.md, goal add, contribution round, review accepts into Context Memory - then scoped cleanup restored the hosted tables to their pre-test hashes |
