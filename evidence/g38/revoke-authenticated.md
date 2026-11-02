@@ -26,8 +26,10 @@ Only the `authenticated` entry was removed on each table. information_schema.rol
 grantee='authenticated' on the 4 tables: 0 rows remaining.
 
 ## Data and functionality (after)
-- Row counts unchanged: agent_nordea_records 241, nordea_feed 0 (cm/user tables not re-counted; a
-  privilege revoke cannot change rows).
+- Full-row content hashes (md5 over sorted per-row md5(row::text)) at 12:53 MATCH the verified 12:06
+  baseline on every table: agent_user_records 8 rows ef2e8bd05768f2fe1d0e57f143e9fa51;
+  agent_cm_records 36 rows 5ff5e6cde58276b8f1ac5348f539f644; agent_nordea_records 241 rows
+  854ec8e68e45b701e8653362649f1300; nordea_feed 0 rows. Data provably unchanged through the revoke.
 - Agent roles verified: has_table_privilege - agent_nordea feed SELECT+UPDATE true, agent_user INSERT
   true, agent_cm INSERT true. RLS and policies untouched (still agent-only, baseline file).
 
