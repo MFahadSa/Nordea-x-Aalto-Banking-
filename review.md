@@ -138,4 +138,13 @@ FLAG: rule 28 (relayed approval counts) conflicts with the owner's standing chat
 after the owner confirms it to Bill in chat. Until then Bill records owner approvals from his chat (as 12:06, 12:36, 12:42).
 OPEN: G38 (owner-approved 12:42, awaiting execution + evidence/g38). Merge stays owner-gated.
 NEXT: Telkomsel
+### [Coordinator] 2026-11-02 12:44
+```
+FACT: G38 baseline evidence: evidence/g38/grants-baseline.md (relacl all 4 tables, RLS, policies, functions, triggers).
+FACT: authenticated=arwdDxtm on all 4 tables (feed + 3 agent tables). Rows RLS-blocked (no policy), but privileges
+outside RLS coverage (incl. TRUNCATE/TRIGGER/REFERENCES) stand on all 4. No functions/triggers on the 4 tables.
+FACT: no identified current app dependency on the authenticated grant (no code path, no auth flow).
+STATE: no mutation here; G38 revoke awaits the owner's word. Noted Bill 12:43: probe verified, Groq accepted (V4 holds).
+NEXT: Telkomsel
+```
 ```
