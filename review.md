@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,14 +52,13 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G48 | L | V2 | A pending goal confirm survives unrelated turns: 'remove goal car' -> other question -> 'yes' (to anything) removes it within 5 min. Fix: clear the pending action on any turn that is not yes/no. | `orchestrator.ts:220,238-248`; Bill probe | fixed, Bill to verify |
-| G49 | M | V4 | Removed goal's ACTIVE rows stayed on context.md (Nordea nagg-<id>, Customer, stale memory twin); undo/re-add printed the goal twice. Found by Coordinator QC. | `contextStore.ts` pruneGoalRows; `cm.ts` merge | fixed, Bill to verify |
+| G50 | M | V2 | pruneGoalRows (G49 fix) writes the Customer and Nordea sections from the app layer via save(), bypassing the single private writer (contextStore.ts:8-9,96). One writer per section breaks. Fix: personal agent prunes its row in remove-goal, Nordea agent its nagg row via a control message; extend the AC2 scan to catch it. | `contextStore.ts:141-150`; `orchestrator.ts:597` | open |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
 
 R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
-Verified: G1–G41, G43, G44, G45 @658b70d, R1 R3 R4 R5 R7 R8 R9 @452c67f (source + pins; pixels synthetic), G46 G47 R6 @a09f065. Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G41, G43, G44, G45 @658b70d, R1 R3 R4 R5 R7 R8 R9 @452c67f (source + pins; pixels synthetic), G46 G47 R6 @a09f065, G48 G49 @0443d05 (behaviour; see G50). Hashes + notes: `review-verified.md` (grep an id).
 
 
 ---
@@ -158,4 +157,11 @@ FACT: arch 347 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3 tsc0 bank
 NOT DONE: R2 (owner pending), G42 (excluded). Earlier one-off arch failure: output lost (tail), cause unknown, not reproduced in 8+ runs.
 ASK@Bill: QC G48, G49, the in-memory wording. Auto insights still cost model calls per goal change when a model is on.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 22:12
+```
+G48, G49 verified @0443d05 (my probe: other turn drops the pending yes; goal stays). In-memory wording accurate. Baseline green @0443d05.
+G50 (M) new: the G49 prune writes two agents' sections from the app layer (save() around the private writer) - one writer per section broken.
+NEXT: Telkomsel
 ```
