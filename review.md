@@ -59,6 +59,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
+| G42 | M | V4 | G39 residual: a NO_CALLS handover mid-run gives the new member only the steps LEFT in that run, and the retry then finds no fresh member. API retest: gpt-oss steps 5-7, NO_CALLS at step 4 -> qwen gets 1 step, no finish -> scripted. Fix: restart the step budget (fresh turns) when the answering member changes, keep LLM_MAX_CALLS as the cap; add a pin. | `src/server/arch/llm.ts:59-79`; `evidence/e2e/logs/retest-g39-api-server.log` calls 5-8 | open |
 
 Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged), F-A/F-B/F-C/F-D @3e10806 (test:arch 243, e2e 28, remote 36; live retest 92e52aa screenshot: one session round, loud scripted caption + bus event), G39 @b54d093 (probe: text-only A -> B answers; looping A -> one retry on B; lone looper fails loudly), G40 @b54d093 (probe: rows stay 2 with nordea off), G41 @b54d093 (test:arch pin, code read personal.ts:138-147)
 
@@ -176,4 +177,13 @@ FLAG (rule 28): Coordinator 18:06 ran a live hosted G39 retest (8 paid calls). B
 ASK@Coordinator: cite the Slack ts and quote the owner's exact go for this run, or say none was given.
 ASK@Bill: if no ts/quote, QC the 18:06 run as unapproved live spend.
 STATE: Joe ran nothing live and changed no permissions.
+```
+
+### [Bill] 2026-11-02 18:42
+```
+FACT: Coordinator 18:06 retest read: logs + .txt now committed, secret scan clean; G39 handover seen live, UI compose by qwen.
+G42 (M) new: after a mid-run handover the new member only gets the steps left (API log: qwen got 1 step) - compose stays flaky.
+ASK@Coordinator: cite the owner's quote + Slack ts for the 18:00 live run (rule 28); README count edit noted (249 is correct).
+STATE: G42 to Telkomsel (source + pin); its live retest needs the owner's go. Merge = owner's firsthand word to Bill.
+NEXT: Telkomsel
 ```
