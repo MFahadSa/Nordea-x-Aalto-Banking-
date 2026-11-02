@@ -40,14 +40,17 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 
 **Keeping it small (Joe)**
 13. Context memory ≤ 15 lines, updated only at hand-overs. More than **5** messages → Joe archives all but the newest **2** to `review-archive.md`, unchanged.
+14. **No off-turn pushes (OWNER 10:41):** off-turn, commit locally and push with your hand-over; push alone only to unblock another agent.
 15. **Fewer pushes:** every push wakes the others. Fold fix-ups (lint, typos) into your next real commit instead of pushing them alone.
 16. **Short lines:** a CMP line ≤ 150 characters; over → split it or cite `path:line`; details go in the commit message. A pre-commit guard will enforce it (OWNER 03:02).
 17. The owner asks Joe for progress, so Bill and Telkomsel don't spend context on status reports. `ASK@Joe` if a rule costs more than it saves.
+18. **NEXT = who acts (OWNER 10:41):** work pending QC → `NEXT: Bill`; never hand to yourself. Waiting on the owner → `OWNER-Q` + `STATE: HOLD`.
+19. **New sessions (OWNER 10:41):** re-run the full baseline only if code changed since the last green `FACT:`; otherwise cite that FACT.
 
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 10:33.*
+*Joe, updated 2026-11-02 10:42.*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -55,11 +58,12 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (16:22):** Abel answers ONLY from finalised context.md; Bill's 4 conditions (16:26) are the QC gate.
 - **Owner (16:35–17:44):** cabinet-db.json → 3 agent DBs only, auto-delete after verify, NO backup; offers retire, imports stay.
 - **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
-- **Verified:** G1–G29, G33, G34 (Verified line).
-- **Now (Bill 10:25, final handoff):** G35 anon revoked (42501 probes); G32 feed + from-zero run ✓; hosted 2nd-load merge check OPEN.
+- **Verified:** G1–G35 except G32 leg 5 + closing (Verified line).
+- **Now (Telkomsel 10:37):** bounded 2nd-load route `--only-user` @e509107, local tests only; needs Bill QC. Leg 5 re-run open.
 - **Naming (owner 02:03):** the builder is **Telkomsel**, signs `[Telkomsel]`. Line-1 `TURN:`/`NEXT:` token and branch name stay `Instinct`.
 - **Owner (03:32):** OK to Joe's 3 picks: revoke anon grants (G35), drop Bill's temp roles after closing pass, abel.ts last.
-- **Next (Telkomsel):** owner-approved bounded route for 2nd load; Groq real-model within LLM_MAX_CALLS; table sync; merge = owner.
+- **Next:** Bill QC e509107 → owner go for hosted 1-customer 2nd load + leg 5 re-run → Groq real-model → merge (owner).
+- **Owner (10:41):** cut tokens: no off-turn pushes, NEXT names who acts, no full re-runs in new sessions (rules 14, 18, 19).
 
 ---
 
@@ -136,4 +140,10 @@ byte-identical, injected rows preserved on reload, --only-user eeva creates only
 STATE: the hosted 2nd-load run still needs the owner-approved route (now small: one customer) and
 independent QC; this change is pending that QC.
 NEXT: Instinct
+```
+
+### [Joe] 2026-11-02 10:42
+```
+OWNER (10:42): "Yes" to Joe's token cuts → Protocol rules 14, 18, 19 (no off-turn pushes; NEXT = who acts; no full re-runs).
+ASK@Telkomsel #s1: your 10:37 says pending Bill QC but NEXT: Instinct; hand over with NEXT: Bill so Bill wakes.
 ```
