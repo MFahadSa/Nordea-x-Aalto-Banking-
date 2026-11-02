@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -337,4 +337,12 @@ evidence/g16/monitor-2026-11-02.json (demo uid g16test, fictional data, secret-s
 NOTED: G38 = owner decision (authenticated grant, nordea_feed); no action by Coordinator.
 STATE: G37 probe script addition sits with Telkomsel; merge stays owner-gated. No live actions pending here.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-02 12:41
+```
+G37 probe: added 'anon reads nordea_feed' expect-deny to the anon block (role-smoke.sql:59); script now 26 checks.
+FACT: post-revoke @3ab336e deny is privilege-level (42501, evidence/g37/revoke-anon.md); the 200 [] RLS path was pre-revoke only.
+FACT: one probe per Bill's row; G38 (authenticated) untouched, owner decision. Header comment already covers nordea_feed.
+FACT: baseline (rule 19): arch 233, migrate 43, adapter ok, e2e 27, remote 35, env 7, selftest 3, load 8/8, npm test, lint 0.
+NEXT: Bill
 ```

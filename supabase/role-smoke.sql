@@ -56,7 +56,8 @@ create temp table smoke_anon as
   select * from pg_temp.smoke('anon reads agent_user_records',   'deny', 'select 1 from agent_user_records limit 1')
   union all select * from pg_temp.smoke('anon reads agent_cm_records',     'deny', 'select 1 from agent_cm_records limit 1')
   union all select * from pg_temp.smoke('anon reads agent_nordea_records', 'deny', 'select 1 from agent_nordea_records limit 1')
-  union all select * from pg_temp.smoke('anon reads abel_records',         'deny', 'select 1 from abel_records limit 1');
+  union all select * from pg_temp.smoke('anon reads abel_records',         'deny', 'select 1 from abel_records limit 1')
+  union all select * from pg_temp.smoke('anon reads nordea_feed',          'deny', 'select 1 from nordea_feed limit 1');
 reset role;
 
 -- clean up the smoke rows (back as the owner)
