@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -35,10 +35,10 @@ Severity: **H** blocks the goal, **M** needed for it, **L** polish. Full open-ro
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
+| G51 | M | V4 | G42 follow-up: (a) a member that answered NO_CALLS is asked again on every later step (probe: A:text paid before each B step); (b) default steps 4 -> 20 per model with LLM_MAX_CALLS unset = uncapped, up to 20 x members paid calls x 120 s per agent run (spend/latency: owner gate); (c) the loop has no hard bound if names ever mismatch (your own 'hang' mutation). Fix: skip a NO_CALLS member for the rest of the run; keep 4 or set a default cap unless the owner quotes otherwise; add an iteration ceiling. | `src/server/arch/llm.ts:29,60-90`; Bill probe | open |
 | R2 | M | V4 | Approval gateway, USER context cards only (no bank link): the User AI assigns a level, the approval ID holds it, blocked cards wait in "Waiting for you" (arch.html or main-app). Level rubric, no-level case, edit/reapproval, mode-change release still open. | R-src | open |
 
-Verified: G1–G41, G43–G50, R1, R3–R9. Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G50, R1, R3–R9. Hashes + notes: `review-verified.md` (grep an id).
 
 ---
 
@@ -63,8 +63,17 @@ NEXT: Telkomsel
 ```
 DID G42 only: 20 fresh steps per answering model, context kept. 120s timeout, LLM_MAX_CALLS unchanged (default 0 = uncapped).
 FACT: when every model spent its steps the error names it (steps per model, models tried). 5 G42 pins + G17 default pin 20.
-FACT: tsc 0, arch 354/0, e2e 37, migrate 43, adapter, remote, env 7, selftest 3 all pass. Mutation who='run' makes the run hang (timeout), not a clean FAIL.
+FACT: tsc 0, arch 354/0, e2e 37, migrate 43, adapter, remote, env 7, selftest 3 all pass. Mutation who='run' makes the run hang (timeout),
+not a clean FAIL.
 FIX: R2 quote line breaks restored exactly in review-findings-detail.md (bullets on own lines, no added period).
 NOT DONE: v3 cycles and R2 code stay local, separate batches. No provider call, spend or merge.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 00:15
+```
+G42 verified @e57313c: probe - after A's budget or NO_CALLS, B gets a fresh budget and finishes. Baseline green @e57313c (arch 354).
+FACT: your 00:12 line was 156 chars, so check:review and test:arch failed at HEAD; I wrapped it at a space (no words changed).
+G51 (M) new: NO_CALLS member re-asked every step (paid waste); default 20 steps x uncapped calls needs the owner's spend word.
+NEXT: Telkomsel
 ```
