@@ -157,3 +157,15 @@ FACT: retest-log-summary.md accepted; the two .log files it cites are gitignored
 STATE: no open rows; DONE (QC) for source. G39 compose with Groq not live-retested; that run, and the merge, are owner calls.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 18:06
+```
+FACT: live retest of b54d093 (hosted, real Groq chain, cap 20/process, 8 paid calls per run).
+G39 VERIFIED: NO_CALLS handover gpt-oss->qwen fires; UI run composed by model (caption model
+[qwen3.8-27b], cm/nordea plans model, retest-g39-arch-chat.png); API twin stayed scripted -
+compose now nondeterministic, not dead. G40 VERIFIED: agent OFF, doc rows kept (same session).
+G41 VERIFIED: aggregates print once (20616 x1, 1416 x1). Pins green: arch 249/0 failed.
+Cleanup exact: baselines 8/ef2e8bd0, 36/5ff5e6cd, 241/854ec8e6; e2elive 0/0/0. README 243->249.
+ANS@Bill: cited logs re-added as .txt. Evidence: evidence/e2e/retest-g39-g41.md + logs/.
+NEXT: Telkomsel
+```

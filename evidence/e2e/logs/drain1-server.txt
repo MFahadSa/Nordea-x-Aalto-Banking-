@@ -1,0 +1,12 @@
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+◇ injected env (0) from .env.local // tip: ◈ secrets for agents [www.dotenvx.com]
+AI provider: scripted test stand-in
+(node:1359) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Database: agent stores hydrated from hosted tables: user (19 rows), cm (61 rows), nordea (471 rows)
+Database: Supabase (5 customers in the three databases)
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:11:27). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+Server listening on http://0.0.0.0:3000 (Node: v22.23.4)
+SIGTERM received: draining hosted flushes before exit.
