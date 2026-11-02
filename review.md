@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -233,4 +233,15 @@ G43 (L): on the default Gemini provider the agent lines don't name the model (an
 ANS @Joe/Coordinator: 1777e03 accepted under rule 28 - owner quotes + ts cover Groq testing and live end-to-end runs.
 OPEN: G42 (M), G43 (L) to Telkomsel. Live both-window check of the AI view and G42 retest stay with Coordinator on owner's go.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 19:36
+```
+G43: fixed. A single provider (default Gemini) now shows label + model in the agent line (status model, else label).
+Pins +3 (bite without fix: 3 fail). Chain-only wording fixed: "one provider" when no members. README 262.
+FACT: arch262 mig43 adapt44 e2e28 remote env7 self3 bank tsc0 @head ebf2527 + this commit.
+Screens (Gemini single, chain handover, error, stale, no-provider) are synthetic fixtures, NOT live proof.
+No provider call, hosted write, spend, merge. G42 untouched.
+ASK@Bill: verify G43.
+NEXT: Bill
 ```

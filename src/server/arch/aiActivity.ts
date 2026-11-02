@@ -5,6 +5,7 @@
 // page load or refresh can never cost a paid request. "Configured" is not "working": a key being
 // present says nothing about the last call, which is why the observed result is shown beside it.
 import { getProvider } from '../llm.js';
+import type { LlmProvider } from '../llm.js';
 
 export type AiAgent = 'personal' | 'cm' | 'nordea';
 export interface AiRun { at: string; outcome: 'finished' | 'error'; provider?: string; error?: string }
@@ -13,6 +14,16 @@ export interface AiRun { at: string; outcome: 'finished' | 'error'; provider?: s
 export const AI_STALE_AFTER_SEC = 30 * 60;
 
 const runs = new Map<string, AiRun>(); // key: `${uid}|${agent}`; process memory only, lost on restart
+
+/** Name of the model behind a SINGLE (non-chain) provider, e.g. "Gemini gemini-3.8-flash".
+ *  A chain stamps each result with its member (answeredBy); a single provider does not, so the
+ *  label comes from the provider itself: its own model, else the model its status reports. */
+export function providerDisplayName(p: LlmProvider): string {
+  let model = p.model || '';
+  if (!model) { try { const m = p.status?.()?.model; if (typeof m === 'string') model = m; } catch { /* name only */ } }
+  const label = p.label || p.name;
+  return model && model !== label ? `${label} ${model}` : label;
+}
 
 /** Short, display-safe error text: no keys, tokens, URLs with query strings or long dumps. */
 export function sanitizeAiError(raw: unknown): string {

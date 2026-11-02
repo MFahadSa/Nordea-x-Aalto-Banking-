@@ -7,7 +7,7 @@
  */
 import { getProvider, withTimeout } from '../llm.js';
 import { chainHasFreshMember } from '../llmChain.js';
-import { recordAiRun } from './aiActivity.js';
+import { providerDisplayName, recordAiRun } from './aiActivity.js';
 import type { ToolCall, ToolDecl, Turn } from '../llm.js';
 
 /** True when a real (or test) provider is configured; false = scripted fallback. */
@@ -55,7 +55,7 @@ type RunOutcome = { result: Record<string, unknown> | null; error?: string; answ
 /** Runs the loop and records what happened (in memory) so the monitors can show it per agent. */
 export async function runAgentReasoning(args: AgentRunArgs): Promise<RunOutcome> {
   const out = await runLoop(args);
-  if (args.uid) recordAiRun(args.uid, args.agent, out.result ? { outcome: 'finished', provider: out.answeredBy } : { outcome: 'error', error: out.error });
+  if (args.uid) recordAiRun(args.uid, args.agent, out.result ? { outcome: 'finished', provider: out.answeredBy ?? providerDisplayName(getProvider()) } : { outcome: 'error', error: out.error });
   return out;
 }
 

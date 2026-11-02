@@ -845,6 +845,28 @@ LL.setProviderForTests(null);
   const leak = JSON.stringify(ve);
   check('AI view: a failed run reads error with a sanitized message (no keys)', ve.agents.personal.state === 'error' && !!ve.agents.personal.error && !/gsk_abc|AIzaSy|Bearer gsk/.test(leak), `${ve.agents.personal.state} ${ve.agents.personal.error}`);
   check('AI view: the chain member shows its last problem and no success', ve.chain.members[0].lastFail?.kind === 'minute' && ve.chain.members[0].lastOk === null, JSON.stringify(ve.chain.members[0]));
+  // G43: a single (non-chain) provider has no answeredBy: the line must still name label + model.
+  const single = (label: string, model: string | undefined, statusModel?: string) => ({
+    name: label.toLowerCase(), label, ...(model ? { model } : {}), isConfigured: () => true,
+    ...(statusModel ? { status: () => ({ model: statusModel }) } : {}),
+    step: async (args: { tools: { name: string }[] }) => {
+      const n = args.tools.map((x) => x.name);
+      return { calls: [n.includes('finishRetrievalPlan') ? { id: 's1', name: 'finishRetrievalPlan', args: { goalTitles: [], reason: 't' } }
+        : n.includes('finishMatchTerms') ? { id: 's2', name: 'finishMatchTerms', args: { terms: {} } }
+        : { id: 's3', name: 'finishReply', args: { reply: 'Single provider answer.' } }] };
+    },
+  });
+  LL.setProviderForTests(single('Gemini', undefined, 'gemini-3.8-flash') as never);
+  await A.chat('aivis-g1', 'hello single', 'ai-vis-sess-3');
+  const g1 = (A.archState('aivis-g1') as any).ai.agents.personal;
+  check('G43: default-style single provider names label + status model (no chain answeredBy)', g1.state === 'finished' && g1.provider === 'Gemini gemini-3.8-flash', JSON.stringify(g1));
+  LL.setProviderForTests(single('Groq', 'qwen/qwen3-32b') as never);
+  await A.chat('aivis-g2', 'hello single', 'ai-vis-sess-4');
+  const g2 = (A.archState('aivis-g2') as any).ai.agents.personal;
+  check('G43: single provider with its own model names it', g2.provider === 'Groq qwen/qwen3-32b', JSON.stringify(g2));
+  LL.setProviderForTests(single('Gemini', undefined) as never);
+  await A.chat('aivis-g3', 'hello single', 'ai-vis-sess-5');
+  check('G43: no model known anywhere falls back to the label, never blank', (A.archState('aivis-g3') as any).ai.agents.personal.provider === 'Gemini', '');
   check('AI sanitize: bearer, gsk and key= tokens removed, length capped', AV.sanitizeAiError('Bearer abc.def gsk_1234567890abcd ?key=SECRET1 ' + 'x'.repeat(400)).length <= 160 && !/SECRET1|gsk_1234|abc\.def/.test(AV.sanitizeAiError('Bearer abc.def gsk_1234567890abcd ?key=SECRET1')), '');
   LL.setProviderForTests(null);
 }

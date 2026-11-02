@@ -129,7 +129,7 @@ const aiChain = (ai) => {
   if (!ai) return '';
   const c = ai.chain;
   if (!c.configured) return 'Shared AI provider: <b>none configured</b>. All three agents run scripted.';
-  const head = `Shared AI provider (one chain for all three agents): <b>${esc(c.label ?? c.provider)}</b>${c.mockOnly ? ' <span class="pill scripted">test stand-in, not a real model</span>' : ''}`;
+  const head = `Shared AI provider (${(c.members ?? []).length > 1 ? "one chain" : "one provider"} for all three agents): <b>${esc(c.label ?? c.provider)}</b>${c.mockOnly ? ' <span class="pill scripted">test stand-in, not a real model</span>' : ''}`;
   const rows = (c.members ?? []).map((m) => {
     const state = !m.configured ? '<span class="pill error">no key</span>' : m.restingFor ? `<span class="pill error">resting ${m.restingFor} s</span>` : '<span class="pill scripted">key set</span>';
     const seen = m.lastOk ? ` last ok ${esc(m.lastOk.slice(0, 19).replace('T', ' '))}` : ' no success seen yet';
