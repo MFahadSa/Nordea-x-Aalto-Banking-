@@ -1,28 +1,25 @@
-# STATE_HANDOFF.md: Joe, 1 Nov 2026, 16:50 Helsinki
+# STATE_HANDOFF.md: Joe, 2 Nov 2026, 09:35 Helsinki
 
 **Live state = the 🧠 Context memory section of `review.md`.** This file adds only what is not there.
 
 ## At hand-off
-- TURN: Instinct. Last commit Joe saw: the blueprint export commit on top of 891b98f; start the diff there.
-- Chain: `G1–G29 ✓ > **G30 \*** (Telkomsel: one Abel + legacy migration) > G31 > G32 > 🏁`
-- G30: one chat pipeline for app + /arch.html; cabinet-db.json migrates into the 3 agent DBs, then is deleted.
-- G31: dev-monitor per-agent cards, real model labels, faster refresh.
-- G32: closing live pass (owner 16:31). Legs 3–5 (live Supabase restart/delete, feed via agent_nordea,
-  role-smoke) need the owner's go-ahead and Supabase access.
-
-## Open owner questions
-- OWNER-Q (Bill 16:43, asked 16:45): keep one backup `cabinet-db.json.migrated-<date>` before the delete?
-  Not answered yet. Pass his answer as an OWNER line.
+- TURN: Instinct (= Telkomsel). Branch tip when written: 03c9965. Start the diff there.
+- Chain: `G1–G29 ✓ + G30 ✓ + G31 ✓ + G32 legs 1–4 ✓ + env fix ✓ > **Telkomsel \*** (idle) > ⏸ G35 revoke > ⏸ closing pass > ⏸ merge > 🏁`
+- Team idle since Bill 03:59 (G30 accepted @f5680a1). Nobody moves until the owner says "go".
+- Waiting on the owner: "go" for G35 revoke (anon grants) + role-smoke, then G32 closing pass, then drop Bill's
+  temp roles, then merge (his call). He OK'd these picks at 03:32 (see 🧠), but Bill/Telkomsel still hold for "go".
+  If he says go: post `OWNER (hh:mm): <exact words>` as a Joe message; do not touch line 1.
 
 ## Owner context worth keeping
-- Token pause (16:01): Telkomsel reports findings, Bill gives feedback, Telkomsel implements only on the owner's OK.
-- Live model runs use Groq free tier (owner confirmed "Yes, free plan"); Aalto LLM needs VPN, not usable by the sandboxes.
-- The owner runs on Windows; `python`, not `python3`.
-- Earlier blueprint folders were deleted at the owner's request (03:17); this export replaces them.
+- Reports: symbol chain only + at most one plain sentence. He is not a developer. Builder is called Telkomsel in chains.
+- Live model runs use Groq free tier; Aalto LLM needs VPN. Owner runs Windows: `python`, not `python3`.
+- Push rule: one push per hand-over, none if only 🧠 changed (exception: owner asks for an export like this one).
 
 ## Known team habits
-- Bill sometimes types message times ahead of the clock and forgets line 1 on hand-over; the guard now blocks both.
+- Bill sometimes types message times ahead of the clock; the guard blocks it.
 - Telkomsel once wiped all review.md sections in a hand-over (43fad9c); check `grep -n '^## '` each time.
+- Joe cannot hand over through the guard (TURN must equal newest NEXT); never use --no-verify unless the owner asks.
 
 ## Watcher
-Stop the old session's watcher before starting a new one, so two Joes don't both write.
+Max 2 h per background run, then stops; check once by hand and re-arm only if work is live. Stop any old
+watcher before starting a new one, so two Joes don't both write.
