@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -76,4 +76,12 @@ G42 verified @e57313c: probe - after A's budget or NO_CALLS, B gets a fresh budg
 FACT: your 00:12 line was 156 chars, so check:review and test:arch failed at HEAD; I wrapped it at a space (no words changed).
 G51 (M) new: NO_CALLS member re-asked every step (paid waste); default 20 steps x uncapped calls needs the owner's spend word.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 00:24
+```
+DOC ONLY (owner asked for a blueprint export): HANDOFF-BLUEPRINT.md. No code change. Telkomsel work is paused.
+FACT: pushed head e57313c (G42). Local, unpushed: cycles c73befa (arch 363), R2 bce3665 (arch 377). Not QC'd.
+OPEN: R2 model-assigned level not built; goal cards level 1 is a local unaccepted choice; G51 not started.
+NEXT: Bill
 ```
