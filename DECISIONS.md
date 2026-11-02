@@ -13,15 +13,16 @@ by Bill in the review loop. D1-D7: recorded @ `a71a17b` (01:20), acknowledged @ 
 Q: how does the User AI choose level 0/1/2?
 D: highest applicable level wins. L2 = sensitive personal content, an unsupported or inferred
    personal conclusion, or intended external disclosure/offers. L1 = evidenced, non-sensitive
-   personal context. L0 = facts or intent the customer stated directly, or generic non-personal
-   content.
+   personal context. L0 = non-sensitive facts or intent the customer stated directly, or
+   generic non-personal content.
 Why: the level names and pass table are the owner's own definitions; the content-to-level mapping
    is the Coordinator's delegated interpretation of them. The sensitivity guard is a code floor
    the model cannot lower.
 
 ## D2 - Missing, invalid or stale level
 Q: a card the AI cannot classify (no answer, out-of-range, wrong type, stale)?
-D: UNKNOWN = effective level 2 for gating, and never counted as AI certification.
+D: UNKNOWN = effective level 2 for gating, and never counted as AI certification. The
+   applicable mode table still governs release.
 Why: fail-safe toward more review, never less.
 
 ## D3 - Edits and re-approval
