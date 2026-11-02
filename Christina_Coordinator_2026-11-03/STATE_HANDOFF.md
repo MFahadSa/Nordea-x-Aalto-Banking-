@@ -1,6 +1,8 @@
-# STATE_HANDOFF.md: Coordinator, 3 Nov 2026, 01:35 Helsinki
+# STATE_HANDOFF.md: Coordinator, 3 Nov 2026, 01:35 Helsinki (rev 2)
 
 **Live state = the 🧠 Context memory section of `review.md`.** This adds only what is not there.
+Provenance rule from SYSTEM_PROMPT.md applies: times like 01:18 / 01:22 refer to messages in the
+owner's channel as recorded by the Coordinator - unverified from the repo alone.
 
 ## At hand-off
 - Branch tip when written: 616f869 (Telkomsel's cycles push). TURN: Bill (his QC of cycles).
@@ -17,19 +19,18 @@
   conservative over-assignment pin, assigner+static table only (not approval-lifecycle tests).
 
 ## Owner context worth keeping
-- He is not a developer; plain words, one short message beats three. No feedback = keep going (01:22).
+- Plain words, one short message beats three. No feedback = keep going (recorded 01:22).
 - Decision review: DECISIONS.md; audit prompt for an external reviewer: prompt_to_audit_coordinator.md.
-- Project-facing name for this role: "a new AI assistant" / the Coordinator. Never internal names.
+- Project-facing name for this role: "a new AI assistant" / the Coordinator.
 
 ## Known team habits
 - Joe hears the owner in a channel nobody else sees; his "OWNER (hh:mm)" lines are hearsay until the
   owner confirms - check against the owner's actual messages (the owner told everyone the delegation
-  directly, 01:18).
+  directly, recorded 01:18).
 - Bill sometimes types message times ahead of the clock; the guard blocks it.
 - Concurrent writes happen: always git fetch and re-read line 1 + the newest message before writing;
   rebase your CMP onto the new head and fix NEXT to the CURRENT turn.
 
-## Watcher
-A 15-minute watch on the branch head (baseline 616f869 at writing) fires on any change; on fire,
-read only the review.md delta + changed files, verify claims locally in mock mode, report facts.
-Re-arm with the new head hash after each push. Next expected: Bill's QC result on cycles.
+## Next checkpoint
+Fresh-fetch the current branch, inspect Bill's cycles QC result, and recheck anything that changed
+before acting on it. The remaining chain steps (live test, merge) are owner-gated.
