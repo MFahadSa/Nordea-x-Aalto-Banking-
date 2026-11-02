@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import {
   agentQuery, archState, archCustomers, newSession, chat, addGoalDirect,
-  decideAirlock, autoInsights, reviewQueue, decideProposal, setStandingPermissions, undoEntry,
+  decideAirlock, autoInsights, levelUserCards, reviewQueue, decideProposal, setStandingPermissions, undoEntry,
   explainEntry, disputeEntry, setAgentOff, deleteDatabase, parkCabinet, listEntries, ArchError,
   appWrites,
 } from './orchestrator.js';
@@ -34,8 +34,10 @@ export function registerArchRoutes(app: Express) {
   app.post('/api/arch/:uid/entries/:entryId/undo', h((req, res) => res.json(undoEntry(uid(req), String(req.params.entryId)))));
 
   app.post('/api/arch/:uid/permissions', h((req, res) => {
-    const reviewLevel = req.body?.reviewLevel === 'high' ? 'high' as const : 'all' as const;
-    res.json(setStandingPermissions(uid(req), reviewLevel));
+    const reviewLevel = req.body?.reviewLevel === undefined ? undefined : req.body.reviewLevel === 'high' ? 'high' as const : 'all' as const;
+    const modes = ['No permission', 'Review everything', 'High risk mode'];
+    const userCardMode = typeof req.body?.userCardMode === 'string' && modes.includes(req.body.userCardMode) ? req.body.userCardMode : undefined;
+    res.json(setStandingPermissions(uid(req), reviewLevel, userCardMode));
   }));
 
   app.post('/api/arch/:uid/chat', h(async (req, res) => {
@@ -70,6 +72,7 @@ export function registerArchRoutes(app: Express) {
     const title = String(req.body?.title ?? '').trim();
     if (!title) { res.status(400).json({ error: 'A goal needs a title.' }); return; }
     const goal = addGoalDirect(uid(req), title, String(req.body?.detail ?? ''));
+    await levelUserCards(uid(req)); // R2: the User AI levels the new goal's card before the mode gate applies
     await autoInsights(uid(req));
     res.json(goal);
   }));
@@ -78,6 +81,7 @@ export function registerArchRoutes(app: Express) {
     const detail = typeof req.body?.detail === 'string' ? req.body.detail : undefined;
     if (!title && detail === undefined) { res.status(400).json({ error: 'Nothing to update.' }); return; }
     appWrites.updateGoal(uid(req), String(req.params.goalId), { title, detail });
+    await levelUserCards(uid(req)); // R2: a changed card is a new version - level it
     await autoInsights(uid(req));
     res.json({ ok: true });
   }));
@@ -89,7 +93,7 @@ export function registerArchRoutes(app: Express) {
 
   // G7/V5: the simulated external-agent mode and its stand-in sync endpoint are gone.
   // The airlock stays, empty until a real external agent exists (V9: bank-hosted MCP).
-  app.post('/api/arch/:uid/airlock/:batchId/approve', h((req, res) => res.json(decideAirlock(uid(req), String(req.params.batchId), true))));
+  app.post('/api/arch/:uid/airlock/:batchId/approve', h(async (req, res) => { const r = decideAirlock(uid(req), String(req.params.batchId), true); await levelUserCards(uid(req)); res.json(r); }));
   app.post('/api/arch/:uid/airlock/:batchId/reject', h((req, res) => res.json(decideAirlock(uid(req), String(req.params.batchId), false))));
 
   // Goal-filtered bank contributions + merge review.

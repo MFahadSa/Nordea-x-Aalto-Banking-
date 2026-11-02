@@ -12,6 +12,9 @@ import { loadContext, readSectionNote, readSectionRows, writeCustomerSection } f
 import { appendMessage, getAgentsOff, getCabinetParkedMirror, loadBus, saveBus, updateMessage } from '../store/busStore.js';
 import { registerHandler } from '../dispatcher.js';
 import { roundDone, runRound } from '../rounds.js';
+import { assessEntryRisk } from '../risk.js';
+import { codeFloor, makeApprovalId, contentHash, readApproval, validateModelLevel, withFloor, RUBRIC } from '../approvalGate.js';
+import type { ModelLevel } from '../approvalGate.js';
 
 export const personalLabel = (u: { personalAgent: { mode: string; externalName?: string } }) =>
   (u.personalAgent.mode === 'external' ? u.personalAgent.externalName || 'External personal agent' : 'Abel');
@@ -224,6 +227,114 @@ export async function llmComposeReply(uid: string, question: string, parts: stri
   return reply.length >= 8 && reply.length <= 600 ? { plan: reply, status: 'model', seenFacts, suggestions, ...(answeredBy ? { answeredBy } : {}) } : { plan: null, status: 'error', error: `finishReply reply unusable (${reply.length} chars, need 8-600)`, seenFacts, suggestions: [] };
 }
 
+// ---------- R2: the User AI assigns each user card's level (model), code validates and floors ----------
+
+/** The exact user card the personal agent proposes for a goal. The level call and the round use the same text. */
+export function goalCard(g: Goal): { title: string; detail: string } {
+  return { title: `Customer goal: ${g.title}`, detail: `The customer is saving toward "${g.title}". Proposed by the personal agent from the User DB (direct customer input).` };
+}
+
+/** The User AI's earlier claim for the SAME card content (same title and detail), if one is on the bus. Content unchanged =
+ *  the level already decided for it stands; it is not re-asked, so an unchanged card keeps its approval id. */
+function priorClaim(uid: string, card: { title: string; detail: string }): (ModelLevel & { id: string }) | null {
+  const prev = [...loadBus(uid).messages].reverse().find((m) => m.type === 'propose' && m.from === 'personal' && m.summary === card.title
+    && (m.payload as { detail?: string } | undefined)?.detail === card.detail && readApproval(m.payload));
+  if (!prev) return null;
+  const p = prev.payload as { approval: { id: string; level: 0 | 1 | 2 }; approvalReason?: string; approvalEvidence?: string[]; approvalBy?: string };
+  return { id: p.approval.id, level: p.approval.level, reason: p.approvalReason ?? '', evidence: p.approvalEvidence ?? [], ...(p.approvalBy ? { by: p.approvalBy } : {}) };
+}
+
+/** The proposal payload for one goal card. An unchanged card reuses the level the User AI already gave that exact
+ *  content; a new or changed card goes out WITHOUT a level and is leveled right after the round by the User AI's model
+ *  (levelPendingCards). Until then (and for good if no valid level comes back) the CM gate counts it as UNKNOWN = level 2. */
+function goalCardPayload(uid: string, g: Goal, roundId: string): Record<string, unknown> {
+  const card = goalCard(g);
+  const base = { roundId, goalIds: [g.id], detail: card.detail, observed: 'observed' };
+  const prior = priorClaim(uid, card);
+  if (prior) return { ...base, approval: { id: prior.id, level: prior.level }, approvalReason: prior.reason, approvalEvidence: prior.evidence, ...(prior.by ? { approvalBy: prior.by } : {}), approvalReused: true };
+  return { ...base, approvalReason: NO_LEVEL_YET };
+}
+const NO_LEVEL_YET = 'the User AI has not given a valid level for this card, so it counts as UNKNOWN = level 2';
+
+/**
+ * R2: the User AI levels its OWN pending user cards that have no level yet: one model call for all of them, validated per
+ * card, raised by the code floor, written into the card's approval id. A card the model leaves invalid stays without a
+ * level (UNKNOWN = effective level 2). Each card is asked at most once per content while a model is configured (a failed
+ * or invalid answer is recorded and not retried automatically, so a broken provider cannot be re-paid every turn).
+ * Returns how many cards it asked about and leveled; the caller asks the CM agent to re-gate.
+ */
+export async function levelPendingCards(uid: string): Promise<{ asked: number; leveled: number; status: 'model' | 'scripted' | 'error'; error?: string }> {
+  const u = loadUserDb(uid);
+  const pending = loadBus(uid).messages.filter((m) => m.type === 'propose' && m.from === 'personal' && m.status === 'pending'
+    && !readApproval(m.payload) && !(m.payload as { approvalAsked?: boolean } | undefined)?.approvalAsked);
+  const cards = pending.map((m) => ({ m, g: u.goals.find((g) => ((m.payload as { goalIds?: string[] })?.goalIds ?? [])[0] === g.id) }))
+    .filter((x): x is { m: AgentMessage; g: Goal } => !!x.g && goalCard(x.g).title === x.m.summary && goalCard(x.g).detail === (x.m.payload as { detail?: string }).detail);
+  if (!cards.length) return { asked: 0, leveled: 0, status: 'scripted' };
+  const out = await llmAssignLevels(uid, cards.map((x) => x.g));
+  if (out.status === 'scripted') return { asked: 0, leveled: 0, status: 'scripted' }; // no model configured: nothing asked, may be asked later
+  let leveled = 0;
+  for (const { m, g } of cards) {
+    const p = (m.payload ?? {}) as Record<string, unknown>;
+    const model = out.plan?.[g.id];
+    if (!model) { updateMessage(uid, m.id, { payload: { ...p, approvalAsked: true, approvalReason: `${NO_LEVEL_YET}${out.error ? ` (${out.error})` : ''}` } }); continue; }
+    const card = goalCard(g);
+    const floor = codeFloor(assessEntryRisk({ title: card.title, detail: card.detail, source: 'customer' }));
+    const level = withFloor(model.level, floor.level);
+    const id = makeApprovalId(level, contentHash({ ...card, level, source: 'personal' }));
+    updateMessage(uid, m.id, { payload: { ...p, approvalAsked: true, approval: { id, level },
+      approvalReason: level > model.level ? `${model.reason} (raised to level ${level}: ${floor.reason})` : model.reason,
+      approvalEvidence: model.evidence, ...(model.by ? { approvalBy: model.by } : {}) } });
+    leveled++;
+  }
+  appendMessage(uid, { from: 'personal', to: 'cm', type: 'inform', summary: `${personalLabel(u)} assessed ${cards.length} user card${cards.length === 1 ? '' : 's'}: ${leveled} got a level from the AI${cards.length - leveled ? `, ${cards.length - leveled} UNKNOWN (counts as level 2)` : ''}.`, payload: { r2Levels: true, status: out.status, ...(out.error ? { error: out.error } : {}) } });
+  return { asked: cards.length, leveled, status: out.status, ...(out.error ? { error: out.error } : {}) };
+}
+
+/**
+ * R2: the User AI's model assigns the level of each new user card by the written rubric, with a reason and evidence.
+ * It reads only its OWN User DB. Code validates every answer (validateModelLevel); an invalid or missing answer leaves
+ * that card without a level (UNKNOWN = effective level 2, never an AI certification). Cards whose content already has
+ * a level on the bus are not re-asked. Returns per goal id.
+ */
+export async function llmAssignLevels(uid: string, goals: Goal[]): Promise<import('../llm.js').PlanOutcome<Record<string, ModelLevel>>> {
+  const { archLlmEnabled, archLlmProviderName, runAgentReasoning } = await import('../llm.js');
+  if (!archLlmEnabled()) return { plan: null, status: 'scripted' };
+  const ask = goals.filter((g) => !priorClaim(uid, goalCard(g)));
+  if (!ask.length) return { plan: null, status: 'scripted' };
+  const { result: out, error, answeredBy } = await runAgentReasoning({
+    uid,
+    agent: 'personal',
+    system: [
+      'You are the User AI risk assessor for the customer\'s own context cards. For EACH card, assign an approval level by this rubric:',
+      RUBRIC,
+      'Use listMyGoals to read the goal rows behind the cards (your own User DB only).',
+      'For each card give: level (0, 1 or 2), a short reason, and evidence: "goal:<id>" for the goal row you checked and/or exact phrases copied from the card or that row.',
+      'When unsure between two levels, choose the higher one. Then call finishRiskLevels once with every card.',
+    ].join(' '),
+    prompt: `Cards:\n${ask.map((g) => { const c = goalCard(g); return `- card ${g.id} | title: ${c.title} | detail: ${c.detail}`; }).join('\n')}`,
+    tools: [
+      { name: 'listMyGoals', description: 'List the goals in your own User DB: id, title, detail.', parameters: { type: 'object', properties: {} } },
+      { name: 'finishRiskLevels', description: 'Finish with one level per card.', parameters: { type: 'object', properties: { levels: { type: 'array', items: { type: 'object', properties: { card: { type: 'string' }, level: { type: 'integer' }, reason: { type: 'string' }, evidence: { type: 'array', items: { type: 'string' } } }, required: ['card', 'level', 'reason', 'evidence'] } } }, required: ['levels'] } },
+    ],
+    runTool: (call) => call.name === 'listMyGoals' ? loadUserDb(uid).goals.map((g) => ({ id: g.id, title: g.title, detail: g.detail })).slice(0, 30) : { error: 'unknown tool' },
+    finishTool: 'finishRiskLevels',
+  });
+  if (error) return { plan: null, status: 'error', error };
+  const rows = Array.isArray(out?.levels) ? (out!.levels as unknown[]) : [];
+  const plan: Record<string, ModelLevel> = {};
+  for (const g of ask) {
+    const raw = rows.find((r) => (r as { card?: unknown })?.card === g.id);
+    const c = goalCard(g);
+    const v = validateModelLevel(raw, { goalIds: [g.id], texts: [c.title, c.detail, g.title, g.detail] });
+    const by = answeredBy ?? archLlmProviderName(); // the model that actually answered (a chain member), else the configured provider
+    if (v) plan[g.id] = { ...v, ...(by ? { by } : {}) };
+  }
+  const missing = ask.length - Object.keys(plan).length;
+  return Object.keys(plan).length
+    ? { plan, status: 'model', ...(missing ? { error: `${missing} card${missing === 1 ? '' : 's'} got no valid level (UNKNOWN = level 2)` } : {}), ...(answeredBy ? { answeredBy } : {}) }
+    : { plan: null, status: 'error', error: 'finishRiskLevels gave no valid level for any card (all UNKNOWN = level 2)' };
+}
+
 // ---------- Agent-to-agent queries (transport for the external demo client) ----------
 
 /** Post a query to another agent; the orchestrator dispatches and reads the reply. */
@@ -399,7 +510,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
       appendMessage(uid, {
         from: 'personal', to: 'cm', type: 'propose', status: 'pending',
         summary: `Customer goal: ${g.title}`,
-        payload: { roundId: payload.roundId, goalIds: [g.id], detail: `The customer is saving toward "${g.title}". Proposed by the personal agent from the User DB (direct customer input).`, observed: 'observed' },
+        payload: goalCardPayload(uid, g, payload.roundId as string),
       });
     }
     roundDone(uid, payload.roundId, 'personal');

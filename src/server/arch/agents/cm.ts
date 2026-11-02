@@ -5,6 +5,7 @@
  * against decay by ASKING other agents - it never opens their databases.
  * Boundary pinned by the AC1 source-scan test: this module imports no other agent's store.
  */
+import { canPass, effectiveApproval, asMode, DEFAULT_MODE, LEVEL_NAMES } from '../approvalGate.js';
 import { newId, now } from '../types.js';
 import type { AgentMessage, ArchEntry, StaleFlag } from '../types.js';
 import { words, overlaps, overlapScore } from '../text.js';
@@ -131,22 +132,36 @@ function writeMemoryFromEntries(uid: string, meta?: { roundId: string; trigger: 
  * permissions allow are stored automatically - logged, explainable, disputable (AC9). High
  * risk (sensitive topics, inferences, offers, sharing beyond the three agents) always waits.
  */
-function autoStoreRoundProposals(uid: string, roundId?: string) {
+export function autoStoreRoundProposals(uid: string, roundId?: string, opts?: { fromModeChange?: boolean }) {
   const cm = loadCmDb(uid);
   const reviewLevel = cm.permissions?.reviewLevel ?? 'all';
-  if (reviewLevel === 'all') return; // no standing permissions set yet: everything waits
+  const userCardMode = cm.permissions?.userCardMode ?? DEFAULT_MODE; // R2: only for user cards that carry an approval
   const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const pending = loadBus(uid).messages.filter((m) =>
     m.type === 'propose' && m.status === 'pending' && (roundId === undefined || (m.payload as { roundId?: string } | undefined)?.roundId === roundId));
   let changed = false;
   for (const proposal of pending) {
     const risk = assessProposalRisk(proposal);
-    if (risk === 'high') continue; // high risk always waits for the customer
+    // R2: EVERY USER card is gated by the owner's pass table through its EFFECTIVE approval, derived here from the
+    // card's own content (not from the claim alone). Missing/invalid/stale level = UNKNOWN = effective level 2.
+    // Bank-side proposals never use this gate (standing permissions, unchanged).
+    const p0 = (proposal.payload ?? {}) as { detail?: string };
+    const approval = proposal.from === 'personal' ? effectiveApproval(proposal.payload, { title: proposal.summary, detail: p0.detail ?? '', source: 'personal', risk }) : null;
+    if (approval) {
+      // An unchanged card that is already stored (same consent version) is never requeued, whatever the mode says.
+      if (cm.entries.some((e) => e.status === 'active' && norm(e.title) === norm(proposal.summary) && e.approval?.id === approval.id)) {
+        updateMessage(uid, proposal.id, { status: 'accepted' });
+        continue;
+      }
+      if (!canPass(userCardMode, approval.level)) continue;
+    } else { if (reviewLevel === 'all') continue; if (risk === 'high') continue; } // bank side: no standing permissions yet: everything waits; high risk always waits
     const p = (proposal.payload ?? {}) as { goalIds?: string[]; detail?: string; transactionIds?: string[]; transactionIdsHash?: string; total?: number; observed?: 'observed' | 'inferred'; appWrite?: boolean; entry?: ArchEntry };
-    if (!p.appWrite && cm.entries.some((e) => e.status === 'active' && norm(e.title) === norm(proposal.summary))) {
+    const sameTitle = cm.entries.find((e) => e.status === 'active' && norm(e.title) === norm(proposal.summary));
+    if (!p.appWrite && sameTitle && !approval) {
       updateMessage(uid, proposal.id, { status: 'accepted' }); // dedupe: keep the existing entry
       continue;
     }
+    if (sameTitle && approval) { sameTitle.status = 'stale'; } // R2: the consent version changed and now passes: the old version is history
     // G10: an app write carries its full entry - store it as-is (own id, provenance,
     // doc), now accepted under the customer's standing permissions.
     const entry: ArchEntry = p.appWrite && p.entry
@@ -161,6 +176,7 @@ function autoStoreRoundProposals(uid: string, roundId?: string) {
       evidence: { transactionIds: p.transactionIds, transactionIdsHash: p.transactionIdsHash, total: p.total },
       observed: deriveObserved(proposal), // F20: derived from evidence, not the proposer's flag
       risk,
+      ...(approval ? { approval: { id: approval.id, level: approval.level } } : {}),
       autoAccepted: true,
       status: 'active',
       createdAt: now(),
@@ -169,7 +185,9 @@ function autoStoreRoundProposals(uid: string, roundId?: string) {
     if (autoIdx >= 0) cm.entries[autoIdx] = entry; else cm.entries.push(entry); // only the CM agent writes the Context Memory DB
     changed = true;
     updateMessage(uid, proposal.id, { status: 'accepted' });
-    appendMessage(uid, { from: 'cm', to: 'user', type: 'inform', summary: `Stored automatically under your standing permissions (${risk} risk): "${entry.title}". You can explain, dispute or delete it anytime.` });
+    appendMessage(uid, { from: 'cm', to: 'user', type: 'inform', summary: approval
+      ? `Stored automatically by your "${userCardMode}" setting (not your approval): "${entry.title}", ${LEVEL_NAMES[approval.level]}${approval.unknown ? ` - the AI gave no valid level (${approval.reason}), so it counted as level 2` : ''}${opts?.fromModeChange ? ', released because you changed the mode' : ''}. You can explain, dispute or delete it anytime.`
+      : `Stored automatically under your standing permissions (${risk} risk): "${entry.title}". You can explain, dispute or delete it anytime.` });
   }
   if (changed) saveCmDb(cm);
 }
@@ -415,6 +433,13 @@ function handleMessage(uid: string, msg: AgentMessage) {
   if (msg.type === 'control') {
     const control = payload.control as string;
 
+    if (control === 'regate-user-cards') {
+      // R2: the User AI gave waiting user cards their levels after the round: apply the customer's mode to them now.
+      autoStoreRoundProposals(uid);
+      appendMessage(uid, { from: 'cm', to: 'app', type: 'reply', summary: 'Waiting user cards re-checked.', payload: { inReplyTo: msg.id } });
+      updateMessage(uid, msg.id, { status: 'answered' });
+      return;
+    }
     if (control === 'status') {
       const cm = loadCmDb(uid);
       appendMessage(uid, {
@@ -567,7 +592,10 @@ function handleMessage(uid: string, msg: AgentMessage) {
         return;
       }
       const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      const existing = cm.entries.find((e) => e.status === 'active' && norm(e.title) === norm(proposal.summary));
+      const existing0 = cm.entries.find((e) => e.status === 'active' && norm(e.title) === norm(proposal.summary));
+      // R2: a user card whose consent version differs from the stored one is a new version, not a duplicate.
+      const newVer = proposal.from === 'personal' && existing0 ? effectiveApproval(proposal.payload, { title: proposal.summary, detail: ((proposal.payload ?? {}) as { detail?: string }).detail ?? '', source: 'personal', risk: assessProposalRisk(proposal) }).id : undefined;
+      const existing = existing0 && newVer && existing0.approval?.id !== newVer ? (existing0.status = 'stale', undefined) : existing0;
       const upd = (proposal.payload ?? {}) as { appWrite?: boolean; entry?: ArchEntry };
       if (existing && upd.appWrite === true && upd.entry && upd.entry.id === existing.id) {
         // G11: accepting a queued CHANGE replaces the held copy, explicitly reviewed.
@@ -602,6 +630,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
         viaMessageId: proposal.id,
         evidence: { transactionIds: p.transactionIds, transactionIdsHash: p.transactionIdsHash, total: p.total },
         observed: deriveObserved(proposal), // F20: derived from evidence, not the proposer's flag
+        ...(proposal.from === 'personal' ? (() => { const ap = effectiveApproval(proposal.payload, { title: proposal.summary, detail: p.detail ?? '', source: 'personal', risk: assessProposalRisk(proposal) }); return { approval: { id: ap.id, level: ap.level } }; })() : {}),
         status: 'active',
         createdAt: now(),
       };
@@ -674,14 +703,16 @@ function handleMessage(uid: string, msg: AgentMessage) {
     if (control === 'set-permissions') {
       // AC7 first start: the customer sets standing permissions once; until then nothing is
       // automatic (reviewLevel 'all' = every proposal waits in merge review).
-      const reviewLevel = payload.reviewLevel === 'high' ? 'high' : 'all';
+      const cm0 = loadCmDb(uid);
+      const reviewLevel = payload.reviewLevel === undefined ? (cm0.permissions?.reviewLevel ?? 'all') : payload.reviewLevel === 'high' ? 'high' : 'all';
+      const userCardMode = asMode(payload.userCardMode) ?? cm0.permissions?.userCardMode;
       const cm = loadCmDb(uid);
-      saveCmDb({ ...cm, permissions: { reviewLevel } });
+      saveCmDb({ ...cm, permissions: { reviewLevel, ...(userCardMode ? { userCardMode } : {}) } });
       appendMessage(uid, { from: 'cm', to: 'user', type: 'inform', summary: reviewLevel === 'high'
         ? 'Standing permissions saved: only HIGH-risk items wait for your review; low and medium risk items are stored automatically (always logged, explainable, disputable).'
         : 'Standing permissions saved: every cabinet item waits for your review.' });
-      autoStoreRoundProposals(uid); // apply the new permissions to the review backlog too
-      appendMessage(uid, { from: 'cm', to: 'app', type: 'reply', summary: 'Standing permissions saved.', payload: { inReplyTo: msg.id, reviewLevel } });
+      autoStoreRoundProposals(uid, undefined, { fromModeChange: true }); // R2: a less restrictive mode releases newly allowed pending cards (audited as a mode pass); a stricter one never pulls stored cards back (approval cards are not released by a mode change)
+      appendMessage(uid, { from: 'cm', to: 'app', type: 'reply', summary: 'Standing permissions saved.', payload: { inReplyTo: msg.id, reviewLevel, userCardMode: userCardMode ?? DEFAULT_MODE } });
       updateMessage(uid, msg.id, { status: 'answered' });
       return;
     }

@@ -105,6 +105,7 @@
       <div id="cm-entries"></div>
       <div class="controls">
         Standing permissions: <select id="perm"><option value="all">review everything</option><option value="high">only high risk waits</option></select>
+        User card approval: <select id="ucmode"><option>No permission</option><option>Review everything</option><option>High risk mode</option></select>
         <button id="btn-perm" class="primary">Save</button>
       </div>
       <div class="controls"><button id="btn-off-cm">Turn off</button><button id="btn-park-cm">Park cabinet</button><button id="btn-del-cm" class="danger">Delete DB</button></div>
@@ -228,6 +229,7 @@ async function refresh() {
     : '<div class="empty">No goals yet - tell Abel in the chat, for example "my goal is to visit Japan".</div>';
   $('cm-summary').innerHTML = `Cabinet entries: <b>${s.databases.contextMemory.entries}</b>${s.databases.contextMemory.disputed ? ` · <span style="color:#a4352c">${s.databases.contextMemory.disputed} disputed</span>` : ''}`;
   $('perm').value = s.databases.contextMemory.permissions?.reviewLevel ?? 'all';
+  $('ucmode').value = s.databases.contextMemory.permissions?.userCardMode ?? 'Review everything';
   $('nordea-summary').innerHTML = s.databases.nordea ? `Accounts: <b>${s.databases.nordea.accounts}</b> · Transactions: <b>${s.databases.nordea.transactions}</b>` : 'Empty until bank data is loaded (scripts/load_data.py).';
   $('btn-off-personal').textContent = s.agents.personal.off ? 'Turn on' : 'Turn off';
   $('btn-off-cm').textContent = s.agents.cm.off ? 'Turn on' : 'Turn off';
@@ -251,8 +253,8 @@ async function refresh() {
   const q = [];
   for (const b of s.queues.airlock) q.push(`<div class="item"><b>Airlock:</b> ${b.items.length} item(s) from ${esc(b.source)}<br>${b.items.map((i) => esc(i.text)).join('<br>')}
     <div class="meta"><button class="primary" onclick="airlock('${b.id}',true)">Approve into User DB</button> <button class="danger" onclick="airlock('${b.id}',false)">Reject</button></div></div>`);
-  for (const m of s.queues.review) q.push(`<div class="item"><b>Merge review:</b> ${esc(m.summary)}<br>${esc(m.payload?.detail ?? '')}
-    <div class="meta">proposed by ${esc(m.from)} agent · <button class="primary" onclick="review('${m.id}',true)">Accept into cabinet</button> <button class="danger" onclick="review('${m.id}',false)">Reject</button></div></div>`);
+  for (const m of s.queues.review) { const ea = m.effectiveApproval; q.push(`<div class="item"><b>${ea ? 'Approval needed:' : 'Merge review:'}</b> ${esc(m.summary)}<br>${ea ? `<span class="meta">${esc(ea.label)} · approval ${esc(ea.id)}${ea.why ? ` · why: ${esc(ea.why)}` : ''}</span><br>` : ''}${esc(m.payload?.detail ?? '')}
+    <div class="meta">proposed by ${esc(m.from)} agent · <button class="primary" onclick="review('${m.id}',true)">Accept into cabinet</button> <button class="danger" onclick="review('${m.id}',false)">Reject</button></div></div>`); }
   $('queues').innerHTML = q.length ? q.join('') : '<div class="empty">Nothing waiting. Bank proposals and (one day) external-agent syncs land here for your decision.</div>';
   $('msgs').innerHTML = s.messages.length ? s.messages.map((m) =>
     `<div class="msg"><b>${esc(m.from)} → ${esc(m.to)}</b> [${m.type}${m.status !== 'read' ? '/' + m.status : ''}] ${esc(m.summary)} <span style="color:#8b949e">${esc((m.at ?? '').slice(0, 19).replace('T', ' '))}</span></div>`).join('') : '<div class="empty">No messages yet.</div>';
@@ -285,7 +287,7 @@ if (location.hash === '#autotest-chat') { $('chat-in').value = 'how much did I s
 $('chat-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-chat').click(); });
 window.editGoal = async (id, old) => { const t = prompt('Edit the goal - Abel remembers the new version.', old); if (!t || !t.trim() || t.trim() === old) return; await api(`/api/arch/${uid}/goals/${id}`, { body: { title: t.trim() } }); refresh(); };
 window.deleteGoal = async (id, title) => { if (!confirm(`Delete goal "${title}"? It is removed from Abel's knowledge (the User DB).`)) return; await api(`/api/arch/${uid}/goals/${id}/delete`, {}); refresh(); };
-$('btn-perm').onclick = async () => { await api(`/api/arch/${uid}/permissions`, { body: { reviewLevel: $('perm').value } }); refresh(); };
+$('btn-perm').onclick = async () => { await api(`/api/arch/${uid}/permissions`, { body: { reviewLevel: $('perm').value, userCardMode: $('ucmode').value } }); refresh(); };
 $('btn-upload').onclick = () => $('bank-file').click();
 $('bank-file').onchange = async () => {
   const f = $('bank-file').files[0]; if (!f) return;

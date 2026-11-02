@@ -203,6 +203,7 @@ export const entryToCm = (e: CabinetEntry, existing?: ArchEntry): ArchEntry => (
   ...(existing?.observed ? { observed: existing.observed } : {}),
   ...(existing?.risk ? { risk: existing.risk } : {}),
   ...(existing?.autoAccepted ? { autoAccepted: true } : {}),
+  ...(existing?.approval ? { approval: existing.approval } : {}), // R2: kept as-is on app rebuilds (edit/reapproval policy is pending)
   createdAt: existing?.createdAt ?? e.createdAt,
   doc: e,
 });

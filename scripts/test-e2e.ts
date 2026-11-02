@@ -132,7 +132,10 @@ try {
 
   // 2. A review decision on /arch.html changes what the agent's chat answers from
   const preChat = await api('POST', `/api/arch/${UID}/chat`, { text: 'how much have I saved for the car?' });
-  check('V7: before review the chat cannot answer from the Context Memory DB', !(preChat.json?.used ?? []).includes('context-memory-db'), preChat.json?.used);
+  // R2: the typed goal's own card is level 0 by the User AI's rubric (mock model), so it is already in the Context Memory DB under the
+  // default "Review everything". What review gates is the Nordea aggregate: it must NOT be in the CM DB before the decision.
+  const preEntries = (await api('GET', `/api/arch/${UID}/entries`)).json?.entries ?? [];
+  check('V7: before review the Context Memory DB holds only the customer\'s own level-0 goal card, not the waiting Nordea aggregate', preChat.status === 200 && !preEntries.some((e: any) => e.status === 'active' && String(e.title).includes('Activity related to goal')) && preEntries.some((e: any) => e.status === 'active' && e.proposedBy === 'personal' && e.approval?.level === 0), preEntries.map((e: any) => `${e.status}:${e.proposedBy}:${e.approval?.level}:${String(e.title).slice(0, 30)}`));
   let review = (await api('GET', `/api/arch/${UID}/review`)).json?.proposals ?? [];
   if (!review.some((m: any) => m.from === 'nordea')) { await api('POST', `/api/arch/${UID}/goals`, { title: 'Save for a trip to Japan' }); review = (await api('GET', `/api/arch/${UID}/review`)).json?.proposals ?? []; }
   const prop = review.find((m: any) => m.from === 'nordea' && String(m.summary ?? '').includes('Activity related to goal'));

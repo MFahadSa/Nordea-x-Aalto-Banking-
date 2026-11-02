@@ -36,6 +36,7 @@ export interface ArchEntry {
   evidence?: { transactionIds?: string[]; transactionIdsHash?: string; total?: number; note?: string };
   observed?: 'observed' | 'inferred';
   risk?: 'low' | 'medium' | 'high'; // AC7: code-rule risk level from risk.ts
+  approval?: { id: string; level: 0 | 1 | 2 }; // R2: durable user-card approval (id contains the level)
   autoAccepted?: boolean; // AC7: stored automatically under the customer's standing permissions
   /** G1: 'archived' added for the Abel app's cabinet lifecycle; non-active rows are never served. */
   status: 'active' | 'disputed' | 'stale' | 'archived';
@@ -47,7 +48,7 @@ export interface ArchEntry {
   disputeReason?: string;
   createdAt: string;
 }
-export interface CmDb { userId: string; entries: ArchEntry[]; parked?: boolean; permissions?: { reviewLevel: 'all' | 'high' } }
+export interface CmDb { userId: string; entries: ArchEntry[]; parked?: boolean; permissions?: { reviewLevel: 'all' | 'high'; userCardMode?: 'No permission' | 'Review everything' | 'High risk mode' } }
 export interface NordeaDb { userId: string; accounts: BankAccount[]; transactions: Transaction[]; }
 
 export type MessageType = 'propose' | 'query' | 'reply' | 'inform' | 'flag-stale' | 'refresh' | 'round-start' | 'done' | 'control';

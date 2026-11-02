@@ -34,6 +34,14 @@ export const mockProvider: LlmProvider = {
     }
     // G4/V4: the arch agents' planning tools get deterministic mock plans, so tests drive
     // the LLM path end to end (real providers answer the same tools live).
+    if (tools.some((t) => t.name === 'finishRiskLevels')) {
+      // R2: the User AI level call. Read the own goals first (the tool loop a real model runs), then answer every
+      // card by the plain rubric reading for a typed goal: level 0, evidence = the goal row. The code floor raises
+      // sensitive ones; tests that need other answers swap in their own step.
+      if (!turns.some((x) => x.role === 'tool_results')) return { calls: [call('listMyGoals', {})] };
+      const cards = [...lastUserText(turns).matchAll(/^- card (\S+) \|/gm)].map((m) => m[1]);
+      return { calls: [call('finishRiskLevels', { levels: cards.map((id) => ({ card: id, level: 0, reason: 'mock: a goal the customer typed, restated without new claims (rubric L0)', evidence: [`goal:${id}`] })) })] };
+    }
     if (/personal banking assistant agent/.test(system ?? '')) {
       // The personal agent's reply composer: first read its own User DB (the tool loop a
       // real model runs), then echo the most figure-bearing fact line. Figures stay

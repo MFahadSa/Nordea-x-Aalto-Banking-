@@ -5,7 +5,7 @@
  * own dashboard. Agents talk to each other only through bus messages.
  */
 import { ArchError, newId, now } from './types.js';
-import type { AgentId, ArchEntry, BuildRound, Goal } from './types.js';
+import type { AgentId, AgentMessage, ArchEntry, BuildRound, Goal } from './types.js';
 import { overlaps, words } from './text.js';
 import { addGoalDirect } from './agents/personal.js';
 import { dispatchPending } from './dispatcher.js';
@@ -15,6 +15,8 @@ import {
 } from './agents/personal.js';
 import { PARKED_WORDING, publishParkState } from './agents/cm.js';
 import { archLlmConfig } from './llm.js';
+import { effectiveApproval, LEVEL_NAMES } from './approvalGate.js';
+import { assessProposalRisk } from './risk.js';
 import { aiVisibility } from './aiActivity.js';
 import './agents/nordea.js'; // side effect: registers the Nordea agent's bus handler
 import { loadUserDb, saveUserDb, deleteUserDb } from './store/userStore.js';
@@ -106,6 +108,7 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
       const round = runRound(uid, 'session', { question: text, sessionId: session.id, llm: plan });
       session.roundId = round.id;
       planStatus = plan?.status;
+      await levelUserCards(uid); // R2: the User AI levels the user cards this session round proposed
     }
   }
   if (begin.kind === 'direct') { saveSession(uid, { ...session, lastActivityAt: now() }); return { ...begin.direct!, sessionId: session.id, source: 'scripted' }; }
@@ -364,6 +367,7 @@ export async function abelSharedContext(uid: string, sessionId: string, question
       // AC2: this session has no finished document - build one (fresh, stamped with its id).
       resetContextForSession(uid, sessionId);
       runRound(uid, 'session', { question, sessionId, llm: await planRoundLlm(uid, question) });
+      await levelUserCards(uid); // R2
     }
     const fresh = loadContext(uid);
     if (fresh && fresh.sessionId === sessionId && fresh.finalisedAt) {
@@ -467,6 +471,7 @@ export async function contribute(uid: string) {
     goalCount = pStatus.goals ?? null;
   }
   const round = runRound(uid, 'contribution', { llm: await planRoundLlm(uid, '') });
+  await levelUserCards(uid); // R2: the User AI levels the user cards this round proposed
   return {
     askedVia: round.id,
     proposals: round.proposals,
@@ -477,8 +482,33 @@ export async function contribute(uid: string) {
   };
 }
 
+/**
+ * R2: after any round in which the personal agent may have proposed user cards, the User AI's model levels the ones that
+ * have no level yet, then the CM agent re-gates the waiting list under the customer's mode. Best effort: an agent that
+ * is off or a parked cabinet means no pass; a card left without a level is UNKNOWN = effective level 2.
+ */
+export async function levelUserCards(uid: string): Promise<{ asked: number; leveled: number; status: string } | null> {
+  if (getOff(uid).some((a) => a === 'personal' || a === 'cm') || getCabinetParkedMirror(uid)) return null;
+  const { levelPendingCards } = await import('./agents/personal.js');
+  const r = await levelPendingCards(uid);
+  if (r.leveled) controlRoundTrip(uid, 'cm', 'Re-check the waiting user cards now that the User AI gave them levels.', { control: 'regate-user-cards' });
+  return r;
+}
+
 export function reviewQueue(uid: string) {
-  return loadBus(uid).messages.filter((m) => m.type === 'propose' && m.status === 'pending');
+  return loadBus(uid).messages.filter((m) => m.type === 'propose' && m.status === 'pending').map(withEffectiveApproval);
+}
+
+/** R2: what the gate will do with a waiting USER card, for display in arch.html and the main app. Derived from the card's
+ *  content exactly as the CM gate derives it; a card with no valid level shows as UNKNOWN (treated as level 2), never as
+ *  an AI certification. Bank-side proposals get nothing. */
+function withEffectiveApproval(m: AgentMessage): AgentMessage & { effectiveApproval?: { id: string; level: 0 | 1 | 2; unknown: boolean; label: string; why: string } } {
+  if (m.from !== 'personal') return m;
+  const p = (m.payload ?? {}) as { detail?: string; approvalReason?: string };
+  const ap = effectiveApproval(m.payload, { title: m.summary, detail: p.detail ?? '', source: 'personal', risk: assessProposalRisk(m) });
+  return { ...m, effectiveApproval: { id: ap.id, level: ap.level, unknown: ap.unknown,
+    label: ap.unknown ? 'UNKNOWN: the AI gave no valid level (treated as level 2, not an AI certification)' : LEVEL_NAMES[ap.level],
+    why: ap.unknown ? ap.reason : (p.approvalReason ?? '') } };
 }
 
 /** Send a control message to an agent, dispatch, and return its reply payload. */
@@ -514,8 +544,8 @@ export function undoEntry(uid: string, entryId: string) {
 }
 
 /** AC7: the customer sets standing permissions once (first start); until then nothing is automatic. */
-export function setStandingPermissions(uid: string, reviewLevel: 'all' | 'high') {
-  return controlRoundTrip(uid, 'cm', `Customer sets standing permissions: ${reviewLevel === 'high' ? 'only high risk waits for review' : 'everything waits for review'}.`, { control: 'set-permissions', reviewLevel }) as { reviewLevel: string };
+export function setStandingPermissions(uid: string, reviewLevel?: 'all' | 'high', userCardMode?: string) {
+  return controlRoundTrip(uid, 'cm', `Customer sets standing permissions${reviewLevel ? `: ${reviewLevel === 'high' ? 'only high risk waits for review' : 'everything waits for review'}` : ''}${userCardMode ? `; user-card approval mode "${userCardMode}"` : ''}.`, { control: 'set-permissions', reviewLevel, userCardMode }) as { reviewLevel: string; userCardMode: string };
 }
 
 export function explainEntry(uid: string, entryId: string) {
@@ -744,7 +774,7 @@ export function archState(uid: string) {
     contextCards: ctxDoc ? { memory: contextCards(ctxDoc.sections.memory.rows), nordea: contextCards(ctxDoc.sections.nordea.rows) } : { memory: [], nordea: [] },
     queues: {
       airlock: bus.airlock.filter((b) => b.status === 'pending'),
-      review: bus.messages.filter((m) => m.type === 'propose' && m.status === 'pending'),
+      review: bus.messages.filter((m) => m.type === 'propose' && m.status === 'pending').map(withEffectiveApproval),
     },
     messages: bus.messages.slice(-80).reverse(),
   };
