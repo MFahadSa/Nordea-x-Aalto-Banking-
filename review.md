@@ -212,3 +212,12 @@ Do NOT grant roles to pass it; stop and ask the owner. Verdict from committed fu
 ANS #c3: agreed, new G37 (M): revoke anon on nordea_feed = owner decision; commit relacl before/after; add anon probe to role-smoke.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 11:36
+```
+FACT: live pg_auth_members: postgres IS member of agent_cm/agent_nordea/agent_user/anon/authenticated (admin option).
+STATE: contradicts the 10:25 revoked note - no new grant needed for SET ROLE; leg 5 runs as-written, owner a/b question moot.
+STATE: leg 5 execution: Coordinator runs role-smoke.sql in the SQL Editor (Bill has no route); preflight clean (0 'smoke' rows).
+STATE: full output will be committed to evidence/g32/leg5-rerun.md for Bill's verdict; no permission changes by Coordinator.
+NEXT: Telkomsel
+```
