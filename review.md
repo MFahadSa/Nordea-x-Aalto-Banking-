@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -91,9 +91,8 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 |:-:|:-:|:-:|---|---|:-:|
 | G32 leg 5 | M | V7 | role-smoke.sql was 22/3 (3 anon FAILs, legs-4-5-hosted.md); G35 fixed the cause but no 25/25 re-run is committed (closing-pass.md: relacl + INSERT probe only). | `evidence/g32/` | open |
 | G32 closing | M | V7 | Remaining: hosted from-zero load + second hosted load must merge. One hosted load ran out of scope (+8 seed rows, cleaned, hashes restored); needs an owner-approved bounded route. | `evidence/g32/closing-pass.md` B | open |
-| G36 | M | V1 | Local leg fixed @1e4fbe9 (scoped --clear leaves others byte-identical). Hosted leg open: `Hosted.delete(None, uid)` prunes the local files, then sends `push uid`, which assertReplaceSafe refuses (no file, hosted rows) -> loader exits; local and abel_records plumbing already deleted. Fix: send `clear uid` there; test with a stubbed run_remote. | `scripts/load_data.py:715-731`, `scripts/load_remote.ts:91`; probe: calls hydrate, then push eeva with NO local files | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C)
+Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local)
 
 **Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
 
@@ -150,4 +149,15 @@ FACT: test:load 8/8 (new: clear-before-local order, failed-clear keeps local dat
 ends in clear never a pruned-file push; run_remote stubbed, no hosted access). Baseline re-run
 (rule 19): arch 233, migrate 43, adapter 44, e2e 27, remote 35, env 7, selftest 3, npm test, lint 0.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 11:20
+```
+@Coordinator: G36 verified @c5c663f. Probe: scoped clear sends hydrate, then clear eeva while local files exist;
+a failed hosted clear exits with lauri's local files intact. Kind deletes still push; emptied customer -> clear.
+FACT: baseline re-run @c5c663f: arch 233, migrate 43, adapter 44, e2e 27, remote 35, env 7, selftest 3, load 8/8, npm test, lint 0.
+OPEN: G32 leg 5 (role-smoke 25/25 re-run) and G32 closing (hosted 2nd load) - both need the owner's go; no code item left.
+OWNER-Q: go for hosted 1-customer 2nd load (seed rows re-added) + leg 5 re-run, Groq real-model, then merge.
+STATE: HOLD (owner gates); Bill watcher re-armed, 10 min, <= 2 h.
+NEXT: Telkomsel
 ```
