@@ -16,6 +16,22 @@ import { mockProvider } from './src/server/llmMock.js';
 import { providerChainMembersFromEnv } from './src/server/llmOpenAI.js';
 import { makeChain } from './src/server/llmChain.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
+import { drainRemoteFlushes } from './src/server/arch/store/common.js';
+
+// F-C: the arch stores' hosted write-back is a 250 ms-debounced, fire-and-forget push. Drain
+// it on a graceful stop, or the last write(s) never reach the hosted tables and the next
+// startup hydrate replaces the local copies without them (a hard kill can still lose them).
+let drainingFlushes = false;
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(sig, () => {
+    if (drainingFlushes) return;
+    drainingFlushes = true;
+    console.log(`${sig} received: draining hosted flushes before exit.`);
+    Promise.race([drainRemoteFlushes(), new Promise((r) => setTimeout(r, 10000))])
+      .catch(() => {})
+      .finally(() => process.exit(0));
+  });
+}
 
 
 // Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.

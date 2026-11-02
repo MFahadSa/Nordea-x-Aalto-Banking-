@@ -57,14 +57,16 @@ export async function runAgentReasoning(args: AgentRunArgs): Promise<{ result: R
         provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs }),
         stepTimeoutMs + 5000, `${args.agent} agent reasoning`);
     } catch (e) { return { result: null, error: e instanceof Error ? e.message : String(e) }; }
-    if (!r.calls.length) return { result: null };
+    // F-D: a configured provider that produces no usable finish call is a provider failure,
+    // not the scripted path - name it so the fallback is visible instead of silent.
+    if (!r.calls.length) return { result: null, error: `${args.agent} model returned no tool calls (step ${step + 1}/${maxSteps})` };
     for (const call of r.calls) {
       if (call.name === args.finishTool) return { result: (call.args ?? {}) as Record<string, unknown>, answeredBy: r.answeredBy };
     }
     turns.push({ role: 'model_calls', calls: r.calls, raw: r.raw }); // keep raw parts: Gemini 3.x needs thought_signature echoed back
     turns.push({ role: 'tool_results', results: r.calls.map((call) => ({ call, result: args.runTool(call) })) });
   }
-  return { result: null };
+  return { result: null, error: `${args.agent} model did not call ${args.finishTool} within ${maxSteps} steps` };
 }
 
 /** Validation helpers: the model proposes, code checks. */

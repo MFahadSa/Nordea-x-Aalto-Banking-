@@ -253,10 +253,10 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 
 | Check | Command | Covers |
 |---|---|---|
-| Architecture tests | `npm run test:arch` | 225 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
-| End-to-end | `npm run test:e2e` | 21 checks over a real booted server: a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
+| Architecture tests | `npm run test:arch` | 243 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
+| End-to-end | `npm run test:e2e` | 28 checks over a real booted server: a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
 | Data-layer adapter | `npm run test:adapter` | 43 checks: the old app store as an adapter over the three agent databases, legacy migration, and plumbing separation |
-| Hosted sync | `npm run test:remote` | 13 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
+| Hosted sync | `npm run test:remote` | 36 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
 | Live hosted three-agent run | manual, evidence in `evidence/e2e/` | A real server booted against the hosted Supabase stores with a real model: session round with model plans, a model-composed chat answer grounded in context.md, goal add, contribution round, review accepts into Context Memory - then scoped cleanup restored the hosted tables to their pre-test hashes |
 | review.md guard | `npm run check:review` | Keeps every review.md message inside the collaboration format |
 | Type check | `npm run lint` | `tsc --noEmit` across the app |
@@ -273,9 +273,8 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 - **No live bank.** All account data is fictional, loaded with `scripts/load_data.py` (see `seed/README.md`).
 - **Demo UI.** `public/arch.html` and `public/dev-monitor.html` are demonstration surfaces, not the polished app from `main`.
 - **Hosted mode is hydrate-then-flush.** With the Supabase role URLs set, the hosted tables replace the local agent databases at startup and writes flush back; if Supabase is unreachable the app keeps working on the local files (the honest fallback copy) and logs the failure.
-- **Flush-back is not crash-safe yet.** The hosted flush is debounced (250 ms) after a store write and is not drained on shutdown - killing the server inside that window loses the last write (found in the live run, evidence/e2e/findings/live-run-findings.md F-C).
-- **"New session" then first question answers scripted.** The demo UI's New session button pre-creates the session, so the first question opens no session round and shared context is reported unavailable until a later round (finding F-A, fix pending).
-- **Model-composed replies can silently fall back to scripted.** With a reasoning model that does not emit the compose tool call the reply stays scripted; each reply is labelled model/scripted so this is visible (finding F-D).
+- **Flush-back survives a graceful stop, not a hard kill.** The hosted flush is debounced (250 ms) after a store write; SIGTERM/SIGINT drain the pending flushes (10 s cap) before exit, so a normal stop loses nothing. A hard kill inside the debounce window can still lose the last write (found in the live run, evidence/e2e/findings/live-run-findings.md F-C).
+- **A model that never finishes falls back to scripted - loudly.** With a reasoning model that does not emit its finish tool call, the reply stays scripted and the failure is named: the round plan and the reply caption read `scripted (provider error)` and the bus records the missing finish call (finding F-D). Give a slow reasoning model more room with `LLM_AGENT_MAX_STEPS` / `LLM_STEP_TIMEOUT_MS`.
 
 </details>
 

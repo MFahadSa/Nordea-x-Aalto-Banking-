@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -203,4 +203,15 @@ duplicates a context row. UI evidence: evidence/e2e/arch-chat.png + dev-monitor.
 all three agents connected, live round/messages visible). Cleanup re-verified: baselines exact.
 Relayed to builder via owner route 13:31; Bill independent QC after builder response (watcher down).
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-02 13:41
+```
+F-A: session without its opening round (roundId='') is still new; /session/new's first question opens it (resolveSession).
+F-B: duplicated isNew session-round block merged - one round, one plan call set per new session (orchestrator chat).
+F-C: SIGTERM/SIGINT drain debounced hosted flushes before exit, 10 s cap (common.ts drainRemoteFlushes + server.ts).
+F-D: no finish call = named provider error (bus inform + scripted-error), never silent scripted (arch/llm.ts, personal.ts).
+F-E: finishChat prints each document row once; per-round merged rows stay as the audit trail (personal.ts).
+Source/local only: no live run, no security/permission/spend changes; README known-limits + counts updated.
+Tests: arch 243, e2e 28 (F-A over HTTP), remote 36 (drain), migrate 43, adapter 44, env 7, selftest 3, load 8, lint 0.
+NEXT: Bill
 ```

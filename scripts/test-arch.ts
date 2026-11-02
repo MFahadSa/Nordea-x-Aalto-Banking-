@@ -764,6 +764,66 @@ check('F19: with no document and no user-db hit, chat plainly says shared contex
 A.setAgentOff(UID18, 'cm', false);
 
 
+// --- F-A/F-B (2026-11-02 live-run findings): /session/new then the first question must open
+// exactly ONE session round and finalise the session document; the follow-up opens none.
+const UID19 = 'sessnew';
+A.addGoalDirect(UID19, 'Save for a car');
+const ns19 = A.newSession(UID19);
+const sessRoundsBefore19 = S.loadBus(UID19).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'session').length;
+const a19 = await A.chat(UID19, 'what do you know about my car saving?', ns19.sessionId);
+const sessRounds19 = S.loadBus(UID19).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'session').length - sessRoundsBefore19;
+check('F-A: the first question after /session/new opens the session round', sessRounds19 === 1, String(sessRounds19));
+check('F-A: the document is finalised and stamped with the pre-created session id', S.loadContext(UID19)?.sessionId === ns19.sessionId && !!S.loadContext(UID19)?.finalisedAt, JSON.stringify({ sid: S.loadContext(UID19)?.sessionId, fin: S.loadContext(UID19)?.finalisedAt }));
+check('F-A: the first answer comes from the session document, not the unavailable fallback', !a19.reply.includes('unavailable this session'), a19.reply.slice(0, 100));
+await A.chat(UID19, 'tell me about the car saving again', ns19.sessionId);
+const sessRoundsAfter19 = S.loadBus(UID19).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'session').length - sessRoundsBefore19;
+check('F-A: a same-session follow-up opens NO second session round', sessRoundsAfter19 === 1, String(sessRoundsAfter19));
+
+// --- F-B: one new-session question = one session round = one model plan call set.
+const UID20 = 'onceround';
+A.addGoalDirect(UID20, 'Save for a car');
+let planCalls20 = 0;
+LL.setProviderForTests({
+  name: 'counter (tests only)', isConfigured: () => true,
+  step: async (args: { tools: { name: string }[] }) => {
+    planCalls20++;
+    const finish = args.tools.find((t) => t.name.startsWith('finish'))!;
+    const args2 = finish.name === 'finishMatchTerms' ? { terms: {} } : finish.name === 'finishRetrievalPlan' ? { goalTitles: [] } : { reply: 'a plain answer with no figures at all' };
+    return { calls: [{ id: `c${planCalls20}`, name: finish.name, args: args2 }] };
+  },
+} as never);
+const b20 = await A.chat(UID20, 'how much did I spend on my car?');
+LL.setProviderForTests(null);
+const sessRounds20 = S.loadBus(UID20).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string; sessionId?: string } | undefined)?.trigger === 'session' && (m.payload as { sessionId?: string } | undefined)?.sessionId === b20.sessionId);
+check('F-B: one new-session question opens exactly ONE session round', sessRounds20.length === 1, String(sessRounds20.length));
+check('F-B: one new-session question costs ONE plan call set + one compose (3 calls, not 5)', planCalls20 === 3, String(planCalls20));
+
+// --- F-D: a configured provider that never calls its finish tool is a visible provider
+// error (scripted-error + a bus inform), never a silent scripted fallback.
+{
+  LL.setProviderForTests({ name: 'neverfinish (tests only)', isConfigured: () => true, step: async () => ({ calls: [{ id: 'nf1', name: 'listMyGoals', args: {} }] }) } as never);
+  const UID21 = 'neverfinish';
+  A.addGoalDirect(UID21, 'Save for a car');
+  const nf = await A.chat(UID21, 'how much did I spend on my car?');
+  check('F-D: a no-finish provider surfaces as scripted-error, not silent scripted', nf.source === 'scripted-error', nf.source);
+  check('F-D: the plan error names the missing finish calls', (nf.plan?.error ?? '').includes('did not call'), nf.plan?.error);
+  check('F-D: the fallback is auditable on the bus', S.loadBus(UID21).messages.some((m) => m.type === 'inform' && m.summary.includes('scripted (provider error)')), S.loadBus(UID21).messages.filter((m) => m.type === 'inform').map((m) => m.summary).join(' | ').slice(0, 200));
+  LL.setProviderForTests(null);
+}
+
+// --- F-E: the same aggregate row twice in the document prints once in the reply.
+{
+  const UID22 = 'dupeprint';
+  const CS = await import('../src/server/arch/store/contextStore.js');
+  const P = await import('../src/server/arch/agents/personal.js');
+  CS.resetContextForSession(UID22, 'sess-dupe');
+  const row = { title: 'Relevant to your question', detail: '72 transactions totalling 20616 EUR of related spending', source: 'nordea' as const, observed: 'observed' as const, evidence: { total: 20616 }, at: new Date().toISOString() };
+  CS.writeNordeaSection(UID22, [{ id: 'nq-r1', ...row }, { id: 'nq-r2', ...row }]);
+  CS.writeHeader(UID22, { roundId: 'round-dupe', trigger: 'session', finalise: true });
+  const ans = P.finishChat(UID22, P.beginChat(UID22, 'how much did I spend related to my car goal?', 'sess-dupe'));
+  check('F-E: a duplicated document row prints once in the reply', ans.reply.split('Relevant to your question').length - 1 === 1, ans.reply.slice(0, 200));
+}
+
 // --- F20: risk derives "observed" from evidence, never from the proposer's own flag.
 const RK = await import('../src/server/arch/risk.js');
 const fakeMsg = (from: string, payload: Record<string, unknown>, summary = 'x') => ({ id: 'm', at: '', from: from as 'nordea', to: 'cm' as const, type: 'propose' as const, summary, payload, status: 'pending' as const });

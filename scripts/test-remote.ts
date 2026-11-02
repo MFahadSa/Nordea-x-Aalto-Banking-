@@ -14,7 +14,7 @@ import type { PoolLike } from '../src/server/arch/store/remote.js';
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-test-'));
 process.env.CABINET_DATA_DIR = DIR;
 
-const { configureRemote, hydrateAgentStores } = await import('../src/server/arch/store/common.js');
+const { configureRemote, hydrateAgentStores, drainRemoteFlushes } = await import('../src/server/arch/store/common.js');
 const R = await import('../src/server/arch/store/remote.js');
 const S = await import('../src/server/arch/store/index.js');
 
@@ -124,6 +124,12 @@ check('flush replaced only that customer\'s rows: eeva\'s hosted rows are untouc
   (fake.tables.get('agent_user_records') ?? []).some((r) => r.user_id === 'eeva' && r.id === 'ge1'));
 check('flush kept lauri\'s other hosted rows (profile, g1 still there)',
   ['profile', 'g1', 'g2'].every((id) => (fake.tables.get('agent_user_records') ?? []).some((r) => r.user_id === 'lauri' && r.id === id)));
+
+// ---------- F-C: a graceful-shutdown drain fires pending debounced flushes at once ----------
+S.putGoal('lauri', { id: 'g4', title: 'Drain test goal', detail: 'no 250 ms wait before exit', createdAt: '2026-11-02' });
+await drainRemoteFlushes();
+check('F-C: drainRemoteFlushes pushes a pending debounced write immediately (shutdown-safe)',
+  (fake.tables.get('agent_user_records') ?? []).some((r) => r.user_id === 'lauri' && r.id === 'g4'));
 
 // ---------- Read-only opens do not flush ----------
 const pushesBefore = (fake.tables.get('agent_nordea_records') ?? []).length;

@@ -154,24 +154,43 @@ export function rowsOf(file: string, kind: DbKind): { table_name: string; id: st
   } finally { db.close(); }
 }
 
-function scheduleFlush(file: string, kind: DbKind) {
+/** Push one customer's current local file to its hosted table, queued after earlier pushes. */
+function queueFlush(key: string, file: string, kind: DbKind) {
   const url = REMOTE_SECRETS.get(kind);
   if (!url) return;
+  const uid = path.basename(file).replace(/\.(user|cm|nordea|bus)\.db$/, '');
+  const rows = rowsOf(file, kind).map((r) => ({ user_id: uid, ...r }));
+  const prev = flushChains.get(key) ?? Promise.resolve();
+  const next = prev.then(() => import('./remote.js').then(async (R) => {
+    // G24: if the local file vanished between write and flush, do not replace hosted rows with it.
+    await R.assertReplaceSafe(kind, url, uid, fs.existsSync(file));
+    return R.pushCustomer(kind, url, uid, rows);
+  }))
+    .catch((err) => console.error(`Remote flush failed for ${key}:`, err instanceof Error ? err.message : err));
+  flushChains.set(key, next);
+}
+
+function scheduleFlush(file: string, kind: DbKind) {
+  if (!REMOTE_SECRETS.has(kind)) return;
   const key = `${kind}:${file}`;
   if (flushTimers.has(key)) clearTimeout(flushTimers.get(key)!);
   flushTimers.set(key, setTimeout(() => {
     flushTimers.delete(key);
-    const uid = path.basename(file).replace(/\.(user|cm|nordea|bus)\.db$/, '');
-    const rows = rowsOf(file, kind).map((r) => ({ user_id: uid, ...r }));
-    const prev = flushChains.get(key) ?? Promise.resolve();
-    const next = prev.then(() => import('./remote.js').then(async (R) => {
-      // G24: if the local file vanished between write and flush, do not replace hosted rows with it.
-      await R.assertReplaceSafe(kind, url, uid, fs.existsSync(file));
-      return R.pushCustomer(kind, url, uid, rows);
-    }))
-      .catch((err) => console.error(`Remote flush failed for ${key}:`, err instanceof Error ? err.message : err));
-    flushChains.set(key, next);
+    queueFlush(key, file, kind);
   }, 250));
+}
+
+/** F-C: a graceful shutdown must not drop a debounced hosted write: fire every pending
+ *  flush NOW (from the current local files) and wait for the queued pushes to finish. */
+export async function drainRemoteFlushes(): Promise<void> {
+  const pending = [...flushTimers.keys()];
+  for (const [, timer] of flushTimers) clearTimeout(timer);
+  flushTimers.clear();
+  for (const key of pending) {
+    const kind = key.slice(0, key.indexOf(':')) as DbKind;
+    queueFlush(key, key.slice(kind.length + 1), kind);
+  }
+  await Promise.all([...flushChains.values()]);
 }
 
 /**

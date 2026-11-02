@@ -58,10 +58,12 @@ function resolveSession(uid: string, clientSessionId?: string): { session: ChatS
   const raw = busKvGet(uid, 'chatSession');
   const existing = raw ? (JSON.parse(raw) as ChatSession) : null;
   const nowIso = now();
+  // F-A: a session whose opening round never ran (pre-created by /session/new, or rounds
+  // were blocked when it started) is still new - its next question must open the session round.
   if (existing && !clientSessionId && nowIso < new Date(new Date(existing.lastActivityAt).getTime() + SESSION_IDLE_MS).toISOString()) {
-    return { session: existing, isNew: false };
+    return { session: existing, isNew: existing.roundId === '' };
   }
-  if (existing && clientSessionId && existing.id === clientSessionId) return { session: existing, isNew: false };
+  if (existing && clientSessionId && existing.id === clientSessionId) return { session: existing, isNew: existing.roundId === '' };
   const session: ChatSession = { id: clientSessionId ?? newId('session'), roundId: '', startedAt: nowIso, lastActivityAt: nowIso };
   return { session, isNew: true };
 }
@@ -80,24 +82,21 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // F17: direct input (a typed goal) is saved BEFORE any round opens, so the session round's
   // Customer section already includes it.
   let begin = beginChat(uid, text, session.id);
+  // The plan is only computed when a round will actually use it (a provider call per plan).
+  let planStatus: { cm: 'model' | 'scripted' | 'error'; nordea: 'model' | 'scripted' | 'error'; provider?: string; error?: string } | undefined;
   if (isNew) {
     // F16: a new session always starts from an empty document stamped with its id - even when
     // no round can run (agent off, parked), an earlier session's rows must not leak in.
     resetContextForSession(uid, session.id);
+    // F-B: exactly ONE session round opens the session (one plan call set, one round record).
     if (!parked && !getOff(uid).some((a) => a === 'personal' || a === 'cm' || a === 'nordea')) {
-      const round = runRound(uid, 'session', { question: text, sessionId: session.id, llm: await planRoundLlm(uid, text) });
+      const plan = await planRoundLlm(uid, text);
+      const round = runRound(uid, 'session', { question: text, sessionId: session.id, llm: plan });
       session.roundId = round.id;
+      planStatus = plan?.status;
     }
   }
   if (begin.kind === 'direct') { saveSession(uid, { ...session, lastActivityAt: now() }); return { ...begin.direct!, sessionId: session.id, source: 'scripted' }; }
-  // The plan is only computed when a round will actually use it (a provider call per plan).
-  let planStatus: { cm: 'model' | 'scripted' | 'error'; nordea: 'model' | 'scripted' | 'error'; provider?: string; error?: string } | undefined;
-  if (!parked && isNew && !getOff(uid).some((a) => a === 'personal' || a === 'cm' || a === 'nordea')) {
-    const plan = await planRoundLlm(uid, text);
-    const round = runRound(uid, 'session', { question: text, sessionId: session.id, llm: plan });
-    session.roundId = round.id;
-    planStatus = plan?.status;
-  }
   let answer = finishChat(uid, begin);
   if (!parked && !isNew && answer.memoryHits === 0 && loadContext(uid)?.finalisedAt) {
     // The document lacks CM-sourced content for this follow-up: top it up, then answer again.

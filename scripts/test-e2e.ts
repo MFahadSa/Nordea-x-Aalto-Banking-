@@ -163,6 +163,16 @@ try {
   const ctxB = (await api('GET', `/api/arch/${UID}/state`)).json?.context;
   check('V7: situation C2 - a top-up round on the same session', ctxB?.trigger === 'topup' && ctxB?.roundId !== ctxA?.roundId, ctxB);
 
+  // 4c. F-A over HTTP: /session/new then the first question opens exactly one session round.
+  const ns = await api('POST', `/api/arch/${UID}/session/new`, {});
+  const countSess = (j: any) => ((j?.messages ?? []) as { type?: string; payload?: { trigger?: string } }[]).filter((m) => m.type === 'round-start' && m.payload?.trigger === 'session').length;
+  const sessBefore = countSess((await api('GET', `/api/arch/${UID}/state`)).json);
+  const firstQ = await api('POST', `/api/arch/${UID}/chat`, { text: 'what do you know about my car saving?', sessionId: ns.json?.sessionId });
+  const stNew = (await api('GET', `/api/arch/${UID}/state`)).json;
+  check('F-A: the first question after /session/new opens exactly one session round and finalises the document',
+    countSess(stNew) - sessBefore === 1 && stNew?.context?.sessionId === ns.json?.sessionId && !!stNew?.context?.finalisedAt && !String(firstQ.json?.reply ?? '').includes('unavailable this session'),
+    { rounds: countSess(stNew) - sessBefore, ctx: stNew?.context, reply: String(firstQ.json?.reply ?? '').slice(0, 80) });
+
   // 6. G30 slice 3, Bill's cond-4: the app's /api/chat and the arch chat are ONE conversation -
   // same session id, same stored messages, same session document.
   {

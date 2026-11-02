@@ -129,6 +129,12 @@ export function finishChat(uid: string, begin: ChatBegin): { reply: string; used
     const q = words(trimmed);
     entryHits = readSectionRows(uid, 'memory').filter((r) => (r.status ?? 'active') === 'active' && overlaps(q, words(`${r.title} ${r.detail}`))).slice(0, 3);
     nordeaHits = readSectionRows(uid, 'nordea').filter((r) => overlaps(q, words(`${r.title} ${r.detail}`))).slice(0, 2);
+    // F-E: one content row printed once - rounds merge without dropping, so the same
+    // aggregate can legitimately sit in the document twice (per-round question rows).
+    const seenRows = new Set<string>();
+    const rowKey = (r: { title: string; detail: string }) => `${r.title.toLowerCase().trim()}|${r.detail.toLowerCase().trim()}`;
+    entryHits = entryHits.filter((r) => !seenRows.has(rowKey(r)) && !!seenRows.add(rowKey(r)));
+    nordeaHits = nordeaHits.filter((r) => !seenRows.has(rowKey(r)) && !!seenRows.add(rowKey(r)));
   }
   if (entryHits.length) {
     used.push('context-memory-db');
@@ -202,7 +208,7 @@ export async function llmComposeReply(uid: string, question: string, parts: stri
   const suggestions = Array.isArray(out?.suggestions)
     ? (out!.suggestions as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter((x) => x.length >= 4 && x.length <= 80).slice(0, 3)
     : [];
-  return reply.length >= 8 && reply.length <= 600 ? { plan: reply, status: 'model', seenFacts, suggestions, ...(answeredBy ? { answeredBy } : {}) } : { plan: null, status: 'scripted', seenFacts, suggestions: [] };
+  return reply.length >= 8 && reply.length <= 600 ? { plan: reply, status: 'model', seenFacts, suggestions, ...(answeredBy ? { answeredBy } : {}) } : { plan: null, status: 'error', error: `finishReply reply unusable (${reply.length} chars, need 8-600)`, seenFacts, suggestions: [] };
 }
 
 // ---------- Agent-to-agent queries (transport for the external demo client) ----------
