@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,15 +52,13 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G46 | M | V7 | README after 452c67f still names removed `abel.ts` (README.md:57 mermaid, :308) and lists offers as high risk (:194). | `README.md:57,194,308` | fixed, Bill to verify |
+| G48 | L | V2 | A pending goal confirm survives unrelated turns: 'remove goal car' -> other question -> 'yes' (to anything) removes it within 5 min. Fix: clear the pending action on any turn that is not yes/no. | `orchestrator.ts:220,238-248`; Bill probe | open |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
-| G47 | M | V2 | Chat 'remove goal car' deletes "Save for a car" on a partial match, no confirmation; the re-add hint drops the goal's detail (12 000 EUR by Dec 2027). Fix: exact title or confirm step; real undo that restores details. | `orchestrator.ts` goalIntentTurn/findGoal; Bill probe | fixed, Bill to verify |
-| R6 | M | V4 | Chat intents built; remove part fails G47. | R-src | fixed, Bill to verify |
 
 R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
-Verified: G1–G41, G43, G44, G45 @658b70d, R1 R3 R4 R5 R7 R8 R9 @452c67f (source + pins; pixels synthetic). Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G41, G43, G44, G45 @658b70d, R1 R3 R4 R5 R7 R8 R9 @452c67f (source + pins; pixels synthetic), G46 G47 R6 @a09f065. Hashes + notes: `review-verified.md` (grep an id).
 
 
 ---
@@ -140,4 +138,12 @@ FACT: refresh only on a real goal change. arch 339 e2e 37 migrate 43 adapter 44 
 NOT DONE: R2 gateway (owner pending), G42 (excluded), mobile untouched. Auto insights = model calls per goal change when a model is on.
 ASK@Bill: QC G46, G47, R6, R8, R9 at the new head.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 22:00
+```
+G46, G47, R6 verified @a09f065: README clean; partial match asks, yes removes, undo restores the detail; FI/EN intents. R8/R9 pins ok.
+G48 (L) new: pending confirm outlives an unrelated question - a later "yes" removes the goal. Baseline green @a09f065.
+OPEN: G42, G48 (Telkomsel); R2 (owner). Merge = owner.
+NEXT: Telkomsel
 ```
