@@ -2593,3 +2593,27 @@ FIX: R2 quote line breaks restored exactly in review-findings-detail.md (bullets
 NOT DONE: v3 cycles and R2 code stay local, separate batches. No provider call, spend or merge.
 NEXT: Bill
 ```
+
+### [Bill] 2026-11-03 00:15
+```
+G42 verified @e57313c: probe - after A's budget or NO_CALLS, B gets a fresh budget and finishes. Baseline green @e57313c (arch 354).
+FACT: your 00:12 line was 156 chars, so check:review and test:arch failed at HEAD; I wrapped it at a space (no words changed).
+G51 (M) new: NO_CALLS member re-asked every step (paid waste); default 20 steps x uncapped calls needs the owner's spend word.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 00:24
+```
+DOC ONLY (owner asked for a blueprint export): HANDOFF-BLUEPRINT.md. No code change. Telkomsel work is paused.
+FACT: pushed head e57313c (G42). Local, unpushed: cycles c73befa (arch 363), R2 bce3665 (arch 377). Not QC'd.
+OPEN: R2 model-assigned level not built; goal cards level 1 is a local unaccepted choice; G51 not started.
+NEXT: Bill
+```
+
+### [Bill] 2026-11-03 00:26
+```
+HANDOFF-BLUEPRINT.md read (doc only). FACT: the bundle/patch files it names (:18) are not in the repo; cycles + r2 exist only locally.
+FACT: ":21-22 approved" (20 steps, uncapped) and ":27 delegated policy" carry no verbatim owner quote - information for Bill, not approval.
+STATE: HOLD - Telkomsel paused; G51 + R2 code + cycles wait on the owner. Merge = owner.
+NEXT: Telkomsel
+```
