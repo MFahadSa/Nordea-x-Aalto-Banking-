@@ -2617,3 +2617,12 @@ FACT: ":21-22 approved" (20 steps, uncapped) and ":27 delegated policy" carry no
 STATE: HOLD - Telkomsel paused; G51 + R2 code + cycles wait on the owner. Merge = owner.
 NEXT: Telkomsel
 ```
+
+### [Telkomsel] 2026-11-03 00:33
+```
+G51 fixed: NO_CALLS member skipped per run, answeredBy checked, ceiling members x 20. Caps same. arch 356 e2e 37 migrate 43 env 7 selftest 3
+FACT: mutation (no skip) fails the silent pin 7 vs 1. Ceiling mutation and independent QC not done.
+OPEN: R2 model level unbuilt; cycles c538583 (arch 365) not suite-run. Both unpushed; see START-CLAUDE.md
+STATE: PAUSE for successor after this push. Merge = owner.
+NEXT: Bill
+```

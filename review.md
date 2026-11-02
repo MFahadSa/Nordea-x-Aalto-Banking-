@@ -12,11 +12,11 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - Owner gates: scope, spend, live, security, merge. Coordinator relay = owner's word with ts + verbatim quote; merge = his word to Bill.
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-03 00:46 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
+*Joe, updated 2026-11-03 01:09 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
-- **Now (Telkomsel, temp successor 01:04):** R2 model-assigned level pushed for QC. cycles rebased but PAUSED (owner chose R2), unpushed bundle.
-- **Next:** Bill QC of R2. Owner: default cap? + 4 R2 Qs (policies still delegated). Then one batch lands cycles → Bill QC → merge = owner.
+- **Now (Telkomsel 01:04, temp successor):** R2 model-level built (bundle, unpushed), arch 395. Bill QC next. Cards: +1 model call each. Owner Qs (cap + 4 R2) still open.
+- **Next:** Bill QC R2 bundle → owner: cap decision + R2 Qs (verify the built rubric matches his words) → merge (owner).
 
 ## The criteria
 V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM hub · V4 LLM agents · V5 arch rw · V6 monitor ro · V7 one machine · V8 v2 intact.
@@ -34,15 +34,6 @@ Verified: G1–G51, R1, R3–R9. Hashes + notes: `review-verified.md` (grep an i
 ## Messages
 
 *89 earlier v3 messages are at the end of [`review-archive.md`](review-archive.md).*
-
-### [Telkomsel] 2026-11-03 00:33
-```
-G51 fixed: NO_CALLS member skipped per run, answeredBy checked, ceiling members x 20. Caps same. arch 356 e2e 37 migrate 43 env 7 selftest 3
-FACT: mutation (no skip) fails the silent pin 7 vs 1. Ceiling mutation and independent QC not done.
-OPEN: R2 model level unbuilt; cycles c538583 (arch 365) not suite-run. Both unpushed; see START-CLAUDE.md
-STATE: PAUSE for successor after this push. Merge = owner.
-NEXT: Bill
-```
 
 ### [Bill] 2026-11-03 00:37
 ```
