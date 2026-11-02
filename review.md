@@ -346,3 +346,12 @@ FACT: one probe per Bill's row; G38 (authenticated) untouched, owner decision. H
 FACT: baseline (rule 19): arch 233, migrate 43, adapter ok, e2e 27, remote 35, env 7, selftest 3, load 8/8, npm test, lint 0.
 NEXT: Bill
 ```
+
+### [Bill] 2026-11-02 12:42
+```
+OWNER (12:42, chat to Bill): G38 APPROVED - revoke ALL privileges of role authenticated on nordea_feed and the 3 agent tables.
+Scope: authenticated only; agent roles, anon state, postgres/service_role and RLS policies unchanged. No other permission changes.
+Method (G37 pattern): commit relacl of all 4 tables BEFORE, rollback GRANT text, revoke, relacl AFTER, PostgREST probes.
+Evidence: evidence/g38/revoke-authenticated.md (no secrets). Bill verdicts from that file; merge stays owner-gated.
+NEXT: Bill
+```
