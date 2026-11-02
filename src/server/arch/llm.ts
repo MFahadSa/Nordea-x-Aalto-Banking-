@@ -6,6 +6,7 @@
  * back to the scripted behaviour (kept for the no-AI path and for tests).
  */
 import { getProvider, withTimeout } from '../llm.js';
+import { chainHasFreshMember } from '../llmChain.js';
 import type { ToolCall, ToolDecl, Turn } from '../llm.js';
 
 /** True when a real (or test) provider is configured; false = scripted fallback. */
@@ -49,22 +50,33 @@ export interface PlanOutcome<T> { plan: T | null; status: 'model' | 'scripted' |
 export async function runAgentReasoning(args: AgentRunArgs): Promise<{ result: Record<string, unknown> | null; error?: string; answeredBy?: string }> {
   const provider = getProvider();
   const { maxSteps, stepTimeoutMs } = archLlmConfig();
-  const turns: Turn[] = [{ role: 'user', text: args.prompt }];
-  for (let step = 0; step < maxSteps; step++) {
-    let r;
-    try {
-      r = await withTimeout(
-        provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs }),
-        stepTimeoutMs + 5000, `${args.agent} agent reasoning`);
-    } catch (e) { return { result: null, error: e instanceof Error ? e.message : String(e) }; }
-    // F-D: a configured provider that produces no usable finish call is a provider failure,
-    // not the scripted path - name it so the fallback is visible instead of silent.
-    if (!r.calls.length) return { result: null, error: `${args.agent} model returned no tool calls (step ${step + 1}/${maxSteps})` };
-    for (const call of r.calls) {
-      if (call.name === args.finishTool) return { result: (call.args ?? {}) as Record<string, unknown>, answeredBy: r.answeredBy };
+  const tried: string[] = [];
+  // A chain can hold a weaker first member (e.g. a reasoning model that never emits the finish
+  // call). After its step budget is spent, give a fresh member ONE run of its own instead of
+  // failing the run. Hard errors are NOT retried this way: the chain already failed over for
+  // that step, so a retry would only double-charge the same outage.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const skipMembers = tried.length && chainHasFreshMember(provider, tried) ? tried : undefined;
+    if (attempt > 0 && !skipMembers) break; // no fresh member to hand the run to
+    const turns: Turn[] = [{ role: 'user', text: args.prompt }];
+    for (let step = 0; step < maxSteps; step++) {
+      let r;
+      try {
+        r = await withTimeout(
+          provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs, skipMembers }),
+          stepTimeoutMs + 5000, `${args.agent} agent reasoning`);
+      } catch (e) { return { result: null, error: e instanceof Error ? e.message : String(e) }; }
+      if (r.answeredBy && !tried.includes(r.answeredBy)) tried.push(r.answeredBy);
+      // F-D: a configured provider that produces no usable finish call is a provider failure,
+      // not the scripted path - name it so the fallback is visible instead of silent.
+      if (!r.calls.length) return { result: null, error: `${args.agent} model returned no tool calls (step ${step + 1}/${maxSteps})` };
+      for (const call of r.calls) {
+        if (call.name === args.finishTool) return { result: (call.args ?? {}) as Record<string, unknown>, answeredBy: r.answeredBy };
+      }
+      turns.push({ role: 'model_calls', calls: r.calls, raw: r.raw }); // keep raw parts: Gemini 3.x needs thought_signature echoed back
+      turns.push({ role: 'tool_results', results: r.calls.map((call) => ({ call, result: args.runTool(call) })) });
     }
-    turns.push({ role: 'model_calls', calls: r.calls, raw: r.raw }); // keep raw parts: Gemini 3.x needs thought_signature echoed back
-    turns.push({ role: 'tool_results', results: r.calls.map((call) => ({ call, result: args.runTool(call) })) });
+    // step budget spent without a finish call: the next attempt (if any) skips the tried members
   }
   return { result: null, error: `${args.agent} model did not call ${args.finishTool} within ${maxSteps} steps` };
 }

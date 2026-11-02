@@ -135,6 +135,16 @@ export function finishChat(uid: string, begin: ChatBegin): { reply: string; used
     const rowKey = (r: { title: string; detail: string }) => `${r.title.toLowerCase().trim()}|${r.detail.toLowerCase().trim()}`;
     entryHits = entryHits.filter((r) => !seenRows.has(rowKey(r)) && !!seenRows.add(rowKey(r)));
     nordeaHits = nordeaHits.filter((r) => !seenRows.has(rowKey(r)) && !!seenRows.add(rowKey(r)));
+    // G41: the same aggregate can also sit under two TITLES - the generic per-question row
+    // 'Relevant to your question' and a goal row carrying identical figures. matched|total is
+    // the aggregate's identity: when a goal row has the same figures, drop the generic row.
+    const GENERIC_Q = 'relevant to your question';
+    const figKey = (r: { evidence?: Record<string, unknown> | null }) => {
+      const e = r.evidence as { total?: unknown; matched?: unknown } | null | undefined;
+      return e && e.total != null && e.matched != null ? `${e.matched}|${e.total}` : '';
+    };
+    const goalFigs = new Set(nordeaHits.filter((r) => r.title.toLowerCase().trim() !== GENERIC_Q).map(figKey).filter((k) => k !== ''));
+    if (goalFigs.size) nordeaHits = nordeaHits.filter((r) => r.title.toLowerCase().trim() !== GENERIC_Q || !goalFigs.has(figKey(r)));
   }
   if (entryHits.length) {
     used.push('context-memory-db');

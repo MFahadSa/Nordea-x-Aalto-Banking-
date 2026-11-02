@@ -26,6 +26,16 @@ export interface ChainProvider extends LlmProvider {
   members: LlmProvider[];
 }
 
+/** The name a step result is stamped with, and the name callers use to skip a member. */
+export const chainMemberName = (m: LlmProvider): string => `${m.label || m.name}${m.model ? ` ${m.model}` : ''}`;
+
+/** True when this provider is a chain with a configured member NOT in `tried`: a retry that
+ *  skips the tried names can still reach a fresh model. False for any single provider. */
+export function chainHasFreshMember(provider: LlmProvider, tried: string[]): boolean {
+  const members = (provider as ChainProvider).members;
+  return Array.isArray(members) && members.some((m) => m.isConfigured() && !tried.includes(chainMemberName(m)));
+}
+
 export function makeChain(members: LlmProvider[]): ChainProvider {
   const st = new Map<LlmProvider, MemberState>(members.map((m) => [m, { restUntil: 0, lastOk: null, lastFail: null }]));
   let lastUsed: LlmProvider | null = null;
@@ -40,6 +50,11 @@ export function makeChain(members: LlmProvider[]): ChainProvider {
       // The first (best) model waits up to 8 s for its per-minute limit, so answers stay consistent;
       // only a longer wait hands over to the next model. The last option waits up to 35 s.
       const res = await m.step({ ...args, maxWaitMs: isLast ? 35000 : m === members[0] ? 8000 : 1500 });
+      // A reply without tool calls is unusable for an agent loop (every run must end in a finish
+      // call, per the LlmProvider contract): leaving it as "success" burns the caller's whole step
+      // budget on a member that will never finish. Hand over instead. classify() reads this as
+      // 'other' -> rest 0, so the member stays first choice on the next request.
+      if (args.tools.length && !res.calls.length) throw new Error(`NO_CALLS: ${name(m)} answered without any tool call`);
       s.lastOk = { at: new Date().toISOString() };
       s.restUntil = 0;
       lastUsed = m;
@@ -66,7 +81,8 @@ export function makeChain(members: LlmProvider[]): ChainProvider {
     isConfigured: () => members.some((m) => m.isConfigured()),
     async step(args) {
       const needsVision = args.turns.some((t) => t.role === 'user' && (t.files || []).length > 0);
-      const usable = members.filter((m) => m.isConfigured() && (!needsVision || m.vision));
+      const skipped = new Set(args.skipMembers || []);
+      const usable = members.filter((m) => m.isConfigured() && (!needsVision || m.vision) && !skipped.has(name(m)));
       if (!usable.length) throw new Error(needsVision ? 'NO_VISION: none of the AI models here can read photos' : 'No AI model is set up');
       let last: any;
       // Up to two rounds: everyone who's free tries once; if all are only busy for a short while

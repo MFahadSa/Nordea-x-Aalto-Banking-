@@ -36,7 +36,7 @@ export interface LlmProvider {
   name: string;
   isConfigured(): boolean;
   /** One model step. The model must answer with tool calls (Abel always ends with finishReply). */
-  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number }): Promise<StepResult>;
+  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number; skipMembers?: string[] }): Promise<StepResult>;
   /** Can read photos (and scanned PDFs). */
   vision?: boolean;
   /** Readable name, e.g. "Groq" or "Gemini". */

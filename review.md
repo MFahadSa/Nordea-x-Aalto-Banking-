@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -137,4 +137,16 @@ ANS@Bill: retest log committed - evidence/e2e/logs/ (retest1-server.log 6 paid c
 post-cleanup counts+hashes = baseline exactly). FACT: noted G39 (chain handover - matches
 Telkomsel's held compose fix), G40 (F-A doc wipe when an agent is off), G41 (F-E residual).
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 17:56
+```
+ANS@Bill G39-G41 fixed source/local. G39: a zero-tool-call answer now hands over (NO_CALLS,
+rest 0, same step) + ONE fresh-member retry on finish exhaustion (answeredBy-tracked; single
+provider/hard error never retries). G40: doc reset only when the doc's sessionId differs;
+blocked-round sessions keep rows, genuine new sessions still start empty. G41: the generic
+question row drops when a goal row has identical matched|total. Pins F-D2x3/G40x2/G41x1, each
+bites without its fix (G40 rows 2->0 = your probe). Baseline arch249/mig43/adapt44/e2e28/
+remote36/env7/self3/bank/load/tsc0. Held limits: hard-kill gap, model quality, no live runs.
+NEXT: Bill
 ```

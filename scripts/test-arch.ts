@@ -739,6 +739,61 @@ LL.setProviderForTests(null);
   LL.setProviderForTests(null);
 }
 
+// --- F-D2: chain fallthrough when a member never produces the finish call (the gpt-oss-120b
+// mode from the 13:47 live retest): zero-call answers are skipped inside the same step, and a
+// member that burns its whole step budget hands the run to a fresh chain member ONCE.
+{
+  const { makeChain } = await import('../src/server/llmChain.js');
+  const AL = await import('../src/server/arch/llm.js');
+  type FakeTools = { tools: { name: string }[] };
+  const planFinish = (label: string, t: string[]) =>
+    t.includes('finishRetrievalPlan') ? { id: `${label}-cm`, name: 'finishRetrievalPlan', args: { goalTitles: ['save for a car'], reason: 'test' } }
+    : t.includes('finishMatchTerms') ? { id: `${label}-no`, name: 'finishMatchTerms', args: { terms: { 'save for a car': ['wash'] } } } : null;
+  const fresh = (count: { n: number }) => ({
+    name: 'fresh', label: 'Fresh', model: 'm-fresh', isConfigured: () => true,
+    step: async (args: FakeTools) => {
+      count.n++;
+      const p = planFinish('fr', args.tools.map((x) => x.name));
+      return { calls: [p || { id: 'fr-fin', name: 'finishReply', args: { reply: 'Grounded answer from the fresh member.' } }] };
+    },
+  });
+  const silent = (count: { n: number }) => ({
+    name: 'silent', label: 'Silent', model: 'm-silent', isConfigured: () => true,
+    step: async () => { count.n++; return { calls: [] }; }, // zero tool calls: the live failure mode
+  });
+  const staller = (count: { plan: number; stall: number }) => ({
+    name: 'staller', label: 'Staller', model: 'm-staller', isConfigured: () => true,
+    step: async (args: FakeTools) => {
+      const p = planFinish('st', args.tools.map((x) => x.name));
+      if (p) { count.plan++; return { calls: [p] }; }
+      count.stall++;
+      return { calls: [{ id: `st-${count.stall}`, name: 'listMyGoals', args: {} }] }; // reads forever, never finishes
+    },
+  });
+
+  const s1 = { n: 0 }, f1 = { n: 0 };
+  LL.setProviderForTests(makeChain([silent(s1) as never, fresh(f1) as never]) as never);
+  const d1 = await A.chat(UID53, 'are you there?', 'chain-sess-6');
+  check('F-D2: a zero-call member is skipped inside the same run; the next member answers',
+    d1.source === 'model' && d1.provider === 'Fresh m-fresh' && s1.n === f1.n && s1.n > 0,
+    `${d1.source} / ${d1.provider} / silent ${s1.n} fresh ${f1.n}`);
+
+  const s2 = { plan: 0, stall: 0 }, f2 = { n: 0 };
+  LL.setProviderForTests(makeChain([staller(s2) as never, fresh(f2) as never]) as never);
+  const d2 = await A.chat(UID53, 'are you there?', 'chain-sess-7');
+  check('F-D2: a member that never finishes hands its run to a fresh chain member ONCE',
+    d2.source === 'model' && d2.provider === 'Fresh m-fresh' && s2.stall === AL.archLlmConfig().maxSteps && f2.n === 1,
+    `${d2.source} / ${d2.provider} / stall ${s2.stall} fresh ${f2.n}`);
+
+  const s3 = { plan: 0, stall: 0 };
+  LL.setProviderForTests(makeChain([staller(s3) as never]) as never);
+  const d3 = await A.chat(UID53, 'are you there?', 'chain-sess-8');
+  check('F-D2: a lone member that never finishes still fails loudly, with no retry doubling',
+    d3.source === 'scripted-error' && s3.stall === AL.archLlmConfig().maxSteps,
+    `${d3.source} / stall ${s3.stall}`);
+  LL.setProviderForTests(null);
+}
+
 // --- F18: maintenance rounds merge into the open session's document - no row is dropped.
 const UID17 = 'mergeround';
 A.addGoalDirect(UID17, 'Save for a car');
@@ -822,6 +877,45 @@ check('F-B: one new-session question costs ONE plan call set + one compose (3 ca
   CS.writeHeader(UID22, { roundId: 'round-dupe', trigger: 'session', finalise: true });
   const ans = P.finishChat(UID22, P.beginChat(UID22, 'how much did I spend related to my car goal?', 'sess-dupe'));
   check('F-E: a duplicated document row prints once in the reply', ans.reply.split('Relevant to your question').length - 1 === 1, ans.reply.slice(0, 200));
+}
+
+// --- G40: with an agent off the session round cannot run (roundId stays ''), so EVERY
+// question re-entered the new-session branch and resetContextForSession wiped the document
+// mid-session (Bill's probe: rows 2 -> 0). The reset must only fire when the document
+// belongs to another session.
+{
+  const CS40 = await import('../src/server/arch/store/contextStore.js');
+  const UID40 = 'wipesess';
+  A.setAgentOff(UID40, 'nordea', true);
+  const q1 = await A.chat(UID40, 'hello, anyone home?'); // new session; round blocked by nordea-off
+  A.addGoalDirect(UID40, 'Save for a car');              // user-change round tops up the session doc
+  A.addGoalDirect(UID40, 'Save for a bike');
+  const rowsMid = CS40.readSectionRows(UID40, 'customer').length;
+  await A.chat(UID40, 'what did I just save?', q1.sessionId); // G40: this used to wipe the doc
+  const rowsAfter = CS40.readSectionRows(UID40, 'customer').length;
+  check('G40: a blocked-round session keeps its mid-session rows on follow-up questions', rowsMid === 2 && rowsAfter === 2, `mid ${rowsMid} after ${rowsAfter}`);
+  const q3 = await A.chat(UID40, 'fresh start please', 'sess-other-40'); // genuinely new session: old rows must NOT leak
+  check('G40: a genuinely new session still starts from an empty document', CS40.readSectionRows(UID40, 'customer').length === 0 && CS40.loadContext(UID40)?.sessionId === q3.sessionId, `rows ${CS40.readSectionRows(UID40, 'customer').length}`);
+  A.setAgentOff(UID40, 'nordea', false);
+}
+
+// --- G41: the same aggregate under two TITLES (generic per-question row + goal row with
+// identical figures) still printed twice - title|detail dedupe misses it. The generic row
+// drops when a goal row carries the same matched|total.
+{
+  const UID41 = 'dupeagg';
+  const CS = await import('../src/server/arch/store/contextStore.js');
+  const P = await import('../src/server/arch/agents/personal.js');
+  CS.resetContextForSession(UID41, 'sess-agg');
+  const detail = '72 transactions totalling 20616 EUR of related spending';
+  const ev = { total: 20616, matched: 72 };
+  CS.writeNordeaSection(UID41, [
+    { id: 'nq-r1', title: 'Relevant to your question', detail, source: 'nordea' as const, observed: 'observed' as const, evidence: ev, at: new Date().toISOString() },
+    { id: 'nagg-g1', title: 'Save for a car', detail, source: 'nordea' as const, observed: 'observed' as const, evidence: ev, at: new Date().toISOString() },
+  ]);
+  CS.writeHeader(UID41, { roundId: 'round-agg', trigger: 'session', finalise: true });
+  const ans = P.finishChat(UID41, P.beginChat(UID41, 'how much did I spend related to my car goal?', 'sess-agg'));
+  check('G41: identical figures under two titles print once, keeping the goal-titled row', ans.reply.split('20616').length - 1 === 1 && ans.reply.includes('Save for a car') && !ans.reply.includes('Relevant to your question'), ans.reply.slice(0, 220));
 }
 
 // --- F20: risk derives "observed" from evidence, never from the proposer's own flag.

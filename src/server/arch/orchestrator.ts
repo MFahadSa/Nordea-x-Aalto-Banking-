@@ -87,7 +87,10 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   if (isNew) {
     // F16: a new session always starts from an empty document stamped with its id - even when
     // no round can run (agent off, parked), an earlier session's rows must not leak in.
-    resetContextForSession(uid, session.id);
+    // G40: a LIVE session whose round still has not run (roundId stays '' because the round was
+    // blocked) re-enters this branch on EVERY question - reset only when the document belongs
+    // to another session, or mid-session rows (goals, top-ups) are wiped again and again.
+    if (loadContext(uid)?.sessionId !== session.id) resetContextForSession(uid, session.id);
     // F-B: exactly ONE session round opens the session (one plan call set, one round record).
     if (!parked && !getOff(uid).some((a) => a === 'personal' || a === 'cm' || a === 'nordea')) {
       const plan = await planRoundLlm(uid, text);
