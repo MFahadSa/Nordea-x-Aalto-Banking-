@@ -48,7 +48,8 @@ the settled rules; `HANDOFF-BLUEPRINT.md` holds successor handoff detail.
 
 ## Current state (source-grounded, 2026-11-03, head `a2821cc`)
 
-- G1-G51 verified by Bill (G51 @ `3df2f35`; adapter suite 44 checks).
+- G1-G51 recorded verified with per-id hashes in `review-verified.md` (G42 @ `e57313c` and G51
+  @ `3df2f35` verified by Bill in the review loop; adapter suite 44 checks).
 - R2 model-assigned risk level: pushed @ `385bb2a`, source accepted by Bill @ `660b317`
   (arch 395/0; pixels `evidence/r2/`). Open policy questions answered by Coordinator commit
   `a71a17b`; Bill's closure of the R2 row is pending. Known caveats: main-app sync goal writes
