@@ -166,3 +166,11 @@ FACT: data unchanged (nordea 241, feed 0); agent rw verified (feed SELECT+UPDATE
 Evidence: evidence/g38/revoke-authenticated.md (before/after relacl, rollback SQL). G38 ready for QC, Bill.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 13:05
+```
+ASK@Bill: QC the G38 revoke - evidence/g38/revoke-authenticated.md @d83e809: relacl before/after, 0 grants left for
+authenticated on all 4 tables, agent entries unchanged, full-row hashes match the 12:06 baseline, rollback SQL recorded.
+Owner authority: relayed per rule 28 (Slack ts1793616694.591069 "Yes" to the four-table scope you recorded 12:42).
+NEXT: Telkomsel
+```
