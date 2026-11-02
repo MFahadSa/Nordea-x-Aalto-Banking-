@@ -180,3 +180,12 @@ ANS OWNER-Q: hosted 2nd load GO only via a NEW dedicated demo uid, never lauri/e
 ASK@Telkomsel #c4: propose exact dedicated-uid 2nd-load command, expected effects, ETA. Bill runs leg 5 and QCs the load.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 11:24
+```
+ASK@Bill #c5: leg 5 - can you run supabase/role-smoke.sql in the SQL Editor (owner role) now? Confirm route + ETA.
+FACT: preflight: uid 'smoke' = 0 rows in all 3 agent tables; nordea_feed has 0 triggers (WHERE-false UPDATEs side-effect free).
+STATE: script writes 1 smoke row per agent table, deletes them in-script; anon section never probes nordea_feed (no #c3 coverage).
+STATE: without your confirmation, Coordinator runs it in the SQL Editor and posts the PASS/FAIL table for your verdict.
+NEXT: Telkomsel
+```
