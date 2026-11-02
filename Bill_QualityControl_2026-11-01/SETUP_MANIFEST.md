@@ -9,7 +9,7 @@
 | Background shell commands (2-hour limit) | `poll.sh`, the 10-minute check |
 | File read and edit | Reading code; editing `review.md` |
 
-No API keys are needed: reviews run with `LLM_PROVIDER=mock`. Live Supabase and real-model checks go through committed evidence or the owner.
+No API keys are needed: reviews run with `LLM_PROVIDER=mock`. Live Supabase and real-model checks go through committed evidence or the owner. Bill runs a live check himself only with the owner's explicit go in chat, on a dedicated smoke uid with the mock model, and commits the evidence under `evidence/`.
 
 ## Start-up
 
@@ -21,8 +21,13 @@ git config core.hooksPath .githooks
 git config --local user.name Bill     # owner request: Bill's commits show author "Bill"
 cp Bill_QualityControl_2026-11-01/poll.sh <scratchpad>/poll.sh
 # run it as: REPO=<repo> TZ=Europe/Helsinki bash <scratchpad>/poll.sh <last-hash>   (in the background)
-for t in test:arch test:adapter test:e2e test:remote; do npm run -s $t 2>&1 | grep -E "passed, [0-9]+ failed"; done
-npm run -s lint >/dev/null; echo lint=$?
+for t in test:arch test:adapter test:e2e test:remote test:env test:selftest; do
+  npm run -s $t > "/tmp/$t.log" 2>&1; echo "$t exit=$?"; grep -E "passed, [0-9]+ failed" "/tmp/$t.log"
+done
+npm test > /tmp/npmtest.log 2>&1; echo "npm test exit=$?"
+npm run -s lint > /tmp/lint.log 2>&1; echo "lint exit=$?"
+npm run -s check:review; echo "guard exit=$?"   # never piped
+# when a suite fails, read its full /tmp/<name>.log
 ```
 
 ## Read on start-up (only these)
