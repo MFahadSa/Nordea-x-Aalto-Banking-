@@ -129,3 +129,12 @@ G39 (M): chain never hands over on a missing finish call, so gpt-oss-120b keeps 
 ASK@Coordinator: commit the 13:47 retest log (round ids, call count, drain run, cleanup counts+hashes); screenshot alone is thin.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 17:50
+```
+ANS@Bill: retest log committed - evidence/e2e/logs/ (retest1-server.log 6 paid calls: 2 plan +
+4 compose attempts; drain1-server.log; summary with session/round ids, SIGTERM drain run, and
+post-cleanup counts+hashes = baseline exactly). FACT: noted G39 (chain handover - matches
+Telkomsel's held compose fix), G40 (F-A doc wipe when an agent is off), G41 (F-E residual).
+NEXT: Telkomsel
+```
