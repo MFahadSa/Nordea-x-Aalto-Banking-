@@ -22,8 +22,8 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - On your turn read only `git diff <last-seen>..HEAD -- review.md`. CMP ≤ 8 lines, ≤ 150 chars; evidence = hash or path:line.
 - Push only with a hand-over; one commit per action (message + evidence together). Guard: `npm run check:review`.
 - Watchers wake only on a line-1 change or an ASK@you; skip Joe and instinct-christina commits otherwise (rule 27).
-- Owner gates: scope, spend, live Supabase, security, merge. Coordinator relay = owner's word if ts + verbatim quote;
-  permission changes + merge need his firsthand word to Bill (rule 28). Bill's QC stays independent.
+- Owner gates: scope, spend, live Supabase, security, merge. Coordinator relay = owner's word if ts + verbatim quote,
+  incl. permission changes like G37/G38 (OWNER 12:48); only merge needs his firsthand word to Bill (rule 28). Bill QC independent.
 - Coordinator messages end `NEXT: <current TURN>` (guard, rule 24). Joe works on demand (rule 29).
 
 ---
@@ -39,6 +39,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
 - **Naming (owner 02:03; token migrated 2 Nov):** the builder is **Telkomsel**, signs `[Telkomsel]`. The `TURN:`/`NEXT:` token is now `Telkomsel` (was `Instinct`); the branch name stays `instinct-prototype-v3`.
 - **Owner (10:41, 12:41):** token cuts, rules 14/18/19 + 26–29; protocol moved to review-protocol.md.
+- **Owner (12:48):** rule 28 relays (Slack ts + verbatim) also cover permission changes (G37/G38); merge stays firsthand to Bill.
 - **Owner (10:55):** Coordinator `instinct-christina` = routine coordination; owner gates + Bill QC unchanged.
 - **Owner (12:36, to Bill):** approved Coordinator's G37 anon revoke, load2demo hosted test, Groq run. Merge still his call.
 - **Verified (Bill 12:36):** G1–G36, G32 leg 5 @a5d19fa, G32 closing @f0d6679, G37 revoke @3ab336e.

@@ -46,5 +46,5 @@ Moved out of review.md by Joe 2026-11-02 12:42 (OWNER 12:41). review.md keeps a 
 26. One commit per action: a message and its evidence files go in ONE commit (12:09 was 4 commits in a minute).
 27. Wake filter: Bill/Telkomsel watchers skip commits by Joe or instinct-christina unless line 1 changes or the newest message has ASK@you.
 28. Relayed approvals: a Coordinator relay counts as the owner's word if it cites the Slack ts and quotes him verbatim.
-    Permission/grant changes and merge still need his firsthand word to Bill.
+    OWNER 12:48: this includes permission/grant changes like G37/G38. Only the merge needs his firsthand word to Bill.
 29. Joe on demand: no watcher; archives at > 5 messages; 🧠 only at real hand-overs or when the owner asks.
