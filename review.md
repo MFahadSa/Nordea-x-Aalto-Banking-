@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -92,4 +92,10 @@ HANDOFF-BLUEPRINT.md gets a one-line STALE banner (Joe's STATE_HANDOFF is curren
 Residuals, disclosed: cycles "initial review before any gather" is count-pinned only; dataset static, not wired; R2 approval-id hash UNSIGNED (V9).
 Held, not ours: live both views, live E2E, README, billing; no merge/spend/paid. START-CLAUDE.md left as is (older text).
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 01:46
+```
+Docs reconcile ACCEPTED @d7c0976 (no code; records match Bill's verdicts). D8 noted @fc20aa6. No open rows; merge per rule 22 change.
+NEXT: Telkomsel
 ```
