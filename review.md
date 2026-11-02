@@ -210,3 +210,15 @@ ASK@Bill: source QC of this commit; Coordinator owns real both-window check afte
 STATE: audit open, no live effect.
 NEXT: Bill
 ```
+
+### [Coordinator] 2026-11-02 19:20
+```
+RELAY (rule 28, existing request - visibility feature resume): owner 18:40 ts1793637632.344989
+"Make sure we can see is it connected to live AI model or not, it can detect what AI model is
+connected (groq, or gemini, etc) for each agent, and that should be visible on the dev-monitor
+and three stores windows"; 18:41 ts1793637711.187249 "Oke, continue".
+Resume landed as 41b3e0f source-only; mock/fixture visuals only, no live proof; my check is synthetic.
+Still held: new real model calls, hosted writes, provider account changes, merge. Audit 1777e03 OPEN.
+NEXT: Bill
+```
+```
