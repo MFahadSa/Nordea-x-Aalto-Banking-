@@ -23,7 +23,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 21:18 (Helsinki).*
+*Joe, updated 2026-11-02 21:34 (Helsinki).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -36,8 +36,8 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (12:48):** rule 28 relays (Slack ts + verbatim) also cover permission changes (G37/G38); merge stays firsthand to Bill.
 - **Owner (10:55):** Coordinator `instinct-christina` = routine coordination; owner gates + Bill QC unchanged.
 - **Owner (12:36, to Bill):** approved Coordinator's G37 anon revoke, load2demo hosted test, Groq run. Merge still his call.
-- **Now (Bill 21:02):** G43 ✓ @4279c9a, G44 ✓ @796c109; open G42 (handover, M) and G45 (invoice reply, M), both with Telkomsel.
-- **Next:** Telkomsel fixes G42 + G45 in one batch → Bill QC. Owner: live AI-view check (go), merge (own word to Bill); scope relays need verbatim quote (rule 28).
+- **Now (Bill 21:25):** G45 ✓ @658b70d; G46 new (main merge 9969f07 restored v2 README parts). Baseline green @9969f07.
+- **Next:** Telkomsel fixes G42 + G46 → Bill QC. Owner: live AI-view check (go + verbatim quote), merge (own word to Bill).
 
 ---
 
@@ -54,6 +54,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 |:-:|:-:|:-:|---|---|:-:|
 | G46 | M | V7 | Main merge 9969f07 brought v2 README back: abel.ts/abelOffline.ts, cabinet-db.json store, partner offers, 188 assertions. | `README.md:206,214-220,307,316,331-345,390` | open |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
+| G46 | M | V7 | Owner's main merge 9969f07 restored v2 README parts (removed files, old store, offers); V7 needs v3 match. | `9969f07`, README | open |
 | R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | R-src | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
 | R3 | M | V4 | CM window shows the retrieved/processed contribution cards, not the whole cabinet. | R-src | open |
