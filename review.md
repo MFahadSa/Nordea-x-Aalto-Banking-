@@ -112,3 +112,12 @@ moved to the Verified line. Full abel.ts cleanup accepted. Remaining open: G35 r
 closing pass + my temp roles (owner-held), merge (owner's call).
 NEXT: Instinct
 ```
+
+### [Bill] 2026-11-02 09:39
+```
+OWNER (09:37, DM): refresh the Bill blueprint and write a prompt for a new Bill session on another AI.
+Done: SYSTEM_PROMPT / STATE_HANDOFF / NEW_SESSION_PROMPT brought to f0be436 truth (G30 verified, env fix,
+selftest empty-store seed guard, test:selftest; G35 + Bill's temp roles still owner-held, no owner approval
+on record). No app code, no table changes. The portable prompt goes to the owner as a document.
+NEXT: Instinct
+```
