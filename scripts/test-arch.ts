@@ -1534,6 +1534,7 @@ check('Q2: caption order is elapsed (client-measured) first, then the exact cate
     const gl = () => (S.loadUserDb(W).goals ?? []).map((g: any) => g.title);
     const p1: any = await A.chat(W, 'remove goal car', 'sess-g47');
     check('G47: a partial-match removal asks first and deletes nothing', gl().includes('Save for a car') && /Do you mean/.test(p1.reply), p1.reply);
+    check('G47: the confirmation question says it is short-lived and forgotten on restart (no durable claim)', /5 minutes/.test(p1.reply) && /restarts/.test(p1.reply), p1.reply);
     const p2: any = await A.chat(W, 'no', 'sess-g47');
     check('G47: "no" cancels the pending removal', gl().includes('Save for a car') && /nothing changed/i.test(p2.reply), p2.reply);
     await A.chat(W, 'forget about the car goal', 'sess-g47');
@@ -1544,6 +1545,7 @@ check('Q2: caption order is elapsed (client-measured) first, then the exact cate
     check('G47: undo restores the goal WITH its details', !!back && back.detail === '12 000 EUR by Dec 2027' && /12 000 EUR/.test(p4.reply), p4.reply);
     const p5: any = await A.chat(W, 'remove goal Save for a car', 'sess-g47');
     check('G47: an exact-title removal acts at once and offers undo', !gl().includes('Save for a car') && /undo/i.test(p5.reply), p5.reply);
+    check('G47: the removal reply says the undo is in-memory, 30 minutes, cleared on restart', /30 minutes/.test(p5.reply) && /memory only/.test(p5.reply) && /restarts/.test(p5.reply), p5.reply);
     const p6: any = await A.chat(W, 'undo', 'sess-g47'); const p7: any = await A.chat(W, 'undo', 'sess-g47');
     check('G47: a second undo with nothing to undo does not invent a goal', gl().filter((t) => t === 'Save for a car').length === 1 && p7.intent !== 'goal_add', p6.reply + ' || ' + p7.reply);
     const r2 = readSrc('../README.md');
@@ -1571,6 +1573,28 @@ check('Q2: caption order is elapsed (client-measured) first, then the exact cate
     check('R9: removing a goal refreshes the goal-relevant insights (chat)', c2 > c1, `${c1} -> ${c2}`);
     await A.chat(Y, 'remove goal Nothing here', 's-ins'); const c3 = rounds();
     check('R9: a request that changes no goal does not trigger a refresh', c3 === c2, `${c2} -> ${c3}`);
+  }
+  {
+    const L = 'lifeuser'; S.saveNordeaDb({ ...(S.loadNordeaDb(UID) as any), userId: L });
+    const sv = (t: string) => A.chat(L, t, 'sess-life') as Promise<any>;
+    await sv('add goal Save for a car');
+    for (const m of A.reviewQueue(L)) A.decideProposal(L, m.id, true);
+    const goal0 = (S.loadUserDb(L).goals as any[]).find((g) => g.title === 'Save for a car');
+    const ctxRows = (sec: 'customer' | 'nordea') => ((A.archState(L) as any).contextCards[sec === 'nordea' ? 'nordea' : 'memory'] as any[]);
+    check('lifecycle: before removal the goal has an active Nordea row on context.md', ctxRows('nordea').some((c) => c.id === `nagg-${goal0.id}`), JSON.stringify(ctxRows('nordea').map((c) => c.id)));
+    await sv('remove goal Save for a car');
+    const md1 = (A.archState(L) as any).contextMd as string;
+    check('lifecycle: after removal the goal leaves the Customer and Nordea sections (no stale ACTIVE row)', !md1.includes(goal0.id) && !ctxRows('nordea').some((c) => c.id === `nagg-${goal0.id}`) && !/Save for a car/.test(md1.split('## Context memory')[0]) && !/Save for a car/.test(md1.split('## Nordea')[1] ?? ''), md1);
+    await sv('undo'); for (const m of A.reviewQueue(L)) A.decideProposal(L, m.id, true); await A.chat(L, 'how much did I spend on my car?', 'sess-life');
+    const md2 = (A.archState(L) as any).contextMd as string;
+    const cust = md2.split('## Customer')[1].split('## Context memory')[0], nord = md2.split('## Nordea')[1];
+    check('lifecycle: after undo (new id) the goal appears once in Customer and once in Nordea, no duplicate', (cust.match(/Save for a car/g) ?? []).length === 1 && (nord.match(/Save for a car/g) ?? []).length === 1, cust + nord);
+    const memTitles = ((A.archState(L) as any).contextCards.memory as any[]).map((c) => `${c.status}|${c.title}`);
+    check('lifecycle: the Context memory section does not print a stale entry next to its active replacement', memTitles.some((t) => t.startsWith('active|')) && new Set(memTitles.map((t) => t.split('|')[1])).size === memTitles.length, memTitles.join(' ; '));
+    const dup = await sv('add goal Save for a car');
+    check('lifecycle: an identical add does not create a duplicate goal', /already have/.test(dup.reply) && (S.loadUserDb(L).goals as any[]).filter((g) => g.title === 'Save for a car').length === 1, dup.reply);
+    await sv('remove goal car'); await sv('what is the capital of Finland?'); await sv('yes');
+    check('G48: a pending confirmation is dropped by an unrelated turn (a later "yes" removes nothing)', (S.loadUserDb(L).goals as any[]).some((g) => g.title === 'Save for a car'), 'goal gone');
   }
   const html = readSrc('../public/arch.html');
   check('R7: the Add-goal field and button are gone from arch.html', !/id="goal-in"|id="btn-goal"|Add goal/.test(html));

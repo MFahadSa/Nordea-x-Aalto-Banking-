@@ -20,7 +20,7 @@ import './agents/nordea.js'; // side effect: registers the Nordea agent's bus ha
 import { loadUserDb, saveUserDb, deleteUserDb } from './store/userStore.js';
 import { loadCmDb, deleteCmDb } from './store/cmStore.js';
 import { loadNordeaDb, nordeaFileExists, deleteNordeaDb } from './store/nordeaStore.js';
-import { deleteContext, loadContext, renderContextMd, resetContextForSession } from './store/contextStore.js';
+import { deleteContext, loadContext, pruneGoalRows, renderContextMd, resetContextForSession } from './store/contextStore.js';
 import {
   appendMessage, findMessage, getAgentsOff, setAgentsOff, loadBus, busKvGet, busKvSet, getCabinetParkedMirror,
 } from './store/busStore.js';
@@ -243,9 +243,10 @@ function goalIntentTurn(uid: string, text: string): { reply: string; used: strin
     if (pend.kind === 'modify') { appWrites.updateGoal(uid, g.id, { title: pend.title }); return { reply: `Changed the goal "${g.title}" to "${pend.title}".`, used, intent: 'goal_modify' }; }
     lastRemovedGoal.set(uid, { goal: g, expires: t0 + 30 * 60_000 });
     appWrites.removeGoal(uid, g.id);
-    return { reply: `Removed the goal "${g.title}" from your User DB. Say "undo" to bring it back with its details.`, used, intent: 'goal_remove' };
+    return { reply: `Removed the goal "${g.title}" from your User DB. Say "undo" within 30 minutes to bring it back with its details (the undo is kept in memory only and is forgotten if the server restarts).`, used, intent: 'goal_remove' };
   }
   if (pend && pend.expires >= t0 && /^\s*(?:no|nope|cancel|never\s*mind|stop|ei|peruuta)\b/i.test(body)) { pendingGoalAction.delete(uid); return { reply: 'OK, nothing changed.', used, intent: pend.kind === 'remove' ? 'goal_remove' : 'goal_modify' }; }
+  if (pend) pendingGoalAction.delete(uid); // G48: a turn that is not yes/no drops the pending question
   const rem = body.match(GOAL_REMOVE_A) ?? body.match(GOAL_REMOVE_B);
   const head = rem ? null : body.match(GOAL_MODIFY_HEAD);
   let split = head ? splitModify(head[1], goals) : null;
@@ -255,6 +256,8 @@ function goalIntentTurn(uid: string, text: string): { reply: string; used: strin
   const add = rem || split ? null : (body.match(GOAL_ADD_A) ?? body.match(GOAL_ADD_FI_A) ?? body.match(GOAL_ADD_FI_B) ?? (isQuestion ? null : (body.match(GOAL_ADD_B) ?? body.match(GOAL_ADD_C) ?? body.match(GOAL_ADD_D) ?? body.match(GOAL_ADD_FI_C))));
   if (!rem && !split && !add) return null;
   if (add) {
+    const dupe = goals.find((g) => g.title.trim().toLowerCase() === cap(add[1]).trim().toLowerCase() || g.title.trim().toLowerCase() === add[1].trim().toLowerCase());
+    if (dupe) return { reply: `You already have the goal "${dupe.title}". Nothing added.`, used, intent: 'goal_add' };
     const g = addGoalDirect(uid, /^(?:add|new|set|my|goal|lisää|lisaa|tavoite|minun|uusi)/i.test(body) ? add[1].trim() : cap(add[1]));
     return { reply: `Saved "${g.title}" as a goal in your User DB. Direct input goes straight in - the sync airlock only gates things your connected personal agent pulls in from WhatsApp, calendar, notes or email.`, used, intent: 'goal_add' };
   }
@@ -271,8 +274,8 @@ function goalIntentTurn(uid: string, text: string): { reply: string; used: strin
     // Partial match: never act on it silently. Ask, and act only on an explicit yes.
     pendingGoalAction.set(uid, { kind: split ? 'modify' : 'remove', goalId: found.goal.id, title: split ? cap(split[1]) : undefined, expires: t0 + 5 * 60_000 });
     return { reply: split
-      ? `Do you mean the goal "${found.goal.title}"? Change it to "${cap(split[1])}"? Reply yes to confirm or no to cancel. Nothing changed yet.`
-      : `Do you mean the goal "${found.goal.title}"? Remove it? Reply yes to confirm or no to cancel. Nothing changed yet.`, used, intent: split ? 'goal_modify' : 'goal_remove' };
+      ? `Do you mean the goal "${found.goal.title}"? Change it to "${cap(split[1])}"? Reply yes to confirm or no to cancel (this question is kept for 5 minutes and is forgotten if the server restarts). Nothing changed yet.`
+      : `Do you mean the goal "${found.goal.title}"? Remove it? Reply yes to confirm or no to cancel (this question is kept for 5 minutes and is forgotten if the server restarts). Nothing changed yet.`, used, intent: split ? 'goal_modify' : 'goal_remove' };
   }
   if (split) {
     appWrites.updateGoal(uid, found.goal.id, { title: cap(split[1]) });
@@ -280,7 +283,7 @@ function goalIntentTurn(uid: string, text: string): { reply: string; used: strin
   }
   lastRemovedGoal.set(uid, { goal: found.goal, expires: t0 + 30 * 60_000 });
   appWrites.removeGoal(uid, found.goal.id);
-  return { reply: `Removed the goal "${found.goal.title}" from your User DB. Say "undo" to bring it back with its details.`, used, intent: 'goal_remove' };
+  return { reply: `Removed the goal "${found.goal.title}" from your User DB. Say "undo" within 30 minutes to bring it back with its details (the undo is kept in memory only and is forgotten if the server restarts).`, used, intent: 'goal_remove' };
 }
 
 const EN_WORDS = /\b(the|is|are|was|were|what|who|whom|when|where|why|how|which|does|do|did|can|could|tell|explain|about|of|in|on|a|an|to|for|and|it|there|that|this)\b/gi;
@@ -591,6 +594,7 @@ export const appWrites = {
     const r = controlRoundTrip(uid, 'personal', 'The app removes a goal from the User DB.', { control: 'remove-goal', goalId });
     // G12: the CM agent owns the review queue - it withdraws pending proposals for the goal.
     controlRoundTrip(uid, 'cm', 'Withdraw pending proposals for the removed goal.', { control: 'withdraw-goal-proposals', goalId });
+    pruneGoalRows(uid, goalId); // its active Customer/Nordea rows leave context.md; cabinet history stays
     return r;
   },
   updateGoal: (uid: string, goalId: string, fields: { title?: string; detail?: string }) =>

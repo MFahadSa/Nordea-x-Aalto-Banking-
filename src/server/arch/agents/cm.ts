@@ -76,6 +76,9 @@ function retrieveRelevant(uid: string, queryWords: string[]): ContextRow[] {
   const seen = new Set<string>();
   const rows: ContextRow[] = [];
   const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // A stale entry that an ACTIVE entry with the same title has replaced (a goal removed and added again) is history,
+  // not context: it would print the same item twice. Stale entries with no active twin still show, marked stale.
+  const activeTitles = new Set(cm.entries.filter((e) => e.status === 'active').map((e) => norm(e.title)));
   const activeTotalsByTitle = new Map<string, Set<number>>();
   for (const { e } of scored) {
     if (e.status === 'active') {
@@ -86,6 +89,7 @@ function retrieveRelevant(uid: string, queryWords: string[]): ContextRow[] {
     }
   }
   for (const { e } of scored) {
+    if (e.status === 'stale' && activeTitles.has(norm(e.title))) continue;
     const key = `${norm(e.title)}|${e.evidence?.total ?? 'x'}|${e.status}`;
     if (seen.has(key)) continue; // dedupe
     seen.add(key);
@@ -106,7 +110,19 @@ function writeMemoryFromEntries(uid: string, meta?: { roundId: string; trigger: 
   const customerWords = readSectionRows(uid, 'customer').flatMap((r) => words(`${r.title} ${r.detail}`));
   const q = [...customerWords, ...extraWords];
   const rows = q.length ? retrieveRelevant(uid, q) : [];
-  const merged = merge ? [...readSectionRows(uid, 'memory').filter((r) => !rows.some((n) => n.id === r.id)), ...rows] : rows;
+  // Merge across rounds keeps earlier retrievals, but only as the cabinet says NOW: a row whose entry is gone is dropped,
+  // its status is refreshed, and a stale entry replaced by an active one of the same title (goal removed, then added
+  // again) is history, not context - it would print the item twice.
+  const cmNow = loadCmDb(uid);
+  const norm2 = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const activeNow = new Set(cmNow.entries.filter((e) => e.status === 'active').map((e) => norm2(e.title)));
+  const carried = merge ? readSectionRows(uid, 'memory').filter((r) => !rows.some((n) => n.id === r.id)).flatMap((r) => {
+    const e = cmNow.entries.find((x) => x.id === r.id);
+    if (!e) return [];
+    if (e.status === 'stale' && activeNow.has(norm2(e.title))) return [];
+    return [{ ...r, status: e.status, detail: e.detail }];
+  }) : [];
+  const merged = merge ? [...carried, ...rows] : rows;
   writeMemorySection(uid, merged, meta);
 }
 

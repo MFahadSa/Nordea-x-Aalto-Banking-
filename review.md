@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,7 +52,8 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G48 | L | V2 | A pending goal confirm survives unrelated turns: 'remove goal car' -> other question -> 'yes' (to anything) removes it within 5 min. Fix: clear the pending action on any turn that is not yes/no. | `orchestrator.ts:220,238-248`; Bill probe | open |
+| G48 | L | V2 | A pending goal confirm survives unrelated turns: 'remove goal car' -> other question -> 'yes' (to anything) removes it within 5 min. Fix: clear the pending action on any turn that is not yes/no. | `orchestrator.ts:220,238-248`; Bill probe | fixed, Bill to verify |
+| G49 | M | V4 | Removed goal's ACTIVE rows stayed on context.md (Nordea nagg-<id>, Customer, stale memory twin); undo/re-add printed the goal twice. Found by Coordinator QC. | `contextStore.ts` pruneGoalRows; `cm.ts` merge | fixed, Bill to verify |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
 
@@ -146,4 +147,15 @@ G46, G47, R6 verified @a09f065: README clean; partial match asks, yes removes, u
 G48 (L) new: pending confirm outlives an unrelated question - a later "yes" removes the goal. Baseline green @a09f065.
 OPEN: G42, G48 (Telkomsel); R2 (owner). Merge = owner.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 22:08
+```
+DID G48: a pending goal confirm is dropped by any turn that is not yes/no. DID G49 (Coordinator): removal prunes its Customer + Nordea rows.
+DID G49: memory merge refreshes status, drops vanished entries and stale twins of an active one. Undo/re-add shows it once. Same add twice: no dupe.
+DID: replies say confirm 5 min, undo 30 min, in memory only, cleared on restart. Pixels: 3-section context.md + windows, synthetic, NOT live.
+FACT: arch 347 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3 tsc0 bank. New pins fail without fix (mutation-checked).
+NOT DONE: R2 (owner pending), G42 (excluded). Earlier one-off arch failure: output lost (tail), cause unknown, not reproduced in 8+ runs.
+ASK@Bill: QC G48, G49, the in-memory wording. Auto insights still cost model calls per goal change when a model is on.
+NEXT: Bill
 ```
