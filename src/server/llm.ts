@@ -91,6 +91,8 @@ export function countLlmCall(what: string) {
   llmCallsMade += 1;
   if (cap > 0) console.log(`[llm] paid call ${llmCallsMade}/${cap}: ${what}`);
 }
+/** Paid calls still allowed under LLM_MAX_CALLS in this process; null when no cap is set. Read-only: never changes the cap. */
+export function llmCallsRemaining(): number | null { const cap = Number(process.env.LLM_MAX_CALLS) || 0; return cap > 0 ? Math.max(0, cap - llmCallsMade) : null; }
 export function resetLlmCallCountForTests() { llmCallsMade = 0; }
 
 /** Max time for one call to the model. Without this a stuck request leaves the chat "typing…" forever. */

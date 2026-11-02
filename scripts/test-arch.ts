@@ -1062,7 +1062,7 @@ const b20 = await A.chat(UID20, 'how much did I spend on my car?');
 LL.setProviderForTests(null);
 const sessRounds20 = S.loadBus(UID20).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string; sessionId?: string } | undefined)?.trigger === 'session' && (m.payload as { sessionId?: string } | undefined)?.sessionId === b20.sessionId);
 check('F-B: one new-session question opens exactly ONE session round', sessRounds20.length === 1, String(sessRounds20.length));
-check('F-B: one new-session question costs ONE plan call set (CM plan, Nordea plan, R2 User AI card levels) + one compose (4 calls, not 7)', planCalls20 === 4, String(planCalls20));
+check('F-B: one new-session question costs ONE plan call set (CM plan, Nordea plan, R2 User AI card levels) + one cycle review + one compose (5 calls, not 8)', planCalls20 === 5, String(planCalls20));
 
 // --- F-D: a configured provider that never calls its finish tool is a visible provider
 // error (scripted-error + a bus inform), never a silent scripted fallback.
@@ -1075,6 +1075,86 @@ check('F-B: one new-session question costs ONE plan call set (CM plan, Nordea pl
   check('F-D: the plan error names the missing finish calls', (nf.plan?.error ?? '').includes('did not call'), nf.plan?.error);
   check('F-D: the fallback is auditable on the bus', S.loadBus(UID21).messages.some((m) => m.type === 'inform' && m.summary.includes('scripted (provider error)')), S.loadBus(UID21).messages.filter((m) => m.type === 'inform').map((m) => m.summary).join(' | ').slice(0, 200));
   LL.setProviderForTests(null);
+}
+
+// --- V3 cycles: User AI > CM > Nordea > User AI, max 5; early exit; ceiling note; reserve; honest failure.
+{
+  const CY = await import('../src/server/arch/cycles.js');
+  const mk = (gapsAlways: boolean, tally: { review: number; plan: number; compose: number; ceiling: number; levels?: number }) => ({
+    name: 'cycles (tests only)', isConfigured: () => true,
+    step: async (args: { system: string; tools: { name: string }[] }) => {
+      const finish = args.tools.find((t) => t.name.startsWith('finish'))!;
+      if (finish.name === 'finishReview') { tally.review++; return { calls: [{ id: `r${tally.review}`, name: 'finishReview', args: gapsAlways ? { enough: false, gaps: ['insurance'] } : { enough: true } }] }; }
+      if (finish.name === 'finishReply') { tally.compose++; if (/used the last cycle/.test(args.system)) tally.ceiling++; return { calls: [{ id: `f${tally.compose}`, name: 'finishReply', args: { reply: 'a plain answer with no figures at all' } }] }; }
+      if (finish.name === 'finishRiskLevels') { tally.levels = (tally.levels ?? 0) + 1; return { calls: [{ id: `v${tally.levels}`, name: 'finishRiskLevels', args: { levels: [] } }] }; } // R2: one User AI level call for the new cards (no valid level = UNKNOWN)
+      tally.plan++;
+      return { calls: [{ id: `p${tally.plan}`, name: finish.name, args: finish.name === 'finishMatchTerms' ? { terms: {} } : { goalTitles: [] } }] };
+    },
+  });
+  const t1: { review: number; plan: number; compose: number; ceiling: number; levels?: number } = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+  A.addGoalDirect('cyc1', 'Save for a car');
+  LL.setProviderForTests(mk(true, t1) as never);
+  const c1 = await A.chat('cyc1', 'how much did I spend on my car?');
+  LL.setProviderForTests(null);
+  check('V3: a review that keeps naming gaps stops at the 5-cycle ceiling (5 reviews)', t1.review === CY.MAX_CYCLES, JSON.stringify(t1));
+  check('V3: the ceiling is passed to the final answer once', t1.ceiling === 1 && t1.compose >= 1, JSON.stringify(t1));
+  check('V3: gathering is bounded: session cycle + 4 top-up plan sets (2 plan calls each), plus the single R2 level call', t1.plan === 2 * CY.MAX_CYCLES && t1.levels === 1, JSON.stringify(t1));
+  check('V3: the ceiling answer still comes from the model', c1.source === 'model', c1.source);
+  const t2: { review: number; plan: number; compose: number; ceiling: number; levels?: number } = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+  A.addGoalDirect('cyc2', 'Save for a car');
+  LL.setProviderForTests(mk(false, t2) as never);
+  await A.chat('cyc2', 'how much did I spend on my car?');
+  LL.setProviderForTests(null);
+  check('V3: enough=true answers after ONE review, no extra cycle', t2.review === 1 && t2.plan === 2 && t2.levels === 1 && t2.ceiling === 0, JSON.stringify(t2));
+  check('V3 reserve: uncapped (null) never limits; capped needs review+final / plan+review+final', CY.canReview(null) && CY.canStartCycle(null) && !CY.canReview(1) && CY.canReview(2) && !CY.canStartCycle(3) && CY.canStartCycle(4), '');
+  // Follow-up with NO prior round this turn (context already answers): the first review is an initial
+  // review (no boundary completed); each later review closes one gather round. Count boundaries = gather rounds.
+  {
+    const t4 = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+    A.addGoalDirect('cyc4', 'Save for a car');
+    LL.setProviderForTests(mk(false, t4) as never);
+    const f1 = await A.chat('cyc4', 'how much did I spend on my car?');
+    const rounds = () => S.loadBus('cyc4').messages.filter((m) => m.type === 'round-start').length;
+    const r0 = rounds(); const t4b = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+    LL.setProviderForTests(mk(true, t4b) as never);
+    const f2 = await A.chat('cyc4', 'what do you know about my car goal?', f1.sessionId);
+    LL.setProviderForTests(null);
+    const gathered = rounds() - r0;
+    const noRound = t4b.plan === 2 * gathered;
+    check('V3 boundaries: follow-up completes at most 5 gather rounds after its initial review (no sixth boundary)', gathered <= CY.MAX_CYCLES && t4b.review <= CY.MAX_CYCLES + 1 && (t4b.review === gathered + 1 || t4b.review === gathered) && noRound, JSON.stringify({ gathered, ...t4b }));
+    { // trajectory proof: map every model call to the User AI > CM > Nordea > User AI boundary it belongs to
+      const trace: string[] = [];
+      A.addGoalDirect('cyc5', 'Save for a car');
+      const mkTrace = (gaps: boolean) => ({ name: 'trace (tests only)', isConfigured: () => true, step: async (args: { system: string; tools: { name: string }[] }) => {
+        const finish = args.tools.find((t) => t.name.startsWith('finish'))!;
+        if (finish.name === 'finishReview') { trace.push('U'); return { calls: [{ id: `u${trace.length}`, name: 'finishReview', args: gaps ? { enough: false, gaps: ['insurance'] } : { enough: true } }] }; }
+        if (finish.name === 'finishReply') { trace.push('F'); return { calls: [{ id: `f${trace.length}`, name: 'finishReply', args: { reply: 'a plain answer with no figures at all' } }] }; }
+        trace.push(finish.name === 'finishMatchTerms' ? 'C' : 'N');
+        return { calls: [{ id: `p${trace.length}`, name: finish.name, args: finish.name === 'finishMatchTerms' ? { terms: {} } : { goalTitles: [] } }] };
+      } });
+      LL.setProviderForTests(mkTrace(false) as never);
+      const g1 = await A.chat('cyc5', 'how much did I spend on my car?');
+      trace.length = 0;
+      LL.setProviderForTests(mkTrace(true) as never);
+      await A.chat('cyc5', 'what do you know about my car goal?', g1.sessionId);
+      const s2 = trace.join(''); trace.length = 0;
+      trace.length = 0;
+      LL.setProviderForTests(mkTrace(false) as never);
+      await A.chat('cyc5', 'what do you know about my car goal?', g1.sessionId); // the document now holds CM content: no gather round before the first review
+      LL.setProviderForTests(null);
+      const s3 = trace.join('');
+      // a completed boundary = a CM/Nordea gather group closed by a User AI review (a review with no gather before it is NOT one)
+      const count = (t: string) => [...t.matchAll(/[CN]+U/g)].length;
+      check('V3 trajectory: a follow-up that needs a top-up = exactly 5 completed User AI > CM > Nordea > User AI boundaries, then the final answer (no sixth)', count(s2) === 5 && !s2.startsWith('U') && s2.endsWith('UF') && (s2.match(/U/g) ?? []).length === 5, s2);
+      check('V3 trajectory: a follow-up whose first review finds no gaps = exactly 1 completed boundary (CM+Nordea then User AI), then the final answer', s3 === 'NCUF', s3);
+    }
+    check('V3 boundaries: follow-up ceiling note still reaches the final answer once', t4b.ceiling === 1 && f2.source === 'model', JSON.stringify(t4b) + f2.source);
+  }
+  const t3 = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+  A.addGoalDirect('cyc3', 'Save for a car');
+  LL.setProviderForTests(null);
+  const m3 = await A.chat('cyc3', 'how much did I spend on my car?');
+  check('V3: the no-provider path runs no cycle and keeps the scripted answer', t3.review === 0 && m3.source === 'scripted', m3.source);
 }
 
 // --- F-E: the same aggregate row twice in the document prints once in the reply.

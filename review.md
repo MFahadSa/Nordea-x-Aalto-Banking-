@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -137,4 +137,15 @@ OK: Coordinator decisions D1-D7 accepted as the owner's delegated word (commits 
 FACT: D7 keeps merge, spend, live and security with the owner - matches Bill's record. No open finding rows.
 STATE: Telkomsel may push cycles (local, 406/0) as one batch for QC. Merge = owner's own word to Bill.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 01:31
+```
+CMP: cycles batch on 2bcddad+docs (src = 385bb2a + 3 commits, no other code delta). green @this commit: tsc 0, arch 406/0, e2e 37, migrate 43,
+adapter 44/0, remote pass, env 7, selftest 3. Cycle = User AI>CM>Nordea>User AI, max 5; src/server/arch/cycles.ts, orchestrator.ts:140.
+R2 level call is a real extra model call and is counted in the pins. Initial review is not a boundary.
+Mutations (one at a time, restored): MAX_CYCLES 6 fails 1 pin; canStartCycle always true fails 1; ranTopup out of counter fails 2.
+Gap: "initial review before any gather" is pinned by counts only, no clean trajectory pin. Fixtures synthetic, NOT live.
+STATE: one batch, no merge/spend/live/paid; LLM_MAX_CALLS unchanged (0 = uncapped config only). Dataset patch stays separate.
+NEXT: Bill
 ```

@@ -17,6 +17,7 @@ import { PARKED_WORDING, publishParkState } from './agents/cm.js';
 import { archLlmConfig } from './llm.js';
 import { effectiveApproval, LEVEL_NAMES } from './approvalGate.js';
 import { assessProposalRisk } from './risk.js';
+import { MAX_CYCLES, canReview, canStartCycle } from './cycles.js';
 import { aiVisibility } from './aiActivity.js';
 import './agents/nordea.js'; // side effect: registers the Nordea agent's bus handler
 import { loadUserDb, saveUserDb, deleteUserDb } from './store/userStore.js';
@@ -113,10 +114,12 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   }
   if (begin.kind === 'direct') { saveSession(uid, { ...session, lastActivityAt: now() }); return { ...begin.direct!, sessionId: session.id, source: 'scripted' }; }
   let answer = finishChat(uid, begin);
+  let ranTopup = false; // a gather round already ran this turn (counts as cycle 1 when it closes with a review)
   if (!parked && !isNew && answer.memoryHits === 0 && loadContext(uid)?.finalisedAt) {
     // The document lacks CM-sourced content for this follow-up: top it up, then answer again.
     const plan = await planRoundLlm(uid, text);
     const top = runRound(uid, 'topup', { question: text, sessionId: session.id, llm: plan });
+    ranTopup = true;
     planStatus = plan?.status ?? planStatus;
     if (!session.roundId) session.roundId = top.id;
     begin = beginChat(uid, text, session.id);
@@ -128,6 +131,31 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // exist in the selected facts, or the scripted reply stands (no invented numbers).
   const category = classifyQuestion(text, answer.factSources);
   const general = category === 'General Question';
+  // V3 cycles: one cycle = User AI > CM > Nordea > User AI, max 5 per turn. The cycle that already ran
+  // (session or top-up round) counts as the first. Only with a configured model, only for related questions,
+  // and never when the remaining paid-call budget cannot cover another cycle plus the final answer.
+  let ceilingNote: string | undefined;
+  {
+    const LL = { ...(await import('./llm.js')), llmCallsRemaining: (await import('../llm.js')).llmCallsRemaining };
+    let cycles = (isNew && session.roundId ? 1 : 0) + (ranTopup ? 1 : 0);
+    if (!parked && !general && LL.archLlmEnabled() && !getOff(uid).some((a) => a === 'personal' || a === 'cm' || a === 'nordea')) {
+      const { llmReviewCycle } = await import('./agents/personal.js');
+      for (;;) {
+        if (!canReview(LL.llmCallsRemaining())) break; // best effort: keep the final answer call (null = uncapped, no protection)
+        const rev = await llmReviewCycle(uid, text, answer.parts, Math.max(cycles, 1), MAX_CYCLES);
+        if (rev.status !== 'model' || rev.enough) break;
+        if (cycles >= MAX_CYCLES) { ceilingNote = 'You have used the last cycle. Answer with the best supported answer from the facts and/or ask the customer ONE focused question for the specific information only they can give. Do not ask for anything the facts already contain.'; break; }
+        if (!canStartCycle(LL.llmCallsRemaining())) break; // not enough left for a whole cycle plus the final answer
+        const gapQ = `${text} (also look for: ${rev.gaps.join(', ')})`;
+        const plan = await planRoundLlm(uid, gapQ);
+        runRound(uid, 'topup', { question: gapQ, sessionId: session.id, llm: plan });
+        cycles++;
+        const nb = beginChat(uid, text, session.id);
+        if (nb.kind === 'direct') break;
+        begin = nb; answer = finishChat(uid, nb);
+      }
+    }
+  }
   let source: 'model' | 'scripted' | 'scripted-error' = 'scripted';
   let suggestions: string[] = [];
   let answeredBy: string | undefined; // V4: the chain member that actually answered THIS reply
@@ -136,7 +164,7 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // is unchanged, so without sourced facts any invented number drops it back to the scripted text.
   if (!parked && !getOff(uid).includes('personal')) {
     const { llmComposeReply } = await import('./agents/personal.js');
-    const composed = await llmComposeReply(uid, text, answer.parts, category);
+    const composed = await llmComposeReply(uid, text, answer.parts, category, ceilingNote);
     answeredBy = composed.answeredBy;
     // A General Question carries no customer figures, so general numeric facts need no customer record;
     // a Related (or uncertain/mixed) question keeps the figure guard.
@@ -147,7 +175,15 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
       // Suggestions face the same guard: any figure the facts do not contain drops that suggestion.
       const facts = [...answer.factSources, ...(composed.seenFacts ?? [])];
       suggestions = general && figureExempt(text) && !(composed.seenFacts ?? []).length ? (composed.suggestions ?? []).filter((sg) => !customerFigureClaim(sg) || figuresGrounded(sg, facts)) : (composed.suggestions ?? []).filter((sg) => figuresGrounded(sg, facts));
-    } else if (composed.status === 'error') source = 'scripted-error';
+    } else if (composed.status === 'error') {
+      source = 'scripted-error';
+      // V3: a configured model that gives no answer is a stated failure, never a canned task answer built from stored rows.
+      if (!general) {
+        const { isLlmBudgetError } = await import('../llm.js');
+        const why = isLlmBudgetError(composed.error ?? '') ? 'the paid-call limit for this server run is used up' : /per model/.test(composed.error ?? '') ? 'the AI models used all their steps without finishing' : 'the AI model did not answer';
+        answer = { ...answer, reply: `I couldn't get an answer from the AI model just now (${why}). I haven't guessed from your stored records - please try again.` };
+      }
+    }
     // No irrelevant bank disclaimer: when a General Question gets no model answer, say so neutrally.
     if (general && source !== 'model') {
       const why = composed.status === 'error' ? `I couldn't get an AI answer to that general question just now - please try again.`

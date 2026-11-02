@@ -177,7 +177,7 @@ export function finishChat(uid: string, begin: ChatBegin): { reply: string; used
  *  It sees ONLY those parts (its own DB hits + shared-context rows), never a database.
  *  Code validates the reply afterwards: any figure not present in the facts drops the
  *  reply back to the grounded scripted template. */
-export async function llmComposeReply(uid: string, question: string, parts: string[], category: 'General Question' | 'Related Question' = 'Related Question'): Promise<import('../llm.js').PlanOutcome<string> & { seenFacts: string[]; suggestions: string[] }> {
+export async function llmComposeReply(uid: string, question: string, parts: string[], category: 'General Question' | 'Related Question' = 'Related Question', ceilingNote?: string): Promise<import('../llm.js').PlanOutcome<string> & { seenFacts: string[]; suggestions: string[] }> {
   const { archLlmEnabled, runAgentReasoning } = await import('../llm.js');
   if (!archLlmEnabled()) return { plan: null, status: 'scripted', seenFacts: [], suggestions: [] }; // G29: empty parts still compose
   // V4: the personal model reads its OWN User DB through tools (goals, personal facts) -
@@ -195,6 +195,7 @@ export async function llmComposeReply(uid: string, question: string, parts: stri
         ? 'This is a General Question, not about the customer\'s own banking. Answer it directly from general knowledge. Do not mention bank data, accounts or what you cannot see, and add no disclaimer. General facts and figures are fine.'
         : 'This is a Related Question (the customer\'s banking, accounts or goals). If the available facts do not answer it, say plainly what is missing. Never state a customer figure that is not in the facts.',
       'Answer in one to three short sentences, then finishReply.',
+      ...(ceilingNote ? [ceilingNote] : []),
       'In finishReply, add up to 3 short follow-up questions (suggestions) the customer could ask next, grounded in the same facts - never a figure that is not in them.',
     ].join(' '),
     prompt: `Question: ${question}\nFacts:\n${parts.length ? '- ' + parts.join('\n- ') : '(no rows of your User DB or the shared context matched this message - listMyGoals/listMyFacts may still help; if nothing answers it, say plainly what is missing)'}`,
@@ -333,6 +334,33 @@ export async function llmAssignLevels(uid: string, goals: Goal[]): Promise<impor
   return Object.keys(plan).length
     ? { plan, status: 'model', ...(missing ? { error: `${missing} card${missing === 1 ? '' : 's'} got no valid level (UNKNOWN = level 2)` } : {}), ...(answeredBy ? { answeredBy } : {}) }
     : { plan: null, status: 'error', error: 'finishRiskLevels gave no valid level for any card (all UNKNOWN = level 2)' };
+}
+
+/**
+ * V3 cycle review: one cycle is User AI > CM > Nordea > User AI. When the cycle returns here, the model
+ * reads what the shared context gave it and either says it can answer or names the missing topics for the
+ * next cycle. It sees only the code-selected parts (never another agent's store). Plain gaps only: no
+ * figures, no private values.
+ */
+export async function llmReviewCycle(uid: string, question: string, parts: string[], cycle: number, maxCycles: number): Promise<{ status: 'model' | 'error' | 'scripted'; enough: boolean; gaps: string[]; error?: string }> {
+  const { archLlmEnabled, runAgentReasoning } = await import('../llm.js');
+  if (!archLlmEnabled()) return { status: 'scripted', enough: true, gaps: [] };
+  const { result, error } = await runAgentReasoning({
+    uid, agent: 'personal',
+    system: [
+      'You are Abel, the customer\'s personal banking assistant agent. A cycle just returned to you: the Context Memory and Nordea agents added what they found to the shared context.',
+      `This is cycle ${cycle} of at most ${maxCycles}. Decide from the facts below whether you can answer the customer's question now.`,
+      'If you can, call finishReview with enough=true. If something specific is missing and another cycle could find it, call finishReview with enough=false and up to 3 short plain topics in gaps (words, no figures).',
+      'Do not ask for information the facts already contain. Never invent a figure.',
+    ].join(' '),
+    prompt: `Question: ${question}\nFacts:\n${parts.length ? '- ' + parts.join('\n- ') : '(nothing matched yet)'}`,
+    tools: [{ name: 'finishReview', description: 'Say whether you can answer now, or name the missing topics for the next cycle.', parameters: { type: 'object', properties: { enough: { type: 'boolean' }, gaps: { type: 'array', items: { type: 'string' } } }, required: ['enough'] } }],
+    runTool: () => ({ error: 'unknown tool' }),
+    finishTool: 'finishReview',
+  });
+  if (error || !result) return { status: 'error', enough: true, gaps: [], error: error ?? 'no review result' };
+  const gaps = Array.isArray(result.gaps) ? (result.gaps as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.trim().slice(0, 40)).filter((x) => x.length >= 2 && !/\d/.test(x)).slice(0, 3) : [];
+  return { status: 'model', enough: result.enough === true || gaps.length === 0, gaps };
 }
 
 // ---------- Agent-to-agent queries (transport for the external demo client) ----------
