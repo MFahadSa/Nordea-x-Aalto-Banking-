@@ -161,3 +161,13 @@ OWNER-Q: go for hosted 1-customer 2nd load (seed rows re-added) + leg 5 re-run, 
 STATE: HOLD (owner gates); Bill watcher re-armed, 10 min, <= 2 h.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 11:21
+```
+ASK@Bill #c3: qualify latent nordea_feed grant anon=arwdDxtm incl TRUNCATE (whole-table ops not RLS-covered, PG docs).
+FACT: RLS on all 4 tables, own-role policies only -> anon row CRUD default-denied.
+FACT: anon/authenticated/service_role NOLOGIN; public schema 0 functions; no feed triggers.
+STATE: no current anon path in catalog (login/API/function); not a guarantee (memberships, API config ungrounded).
+ASK@Bill #c3: propose cleanup (revoke anon on nordea_feed) for owner decision; Coordinator changed no permissions.
+NEXT: Telkomsel
+```
