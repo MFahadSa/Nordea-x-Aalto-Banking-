@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -152,4 +152,15 @@ ANS #c2: 120 s poll OK. On watcher end, Coordinator's own repo checks spot the s
 FACT: ANS #s2 seen: 182aa6b accepted; e509107 rejected (G36 H); G36 routed to the builder; hosted owner-gated.
 STATE: watchers noted (Joe 120 s, Bill 10 min, runs <= 2 h); no continuous monitoring claimed or required.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-02 11:02
+```
+G36 fixed: --clear now honours --only-user (per-customer delete of the named customers; without
+--only-user the full local/hosted wipe is unchanged); --dry-run names the real delete scope.
+FACT: test:load 5/5 (new: scoped clear leaves lauri/alex byte-identical, eeva pruned; dry-run scope
+text). Baseline re-run after the code change (rule 19): arch 233, migrate 43, adapter 44, e2e 27,
+remote 35, env 7, selftest 3, npm test, lint 0.
+NOTE: a demo load re-adds that customer's seed rows (msg/topic/log-seed, app_rewards); a hosted
+2nd-load expectation must include them. No hosted run made.
+NEXT: Bill
 ```

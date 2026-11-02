@@ -30,7 +30,7 @@ Useful options:
 - `--replace` deletes the existing records of the kinds being loaded first (only that customer's with `--user-id`).
 - `--only-user lauri` (repeat it or comma-separate) loads only the named customers from a multi-customer
   folder - a hosted load or second-load merge check stays bounded to them instead of pushing every store.
-- `--clear` deletes **all** data first. `python scripts/load_data.py --clear` on its own empties the app
+- `--clear` deletes **all** data first (with `--only-user`, only those customers' data). `python scripts/load_data.py --clear` on its own empties the app
   (with the hosted setup it also deletes every row of the hosted agent tables - that full wipe is
   guarded behind an explicit `--all` inside `scripts/load_remote.ts`).
 - `--target file` keeps everything in the local agent databases (`data/arch/*.db`), for running without Supabase.

@@ -7,6 +7,8 @@ Runs the real loader (scripts/load_data.py) against a scratch CABINET_DATA_DIR w
   1. load seed/demo twice -> the second load changes nothing (idempotent, no duplicates)
   2. inject extra rows, load again -> the extra rows survive (a merge never drops rows)
   3. --only-user eeva on a fresh store -> only eeva's databases exist
+  4. G36: --clear --only-user eeva deletes ONLY eeva's stores (lauri/alex unchanged)
+  5. G36: --dry-run names the --only-user scope for --clear and --replace
 Exits 1 on the first failed check. Run: node scripts/run_python.mjs scripts/test-load-merge.py
 (or python3 scripts/test-load-merge.py)."""
 import json
@@ -109,5 +111,36 @@ with tempfile.TemporaryDirectory(prefix="load-merge-") as tmp:
     if others:
         fail(f"--only-user eeva created other customers' databases: {others}")
     print("ok 3: --only-user eeva loaded only eeva's databases (bounded route)")
+
+    # 4. G36: --clear honours --only-user - a scoped clear must not wipe other customers.
+    load(first)  # restore lauri/eeva/alex after the earlier checks
+    snap5 = dump(first)
+    env = dict(os.environ, CABINET_DATA_DIR=str(first))
+    res = subprocess.run([sys.executable, str(LOADER), "--clear", "--only-user", "eeva",
+                          "--target", "file", "--no-reload"],
+                         cwd=ROOT, env=env, capture_output=True, text=True)
+    if res.returncode != 0:
+        fail(f"scoped clear exited {res.returncode}\n{res.stdout}\n{res.stderr}")
+    snap6 = dump(first)
+    for name in ("lauri.user.db", "lauri.cm.db", "lauri.nordea.db", "alex.user.db", "alex.cm.db", "alex.nordea.db"):
+        if snap6.get(name) != snap5.get(name):
+            fail(f"--clear --only-user eeva changed {name}")
+    if "eeva" in snap6["customers.json"]:
+        fail("scoped clear left eeva registered")
+    if sorted(snap6["customers.json"]) != ["alex", "lauri"]:
+        fail(f"scoped clear changed the customer index: {snap6['customers.json']}")
+    print("ok 4: --clear --only-user eeva removed only eeva (lauri/alex byte-identical)")
+
+    # 5. G36: the dry-run text names the real delete scope.
+    for args, needle in ((["--clear", "--only-user", "eeva"], "all data of eeva"),
+                         (["--replace", "--only-user", "lauri,eeva"], "of eeva,lauri")):
+        res = subprocess.run([sys.executable, str(LOADER), str(SEED), "--dry-run", *args],
+                             cwd=ROOT, env=dict(os.environ, CABINET_DATA_DIR=str(scratch / "dry")),
+                             capture_output=True, text=True)
+        if res.returncode != 0:
+            fail(f"dry-run {args} exited {res.returncode}\n{res.stdout}\n{res.stderr}")
+        if needle not in res.stdout:
+            fail(f"dry-run {args} did not name the scope {needle!r}:\n{res.stdout}")
+    print("ok 5: dry-run names the --only-user scope for --clear and --replace")
 
 print("test-load-merge: all checks passed")

@@ -23,6 +23,7 @@ Examples:
   python scripts/load_data.py my.csv --kind transactions --user-id lauri
   python scripts/load_data.py seed/demo --only-user lauri      # bounded load: one demo customer only
   python scripts/load_data.py seed/demo --clear               # delete everything first, then load
+  ... --clear --only-user lauri                              # delete only lauri first, not everyone
   python scripts/load_data.py --clear                         # just delete everything
   python scripts/load_data.py seed/demo --dry-run             # show what would be loaded
 
@@ -804,9 +805,11 @@ def main() -> None:
              + (" + abel_records plumbing" if os.environ.get("SUPABASE_URL") else ""))
     if args.dry_run:
         if args.clear:
-            print(f"Would delete all data in {where}.")
+            print(f"Would delete all data{f' of {chr(44).join(sorted(only))}' if only else ''} in {where}.")
         elif args.replace:
-            print(f"Would first delete existing {', '.join(by_kind)}{f' of {args.user_id}' if args.user_id else ''}.")
+            _scope = sorted(only) if only else ([args.user_id] if args.user_id else [])
+            print(f"Would first delete existing {', '.join(by_kind)}"
+                  f"{f' of {chr(44).join(_scope)}' if _scope else ''}.")
         print(f"Would load {len(rows)} records into {where}: " + ", ".join(f"{n} {k}" for k, n in by_kind.items()))
         if rows and "users" not in by_kind:
             print("Note: no users in this load. The app shows customers only for ids that exist as users.")
@@ -815,8 +818,14 @@ def main() -> None:
     load_env()
     store = LocalFile() if args.target == "file" else Hosted()
     if args.clear:
-        store.delete()
-        print(f"Deleted all data in {where}.")
+        if only:
+            # G36: --only-user scopes the clear too - never wipe other customers' stores.
+            for u in sorted(only):
+                store.delete(None, u)
+            print(f"Deleted all data of {', '.join(sorted(only))} in {where}.")
+        else:
+            store.delete()
+            print(f"Deleted all data in {where}.")
     elif args.replace:
         scope = sorted(only) if only else [args.user_id]
         for u in scope:
