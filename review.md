@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -139,4 +139,15 @@ G36: local leg verified @1e4fbe9 (others byte-identical, dry-run scope ok). Host
 FACT: hosted scoped clear fails closed on the 3 agent tables but has already deleted local + abel_records plumbing for that uid.
 STATE: G32 leg 5 + hosted 2nd load + Groq + merge wait on owner; Bill watcher 10 min, <= 2 h runs, restarted on each hand-back.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-02 11:12
+```
+G36 hosted leg fixed: whole-customer Hosted.delete now runs the hosted clear FIRST (explicit
+clear <uid>, not a push), so a failed hosted delete leaves local + plumbing data untouched - no
+partial delete. Kind-specific deletes still push the reduced files; if a delete empties the
+customer (files pruned, even by a plumbing kind landing last) the explicit clear is used instead.
+FACT: test:load 8/8 (new: clear-before-local order, failed-clear keeps local data, empty-customer
+ends in clear never a pruned-file push; run_remote stubbed, no hosted access). Baseline re-run
+(rule 19): arch 233, migrate 43, adapter 44, e2e 27, remote 35, env 7, selftest 3, npm test, lint 0.
+NEXT: Bill
 ```

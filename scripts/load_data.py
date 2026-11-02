@@ -721,13 +721,31 @@ class Hosted(LocalFile):
             run_remote("clear", "--all")  # the loader's --clear IS the explicit confirmation
             return
         uids = [user_id] if user_id else _index_read()
-        super().delete(kind, user_id)
-        if self.plumbing:
-            for k in ([kind] if kind else PLUMBING_KINDS):
-                if k in PLUMBING_KINDS:
+        if kind is None:
+            # G36 hosted leg: a whole-customer delete is an explicit clear, and it goes FIRST:
+            # the local delete prunes the customer's files, so a push afterwards would be refused
+            # by the G24 missing-file guard - leaving local data deleted but hosted rows kept.
+            # A failed hosted clear here leaves local and plumbing data untouched.
+            if uids:
+                run_remote("clear", *uids)
+            super().delete(None, user_id)
+            if self.plumbing:
+                for k in PLUMBING_KINDS:
                     self.plumbing.delete(k, user_id)
-        if uids and (kind is None or kind in CUSTOMER_KINDS):
-            run_remote("push", *uids)  # replace each customer's hosted rows (drops deleted ones)
+            return
+        super().delete(kind, user_id)
+        if self.plumbing and kind in PLUMBING_KINDS:
+            self.plumbing.delete(kind, user_id)
+        for u in uids:
+            files_gone = not any(_db_file(u, w).exists() for w in ("user", "cm", "nordea"))
+            if files_gone:
+                # G36: the delete emptied the customer and the prune removed its files - a push
+                # would be refused by the G24 missing-file guard, so the explicit clear is
+                # authoritative. This also catches a plumbing-kind delete landing last.
+                run_remote("clear", u)
+            elif kind in CUSTOMER_KINDS:
+                # The push serializes the reduced local files (drops the deleted rows hosted).
+                run_remote("push", u)
 
 
 def tell_app(app_url: str) -> None:

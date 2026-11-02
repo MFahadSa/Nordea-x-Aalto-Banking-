@@ -9,6 +9,11 @@ Runs the real loader (scripts/load_data.py) against a scratch CABINET_DATA_DIR w
   3. --only-user eeva on a fresh store -> only eeva's databases exist
   4. G36: --clear --only-user eeva deletes ONLY eeva's stores (lauri/alex unchanged)
   5. G36: --dry-run names the --only-user scope for --clear and --replace
+  6. G36 hosted leg: whole-customer Hosted.delete clears hosted FIRST; a failed hosted
+     clear leaves local and plumbing data untouched (no partial delete)
+  7. G36 hosted leg: a kind-specific delete that empties the customer ends in an explicit
+     hosted clear (the pruned files would make a push fail closed)
+Checks 6-7 drive scripts/load_data.py's Hosted store with run_remote stubbed - no hosted access.
 Exits 1 on the first failed check. Run: node scripts/run_python.mjs scripts/test-load-merge.py
 (or python3 scripts/test-load-merge.py)."""
 import json
@@ -142,5 +147,70 @@ with tempfile.TemporaryDirectory(prefix="load-merge-") as tmp:
         if needle not in res.stdout:
             fail(f"dry-run {args} did not name the scope {needle!r}:\n{res.stdout}")
     print("ok 5: dry-run names the --only-user scope for --clear and --replace")
+
+    # 6-7. G36 hosted leg: ordering of Hosted.delete with run_remote stubbed (no hosted access).
+    sys.path.insert(0, str(ROOT / "scripts"))
+    calls = []
+
+    hosted_dir = scratch / "hosted-order"
+    os.environ["CABINET_DATA_DIR"] = str(hosted_dir)
+    for var in ("SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+        os.environ.pop(var, None)
+    import importlib
+    import load_data
+    importlib.reload(load_data)  # picks up the scratch CABINET_DATA_DIR
+    load_data.run_remote = lambda *a: calls.append(a)
+
+    store = load_data.Hosted()
+    assert calls == [("hydrate",)], calls
+    calls.clear()
+    load(scratch / "hosted-order", "--only-user", "lauri")  # real local data to delete
+
+    store = load_data.Hosted()
+    calls.clear()
+    store.delete(None, "lauri")
+    if calls[0] != ("clear", "lauri"):
+        fail(f"whole-customer Hosted.delete did not clear hosted first: {calls}")
+    if (hosted_dir / "arch" / "lauri.user.db").exists():
+        fail("local delete did not run after the hosted clear")
+    print("ok 6: whole-customer hosted clear goes first, local delete follows")
+
+    # 6b. A FAILED hosted clear must leave local data untouched (no partial delete).
+    hosted_dir2 = scratch / "hosted-fail"
+    os.environ["CABINET_DATA_DIR"] = str(hosted_dir2)
+    importlib.reload(load_data)
+    load(scratch / "hosted-fail", "--only-user", "lauri")
+
+    def boom(*a):
+        if a and a[0] == "clear":
+            raise SystemExit("Hosted sync failed - simulated")
+    load_data.run_remote = boom
+    store = load_data.Hosted()  # hydrate is a no-op under the stub
+    try:
+        store.delete(None, "lauri")
+        fail("failed hosted clear did not stop the delete")
+    except SystemExit:
+        pass
+    before = dump(scratch / "hosted-fail")
+    if not (hosted_dir2 / "arch" / "lauri.user.db").exists() or "lauri" not in before["customers.json"]:
+        fail("failed hosted clear still deleted local data (partial delete)")
+    print("ok 6b: failed hosted clear leaves local data untouched")
+
+    # 7. A kind-specific delete that empties the customer ends in an explicit clear.
+    calls.clear()
+    load_data.run_remote = lambda *a: calls.append(a)
+    store = load_data.Hosted()
+    calls.clear()
+    store.delete("users", "lauri")   # lauri has only seed rows here; deleting every kind empties it
+    for k in ("cabinetEntries", "transactions", "entryHistory", "documents", "shares",
+              "undoRecords", "bankAccounts", "balanceSnapshots", "importBatches"):
+        store.delete(k, "lauri")
+    for k in ("messages", "accessLog", "topicLog", "conversations", "earnings", "dataRewards"):
+        store.delete(k, "lauri")
+    if ("clear", "lauri") not in calls:
+        fail(f"no explicit hosted clear after the customer was emptied: {calls}")
+    if ("push", "lauri") in calls[calls.index(("clear", "lauri")):]:
+        fail("push attempted after the customer's files were pruned")
+    print("ok 7: emptying a customer ends in an explicit hosted clear, never a pruned-file push")
 
 print("test-load-merge: all checks passed")
