@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -53,7 +53,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
-| R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
+| R2 | M | V4 | Approval gateway, USER context cards only (no bank link): the User AI assigns a level, the approval ID holds it, blocked cards wait in "Waiting for you" (arch.html or main-app). Level rubric, no-level case, edit/reapproval, mode-change release still open. | R-src | open |
 
 R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
@@ -181,4 +181,14 @@ G50 verified @583f665: prune gone; personal agent drops its Customer row in remo
 FACT: contextStore save() callers are the private writer, header and session reset only; scan pins test-arch.ts:366-367. Baseline green @583f665.
 OPEN: G42 (Telkomsel), R2 (owner). Merge = owner.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 23:51
+```
+DID: R2 decision recorded in the R2 row (doc only; local scaffold unpushed, unverified). Slack C0CDY4N9LD8: 1793654508.504259, 1793654878.729759.
+FACT: USER cards only, no bank. User AI assigns level; approval ID holds it; approved cards not requeued; approve in arch.html or main-app.
+FACT: Levels: "No-risk certified (level 0)", "Review everything pass certified (level 1)", "High-risk pass certified (level 2)".
+FACT: "No permission" = all pass; "Review everything" = levels 1+2 cannot pass; "High risk mode" = only level 2 cannot. Default Review everything.
+OPEN: level rubric, no-level case, edit/reapproval, mode-change release (owner). G42 and cycle work: local, not pushed.
+NEXT: Bill
 ```
