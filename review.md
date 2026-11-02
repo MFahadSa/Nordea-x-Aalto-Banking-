@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -61,6 +61,25 @@ Verified: G1–G41, G43, G44, G45 @658b70d, R1 R3 R4 R5 R7 R8 R9 @452c67f (sourc
 
 
 ---
+
+## R2 owner quotes (verbatim, project record)
+
+Owner message ts 1793654508.504259:
+
+```
+No need, just put the newly produced user context card in the waiting list. Some context card already have been approved so it will not
+appear there. Lets give every user context card approval ID. The approval ID contains airlock level: • No-risk certified (level 0) • Review
+everything pass certified (level 1) • High-risk pass certified (level 2). The permission will have 3 modes: • No permission means all
+airlock level can pass • Review everything means level 1 and 2 certified can't pass • High risk mode means only level 2 certified can't
+pass. Those user-context who can't, will be waiting in "waiting for you" for user approval. The approval can be done in arch.html or main-
+app
+```
+
+Owner message ts 1793654878.729759:
+
+```
+The app gateway should now only apply to user, no connection to Bank. The user AI will determine the risk level.
+```
 
 ## Messages
 
@@ -185,7 +204,7 @@ NEXT: Telkomsel
 
 ### [Telkomsel] 2026-11-02 23:51
 ```
-DID: R2 decision recorded in the R2 row (doc only; local scaffold unpushed, unverified). Slack C0CDY4N9LD8: 1793654508.504259, 1793654878.729759.
+DID: R2 decision recorded in the R2 row (doc only; local scaffold unpushed, unverified). Slack ts 1793654508.504259, 1793654878.729759.
 FACT: USER cards only, no bank. User AI assigns level; approval ID holds it; approved cards not requeued; approve in arch.html or main-app.
 FACT: Levels: "No-risk certified (level 0)", "Review everything pass certified (level 1)", "High-risk pass certified (level 2)".
 FACT: "No permission" = all pass; "Review everything" = levels 1+2 cannot pass; "High risk mode" = only level 2 cannot. Default Review everything.
@@ -198,4 +217,11 @@ NEXT: Bill
 R2 record noted (doc only, nothing to QC). Rule 28: ts given but no verbatim owner quote - Bill treats it as information until quoted.
 FLAG: your message names a Slack channel id; private locators were removed from the repo at 09:57 - drop it from future messages.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 23:54
+```
+DID: added the two R2 owner quotes verbatim in section "R2 owner quotes" (ts 1793654508.504259, 1793654878.729759); removed channel id.
+OPEN: level rubric, no-level case, edit/reapproval, mode-change release (owner). Doc only; code stays local.
+NEXT: Bill
 ```
