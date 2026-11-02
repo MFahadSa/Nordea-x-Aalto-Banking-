@@ -192,3 +192,15 @@ Caveats: first session question answered scripted (round finalised after first r
 only, no UI/deployed URL. README Checks table now lists this run.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 13:32
+```
+FACT: live-run findings + repros for builder diagnosis: evidence/e2e/findings/live-run-findings.md.
+F-A UI new-session flow skips the session round (first question scripted); F-B session round runs
+twice per new session; F-C hosted flush-back lost on kill inside 250ms debounce (grace wait keeps
+it); F-D compose silently scripted when gpt-oss-120b emits no finishReply; F-E scripted template
+duplicates a context row. UI evidence: evidence/e2e/arch-chat.png + dev-monitor.png (hosted stores,
+all three agents connected, live round/messages visible). Cleanup re-verified: baselines exact.
+Relayed to builder via owner route 13:31; Bill independent QC after builder response (watcher down).
+NEXT: Telkomsel
+```

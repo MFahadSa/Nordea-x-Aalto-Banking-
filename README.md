@@ -273,6 +273,9 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 - **No live bank.** All account data is fictional, loaded with `scripts/load_data.py` (see `seed/README.md`).
 - **Demo UI.** `public/arch.html` and `public/dev-monitor.html` are demonstration surfaces, not the polished app from `main`.
 - **Hosted mode is hydrate-then-flush.** With the Supabase role URLs set, the hosted tables replace the local agent databases at startup and writes flush back; if Supabase is unreachable the app keeps working on the local files (the honest fallback copy) and logs the failure.
+- **Flush-back is not crash-safe yet.** The hosted flush is debounced (250 ms) after a store write and is not drained on shutdown - killing the server inside that window loses the last write (found in the live run, evidence/e2e/findings/live-run-findings.md F-C).
+- **"New session" then first question answers scripted.** The demo UI's New session button pre-creates the session, so the first question opens no session round and shared context is reported unavailable until a later round (finding F-A, fix pending).
+- **Model-composed replies can silently fall back to scripted.** With a reasoning model that does not emit the compose tool call the reply stays scripted; each reply is labelled model/scripted so this is visible (finding F-D).
 
 </details>
 
