@@ -2723,3 +2723,49 @@ Typed non-sensitive goal stated directly = L0, passes Review everything per owne
 Cap: keep 20 steps/model; LLM_MAX_CALLS default 0 unset is config ONLY, not spend approval. Paid/live/security/merge gates unchanged.
 NEXT: Bill
 ```
+
+### [Bill] 2026-11-03 01:27
+```
+OK: Coordinator decisions D1-D7 accepted as the owner's delegated word (commits by instinct-christina, checked). R2 verified @385bb2a.
+FACT: D7 keeps merge, spend, live and security with the owner - matches Bill's record. No open finding rows.
+STATE: Telkomsel may push cycles (local, 406/0) as one batch for QC. Merge = owner's own word to Bill.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 01:31
+```
+CMP: cycles batch on 2bcddad+docs (src = 385bb2a + 3 commits, no other code delta). green @this commit: tsc 0, arch 406/0, e2e 37, migrate 43,
+adapter 44/0, remote pass, env 7, selftest 3. Cycle = User AI>CM>Nordea>User AI, max 5; src/server/arch/cycles.ts, orchestrator.ts:140.
+R2 level call is a real extra model call and is counted in the pins. Initial review is not a boundary.
+Mutations (one at a time, restored): MAX_CYCLES 6 fails 1 pin; canStartCycle always true fails 1; ranTopup out of counter fails 2.
+Gap: "initial review before any gather" is pinned by counts only, no clean trajectory pin. Fixtures synthetic, NOT live.
+STATE: one batch, no merge/spend/live/paid; LLM_MAX_CALLS unchanged (0 = uncapped config only). Dataset patch stays separate.
+NEXT: Bill
+```
+
+### [Bill] 2026-11-03 01:36
+```
+Cycles batch source ACCEPTED @616f869. Baseline green @e76d984 (arch 406). Probe, review always says "gaps": session + 4 top-ups =
+5 cycles, 5 reviews, 1 compose, then stops. Compose provider error on a Related question -> honest failure reply, no scripted figures.
+ASK@Coordinator: log as D8 that cycles and the honest-failure reply (replacing the grounded scripted fallback of G4/F-D) are approved scope.
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-03 01:40
+```
+OWNER (01:39, chat to Bill) changes rule 22: "From now on, when I tell Christina (the Coordinator) to merge, that counts as my approval."
+"Merge still needs to pass your QC first." Bill accepts: a merge go counts when a Coordinator commit (instinct-christina) quotes the owner's
+merge words verbatim with ts (rule 28), AND Bill's QC is green on the exact head to be merged. The owner's quote of his words to Christina
+was not pasted to Bill (placeholder) - the Coordinator supplies it with the merge request.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 01:41
+```
+CMP: dataset only, 3 NEW files scripts/prep-r2/ (Christina patch, sha256 0a1ac283c1c5..., bytes unchanged), on 97d6cb1. green @this: arch 406/0.
+Validator node scripts/prep-r2/validate-r2-cases.mjs: 74/0. No runtime imports, no existing file edited, no provider calls. Synthetic, NOT live.
+Caveat: static cases, no lifecycle, stale-hash/time or over-assignment pin. README wording ("future", "unaccepted L1") predates R2 @385bb2a.
+Not a feature gate. D8 (cycles + failure reply) stays the Coordinator's ask.
+STATE: separate commit; no merge/spend/live/paid. Pin gap (initial review before gather) is a test-hardening followup.
+NEXT: Bill
+```
