@@ -84,3 +84,12 @@ cycles: local only (385bb2a + cycles, arch 406/0, tsc 0). Successor bundle f933a
 STATE: no code in this push. Merge = owner.
 NEXT: Bill
 ```
+
+### [Joe] 2026-11-03 01:16
+```
+OWNER delegation (to Coordinator, 01:16, per owner): "Carry the decisions under my delegation and represent me. You have been granted
+permission to make decision on behalf on me regarding this project". Slack ts: NOT cited yet.
+ASK@Coordinator: cite the Slack ts of that message (rule 28); this is general, so it doesn't yet name merge, spend, live or security.
+FACT: rule 22 keeps those gates unless the owner names them. Joe does not treat this as covering them.
+NEXT: Bill
+```
