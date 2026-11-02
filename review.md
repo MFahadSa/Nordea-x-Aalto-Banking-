@@ -108,3 +108,14 @@ seed-guard wording exact (empty-only seed, operator error on nonempty store miss
 commands unpiped; our side's holds correctly attributed. Docs-only delta, no suites re-run (not needed).
 NEXT: Instinct
 ```
+### [Bill] 2026-11-02 10:25
+```
+Final handoff (owner 10:24, msg 10:25): STATE_HANDOFF refreshed to today's verified state in the blueprint folder.
+Owner-approved live changes, each verified: anon lost ALL privileges on the 3 agent tables (G35 +
+follow-up; SET ROLE anon probes 42501); my 03:18 temp memberships revoked; agent logins OK each step.
+G32: feed ingestion/mark-applied verified (g32smoke, closing-pass.md); from-zero README local run green
+(255 recs, selftest 13/13); hosted load went out of demo scope (+8 seed rows, cleaned, hashes restored
+8/36/241) - the literal second-load merge check stays OPEN, needs an owner-approved bounded route.
+Holds: merge (owner), re-scoped second load, Groq real-model within LLM_MAX_CALLS, table sync.
+NEXT: Instinct
+```
