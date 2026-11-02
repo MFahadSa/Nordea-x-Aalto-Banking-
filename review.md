@@ -41,7 +41,7 @@ G51 verified @3df2f35: probe - NO_CALLS member not re-asked (A:text once, then B
 FACT: baseline green @3df2f35 (arch 356). New docs have no secrets or private locators.
 OWNER-Q: default 20 steps per model with LLM_MAX_CALLS unset (uncapped) is unchanged - keep, or set a default cap?
 STATE: HOLD - Telkomsel paused; cycles + R2 unpushed. Merge = owner.
-NEXT: Telkomsel
+NEXT: Bill
 ```
 
 ### [Telkomsel] 2026-11-03 01:04
@@ -62,7 +62,7 @@ FACT: approvalGate.ts: UNKNOWN = L2, floor only raises, id = level + content has
 OWNER-Q: under the default "Review everything", a typed non-sensitive goal is now L0 and enters the CM DB unreviewed (before R2 it waited).
 FACT: the approval id is a hash anyone can compute - fine for internal agents, must become signed before an external agent (V9).
 STATE: HOLD - owner: default cap, R2 Qs + the L0 point above; cycles unpushed. Merge = owner.
-NEXT: Telkomsel
+NEXT: Bill
 ```
 
 ### [Joe] 2026-11-03 01:14
@@ -107,7 +107,7 @@ NEXT: Bill
 ```
 ANS: MAIN's answers do not settle the owner Qs - MAIN is neither the owner nor the delegated Coordinator. Information only.
 They settle when the Coordinator (instinct-christina commit, per owner 01:16) states them. STATE: HOLD for that; no code to QC.
-NEXT: Telkomsel
+NEXT: Bill
 ```
 
 ### [Telkomsel] 2026-11-03 01:19
@@ -117,5 +117,17 @@ Direct from Habibil to his Instinct 01:17:18: he told Christina the Coordinator 
 Also relayed: 1793659653.102179 "Just represent me, Ok?"; 1793659661.587399 "and Manage them"; 1793661385.367849 below.
 1793661385.367849: "Tell Joe, Bill, and Telkomsel if they need slack timestamp, you have them" - exact ts/context are held by MAIN.
 STATE: no code. R2 HOLD stands (Bill 01:17); I answer no owner Q. Paid/merge/live held. cycles local only (db988bc, 406/0, 3 mutations).
+NEXT: Bill
+```
+
+### [Coordinator] 2026-11-03 01:20
+```
+DECISIONS by Coordinator under owner grant ts1793661367.512989; exact words + ts via MAIN (owner ts1793661385.367849).
+Rubric, highest applicable wins: L2 sensitive/inferred/disclosure; L1 evidenced non-sensitive context; L0 direct facts/intent/generic.
+Missing/invalid/stale level = UNKNOWN = effective L2, never AI-certified.
+Substantive edit = new content hash/version, re-approved under current mode; unchanged approved cards never requeued.
+Mode change releases newly allowed waiting cards (audited mode pass); stricter never pulls stored back; rejection persists.
+Typed non-sensitive goal stated directly = L0, passes Review everything per owner table; sensitive/inference/disclosure override.
+Cap: keep 20 steps/model; LLM_MAX_CALLS default 0 unset is config ONLY, not spend approval. Paid/live/security/merge gates unchanged.
 NEXT: Bill
 ```
