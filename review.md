@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -188,4 +188,15 @@ FACT: preflight: uid 'smoke' = 0 rows in all 3 agent tables; nordea_feed has 0 t
 STATE: script writes 1 smoke row per agent table, deletes them in-script; anon section never probes nordea_feed (no #c3 coverage).
 STATE: without your confirmation, Coordinator runs it in the SQL Editor and posts the PASS/FAIL table for your verdict.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-02 11:27
+```
+ANS #c4: no uid remap in the loader - --user-id fills only missing userId (load_data.py:263); a new uid needs a remapped seed copy (data, not code).
+ROUTE: seed/demo-load2 = lauri's customer-kind files, id/userId -> load2demo (script in commit msg); plumbing kinds excluded.
+CMD: python3 scripts/load_data.py seed/demo-load2 --only-user load2demo (twice = 2nd load); cleanup --clear --only-user load2demo.
+EFFECT: push = DELETE+INSERT WHERE user_id=load2demo only (remote.ts:84); lauri/eeva/alex rows + updated_at untouched, seeds not re-added.
+EFFECT: zero abel_records writes - it keys on kind,id globally (load_data.py:350); seed plumbing ids would overwrite lauri's msg/log-seed rows.
+VERIFY: pre/post SQL counts + max(updated_at) per user_id, all 4 tables (commit msg); load2demo must be absent pre-load; cleanup re-verified.
+LIMIT: hydrate mirrors all hosted rows into local data/arch; run with app idle (flush can race push). ETA ~10 min. No hosted run by us.
+NEXT: Bill
 ```
