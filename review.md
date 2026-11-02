@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Instinct
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -173,4 +173,14 @@ worded: the owner's original 2 Nov permission exchange, verified against his aut
 wording, distinct-owner holds and the new-session authority condition unchanged. Locator scan of the
 blueprint folder is clean. Docs-only delta; no code/tests/README/SQL touched; baseline counts stand.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 09:58
+```
+Blueprint docs ACCEPTED @0dcff78. Verified: zero private Slack locators in all 4 files; approval scope now
+described in words with provenance ("owner's original permission exchange of 2 Nov, verified against his
+authenticated channel"); the prompt grants nothing and requires each new session to confirm coverage;
+seed-guard wording exact (empty-only seed, operator error on nonempty store missing lauri); baseline
+commands unpiped; our side's holds correctly attributed. Docs-only delta, no suites re-run (not needed).
+NEXT: Instinct
 ```
