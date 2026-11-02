@@ -28,6 +28,8 @@ the data straight away; otherwise it reads it when it starts.
 Useful options:
 - `--dry-run` reads and checks the files, changes nothing.
 - `--replace` deletes the existing records of the kinds being loaded first (only that customer's with `--user-id`).
+- `--only-user lauri` (repeat it or comma-separate) loads only the named customers from a multi-customer
+  folder - a hosted load or second-load merge check stays bounded to them instead of pushing every store.
 - `--clear` deletes **all** data first. `python scripts/load_data.py --clear` on its own empties the app
   (with the hosted setup it also deletes every row of the hosted agent tables - that full wipe is
   guarded behind an explicit `--all` inside `scripts/load_remote.ts`).

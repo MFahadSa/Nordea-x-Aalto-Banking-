@@ -21,6 +21,7 @@ earnings, shares, documents, entryHistory, dataRewards (snake_case like cabinet_
 Examples:
   python scripts/load_data.py seed/demo                       # the fictional demo customers
   python scripts/load_data.py my.csv --kind transactions --user-id lauri
+  python scripts/load_data.py seed/demo --only-user lauri      # bounded load: one demo customer only
   python scripts/load_data.py seed/demo --clear               # delete everything first, then load
   python scripts/load_data.py --clear                         # just delete everything
   python scripts/load_data.py seed/demo --dry-run             # show what would be loaded
@@ -748,6 +749,9 @@ def main() -> None:
     ap.add_argument("paths", nargs="*", help="files or folders to load")
     ap.add_argument("--kind", help="record kind for every file (default: from the file or sheet name)")
     ap.add_argument("--user-id", help="customer id for records without a userId column")
+    ap.add_argument("--only-user", action="append", default=[], metavar="UID",
+                    help="load only these customers (repeat or comma-separate); records of every "
+                         "other customer are skipped, and hosted pushes stay bounded to them")
     ap.add_argument("--clear", action="store_true", help="delete ALL data first (alone: only delete)")
     ap.add_argument("--replace", action="store_true",
                     help="delete the existing records of the kinds being loaded first (only that customer's with --user-id)")
@@ -783,6 +787,14 @@ def main() -> None:
 
     # Later files win when the same record appears twice.
     rows = list({(r["kind"], r["id"]): r for r in rows}.values())
+
+    # G32 closing: --only-user bounds the load (and any hosted push) to the named customers,
+    # so a second-load merge check can run against one demo customer instead of every store.
+    only = {u.strip() for arg in args.only_user for u in arg.split(",") if u.strip()}
+    if only:
+        rows = [r for r in rows if r["user_id"] in only]
+        if not rows and not args.clear:
+            sys.exit(f"Nothing to load for {', '.join(sorted(only))} in the given files.")
     by_kind: dict[str, int] = {}
     for r in rows:
         by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
@@ -806,9 +818,12 @@ def main() -> None:
         store.delete()
         print(f"Deleted all data in {where}.")
     elif args.replace:
-        for k in by_kind:
-            store.delete(k, args.user_id)
-        print(f"Deleted existing {', '.join(by_kind)}{f' of {args.user_id}' if args.user_id else ''}.")
+        scope = sorted(only) if only else [args.user_id]
+        for u in scope:
+            for k in by_kind:
+                store.delete(k, u)
+        print(f"Deleted existing {', '.join(by_kind)}"
+              f"{f' of {chr(44).join(scope)}' if any(scope) else ''}.")
     if rows:
         store.upsert(rows)
         print(f"Loaded {len(rows)} records into {where}: " + ", ".join(f"{n} {k}" for k, n in by_kind.items()))

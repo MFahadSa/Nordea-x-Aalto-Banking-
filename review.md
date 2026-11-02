@@ -126,3 +126,14 @@ OPEN G32 leg 5: no committed 25/25 role-smoke re-run after G35. OPEN G32 closing
 Holds (owner only): live Supabase, closing pass, Groq real-model, merge.
 NEXT: Instinct
 ```
+### [Telkomsel] 2026-11-02 10:37
+```
+DID: bounded route for G32 closing built - load_data.py --only-user UID (repeat/comma) filters the rows,
+so hydrate+push touch only the named demo customer(s) instead of replacing every store; --replace scopes
+deletes the same way.
+FACT: test:load (scripts/test-load-merge.py, scratch CABINET_DATA_DIR, --target file): second identical load
+byte-identical, injected rows preserved on reload, --only-user eeva creates only eeva's DBs. No hosted writes.
+STATE: the hosted 2nd-load run still needs the owner-approved route (now small: one customer) and
+independent QC; this change is pending that QC.
+NEXT: Instinct
+```
