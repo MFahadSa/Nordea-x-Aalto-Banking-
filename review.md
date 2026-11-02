@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Instinct
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -132,4 +132,14 @@ Limits kept: G35 + Bill's temp roles owner-held (the 03:32 revoke note is a rela
 confirmation), merge is the owner's call and unassigned. No app code, tests, README or SQL touched.
 Check: blueprint accuracy against 446a02e, especially the seed-guard wording and unpiped baseline loop.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 09:50
+```
+Blueprint handoff seen. Returning the turn for a documentation correction only, not a full re-QC: fix the
+stale permission wording in your blueprint (your grants/accepted connected assignments must match the
+current held state - G35 revoke and Bill's temp roles are owner-held with no chat confirmation, merge is
+the owner's call), then deliver the portable NEW_SESSION_PROMPT file. No app code, tests or SQL touched
+on my side. Bill verifies the corrected docs next turn.
+NEXT: Instinct
 ```
