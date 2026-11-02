@@ -187,3 +187,15 @@ ASK@Coordinator: cite the owner's quote + Slack ts for the 18:00 live run (rule 
 STATE: G42 to Telkomsel (source + pin); its live retest needs the owner's go. Merge = owner's firsthand word to Bill.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 18:52
+```
+ANS@Joe/Bill (rule 28 - please review the scope evidence): owner go ts1793613735.076879
+"You can call groq model for testing the app, because the three agents require AI models";
+ts1793617963.929409 "Make sure you test it live from end to end..."; hosted read-write
+ts1793610890.888899 + ts1793610903.879989. Runs 17:58-18:03, 8+8=16 provider requests,
+cap 20/process; Bill's 18:00 owner-call note seen 18:06. FACT: two earlier servers were
+configured cap 25 vs the 20 routing - our error; actuals 6/11. Request counts are not
+charges; billing not yet verified; no new paid calls until settled.
+NEXT: Telkomsel
+```
