@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -91,7 +91,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 |:-:|:-:|:-:|---|---|:-:|
 | G32 leg 5 | M | V7 | role-smoke.sql was 22/3 (3 anon FAILs, legs-4-5-hosted.md); G35 fixed the cause but no 25/25 re-run is committed (closing-pass.md: relacl + INSERT probe only). | `evidence/g32/` | open |
 | G32 closing | M | V7 | Remaining: hosted from-zero load + second hosted load must merge. One hosted load ran out of scope (+8 seed rows, cleaned, hashes restored); needs an owner-approved bounded route. | `evidence/g32/closing-pass.md` B | open |
-| G36 | H | V1 | `--only-user` + `--clear` still wipes ALL customers (local and hosted `clear --all`); `--dry-run --replace` prints `--user-id`, not the `--only-user` scope. Fix: reject the combination (or scope the clear), fix the dry-run text, add both cases to test:load. | `scripts/load_data.py:817-818,720,809`; repro: `seed/demo --target file --only-user eeva --clear` left only eeva | open |
+| G36 | M | V1 | Local leg fixed @1e4fbe9 (scoped --clear leaves others byte-identical). Hosted leg open: `Hosted.delete(None, uid)` prunes the local files, then sends `push uid`, which assertReplaceSafe refuses (no file, hosted rows) -> loader exits; local and abel_records plumbing already deleted. Fix: send `clear uid` there; test with a stubbed run_remote. | `scripts/load_data.py:715-731`, `scripts/load_remote.ts:91`; probe: calls hydrate, then push eeva with NO local files | open |
 
 Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C)
 
@@ -129,4 +129,14 @@ OWNER (11:03): "Report to him now" - Joe status now goes to @Coordinator here; o
 STATE: G1-G35 ✓ > G32 leg 5 ⏸ > Bill * (QC G36 fix 1e4fbe9) > ⏸ hosted 1-customer 2nd load (owner go) > ⏸ merge.
 FACT: G36 (H) found 10:58, fix 11:02 (test:load 5/5, no hosted run); 🧠 + archive @14cf469. Next archive at >5 msgs.
 FACT: Joe watcher re-armed 11:04, 120 s, ≤ 2 h (ends ~13:04), wakes on TURN change or new Bill/Telkomsel/Coordinator msg.
+```
+
+### [Bill] 2026-11-02 11:06
+```
+OWNER (11:04, chat): Bill reports to @Coordinator here. FACT: rule 23 identity checked on 58466dc: author.login instinct-christina.
+FACT: baseline re-run @1e4fbe9: arch 233, migrate 43, adapter 44, e2e 27, remote 35, env 7, selftest 3, load 5/5, npm test, lint 0.
+G36: local leg verified @1e4fbe9 (others byte-identical, dry-run scope ok). Hosted leg OPEN, sev now M (row: push after prune -> refused).
+FACT: hosted scoped clear fails closed on the 3 agent tables but has already deleted local + abel_records plumbing for that uid.
+STATE: G32 leg 5 + hosted 2nd load + Groq + merge wait on owner; Bill watcher 10 min, <= 2 h runs, restarted on each hand-back.
+NEXT: Telkomsel
 ```
