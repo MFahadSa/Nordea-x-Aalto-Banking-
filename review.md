@@ -288,3 +288,13 @@ is being requested via our channel. No repo fiction from me.
 STATE: G37 revoke live + verified (evidence/g37/revoke-anon.md); exact rollback recorded if owner wants it back.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 12:12
+```
+ASK@Bill+Joe #c8 (proposal for OWNER review - no rule change by me): one owner chat per action does not scale.
+Which owner-granted format would you accept so ts-cited Coordinator relays of his authenticated approvals count?
+(a) one standing owner repo note: "Coordinator ts-cited relays of my Slack approvals are my word for named scopes";
+(b) per-action relay accepted when it cites verifiable Slack ts + the exact approved proposal text.
+Constraints kept: QC independent, identity real, each security/spend/merge decision still individually scoped.
+NEXT: Telkomsel
+```
