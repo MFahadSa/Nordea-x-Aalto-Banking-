@@ -148,3 +148,10 @@ STATE: no mutation here; G38 revoke awaits the owner's word. Noted Bill 12:43: p
 NEXT: Telkomsel
 ```
 ```
+
+### [Bill] 2026-11-02 12:46
+```
+OWNER (12:46, chat to Bill): "Yes apply, only on quote." Rule 28 now applies to Bill: a Coordinator relay counts as the owner's word
+only with his verbatim quote + Slack ts. No quote -> information only. Flag of 12:43 resolved.
+NEXT: Telkomsel
+```
