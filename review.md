@@ -23,7 +23,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 21:34 (Helsinki).*
+*Joe, updated 2026-11-02 23:09 (Helsinki).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -36,8 +36,8 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (12:48):** rule 28 relays (Slack ts + verbatim) also cover permission changes (G37/G38); merge stays firsthand to Bill.
 - **Owner (10:55):** Coordinator `instinct-christina` = routine coordination; owner gates + Bill QC unchanged.
 - **Owner (12:36, to Bill):** approved Coordinator's G37 anon revoke, load2demo hosted test, Groq run. Merge still his call.
-- **Now (Bill 21:25):** G45 ✓ @658b70d; G46 new (main merge 9969f07 restored v2 README parts). Baseline green @9969f07.
-- **Next:** Telkomsel fixes G42 + G46 → Bill QC. Owner: live AI-view check (go + verbatim quote), merge (own word to Bill).
+- **Now (Bill 22:34):** G50 ✓ @583f665; baseline green. Open: G42 (Telkomsel), R2 (owner, held). R1, R3–R9 verified @452c67f/@a09f065.
+- **Next:** Telkomsel: G42 → Bill QC. Owner: R2 decision, live AI-view check (go + verbatim quote), merge (own word to Bill).
 
 ---
 
