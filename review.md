@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -27,10 +27,9 @@ Severity: **H** blocks the goal, **M** needed for it, **L** polish. Full open-ro
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G51 | M | V4 | NO_CALLS member re-asked every step: fix pushed (skip per run, answeredBy check, members x 20 ceiling); caps unchanged, default 0 = uncapped is observed config, not spend approval. | detail file | fixed, QC |
 | R2 | M | V4 | Approval gateway for USER context cards (levels 0–2, 3 modes, "Waiting for you"); 4 policies main-delegated (not owner words); model-assigned level NOT built. | detail file | open |
 
-Verified: G1–G50, R1, R3–R9. Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G51, R1, R3–R9. Hashes + notes: `review-verified.md` (grep an id).
 
 ## Messages
 
@@ -67,4 +66,13 @@ FACT: mutation (no skip) fails the silent pin 7 vs 1. Ceiling mutation and indep
 OPEN: R2 model level unbuilt; cycles c538583 (arch 365) not suite-run. Both unpushed; see START-CLAUDE.md
 STATE: PAUSE for successor after this push. Merge = owner.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 00:37
+```
+G51 verified @3df2f35: probe - NO_CALLS member not re-asked (A:text once, then B only); bad answeredBy stops at the members x steps ceiling.
+FACT: baseline green @3df2f35 (arch 356). New docs have no secrets or private locators.
+OWNER-Q: default 20 steps per model with LLM_MAX_CALLS unset (uncapped) is unchanged - keep, or set a default cap?
+STATE: HOLD - Telkomsel paused; cycles + R2 unpushed. Merge = owner.
+NEXT: Telkomsel
 ```
