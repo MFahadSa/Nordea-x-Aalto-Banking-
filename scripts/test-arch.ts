@@ -672,7 +672,7 @@ check('G16: the counter resets and the cap lifts when unset', LL.llmCallCount() 
   process.env.LLM_AGENT_MAX_STEPS = '7'; process.env.LLM_STEP_TIMEOUT_MS = '45000';
   const custom = AL.archLlmConfig();
   delete process.env.LLM_AGENT_MAX_STEPS; delete process.env.LLM_STEP_TIMEOUT_MS;
-  check('G17: step budget/timeout configurable via env (defaults 4 steps / 120s)', dflt.maxSteps === 4 && dflt.stepTimeoutMs === 120000 && custom.maxSteps === 7 && custom.stepTimeoutMs === 45000, JSON.stringify({ dflt: { maxSteps: dflt.maxSteps, stepTimeoutMs: dflt.stepTimeoutMs }, custom: { maxSteps: custom.maxSteps, stepTimeoutMs: custom.stepTimeoutMs } }));
+  check('G17: step budget/timeout configurable via env (defaults 20 steps per model / 120s)', dflt.maxSteps === 20 && dflt.stepTimeoutMs === 120000 && custom.maxSteps === 7 && custom.stepTimeoutMs === 45000, JSON.stringify({ dflt: { maxSteps: dflt.maxSteps, stepTimeoutMs: dflt.stepTimeoutMs }, custom: { maxSteps: custom.maxSteps, stepTimeoutMs: custom.stepTimeoutMs } }));
 }
 
 // G4 (Bill 03:45): the figure guard must match whole numbers - '120' must not pass against '1200'.
@@ -795,6 +795,54 @@ LL.setProviderForTests(null);
   check('F-D2: a lone member that never finishes still fails loudly, with no retry doubling',
     d3.source === 'scripted-error' && s3.stall === AL.archLlmConfig().maxSteps,
     `${d3.source} / stall ${s3.stall}`);
+  // G42: the step budget is per answering model; the next model keeps the conversation.
+  const reader = (count: { n: number }, readsBeforeFinish: number, seenTurns?: { first: number }) => ({
+    name: 'reader', label: 'Reader', model: 'm-reader', isConfigured: () => true,
+    step: async (args: FakeTools & { turns: unknown[] }) => {
+      count.n++;
+      if (seenTurns && count.n === 1) seenTurns.first = args.turns.length;
+      const p = planFinish('rd', args.tools.map((x) => x.name));
+      if (p) return { calls: [p] };
+      if (count.n > readsBeforeFinish) return { calls: [{ id: 'rd-fin', name: 'finishReply', args: { reply: 'Answer after many reads.' } }] };
+      return { calls: [{ id: `rd-${count.n}`, name: 'listMyGoals', args: {} }] };
+    },
+  });
+  const flaky = (count: { n: number }, readsThenSilent: number) => ({
+    name: 'flaky', label: 'Flaky', model: 'm-flaky', isConfigured: () => true,
+    step: async (args: FakeTools) => {
+      count.n++;
+      const p = planFinish('fk', args.tools.map((x) => x.name));
+      if (p) return { calls: [p] };
+      if (count.n > readsThenSilent) return { calls: [] }; // NO_CALLS handover mid-run
+      return { calls: [{ id: `fk-${count.n}`, name: 'listMyGoals', args: {} }] };
+    },
+  });
+  { // handover regression: a NO_CALLS handover after 3 steps must not leave the new member only the leftover (here 1 of 4)
+    process.env.LLM_AGENT_MAX_STEPS = '4';
+    const fk = { n: 0 }, rd = { n: 0 }, seen = { first: -1 };
+    LL.setProviderForTests(makeChain([flaky(fk, 3) as never, reader(rd, 3, seen) as never]) as never);
+    const d4 = await A.chat(UID53, 'are you there?', 'chain-sess-9');
+    check('G42: a member that took over after 3 steps gets its own fresh budget and still answers (not scripted)', d4.source === 'model' && d4.provider === 'Reader m-reader' && rd.n === 4, `${d4.source} / ${d4.provider} / flaky ${fk.n} reader ${rd.n}`);
+    check('G42: the new member continues the same conversation (it sees the earlier tool turns)', seen.first > 1, `first call saw ${seen.first} turns`);
+    delete process.env.LLM_AGENT_MAX_STEPS;
+  }
+  { // 20 fresh steps per model by default; each model has its own 20
+    const r1 = { n: 0 };
+    LL.setProviderForTests(makeChain([reader(r1, 15) as never]) as never);
+    const d5 = await A.chat(UID53, 'are you there?', 'chain-sess-10');
+    check('G42: the default budget lets a slow model use up to 20 steps (answers after 15 reads)', d5.source === 'model' && r1.n === 16, `${d5.source} / n ${r1.n}`);
+    const s6 = { plan: 0, stall: 0 }, f6 = { n: 0 };
+    LL.setProviderForTests(makeChain([staller(s6) as never, reader(f6, 15) as never]) as never);
+    const d6 = await A.chat(UID53, 'are you there?', 'chain-sess-11');
+    check('G42: a model that spent its 20 steps hands over; the next model gets its OWN budget (36 steps in all) and answers', s6.stall === 20 && d6.source === 'model' && d6.provider === 'Reader m-reader' && f6.n === 16, `${d6.source} / stall ${s6.stall} reader ${f6.n}`);
+    const lone = { plan: 0, stall: 0 };
+    LL.setProviderForTests(makeChain([staller(lone) as never]) as never);
+    const d7 = await A.chat(UID53, 'are you there?', 'chain-sess-12');
+    const lone2 = { plan: 0, stall: 0 };
+    LL.setProviderForTests(makeChain([staller(lone2) as never]) as never);
+    const o = await AL.runAgentReasoning({ agent: 'personal', system: 's', prompt: 'p', tools: [{ name: 'listMyGoals' }, { name: 'finishReply' }] as never, runTool: () => ({}), finishTool: 'finishReply' });
+    check('G42: when every model has used its steps the fallback names why (steps per model, models tried)', o.result === null && /within 20 steps per model \(1 model tried: Staller m-staller\)/.test(o.error ?? '') && lone2.stall === 20, o.error);
+  }
   LL.setProviderForTests(null);
 }
 

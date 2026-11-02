@@ -23,9 +23,9 @@ export function archLlmProviderName(): string | null {
 
 /** G17: the agent reasoning step budget and per-step timeout are configurable via env so a
  *  slow real model gets room (or a faster one is chosen) without code edits. Defaults keep
- *  the previous hardcoded behaviour (4 steps, 15s per step + 5s outer guard). */
+ *  a 120s per-call timeout; the step budget is 20 per answering model (G42). */
 export function archLlmConfig(): { provider: string | null; maxSteps: number; stepTimeoutMs: number } {
-  const maxSteps = Math.max(1, Number(process.env.LLM_AGENT_MAX_STEPS) || 4);
+  const maxSteps = Math.max(1, Number(process.env.LLM_AGENT_MAX_STEPS) || 20); // G42: 20 fresh steps PER answering model
   const stepTimeoutMs = Math.max(1000, Number(process.env.LLM_STEP_TIMEOUT_MS) || 120000);
   return { provider: archLlmProviderName(), maxSteps, stepTimeoutMs };
 }
@@ -71,37 +71,38 @@ export async function runAgentReasoning(args: AgentRunArgs): Promise<RunOutcome>
 async function runLoop(args: AgentRunArgs): Promise<RunOutcome> {
   const provider = getProvider();
   const { maxSteps, stepTimeoutMs } = archLlmConfig();
-  const tried: string[] = [];
-  // A chain can hold a weaker first member (e.g. a reasoning model that never emits the finish
-  // call). After its step budget is spent, give a fresh member ONE run of its own instead of
-  // failing the run. Hard errors are NOT retried this way: the chain already failed over for
-  // that step, so a retry would only double-charge the same outage.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const skipMembers = tried.length && chainHasFreshMember(provider, tried) ? tried : undefined;
-    if (attempt > 0 && !skipMembers) break; // no fresh member to hand the run to
-    const turns: Turn[] = [{ role: 'user', text: args.prompt }];
-    for (let step = 0; step < maxSteps; step++) {
-      let r;
-      try {
-        // On the guard the request is CANCELLED (abort signal), not just abandoned.
-        const ctl = new AbortController();
-        r = await withTimeout(
-          provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs, skipMembers, signal: ctl.signal }),
-          stepGuardMs(provider as never, stepTimeoutMs, skipMembers?.length ?? 0), `${args.agent} agent reasoning`, () => ctl.abort());
-      } catch (e) { return { result: null, error: e instanceof Error ? e.message : String(e) }; }
-      if (r.answeredBy && !tried.includes(r.answeredBy)) tried.push(r.answeredBy);
-      // F-D: a configured provider that produces no usable finish call is a provider failure,
-      // not the scripted path - name it so the fallback is visible instead of silent.
-      if (!r.calls.length) return { result: null, error: `${args.agent} model returned no tool calls (step ${step + 1}/${maxSteps})` };
-      for (const call of r.calls) {
-        if (call.name === args.finishTool) return { result: (call.args ?? {}) as Record<string, unknown>, answeredBy: r.answeredBy };
-      }
-      turns.push({ role: 'model_calls', calls: r.calls, raw: r.raw }); // keep raw parts: Gemini 3.x needs thought_signature echoed back
-      turns.push({ role: 'tool_results', results: r.calls.map((call) => ({ call, result: args.runTool(call) })) });
+  // G42: the step budget is PER ANSWERING MODEL, not per run. A model that hands the run over
+  // (a NO_CALLS handover, or a spent budget) does not leave the next model the leftover: the next
+  // model starts a fresh budget and keeps the conversation so far. The paid-call cap (LLM_MAX_CALLS)
+  // and the per-call timeout are unchanged and can stop a run before any model reaches its budget.
+  const used = new Map<string, number>(); // steps taken by each answering model
+  const turns: Turn[] = [{ role: 'user', text: args.prompt }];
+  const spent = () => [...used].filter(([, n]) => n >= maxSteps).map(([name]) => name);
+  for (;;) {
+    const skipMembers = spent();
+    if (skipMembers.length && !chainHasFreshMember(provider, skipMembers)) break; // every model used its budget
+    if (skipMembers.length) for (const t of turns) if (t.role === 'model_calls') delete t.raw; // another model continues: its raw parts are not ours
+    let r;
+    try {
+      // On the guard the request is CANCELLED (abort signal), not just abandoned.
+      const ctl = new AbortController();
+      r = await withTimeout(
+        provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs, skipMembers: skipMembers.length ? skipMembers : undefined, signal: ctl.signal }),
+        stepGuardMs(provider as never, stepTimeoutMs, skipMembers.length), `${args.agent} agent reasoning`, () => ctl.abort());
+    } catch (e) { return { result: null, error: e instanceof Error ? e.message : String(e) }; }
+    const who = r.answeredBy ?? 'provider';
+    used.set(who, (used.get(who) ?? 0) + 1);
+    // F-D: a configured provider that produces no usable finish call is a provider failure,
+    // not the scripted path - name it so the fallback is visible instead of silent.
+    if (!r.calls.length) return { result: null, error: `${args.agent} model returned no tool calls (step ${used.get(who)}/${maxSteps} for ${who})` };
+    for (const call of r.calls) {
+      if (call.name === args.finishTool) return { result: (call.args ?? {}) as Record<string, unknown>, answeredBy: r.answeredBy };
     }
-    // step budget spent without a finish call: the next attempt (if any) skips the tried members
+    turns.push({ role: 'model_calls', calls: r.calls, raw: r.raw }); // keep raw parts: Gemini 3.x needs thought_signature echoed back
+    turns.push({ role: 'tool_results', results: r.calls.map((call) => ({ call, result: args.runTool(call) })) });
   }
-  return { result: null, error: `${args.agent} model did not call ${args.finishTool} within ${maxSteps} steps` };
+  const names = [...used.keys()];
+  return { result: null, error: `${args.agent} model did not call ${args.finishTool} within ${maxSteps} steps per model (${names.length} model${names.length === 1 ? '' : 's'} tried: ${names.join(', ')}); no model is left with steps, so the answer is scripted` };
 }
 
 /** Validation helpers: the model proposes, code checks. */

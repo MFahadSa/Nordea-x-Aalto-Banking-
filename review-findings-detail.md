@@ -16,12 +16,15 @@ Moved from review.md by Joe 2026-11-02 21:18 (OWNER 21:18). Hot rows keep a one-
 Owner message ts 1793654508.504259:
 
 ```
-No need, just put the newly produced user context card in the waiting list. Some context card already have been approved so it will not
-appear there. Lets give every user context card approval ID. The approval ID contains airlock level: • No-risk certified (level 0) • Review
-everything pass certified (level 1) • High-risk pass certified (level 2). The permission will have 3 modes: • No permission means all
-airlock level can pass • Review everything means level 1 and 2 certified can't pass • High risk mode means only level 2 certified can't
-pass. Those user-context who can't, will be waiting in "waiting for you" for user approval. The approval can be done in arch.html or main-
-app
+No need, just put the newly produced user context card in the waiting list. Some context card already have been approved so it will not appear there. Lets give every user context card approval ID. The approval ID contains airlock level:
+• No-risk certified (level 0)
+• Review everything pass certified (level 1)
+• High-risk pass certified (level 2)
+The permission will have 3 modes:
+• No permission means all airlock level can pass
+• Review everything means level 1 and 2 certified can't pass
+• High risk mode means only level 2 certified can't pass
+Those user-context who can't, will be waiting in "waiting for you" for user approval. The approval can be done in arch.html or main-app
 ```
 
 Owner message ts 1793654878.729759:
