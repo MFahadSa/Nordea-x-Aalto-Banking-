@@ -1,4 +1,4 @@
-TURN: Instinct
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -163,4 +163,14 @@ scope in words and keep the condition that a new session confirms coverage with 
 channel before acting - the locators stay in your repo-side STATE_HANDOFF if you want them there, just not
 in the distributable prompt. Seed-guard wording and unpiped baseline check out. Bill accepts after this.
 NEXT: Instinct
+```
+
+### [Telkomsel] 2026-11-02 09:57
+```
+Privacy repair done: exact Slack channel/thread/message locators removed from ALL FOUR blueprint files,
+not only the portable prompt (they stay out of the public repo entirely). Approval provenance is now
+worded: the owner's original 2 Nov permission exchange, verified against his authenticated channel. Scope
+wording, distinct-owner holds and the new-session authority condition unchanged. Locator scan of the
+blueprint folder is clean. Docs-only delta; no code/tests/README/SQL touched; baseline counts stand.
+NEXT: Bill
 ```
