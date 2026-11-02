@@ -5,14 +5,6 @@ TURN: Bill
 
 This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is kept in `review-v2.md` (all 30 findings verified), with older history in `review-archive.md`.
 
-**Goal:** one system. The three agents and their three databases are the only home for customer data. Abel's app, `/arch.html` (read and write) and `/dev-monitor.html` (read only) run on the same server and the same data. No separate simulated prototype remains.
-
-| Who | Role |
-|---|---|
-| **Bill** (Claude) | Quality control. Reviews against the criteria below, runs tests and live checks, writes findings. Does not edit code. |
-| **Telkomsel** | Builds. Reads the findings, changes the code, posts an ETA with each hand-over. |
-| **Joe** (Claude) | Communication rules and Context memory. |
-| **Habibil** (owner) | Approved this plan on 1 Nov 02:27. Not supervising; Bill acts on his behalf. |
 
 ---
 
@@ -26,11 +18,12 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
   incl. permission changes like G37/G38 (OWNER 12:48); only merge needs his firsthand word to Bill (rule 28). Bill QC independent.
 - Coordinator messages end `NEXT: <current TURN>` (guard, rule 24). Joe works on demand (rule 29).
 - Team batching, short CMPs, one read per turn (rules 30–33, OWNER 21:02).
+- Baseline as `green @hash`; verified hashes + full open rows live in cold files (rules 34–35). Roles: review-protocol.md.
 
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 19:03.*
+*Joe, updated 2026-11-02 21:18 (Helsinki).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -38,12 +31,11 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (16:22):** Abel answers ONLY from finalised context.md; Bill's 4 conditions (16:26) are the QC gate.
 - **Owner (16:35–17:44):** cabinet-db.json → 3 agent DBs only, auto-delete after verify, NO backup; offers retire, imports stay.
 - **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
-- **Naming (owner 02:03; token migrated 2 Nov):** the builder is **Telkomsel**, signs `[Telkomsel]`. The `TURN:`/`NEXT:` token is now `Telkomsel` (was `Instinct`); the branch name stays `instinct-prototype-v3`.
+- **Naming (owner 02:03):** builder = **Telkomsel**; TURN/NEXT token `Telkomsel`; branch stays `instinct-prototype-v3`.
 - **Owner (10:41, 12:41):** token cuts, rules 14/18/19 + 26–29; protocol moved to review-protocol.md.
 - **Owner (12:48):** rule 28 relays (Slack ts + verbatim) also cover permission changes (G37/G38); merge stays firsthand to Bill.
 - **Owner (10:55):** Coordinator `instinct-christina` = routine coordination; owner gates + Bill QC unchanged.
 - **Owner (12:36, to Bill):** approved Coordinator's G37 anon revoke, load2demo hosted test, Groq run. Merge still his call.
-- **Verified (Bill 21:02):** G1–G41, G43, G44 (see Findings list). G32 closing @f0d6679, G37 @3ab336e, G38 @d83e809.
 - **Now (Bill 21:02):** G43 ✓ @4279c9a, G44 ✓ @796c109; open G42 (handover, M) and G45 (invoice reply, M), both with Telkomsel.
 - **Next:** Telkomsel fixes G42 + G45 in one batch → Bill QC. Owner: live AI-view check (go), merge (own word to Bill); scope relays need verbatim quote (rule 28).
 
@@ -60,21 +52,22 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G45 | M | V4 | G44 residual: impersonal English about the customer's own item still lands General and an invented figure ships as model: 'What was the total of the last electricity invoice?' -> 'The last electricity invoice was 84.20.' (no I/my, no listed word). A keyword list will keep leaking. Fix (pick one): any figure in a General reply when the question names a bill-like item -> guard; or mark General replies in the text as general, not from the customer's data. | `src/server/arch/orchestrator.ts` classifyQuestion/customerFigureClaim; Bill probe | open |
-| G42 | M | V4 | G39 residual: a NO_CALLS handover mid-run gives the new member only the steps LEFT in that run, and the retry then finds no fresh member. API retest: gpt-oss steps 5-7, NO_CALLS at step 4 -> qwen gets 1 step, no finish -> scripted. Fix: restart the step budget (fresh turns) when the answering member changes, keep LLM_MAX_CALLS as the cap; add a pin. | `src/server/arch/llm.ts:59-79`; `evidence/e2e/logs/retest-g39-api-server.log` calls 5-8 | open |
-| R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R3 | M | V4 | CM window shows the retrieved/processed contribution cards, not the whole cabinet. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R4 | M | V4 | Nordea window shows the retrieved/processed cards. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R5 | M | V4 | No raw records in either window; cards combine multiple raw records. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R6 | M | V4 | Natural-language intents: general, bank/financial, goal add/modify/remove, other. No invented arbitrary actions. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R7 | M | V4 | Remove the Add-goal field/button; goal requests go through chat. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R8 | M | V4 | Goal cards sit below the chat box and keep the existing goal details. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
-| R9 | M | V4 | Goal-relevant insights run automatically as Nordea context cards; remove Manual Propose insight; no optional developer trigger. | owner msgs 1793646171.523219 (list) / 1793646229.568279 (implement), via main. Status: requirement only, NOT built. | open |
+| G45 | M | V4 | Bill-like question without I/my lands General; invented figure ships as model. Fix options + repro: detail file. | `orchestrator.ts` classifyQuestion | open |
+| G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
+| R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | R-src | open |
+| R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
+| R3 | M | V4 | CM window shows the retrieved/processed contribution cards, not the whole cabinet. | R-src | open |
+| R4 | M | V4 | Nordea window shows the retrieved/processed cards. | R-src | open |
+| R5 | M | V4 | No raw records in either window; cards combine multiple raw records. | R-src | open |
+| R6 | M | V4 | Natural-language intents: general, bank/financial, goal add/modify/remove, other. No invented arbitrary actions. | R-src | open |
+| R7 | M | V4 | Remove the Add-goal field/button; goal requests go through chat. | R-src | open |
+| R8 | M | V4 | Goal cards sit below the chat box and keep the existing goal details. | R-src | open |
+| R9 | M | V4 | Goal-relevant insights run automatically as Nordea context cards; remove Manual Propose insight; no optional developer trigger. | R-src | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged), F-A/F-B/F-C/F-D @3e10806 (test:arch 243, e2e 28, remote 36; live retest 92e52aa screenshot: one session round, loud scripted caption + bus event), G39 @b54d093 (probe: text-only A -> B answers; looping A -> one retry on B; lone looper fails loudly), G40 @b54d093 (probe: rows stay 2 with nordea off), G41 @b54d093 (test:arch pin, code read personal.ts:138-147), G43 @4279c9a (providerDisplayName fallback: label + model; 3 pins), G44 @796c109 (I/my, Finnish, groceries -> Related + guarded; probes re-run)
+R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
-**Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
+Verified: G1–G41, G43, G44. Hashes + notes: `review-verified.md` (grep an id).
+
 
 ---
 

@@ -52,4 +52,15 @@ Moved out of review.md by Joe 2026-11-02 12:42 (OWNER 12:41). review.md keeps a 
 31. **Short replies:** Bill and the Coordinator post a CMP with ≤ 4 lines when there's no new finding; cite hashes, don't restate earlier verdicts or the chain.
 32. **No status-only commits:** Coordinator and Bill commit only evidence files or a turn change; status goes in the message, not a separate commit.
 33. **One read per turn:** on your turn read only the new message headers and the newest message (rule 5); never re-read the full file.
+34. **Baseline by hash (OWNER 21:18):** write `FACT: baseline green @<hash>`; list a suite count only when it changed.
+35. **Cold files (OWNER 21:18):** verified hashes in `review-verified.md`, full open-row text in `review-findings-detail.md`; hot rows ≤ 1 short line.
+
+**Who**
+| Who | Role |
+|---|---|
+| **Bill** (Claude) | Quality control. Reviews against the criteria, runs tests and live checks, writes findings. Does not edit code. |
+| **Telkomsel** | Builds. Reads the findings, changes the code, posts an ETA with each hand-over. |
+| **Joe** (Claude) | Communication rules and Context memory. |
+| **Coordinator** (`instinct-christina`) | Routine coordination, live checks on the owner's go (rules 20–28). |
+| **Habibil** (owner) | Approved this plan on 1 Nov 02:27. Gates: scope, spend, live, security, merge. |
 
