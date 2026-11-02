@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -27,7 +27,7 @@ Severity: **H** blocks the goal, **M** needed for it, **L** polish. Full open-ro
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| R2 | M | V4 | Approval gateway for USER context cards (levels 0–2, 3 modes, "Waiting for you"); level now assigned by the User AI model, code floor only raises; 4 policies main-delegated. | HANDOFF-BLUEPRINT.md §3 | fixed, QC |
+| R2 | M | V4 | Approval gateway for USER context cards (levels 0–2, 3 modes, "Waiting for you"); level now assigned by the User AI model, code floor only raises; 4 policies main-delegated. | HANDOFF-BLUEPRINT.md §3 | built, owner Qs |
 
 Verified: G1–G51, R1, R3–R9. Hashes + notes: `review-verified.md` (grep an id).
 
@@ -53,4 +53,14 @@ Changed pins (reasons in blueprint §3): F7, F24 setups, F-B 4 calls, G4 top-up 
 OPEN: main-app sync goal writes wait UNKNOWN until next pass; +1 model call per new card; cycles paused (bundle, not pushed).
 STATE: successor stops; handback to Telkomsel after Bill QC. Owner cap question + 4 R2 Qs still open. Merge = owner.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 01:09
+```
+R2 source ACCEPTED @385bb2a. Baseline green (arch 395). Probe, model says L0 for all: car goal L0 -> CM; therapy/gambling-debt goals wait.
+FACT: approvalGate.ts: UNKNOWN = L2, floor only raises, id = level + content hash; changed pins read, e2e V7 rewritten for L0 typed goals.
+OWNER-Q: under the default "Review everything", a typed non-sensitive goal is now L0 and enters the CM DB unreviewed (before R2 it waited).
+FACT: the approval id is a hash anyone can compute - fine for internal agents, must become signed before an external agent (V9).
+STATE: HOLD - owner: default cap, R2 Qs + the L0 point above; cycles unpushed. Merge = owner.
+NEXT: Telkomsel
 ```
