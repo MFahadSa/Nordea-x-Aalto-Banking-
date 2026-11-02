@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -60,10 +60,10 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G44 | H | V4 | General-question exemption lets an invented customer figure through. classifyQuestion is an English keyword list: 'What did I pay for groceries last month?' ('pay' missing) and any Finnish question -> General when no rows match; customerFigureClaim only catches you/your/EUR, so 'Groceries last month came to 312.40' ships as source=model. Fix: first person (I/my/me, Finnish too) or unclear -> Related; keep the figure guard on unless the reply has no figure at all; pin both probes. | `src/server/arch/orchestrator.ts:131,158-163`; Bill probe (fake provider, uid cat1) | open |
+| G45 | M | V4 | G44 residual: impersonal English about the customer's own item still lands General and an invented figure ships as model: 'What was the total of the last electricity invoice?' -> 'The last electricity invoice was 84.20.' (no I/my, no listed word). A keyword list will keep leaking. Fix (pick one): any figure in a General reply when the question names a bill-like item -> guard; or mark General replies in the text as general, not from the customer's data. | `src/server/arch/orchestrator.ts` classifyQuestion/customerFigureClaim; Bill probe | open |
 | G42 | M | V4 | G39 residual: a NO_CALLS handover mid-run gives the new member only the steps LEFT in that run, and the retry then finds no fresh member. API retest: gpt-oss steps 5-7, NO_CALLS at step 4 -> qwen gets 1 step, no finish -> scripted. Fix: restart the step budget (fresh turns) when the answering member changes, keep LLM_MAX_CALLS as the cap; add a pin. | `src/server/arch/llm.ts:59-79`; `evidence/e2e/logs/retest-g39-api-server.log` calls 5-8 | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged), F-A/F-B/F-C/F-D @3e10806 (test:arch 243, e2e 28, remote 36; live retest 92e52aa screenshot: one session round, loud scripted caption + bus event), G39 @b54d093 (probe: text-only A -> B answers; looping A -> one retry on B; lone looper fails loudly), G40 @b54d093 (probe: rows stay 2 with nordea off), G41 @b54d093 (test:arch pin, code read personal.ts:138-147), G43 @4279c9a (providerDisplayName fallback: label + model; 3 pins)
+Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged), F-A/F-B/F-C/F-D @3e10806 (test:arch 243, e2e 28, remote 36; live retest 92e52aa screenshot: one session round, loud scripted caption + bus event), G39 @b54d093 (probe: text-only A -> B answers; looping A -> one retry on B; lone looper fails loudly), G40 @b54d093 (probe: rows stay 2 with nordea off), G41 @b54d093 (test:arch pin, code read personal.ts:138-147), G43 @4279c9a (providerDisplayName fallback: label + model; 3 pins), G44 @796c109 (I/my, Finnish, groceries -> Related + guarded; probes re-run)
 
 **Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
 
@@ -305,4 +305,15 @@ FACT: arch 296 tsc0 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3. Pix
 OPEN: round-plan pixel absent (plan exists only when a goal-matching first round runs); source pin only.
 ASK@Bill: re-verify G44 incl. Finnish and groceries, arch dedup, 409.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 21:02
+```
+G44 verified @796c109: my probes (I-pay groceries, 2 Finnish) -> Related, scripted; Paris population stays General/model.
+OK: arch dedup (3 concurrent, one body), 409 on reused id (arch + app), app/arch ids kept apart, arch /chat/result done.
+FACT: baseline: arch 296, migrate 43, adapter 44, e2e 37, remote 36, env 7, selftest 3, load ok, npm test, lint 0.
+G45 (M) new: "last electricity invoice" still General -> invented 84.20 ships as model. Keyword lists leak; see row fix.
+FACT: scope relay (owner ts only, no verbatim quote) does not meet rule 28; QC done on the code, scope approval is the owner's.
+OPEN: G42 (M), G45 (M) with Telkomsel. Merge = owner.
+NEXT: Telkomsel
 ```
