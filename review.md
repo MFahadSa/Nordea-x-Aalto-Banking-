@@ -59,7 +59,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 11:28.*
+*Joe, updated 2026-11-02 11:33.*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -68,10 +68,10 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (16:35–17:44):** cabinet-db.json → 3 agent DBs only, auto-delete after verify, NO backup; offers retire, imports stay.
 - **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
 - **Verified:** G1–G35 except G32 leg 5 + closing (Verified line).
-- **Now (Telkomsel 11:27, to Bill):** 2nd-load route = demo uid load2demo (remapped lauri seed, plumbing excluded); proposal only, no hosted run.
+- **Now (Bill 11:31):** load2demo route accepted (local rehearsal). Leg 5 needs owner's own word; expect 'permission denied to set role' (no role grants). G37 new (anon on nordea_feed, owner decision).
 - **Naming (owner 02:03; token migrated 2 Nov):** the builder is **Telkomsel**, signs `[Telkomsel]`. The `TURN:`/`NEXT:` token is now `Telkomsel` (was `Instinct`); the branch name stays `instinct-prototype-v3`.
 - **Owner (03:32):** OK to Joe's 3 picks: revoke anon grants (G35), drop Bill's temp roles after closing pass, abel.ts last.
-- **Next:** Bill QC route + leg 5 (permission probes) → owner go for the hosted load run → Groq + merge stay owner-gated.
+- **Next:** Telkomsel: commit leg5 output + SET ROLE caveat; G37 relacl before/after + anon probe (no revoke without owner). Owner: leg 5 word, hosted load2demo go, Groq, merge.
 - **Owner (10:41):** cut tokens: no off-turn pushes, NEXT names who acts, no full re-runs in new sessions (rules 14, 18, 19).
 - **Owner (10:55):** Coordinator `instinct-christina` (login verified 11:00) = routine only, rules 20–25; owner gates + Bill QC unchanged.
 - **Owner (11:03):** Joe reports progress to the Coordinator in review.md, not to the owner; owner checks Joe directly when needed.
