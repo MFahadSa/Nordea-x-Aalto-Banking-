@@ -85,6 +85,7 @@ export function makeChain(members: LlmProvider[]): ChainProvider {
       const usable = members.filter((m) => m.isConfigured() && (!needsVision || m.vision) && !skipped.has(name(m)));
       if (!usable.length) throw new Error(needsVision ? 'NO_VISION: none of the AI models here can read photos' : 'No AI model is set up');
       let last: any;
+      const noCalls: string[] = []; // G51: members that answered without a tool call during THIS step
       // Up to two rounds: everyone who's free tries once; if all are only busy for a short while
       // (a per-minute limit), wait for the first one to be free again and try again.
       for (let round = 0; round < 2; round++) {
@@ -92,9 +93,11 @@ export function makeChain(members: LlmProvider[]): ChainProvider {
         const ready = usable.filter((m) => st.get(m)!.restUntil <= now);
         for (let i = 0; i < ready.length; i++) {
           try {
-            return await tryOne(ready[i], args, i === ready.length - 1);
+            const res = await tryOne(ready[i], args, i === ready.length - 1);
+            return noCalls.length ? { ...res, noCallsMembers: [...noCalls] } : res;
           } catch (err) {
             last = err;
+            if (/^NO_CALLS:/.test(String((err as Error)?.message ?? ''))) noCalls.push(name(ready[i]));
           }
         }
         if (round === 1) break;

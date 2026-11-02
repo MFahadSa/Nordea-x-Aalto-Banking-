@@ -6,7 +6,7 @@
  * back to the scripted behaviour (kept for the no-AI path and for tests).
  */
 import { getProvider, withTimeout } from '../llm.js';
-import { chainHasFreshMember } from '../llmChain.js';
+import { chainHasFreshMember, chainMemberName } from '../llmChain.js';
 import { providerDisplayName, recordAiRun } from './aiActivity.js';
 import type { ToolCall, ToolDecl, Turn } from '../llm.js';
 
@@ -76,11 +76,18 @@ async function runLoop(args: AgentRunArgs): Promise<RunOutcome> {
   // model starts a fresh budget and keeps the conversation so far. The paid-call cap (LLM_MAX_CALLS)
   // and the per-call timeout are unchanged and can stop a run before any model reaches its budget.
   const used = new Map<string, number>(); // steps taken by each answering model
+  // G51: a member that answered without any tool call is skipped for the REST of this run (it is not re-asked, and not re-paid, every step).
+  const unusable = new Set<string>();
+  // G51: hard ceiling on loop iterations: configured members x per-model steps (a single provider counts as one member), so a handover/reset bug can never loop forever.
+  const members = (provider as { members?: { isConfigured(): boolean; label?: string; name: string; model?: string }[] }).members;
+  const maxIterations = Math.max(1, Array.isArray(members) ? members.filter((m) => m.isConfigured()).length : 1) * maxSteps;
+  let iterations = 0;
   const turns: Turn[] = [{ role: 'user', text: args.prompt }];
-  const spent = () => [...used].filter(([, n]) => n >= maxSteps).map(([name]) => name);
+  const spent = () => [...new Set([...[...used].filter(([, n]) => n >= maxSteps).map(([name]) => name), ...unusable])];
   for (;;) {
     const skipMembers = spent();
     if (skipMembers.length && !chainHasFreshMember(provider, skipMembers)) break; // every model used its budget
+    if (++iterations > maxIterations) return { result: null, error: `${args.agent} model did not call ${args.finishTool} within ${maxIterations} steps in all (${maxSteps} per model x ${maxIterations / maxSteps} configured model${maxIterations === maxSteps ? '' : 's'})` };
     if (skipMembers.length) for (const t of turns) if (t.role === 'model_calls') delete t.raw; // another model continues: its raw parts are not ours
     let r;
     try {
@@ -90,7 +97,9 @@ async function runLoop(args: AgentRunArgs): Promise<RunOutcome> {
         provider.step({ system: args.system, turns, tools: args.tools, temperature: 0, timeoutMs: stepTimeoutMs, skipMembers: skipMembers.length ? skipMembers : undefined, signal: ctl.signal }),
         stepGuardMs(provider as never, stepTimeoutMs, skipMembers.length), `${args.agent} agent reasoning`, () => ctl.abort());
     } catch (e) { return { result: null, error: e instanceof Error ? e.message : String(e) }; }
-    const who = r.answeredBy ?? 'provider';
+    for (const m of r.noCallsMembers ?? []) unusable.add(m);
+    // G51: an answerer that is not a configured member is not trusted as a budget key (it would reset the budget): it counts as the provider itself.
+    const who = r.answeredBy && (!Array.isArray(members) || members.some((m) => chainMemberName(m as never) === r.answeredBy)) ? r.answeredBy : 'provider';
     used.set(who, (used.get(who) ?? 0) + 1);
     // F-D: a configured provider that produces no usable finish call is a provider failure,
     // not the scripted path - name it so the fallback is visible instead of silent.

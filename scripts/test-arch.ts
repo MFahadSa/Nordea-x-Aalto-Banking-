@@ -835,6 +835,19 @@ LL.setProviderForTests(null);
     LL.setProviderForTests(makeChain([staller(s6) as never, reader(f6, 15) as never]) as never);
     const d6 = await A.chat(UID53, 'are you there?', 'chain-sess-11');
     check('G42: a model that spent its 20 steps hands over; the next model gets its OWN budget (36 steps in all) and answers', s6.stall === 20 && d6.source === 'model' && d6.provider === 'Reader m-reader' && f6.n === 16, `${d6.source} / stall ${s6.stall} reader ${f6.n}`);
+    { // G51: a member that answers without a tool call is skipped for the REST of the run (not re-asked, not re-paid, every step)
+      let silentAsked = 0; const rd9 = { n: 0 };
+      const silent = { name: 'silent', label: 'Silent', model: 'm-silent', isConfigured: () => true, step: async (args: FakeTools) => { const p = planFinish('sl', args.tools.map((x) => x.name)); if (p) return { calls: [p] }; silentAsked++; return { calls: [] }; } };
+      LL.setProviderForTests(makeChain([silent as never, reader(rd9, 6) as never]) as never);
+      const d9 = await A.chat(UID53, 'are you there?', 'chain-sess-g51');
+      check('G51: a NO_CALLS member is asked ONCE in a run, not again on every later step (the 7-step answer cost 1 silent call, not 7)', d9.source === 'model' && silentAsked === 1 && rd9.n === 7, `${d9.source} silent ${silentAsked} reader ${rd9.n}`);
+      // hard ceiling: configured members x steps. Two members that both keep reading forever stop at 2 x 20 steps with an honest error.
+      let ca = 0, cb = 0;
+      const looper = (nm: string, c: () => void) => ({ name: nm, label: nm, model: `m-${nm}`, isConfigured: () => true, step: async (args: FakeTools) => { const p = planFinish(nm, args.tools.map((x) => x.name)); if (p) return { calls: [p] }; c(); return { calls: [{ id: `${nm}-${ca + cb}`, name: 'listMyGoals', args: {} }] }; } });
+      LL.setProviderForTests(makeChain([looper('A', () => ca++) as never, looper('B', () => cb++) as never]) as never);
+      const d10 = await A.chat(UID53, 'are you there?', 'chain-sess-g51b');
+      check('G51: two endless models stop at members x 20 steps (40) with an honest error, never loop on', ca === 20 && cb === 20 && d10.source !== 'model', `A ${ca} B ${cb} ${d10.source}`);
+    }
     const lone = { plan: 0, stall: 0 };
     LL.setProviderForTests(makeChain([staller(lone) as never]) as never);
     const d7 = await A.chat(UID53, 'are you there?', 'chain-sess-12');

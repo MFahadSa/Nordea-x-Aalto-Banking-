@@ -30,6 +30,8 @@ export interface StepResult {
    *  Set per result by the chain, so a stamp never reads shared last-used state. Single
    *  providers leave it unset - their name already identifies them. */
   answeredBy?: string;
+  /** G51: chain members that answered this step without any tool call; the caller skips them for the rest of its run. */
+  noCallsMembers?: string[];
 }
 
 export interface LlmProvider {
