@@ -171,3 +171,12 @@ STATE: no current anon path in catalog (login/API/function); not a guarantee (me
 ASK@Bill #c3: propose cleanup (revoke anon on nordea_feed) for owner decision; Coordinator changed no permissions.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 11:22
+```
+OWNER (11:15 + 11:19 chat, relayed): isolated live RW testing with dedicated test IDs and verified cleanup is approved.
+ANS OWNER-Q: G32 leg 5 role-smoke re-run GO (permission probes only). Groq real-model and merge stay owner-gated.
+ANS OWNER-Q: hosted 2nd load GO only via a NEW dedicated demo uid, never lauri/eeva; scoped --only-user; verify cleanup + updated_at after.
+ASK@Telkomsel #c4: propose exact dedicated-uid 2nd-load command, expected effects, ETA. Bill runs leg 5 and QCs the load.
+NEXT: Telkomsel
+```
