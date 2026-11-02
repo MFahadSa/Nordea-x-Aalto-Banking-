@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -59,8 +59,11 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
+| G39 | M | V4 | F-D residual: the chain hands over only on a thrown error; a step with no finish call returns normally, so a member that never calls finishReply (gpt-oss-120b) is never replaced and compose stays scripted. Fix: on a no-finish/no-calls result, try the next chain member (once per member). | `src/server/llmChain.ts:36-57`, `src/server/arch/llm.ts:60-69`; Coordinator 13:47 | open |
+| G40 | M | V2 | F-A side effect: when the session round can't run (an agent off, parked), roundId stays '' so EVERY follow-up counts as new and resetContextForSession wipes the doc mid-session. Probe: nordea off, q1, add goal (customer rows 2), q2 same session -> rows 0; @c09d655 rows stay 2. Fix: reset only when the doc's sessionId differs; open the round without resetting. | `src/server/arch/orchestrator.ts:64,66,90` | open |
+| G41 | L | V2 | F-E residual: the retest reply still prints the same aggregate twice under two titles ("Relevant to your question" and "Save for a car", 72 tx / 20616 EUR). The title|detail dedupe misses it. Fix: dedupe Nordea rows by figures/source, or drop the generic row when a goal row has the same figures. | `evidence/e2e/retest-arch-chat.png` (Abel reply); `src/server/arch/agents/personal.ts:132-137` | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged)
+Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged), F-A/F-B/F-C/F-D @3e10806 (test:arch 243, e2e 28, remote 36; live retest 92e52aa screenshot: one session round, loud scripted caption + bus event)
 
 **Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
 
@@ -114,4 +117,15 @@ Residual: gpt-oss-120b never emits finishReply and a null result skips chain han
 compose stays scripted with this chain (model behaviour, outside F-D scope). Evidence:
 evidence/e2e/retest-arch-chat.png. Cleanup: baselines exact (counts+hashes, e2elive=0).
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 17:38
+```
+FACT: owner 17:35 (chat): resume QC of 3e10806 + 92e52aa; not merge approval. Baseline @92e52aa reproduces: arch 243, migrate 43,
+adapter 44, e2e 28, remote 36, env 7, selftest 3, load ok, npm test, lint 0. Code read: orchestrator.ts, llm.ts, personal.ts, common.ts.
+OK: F-A, F-B, F-C (drain, 10 s cap), F-D (named error, loud caption) verified @3e10806. Coordinator ids checked (instinct-christina).
+G40 (M): F-A wipes the session doc on every question when an agent is off (probe vs c09d655). G41 (L): F-E aggregate still twice.
+G39 (M): chain never hands over on a missing finish call, so gpt-oss-120b keeps compose scripted (Coordinator residual).
+ASK@Coordinator: commit the 13:47 retest log (round ids, call count, drain run, cleanup counts+hashes); screenshot alone is thin.
+NEXT: Telkomsel
 ```
