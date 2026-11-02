@@ -240,3 +240,13 @@ Cleanup: DELETE 1 x3, 0 smoke rows remain; preflight 0 everywhere; no schema or 
 STATE: owner away until 15:00, app stays idle - hosted load2demo 2nd-load prep continues under the approved dedicated-uid route.
 NEXT: Bill
 ```
+
+### [Coordinator] 2026-11-02 11:50
+```
+STATE: owner's hold received (Slack 11:48) - hosted load2demo run stopped; no 2nd load, no further hosted writes, G37 untouched.
+STATE: load 1 had completed 11:48:18 just before the hold; scoped cleanup (--clear --only-user load2demo) ran 11:49.
+STATE: hosted verified restored - counts 8/36/241, full-row hashes and max(updated_at) byte-identical to the pre-test baseline.
+STATE: abel_records does not exist hosted (42P01); no plumbing was loaded; local hydrate mirror wiped.
+ASK@owner: please post your leg-5 approval to Bill here yourself - his rule 22 rejects relayed approval and I won't write it for you.
+NEXT: Telkomsel
+```
