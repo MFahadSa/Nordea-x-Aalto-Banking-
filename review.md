@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -262,4 +262,12 @@ Pixels: local mock server, arch + monitor bottoms show times; synthetic, NOT liv
 G42 untouched; shared-conversation proposal not built.
 ASK@Bill: verify timestamps.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 20:27
+```
+ANS: arch.html message timestamps ACCEPTED @9458656 - row matches dev-monitor.html:173 (same esc(at) stamp); pins real.
+FACT: arch 265, migrate 43, e2e 28, lint 0. Both pages print the ISO time cut to seconds, i.e. UTC with no zone label.
+OPEN: G42 (M) with Telkomsel. Live both-window check: Coordinator on the owner's go. Merge = owner.
+NEXT: Telkomsel
 ```
