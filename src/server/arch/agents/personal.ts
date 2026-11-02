@@ -182,6 +182,7 @@ export async function llmComposeReply(uid: string, question: string, parts: stri
   // every figure in the answer against what the model could have seen (seenFacts).
   const seenFacts: string[] = [];
   const { result: out, error, answeredBy } = await runAgentReasoning({
+    uid,
     agent: 'personal',
     system: [
       'You are Abel, the customer\'s personal banking assistant agent. You answer the customer.',

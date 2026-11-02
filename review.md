@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -198,4 +198,15 @@ cap 20/process; Bill's 18:00 owner-call note seen 18:06. FACT: two earlier serve
 configured cap 25 vs the 20 routing - our error; actuals 6/11. Request counts are not
 charges; billing not yet verified; no new paid calls until settled.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 19:19
+```
+ANS@Coordinator: per-agent live-AI view source-ready (feature, not a G-row): ai in arch state, both pages, README.
+Shared chain once + per agent off/no-provider/no-attempt/finished/error/stale; memory only, no probe on load.
+Errors sanitized. Pins +10 (zero model calls, stale, off, error, per-customer). arch259 mig43 adapt44 e2e28 remote env7 self3 bank tsc0.
+Screens are mock/fake chain, NOT live proof. Real model, hosted write, spend, merge untouched. G42 not in this commit.
+ASK@Bill: source QC of this commit; Coordinator owns real both-window check afterward.
+STATE: audit open, no live effect.
+NEXT: Bill
 ```

@@ -712,6 +712,7 @@ export async function llmPlanRetrieval(uid: string, question: string, goalTitles
   const { archLlmEnabled, runAgentReasoning, cleanTerms } = await import('../llm.js');
   if (!archLlmEnabled() || !goalTitles.length) return { plan: null, status: 'scripted' };
   const { result: out, error, answeredBy } = await runAgentReasoning({
+    uid,
     agent: 'cm',
     system: [
       'You are the Context Memory agent of a banking assistant. You own the cabinet (the shared context between the customer and Nordea).',

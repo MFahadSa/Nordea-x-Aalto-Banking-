@@ -291,6 +291,7 @@ export async function llmProposeMatchTerms(uid: string, goalTitles: string[]): P
   const { archLlmEnabled, runAgentReasoning, cleanTerms } = await import('../llm.js');
   if (!archLlmEnabled() || !goalTitles.length) return { plan: null, status: 'scripted' };
   const { result: out, error, answeredBy } = await runAgentReasoning({
+    uid,
     agent: 'nordea',
     system: [
       'You are the Nordea agent of a banking assistant. You own the Nordea DB (accounts and transactions). You propose, you never decide.',

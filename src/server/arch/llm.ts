@@ -7,6 +7,7 @@
  */
 import { getProvider, withTimeout } from '../llm.js';
 import { chainHasFreshMember } from '../llmChain.js';
+import { recordAiRun } from './aiActivity.js';
 import type { ToolCall, ToolDecl, Turn } from '../llm.js';
 
 /** True when a real (or test) provider is configured; false = scripted fallback. */
@@ -31,6 +32,8 @@ export function archLlmConfig(): { provider: string | null; maxSteps: number; st
 
 interface AgentRunArgs {
   agent: 'cm' | 'nordea' | 'personal';
+  /** The customer whose agent runs; only used to record the observed outcome for the monitors. */
+  uid?: string;
   system: string;
   prompt: string;
   /** Tools scoped to the agent's own store, plus exactly one finish* tool. */
@@ -47,7 +50,16 @@ interface AgentRunArgs {
 /** One agent reasoning run: the model's proposal, or why there is none (truthful status). */
 export interface PlanOutcome<T> { plan: T | null; status: 'model' | 'scripted' | 'error'; error?: string; answeredBy?: string }
 
-export async function runAgentReasoning(args: AgentRunArgs): Promise<{ result: Record<string, unknown> | null; error?: string; answeredBy?: string }> {
+type RunOutcome = { result: Record<string, unknown> | null; error?: string; answeredBy?: string };
+
+/** Runs the loop and records what happened (in memory) so the monitors can show it per agent. */
+export async function runAgentReasoning(args: AgentRunArgs): Promise<RunOutcome> {
+  const out = await runLoop(args);
+  if (args.uid) recordAiRun(args.uid, args.agent, out.result ? { outcome: 'finished', provider: out.answeredBy } : { outcome: 'error', error: out.error });
+  return out;
+}
+
+async function runLoop(args: AgentRunArgs): Promise<RunOutcome> {
   const provider = getProvider();
   const { maxSteps, stepTimeoutMs } = archLlmConfig();
   const tried: string[] = [];

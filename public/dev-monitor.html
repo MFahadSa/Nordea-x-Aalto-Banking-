@@ -23,6 +23,12 @@
   .connline .ok { color:#4ecb8d; font-weight:600; } .connline .bad { color:#e07a6c; font-weight:600; }
   .body { padding:0 16px 12px; font-size:13px; color:#c6cdd6; display:flex; flex-direction:column; gap:8px; }
   .pill { display:inline-block; background:#123b26; color:#4ecb8d; border-radius:99px; padding:2px 10px; font-size:12px; margin:1px 3px 1px 0; }
+  .pill.stale { background:#4a3d12; color:#e8c468; }
+  .aierr { color:#e07a6c; font-size:11.5px; }
+  .aimember { margin:2px 0 0 6px; font-size:12px; }
+  .aiknown { margin-top:4px; font-size:11.5px; opacity:.7; }
+  .ailine { margin:0 16px 8px; font-size:12.5px; }
+  .aibox { margin:0 0 10px; padding:8px 12px; background:#171c24; border:1px solid #2b3038; border-radius:8px; font-size:12.5px; }
   .pill.off { background:#402020; color:#e07a6c; }
   .pill.model { background:#123b26; color:#4ecb8d; }
   .pill.scripted { background:#2b3038; color:#9aa4b0; }
@@ -55,24 +61,28 @@
   <div class="window w-user">
     <div class="wtitle"><h2>User DB</h2></div>
     <div class="agentline" id="a-personal"></div>
+    <div class="ailine" id="ai-personal"></div>
     <div class="connline" id="conn-user"></div>
     <div class="body"><div class="counts" id="user-summary"></div><div id="user-goals"></div></div>
   </div>
   <div class="window w-cm">
     <div class="wtitle"><h2>Context Memory DB (cabinet)</h2></div>
     <div class="agentline" id="a-cm"></div>
+    <div class="ailine" id="ai-cm"></div>
     <div class="connline" id="conn-cm"></div>
     <div class="body"><div class="counts" id="cm-summary"></div><div id="cm-recent"></div></div>
   </div>
   <div class="window w-nordea">
     <div class="wtitle"><h2>Nordea DB</h2></div>
     <div class="agentline" id="a-nordea"></div>
+    <div class="ailine" id="ai-nordea"></div>
     <div class="connline" id="conn-nordea"></div>
     <div class="body"><div class="counts" id="nordea-summary"></div><div id="nordea-card"></div></div>
   </div>
 </div>
 <div class="panel">
   <h2>Session context.md (read-only)</h2>
+  <div class="aibox" id="ai-chain"></div>
   <div class="meta" id="ctx-meta"></div>
   <pre id="ctx-md"></pre>
 </div>
@@ -100,6 +110,34 @@ const planPill = (st) => st === 'model' ? '<span class="pill model">model</span>
 const conn = (s) => s.connected
   ? `${s.backend === 'postgres' ? 'Postgres (per-agent role)' : 'SQLite'} · ${esc(s.file)} · <span class="ok">connected</span> · last write ${s.lastWrite ? esc(s.lastWrite.slice(0, 19).replace('T', ' ')) : 'never'}`
   : `${s.backend === 'postgres' ? 'Postgres (per-agent role)' : 'SQLite'} · ${esc(s.file)} · <span class="bad">not created yet</span>`;
+// Live-AI visibility (read-only: built from memory on the server, never from a probe).
+// "configured" = a key is set; it does NOT mean the model works. What worked is what each agent last did.
+const aiAgo = (sec) => sec == null ? '' : sec < 90 ? `${sec} s ago` : sec < 5400 ? `${Math.round(sec / 60)} min ago` : `${Math.round(sec / 3600)} h ago`;
+const aiLine = (v, id) => {
+  if (!v) return '';
+  const st = v.stale ? ' · <span class="pill stale">stale</span>' : '';
+  const when = v.at ? ` · ${esc(v.at.slice(0, 19).replace('T', ' '))} (${aiAgo(v.ageSec)})` : '';
+  let x;
+  if (v.state === 'off') x = '<span class="pill off">AI: agent off, no AI used</span>';
+  else if (v.state === 'no-provider') x = '<span class="pill scripted">AI: scripted, no provider configured</span>';
+  else if (v.state === 'no-attempt') x = '<span class="pill scripted">AI: no attempt yet (since server start)</span>';
+  else if (v.state === 'finished') x = `<span class="pill model">AI: last run finished on ${esc(v.provider ?? 'the configured provider')}</span>${when}${st}`;
+  else x = `<span class="pill error">AI: last run failed, scripted fallback</span>${when}${st}${v.error ? `<br><span class="aierr">${esc(v.error)}</span>` : ''}`;
+  return x;
+};
+const aiChain = (ai) => {
+  if (!ai) return '';
+  const c = ai.chain;
+  if (!c.configured) return 'Shared AI provider: <b>none configured</b>. All three agents run scripted.';
+  const head = `Shared AI provider (one chain for all three agents): <b>${esc(c.label ?? c.provider)}</b>${c.mockOnly ? ' <span class="pill scripted">test stand-in, not a real model</span>' : ''}`;
+  const rows = (c.members ?? []).map((m) => {
+    const state = !m.configured ? '<span class="pill error">no key</span>' : m.restingFor ? `<span class="pill error">resting ${m.restingFor} s</span>` : '<span class="pill scripted">key set</span>';
+    const seen = m.lastOk ? ` last ok ${esc(m.lastOk.slice(0, 19).replace('T', ' '))}` : ' no success seen yet';
+    const fail = m.lastFail ? ` · last problem (${esc(m.lastFail.kind)}) ${esc(m.lastFail.at.slice(0, 19).replace('T', ' '))}: ${esc(m.lastFail.message)}` : '';
+    return `<div class="aimember">- ${esc(m.name)} ${state}${seen}${fail}</div>`;
+  }).join('');
+  return `${head}${rows}<div class="aiknown">A key being set only means configured. The per-agent lines show what each agent's last run really did (this server process, memory only). Nothing here calls a model.</div>`;
+};
 async function refresh() {
   const uid = $('uid').value || 'lauri';
   const r = await fetch(`/api/dev/monitor?userId=${encodeURIComponent(uid)}`);
@@ -125,6 +163,8 @@ async function refresh() {
     : 'No session document for this customer yet.';
   if (s.round) $('ctx-meta').innerHTML += `<br>Latest build round: <b>${esc(s.round.id)}</b> · ${esc(s.round.trigger)} · ${esc(s.round.state)}${s.round.closedAt ? ' ' + esc(s.round.closedAt.slice(0, 19).replace('T', ' ')) : ''} · plan: cm ${planPill(s.round.planStatus?.cm)} nordea ${planPill(s.round.planStatus?.nordea)}${s.round.planStatus?.provider ? ` on ${esc(s.round.planStatus.provider)}` : ''}`;
   $('ctx-md').textContent = s.contextMd ?? '';
+  for (const a of ['personal', 'cm', 'nordea']) $(`ai-${a}`).innerHTML = aiLine(s.ai?.agents?.[a]);
+  $('ai-chain').innerHTML = aiChain(s.ai);
   const q = [];
   for (const b of s.queues.airlock) q.push(`<div class="qitem"><b>Airlock:</b> ${b.items.length} item(s) from ${esc(b.source)}<div class="meta">pending since ${esc((b.at ?? '').slice(0, 19).replace('T', ' '))}</div></div>`);
   for (const m of s.queues.review) q.push(`<div class="qitem"><b>Merge review:</b> ${esc(m.summary)}<div class="meta">proposed by ${esc(m.from)} agent · ${esc((m.at ?? '').slice(0, 19).replace('T', ' '))}</div></div>`);

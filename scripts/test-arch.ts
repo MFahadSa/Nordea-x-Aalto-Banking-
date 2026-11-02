@@ -794,6 +794,61 @@ LL.setProviderForTests(null);
   LL.setProviderForTests(null);
 }
 
+// --- AI visibility: per-agent live-AI view on both monitors. Shared chain as configured +
+// each agent's last OBSERVED run; building the view never calls a model.
+{
+  const { makeChain } = await import('../src/server/llmChain.js');
+  const AV = await import('../src/server/arch/aiActivity.js');
+  const UIDV = 'aivis1';
+  let calls = 0;
+  const member = (label: string, model: string, ok: boolean) => ({
+    name: label.toLowerCase(), label, model, isConfigured: () => true,
+    step: async (args: { tools: { name: string }[] }) => {
+      calls++;
+      if (!ok) throw new Error('429 rate limit Bearer gsk_abcdefghijkl1234 for key=AIzaSyABCDEFGHIJ');
+      const n = args.tools.map((x) => x.name);
+      return { calls: [n.includes('finishRetrievalPlan') ? { id: 'v1', name: 'finishRetrievalPlan', args: { goalTitles: [], reason: 't' } }
+        : n.includes('finishMatchTerms') ? { id: 'v2', name: 'finishMatchTerms', args: { terms: {} } }
+        : { id: 'v3', name: 'finishReply', args: { reply: 'Hello from the visibility test.' } }] };
+    },
+  });
+  AV.resetAiActivityForTests();
+  LL.setProviderForTests(null);
+  const sOff = (A.archState(UIDV) as any).ai;
+  // No override = the Gemini default; without a key that is "not configured" (mock-free env in tests)
+  check('AI view: shared chain reported once, three agents listed', !!sOff.chain && Object.keys(sOff.agents).join() === 'personal,cm,nordea', JSON.stringify(Object.keys(sOff.agents)));
+
+  LL.setProviderForTests(makeChain([member('Good', 'm-good', true) as never]) as never);
+  const v0 = (A.archState(UIDV) as any).ai;
+  check('AI view: configured but never run = no-attempt (key is not proof)', v0.chain.configured && v0.agents.personal.state === 'no-attempt' && v0.agents.cm.state === 'no-attempt' && v0.chain.members[0].lastOk === null, JSON.stringify(v0.agents.personal));
+  const c0 = calls; A.archState(UIDV); A.archState(UIDV); (await import('../src/server/arch/aiActivity.js')).aiVisibility(UIDV, []);
+  check('AI view: building the view makes zero model calls (no probe on load/refresh)', calls === c0 && calls === 0, `calls ${calls}`);
+
+  A.addGoalDirect(UIDV, 'Save for a car');
+  const r = await A.chat(UIDV, 'hello there', 'ai-vis-sess-1');
+  const v1 = (A.archState(UIDV) as any).ai;
+  check('AI view: after a real run the personal agent shows finished + the chain member that answered',
+    v1.agents.personal.state === 'finished' && v1.agents.personal.provider === 'Good m-good' && v1.agents.personal.ageSec !== null && v1.agents.personal.stale === false && r.source === 'model',
+    JSON.stringify(v1.agents.personal));
+  check('AI view: observations are per customer (another customer shows no-attempt)', (A.archState('aivis-other') as any).ai.agents.personal.state === 'no-attempt', '');
+  const realNow = Date.now; Date.now = () => realNow() + (AV.AI_STALE_AFTER_SEC + 60) * 1000;
+  const vs = (A.archState(UIDV) as any).ai; Date.now = realNow;
+  check('AI view: an old observation is flagged stale', vs.agents.personal.state === 'finished' && vs.agents.personal.stale === true, JSON.stringify(vs.agents.personal));
+  A.setAgentOff(UIDV, 'personal', true);
+  const vo = (A.archState(UIDV) as any).ai;
+  A.setAgentOff(UIDV, 'personal', false);
+  check('AI view: an agent that is off reads off, never a model state', vo.agents.personal.state === 'off', vo.agents.personal.state);
+
+  LL.setProviderForTests(makeChain([member('Bad', 'm-bad', false) as never]) as never);
+  await A.chat(UIDV, 'hello again', 'ai-vis-sess-2');
+  const ve = (A.archState(UIDV) as any).ai;
+  const leak = JSON.stringify(ve);
+  check('AI view: a failed run reads error with a sanitized message (no keys)', ve.agents.personal.state === 'error' && !!ve.agents.personal.error && !/gsk_abc|AIzaSy|Bearer gsk/.test(leak), `${ve.agents.personal.state} ${ve.agents.personal.error}`);
+  check('AI view: the chain member shows its last problem and no success', ve.chain.members[0].lastFail?.kind === 'minute' && ve.chain.members[0].lastOk === null, JSON.stringify(ve.chain.members[0]));
+  check('AI sanitize: bearer, gsk and key= tokens removed, length capped', AV.sanitizeAiError('Bearer abc.def gsk_1234567890abcd ?key=SECRET1 ' + 'x'.repeat(400)).length <= 160 && !/SECRET1|gsk_1234|abc\.def/.test(AV.sanitizeAiError('Bearer abc.def gsk_1234567890abcd ?key=SECRET1')), '');
+  LL.setProviderForTests(null);
+}
+
 // --- F18: maintenance rounds merge into the open session's document - no row is dropped.
 const UID17 = 'mergeround';
 A.addGoalDirect(UID17, 'Save for a car');
