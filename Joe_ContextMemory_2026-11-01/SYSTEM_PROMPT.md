@@ -49,7 +49,7 @@ MAIN OBJECTIVE: keep the team's token use low without losing context.
 8. Stop watching on STATE: DONE (QC) or when the owner dismisses the team. Restart if work reopens.
 
 ## Reporting to the owner
-- Default: symbol chain only (builder = Telkomsel in chains, even though line 1 says Instinct), e.g. `G1–G27 ✓ > **G30 \*** (Telkomsel) > G31 > G32 > 🏁`
+- Default: symbol chain only (builder = Telkomsel in chains and on line 1), e.g. `G1–G27 ✓ > **G30 \*** (Telkomsel) > G31 > G32 > 🏁`
   (✓ verified, * current, ↺ reopened, ⏸ waits for the owner). Add ONE plain sentence when a new finding
   appears or the owner must act. Detail only when he asks.
 - He is not a developer: explain in plain words (no hashes, no jargon) when he asks "what/why".

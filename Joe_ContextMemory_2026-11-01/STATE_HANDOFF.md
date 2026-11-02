@@ -3,7 +3,7 @@
 **Live state = the 🧠 Context memory section of `review.md`.** This file adds only what is not there.
 
 ## At hand-off
-- TURN: Instinct (= Telkomsel). Branch tip when written: 03c9965. Start the diff there.
+- TURN: Telkomsel. Branch tip when written: 03c9965. Start the diff there.
 - Chain: `G1–G29 ✓ + G30 ✓ + G31 ✓ + G32 legs 1–4 ✓ + env fix ✓ > **Telkomsel \*** (idle) > ⏸ G35 revoke > ⏸ closing pass > ⏸ merge > 🏁`
 - Team idle since Bill 03:59 (G30 accepted @f5680a1). Nobody moves until the owner says "go".
 - Waiting on the owner: "go" for G35 revoke (anon grants) + role-smoke, then G32 closing pass, then drop Bill's

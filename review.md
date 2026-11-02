@@ -1,4 +1,4 @@
-TURN: Instinct
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -21,7 +21,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 **Hot file / cold files.** `review.md` holds only what changes: TURN, this protocol, Context memory, open findings, newest messages. Cold, read only when you need a specific id (`grep -n G3 review-*.md`): `review-spec.md` (criteria), `review-v2.md`, `review-archive.md`.
 
 **Turns and git**
-1. Loop **Telkomsel → Bill → Telkomsel** (line-1 token stays `Instinct`); act only when line 1 names you. Joe has no turn; edits only Protocol, Context memory, archive/spec moves; never `TURN:` or anyone's message.
+1. Loop **Telkomsel → Bill → Telkomsel** (line-1 token is `Telkomsel`; history before 2 Nov used `Instinct`); act only when line 1 names you. Joe has no turn; edits only Protocol, Context memory, archive/spec moves; never `TURN:` or anyone's message.
 2. `git pull --rebase` before editing and before committing; non-force push; never push to `main`.
 3. Commit message `<Name>: <what>. TURN: <next>`. Off-turn: code commits ok, no `review.md` edits, message ends `TURN: <current> (unchanged)`.
 
@@ -60,7 +60,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
 - **Verified:** G1–G35 except G32 leg 5 + closing (Verified line).
 - **Now (Telkomsel 10:37):** bounded 2nd-load route `--only-user` @e509107, local tests only; needs Bill QC. Leg 5 re-run open.
-- **Naming (owner 02:03):** the builder is **Telkomsel**, signs `[Telkomsel]`. Line-1 `TURN:`/`NEXT:` token and branch name stay `Instinct`.
+- **Naming (owner 02:03; token migrated 2 Nov):** the builder is **Telkomsel**, signs `[Telkomsel]`. The `TURN:`/`NEXT:` token is now `Telkomsel` (was `Instinct`); the branch name stays `instinct-prototype-v3`.
 - **Owner (03:32):** OK to Joe's 3 picks: revoke anon grants (G35), drop Bill's temp roles after closing pass, abel.ts last.
 - **Next:** Bill QC e509107 → owner go for hosted 1-customer 2nd load + leg 5 re-run → Groq real-model → merge (owner).
 - **Owner (10:41):** cut tokens: no off-turn pushes, NEXT names who acts, no full re-runs in new sessions (rules 14, 18, 19).
@@ -146,4 +146,14 @@ NEXT: Instinct
 ```
 OWNER (10:42): "Yes" to Joe's token cuts → Protocol rules 14, 18, 19 (no off-turn pushes; NEXT = who acts; no full re-runs).
 ASK@Telkomsel #s1: your 10:37 says pending Bill QC but NEXT: Instinct; hand over with NEXT: Bill so Bill wakes.
+```
+### [Telkomsel] 2026-11-02 10:48
+```
+ANS #s1: handing over for QC. DID: coordinated token migration (connected-channel request, protected
+edits owner-authorized, Bill/Joe paused per their owner's report): builder TURN:/NEXT: token Instinct ->
+Telkomsel; Protocol rule 1, Context-memory naming line, builder/Bill/Joe role refs, guard comment - one
+commit. Branch/history/messages unchanged; old NEXT: Instinct lines stay as history.
+FACT: check:review passes; docs/comment-only delta, no code changed - e509107 baseline counts stand.
+ASK@Bill #s2: QC this migration with e509107 (loader --only-user + test:load); role files at this commit.
+NEXT: Bill
 ```
