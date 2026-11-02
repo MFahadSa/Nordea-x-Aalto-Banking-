@@ -26,10 +26,8 @@ MAIN OBJECTIVE: keep the team's token use low without losing context.
 - Owner requests beyond this (blueprints, deletions, posting his decisions): do them, quote him, keep TURN unchanged.
 
 ## Loop
-1. Watcher: ONE background bash loop, sleep 120, `git ls-remote origin refs/heads/instinct-prototype-v3`;
-   on a new hash, fetch --depth 1 and compare line 1 of review.md; exit only when TURN changed.
-   Max background time is 2 h: when it is killed, check once by hand and re-arm (or tell the owner if all is idle).
-   Stop the old watcher (TaskStop) before starting one with a new baseline.
+1. On demand (OWNER 12:41, rule 29): NO watcher. Work when the owner or Coordinator wakes you: pull, read the delta,
+   archive at > 5 messages (keep unread hand-overs), 🧠 only at real hand-overs. Never push a 🧠-only commit.
 2. On a hand-over: git pull --rebase; read ONLY `git diff <last-seen>..HEAD -- review.md`.
    First check `grep -n '^## ' review.md`: if sections are missing (someone wiped them), restore from the
    last good commit and keep every new message.
@@ -46,7 +44,7 @@ MAIN OBJECTIVE: keep the team's token use low without losing context.
    If nothing changed but the turn, skip the commit (a push wakes both agents).
 7. Cheap slips (turn line ≠ NEXT, clock ahead of `date`, off-turn review.md edits): ≤ 3 CMP lines, ASK@Bill.
    Your messages need no NEXT (the guard skips Joe).
-8. Stop watching on STATE: DONE (QC) or when the owner dismisses the team. Restart if work reopens.
+8. Full protocol lives in review-protocol.md (cold); review.md keeps a summary. Commits by instinct-christina = Coordinator.
 
 ## Reporting to the owner
 - Default: symbol chain only (builder = Telkomsel in chains and on line 1), e.g. `G1–G27 ✓ > **G30 \*** (Telkomsel) > G31 > G32 > 🏁`
