@@ -1515,9 +1515,67 @@ check('Q2: caption order is elapsed (client-measured) first, then the exact cate
     check('R5: no card carries a raw record (no transaction ids, no evidence, no account fields)', all.every((c: any) => !('evidence' in c) && !('transactionIds' in c)) && !/\btx-|IBAN|FI\d{2}/i.test(JSON.stringify(all)), JSON.stringify(all).slice(0, 300));
     check('R3/R5: the CM window cards come from context.md, not from the whole cabinet', !/entries\.entries|\/entries`\)/.test(readSrc('../public/arch.html').split('const cards =')[1] ?? ''));
   }
+  {
+    const V = 'nluuser'; const gl = () => (S.loadUserDb(V).goals ?? []).map((g: any) => g.title);
+    const sv = (t: string) => A.chat(V, t, 'sess-nlu') as Promise<any>;
+    check('R6 NL: "I want to save for a house" adds a goal', (await sv('I want to save for a house')).intent === 'goal_add' && gl().includes('Save for a house'), gl().join('|'));
+    check('R6 NL: "could you please add Visit Lapland as a goal" adds a goal', (await sv('could you please add Visit Lapland as a goal')).intent === 'goal_add' && gl().includes('Visit Lapland'), gl().join('|'));
+    const ask = await sv('rename my Lapland goal to Visit Norway'); const done = await sv('yes');
+    check('R6 NL: "rename my Lapland goal to Visit Norway" finds the goal by plain words, asks, and changes it on yes', ask.intent === 'goal_modify' && /Do you mean/.test(ask.reply) && done.intent === 'goal_modify' && gl().includes('Visit Norway') && !gl().includes('Visit Lapland'), gl().join('|') + ask.reply);
+    await sv('can you forget about the house goal?'); const rr = await sv('yes');
+    check('R6 NL: "forget about the house goal" removes it', rr.intent === 'goal_remove' && !gl().includes('Save for a house'), JSON.stringify(rr) + gl().join('|'));
+    const n1 = await sv('update my address to Mannerheimintie 5'); const n2 = await sv('I want to know my balance'); const n3 = await sv('how can I save for a car?');
+    check('R6 NL: non-goal talk is not turned into a goal action (address update, "I want to know", questions)', ![n1, n2, n3].some((x: any) => String(x.intent).startsWith('goal_')) && gl().length === 1, JSON.stringify([n1.intent, n2.intent, n3.intent]) + gl().join('|'));
+  }
+  {
+    const W = 'g47user';
+    S.saveUserDb({ ...(S.loadUserDb(W) as any), userId: W });
+    const udb = S.loadUserDb(W); udb.goals.push({ id: 'goal-g47', title: 'Save for a car', detail: '12 000 EUR by Dec 2027', createdAt: new Date().toISOString() } as any); S.saveUserDb(udb);
+    const gl = () => (S.loadUserDb(W).goals ?? []).map((g: any) => g.title);
+    const p1: any = await A.chat(W, 'remove goal car', 'sess-g47');
+    check('G47: a partial-match removal asks first and deletes nothing', gl().includes('Save for a car') && /Do you mean/.test(p1.reply), p1.reply);
+    const p2: any = await A.chat(W, 'no', 'sess-g47');
+    check('G47: "no" cancels the pending removal', gl().includes('Save for a car') && /nothing changed/i.test(p2.reply), p2.reply);
+    await A.chat(W, 'forget about the car goal', 'sess-g47');
+    const p3: any = await A.chat(W, 'yes', 'sess-g47');
+    check('G47: an explicit yes completes the removal', !gl().includes('Save for a car') && p3.intent === 'goal_remove', p3.reply);
+    const p4: any = await A.chat(W, 'undo', 'sess-g47');
+    const back = (S.loadUserDb(W).goals ?? []).find((g: any) => g.title === 'Save for a car') as any;
+    check('G47: undo restores the goal WITH its details', !!back && back.detail === '12 000 EUR by Dec 2027' && /12 000 EUR/.test(p4.reply), p4.reply);
+    const p5: any = await A.chat(W, 'remove goal Save for a car', 'sess-g47');
+    check('G47: an exact-title removal acts at once and offers undo', !gl().includes('Save for a car') && /undo/i.test(p5.reply), p5.reply);
+    const p6: any = await A.chat(W, 'undo', 'sess-g47'); const p7: any = await A.chat(W, 'undo', 'sess-g47');
+    check('G47: a second undo with nothing to undo does not invent a goal', gl().filter((t) => t === 'Save for a car').length === 1 && p7.intent !== 'goal_add', p6.reply + ' || ' + p7.reply);
+    const r2 = readSrc('../README.md');
+    check('G46: README names no removed file (abel.ts, abelOffline.ts) and no offers risk line', !/abel\.ts|abelOffline|High risk always waits for the customer: offers/.test(r2));
+  }
+  {
+    const X = 'fiuser'; const gl = () => (S.loadUserDb(X).goals ?? []).map((g: any) => g.title);
+    const sv = (t: string) => A.chat(X, t, 'sess-fi') as Promise<any>;
+    const f1 = await sv('Haluan säästää autoon');
+    check('R6 FI: "Haluan säästää autoon" adds a goal', f1.intent === 'goal_add' && gl().includes('Säästää autoon'), JSON.stringify(f1).slice(0, 200) + gl().join('|'));
+    const f2 = await sv('lisää tavoite Matka Japaniin');
+    check('R6 FI: "lisää tavoite X" adds a goal', f2.intent === 'goal_add' && gl().includes('Matka Japaniin'), gl().join('|'));
+    const f3 = await sv('muuta tavoite Matka Japaniin muotoon Matka Lappiin');
+    check('R6 FI: "muuta tavoite X muotoon Y" changes the exact goal', f3.intent === 'goal_modify' && gl().includes('Matka Lappiin') && !gl().includes('Matka Japaniin'), f3.reply);
+    const f4 = await sv('poista tavoite Matka Lappiin');
+    check('R6 FI: "poista tavoite X" removes it and offers undo', f4.intent === 'goal_remove' && !gl().includes('Matka Lappiin'), f4.reply);
+    const f5 = await sv('Mikä on pääkaupunki?');
+    check('R6 FI: a Finnish general question is not a goal action', !String(f5.intent).startsWith('goal_') && gl().length === 1, String(f5.intent));
+  }
+  {
+    const Y = 'insuser'; S.saveNordeaDb({ ...(S.loadNordeaDb(UID) as any), userId: Y });
+    await A.chat(Y, 'add goal Save for a car', 's-ins');
+    const rounds = () => (A.archState(Y) as any).messages.filter((m: any) => m.type === 'round-start' && m.payload?.trigger === 'contribution').length;
+    const c1 = rounds(); await A.chat(Y, 'remove goal Save for a car', 's-ins'); const c2 = rounds();
+    check('R9: removing a goal refreshes the goal-relevant insights (chat)', c2 > c1, `${c1} -> ${c2}`);
+    await A.chat(Y, 'remove goal Nothing here', 's-ins'); const c3 = rounds();
+    check('R9: a request that changes no goal does not trigger a refresh', c3 === c2, `${c2} -> ${c3}`);
+  }
   const html = readSrc('../public/arch.html');
   check('R7: the Add-goal field and button are gone from arch.html', !/id="goal-in"|id="btn-goal"|Add goal/.test(html));
   check('R8: the goal cards sit below the chat box', html.indexOf('id="chat-in"') > 0 && html.indexOf('id="user-goals"') > html.indexOf('id="chat-in"'));
+  { const gc = html.slice(html.indexOf("$('user-goals').innerHTML"), html.indexOf("$('cm-summary')")); check('R8: each goal is its own distinct card (own class, border, title, detail, Edit/Delete buttons), not a text line', /\.goalcard \{[^}]*border:/.test(html) && ['class="goalcard"', 'class="gt"', 'class="gd"', '>Edit</button>', '>Delete</button>'].every((x) => gc.includes(x))); }
   check('R9: no manual "Propose insight" button and no contribute route remain', !/btn-contribute|Propose goal-relevant/.test(html) && !/nordea\/contribute/.test(readSrc('../src/server/arch/routes.ts')));
 }
 

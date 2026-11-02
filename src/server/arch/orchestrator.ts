@@ -85,8 +85,11 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
   // Customer section already includes it.
   // Outcome R6: the goal intents (add / modify / remove) are recognised by code from what the customer
   // typed and act on the User DB; nothing else is invented as an action.
+  const goalSig = () => JSON.stringify(loadUserDb(uid).goals.map((g) => [g.id, g.title, g.detail]));
+  const sigBefore = goalSig();
   const goalDirect = goalIntentTurn(uid, text);
-  if (goalDirect && (goalDirect.intent === 'goal_add' || goalDirect.intent === 'goal_modify') ) await autoInsights(uid);
+  // R9: insights follow a REAL goal change (add, modify or remove) - not a question or a confirmation prompt.
+  if (goalDirect && goalSig() !== sigBefore) await autoInsights(uid);
   let begin: ReturnType<typeof beginChat> = goalDirect ? { kind: 'direct', direct: goalDirect } : beginChat(uid, text, session.id);
   // The plan is only computed when a round will actually use it (a provider call per plan).
   let planStatus: { cm: 'model' | 'scripted' | 'error'; nordea: 'model' | 'scripted' | 'error'; provider?: string; error?: string } | undefined;
@@ -178,56 +181,106 @@ export function chatIntent(text: string, category: QuestionCategory): ChatIntent
   if (/^\s*(hi|hello|hey|thanks|thank you|ok|okay|cool|bye)\b[\s!.?]*$/i.test(text)) return 'other';
   return category === 'Related Question' ? 'bank_financial' : 'general';
 }
-const GOAL_REMOVE = /^\s*(?:please\s+)?(?:remove|delete|drop|cancel)\s+(?:my\s+|the\s+)?(?:goal\b\s*[:\-]?\s*)(.+?)[.!]?\s*$/i;
-const GOAL_MODIFY_HEAD = /^\s*(?:please\s+)?(?:change|rename|update|edit)\s+(?:my\s+|the\s+)?goal\s*[:\-]?\s*(.+?)[.!]?\s*$/i;
-/** "X to Y": the goal title itself may contain "to", so pick the split whose left side is an existing goal. */
-function splitModify(rest: string, goals: Goal[]): [string, string] | null {
-  const seps = [...rest.matchAll(/\s+(?:to|into|as)\s+/gi)];
-  let fallback: [string, string] | null = null;
-  for (const m of seps) {
-    const left = rest.slice(0, m.index).trim(), right = rest.slice((m.index ?? 0) + m[0].length).trim();
-    if (!left || !right) continue;
-    fallback ??= [left, right];
-    if (goals.some((g) => g.title.trim().toLowerCase() === left.toLowerCase())) return [left, right];
-  }
-  for (const m of seps) {
-    const left = rest.slice(0, m.index).trim(), right = rest.slice((m.index ?? 0) + m[0].length).trim();
-    if (left && right && findGoal(goals, left).goal) return [left, right];
-  }
-  return fallback;
-}
-const GOAL_ADD = /^\s*(?:please\s+)?(?:add\s+(?:a\s+|new\s+|another\s+)?goal|new goal|my goal is|goal:)\s*[:\-]?\s*(.+?)[.!]?\s*$/i;
+// Natural wording, decided by code: polite openers are stripped, then add / remove / modify phrasings are matched.
+const POLITE = /^\s*(?:(?:hey|hi|ok|okay)[,!\s]+)?(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?|please\s+|i(?:'d| would)\s+like\s+(?:you\s+)?to\s+|i\s+want\s+you\s+to\s+|voisitko\s+(?:ystävällisesti\s+)?|ole\s+hyvä\s+ja\s+|ole\s+kiltti\s+ja\s+)?/i;
+const REMOVE_VERB = '(?:remove|delete|drop|cancel|forget(?:\\s+about)?|get\\s+rid\\s+of|stop\\s+tracking|clear|poista|peruuta|unohda)';
+const GOAL_REMOVE_A = new RegExp(`^${REMOVE_VERB}\\s+(?:my\\s+|the\\s+|minun\\s+)?(?:(?:goal|tavoite)\\s*[:\\-]?\\s*)?(.+?)(?:\\s+(?:goal|tavoite))?(?:\\s+from\\s+my\\s+goals)?[.!?]*\\s*$`, 'i');
+const GOAL_REMOVE_B = /^i\s+(?:no\s+longer\s+want|don'?t\s+want|do\s+not\s+want)\s+(?:my\s+|the\s+)?(?:goal\s*(?:of|to)?\s*)?(.+?)(?:\s+(?:goal|anymore|any\s+more))*[.!?]*\s*$/i;
+const GOAL_MODIFY_HEAD = /^(?:change|rename|update|edit|reword|modify|muuta|vaihda|päivitä|paivita)\s+(?:my\s+|the\s+|minun\s+)?(?:(?:goal|tavoite)\s*[:\-]?\s*)?(.+?)[.!?]*\s*$/i;
+const GOAL_ADD_A = /^(?:add\s+(?:a\s+|an\s+|new\s+|another\s+)?(?:new\s+)?goal|new\s+goal|set\s+(?:a\s+)?(?:new\s+)?goal|my\s+(?:new\s+)?goal\s+is|goal(?=\s*:))\s*[:\-]?\s*(.+?)[.!?]*\s*$/i;
+const GOAL_ADD_B = /^add\s+(.+?)\s+(?:as\s+a\s+goal|to\s+my\s+goals)[.!?]*\s*$/i;
+const GOAL_ADD_C = /^(?:i\s+want\s+to|i\s+wanna|i'd\s+like\s+to|i\s+would\s+like\s+to|i\s+wish\s+to|i\s+plan\s+to|i'?m\s+planning\s+to|i\s+am\s+planning\s+to|i\s+need\s+to)\s+((?:save|buy|visit|travel|pay\s+off|go\s+to|reach|afford|start\s+saving|build|invest)\b.*?)[.!?]*\s*$/i;
+const GOAL_ADD_D = /^i(?:'m|\s+am)\s+(saving\s+(?:up\s+)?for\s+.+?)[.!?]*\s*$/i;
+const GOAL_ADD_FI_A = /^(?:lisää|lisaa)\s+(?:uusi\s+)?tavoite\s*[:\-]?\s*(.+?)[.!?]*\s*$/i;
+const GOAL_ADD_FI_B = /^(?:(?:minun\s+)?tavoitteeni\s+on|uusi\s+tavoite\s*[:\-]?)\s*(.+?)[.!?]*\s*$/i;
+const GOAL_ADD_FI_C = /^(?:haluan|haluaisin|aion|suunnittelen)\s+((?:säästää|saastaa|ostaa|matkustaa|vierailla|maksaa\s+pois|saavuttaa|rakentaa|sijoittaa|aloittaa\s+säästämisen)(?=\s|$).*?)[.!?]*\s*$/i;
+const STOP = new Set(['tavoite', 'tavoitteen', 'minun', 'the', 'my', 'a', 'an', 'to', 'for', 'of', 'goal', 'goals', 'about', 'and', 'in', 'on']);
+const goalWords = (t: string) => t.toLowerCase().split(/[^a-z0-9äöå]+/).filter((w) => w.length > 1 && !STOP.has(w));
+const cap = (t: string) => t.trim().replace(/^./, (c) => c.toUpperCase());
 function findGoal(goals: Goal[], target: string): { goal?: Goal; candidates: Goal[] } {
-  const t = target.trim().toLowerCase();
+  const t = target.trim().toLowerCase().replace(/\s+(?:goal|tavoite)$/, '');
   const exact = goals.filter((g) => g.title.trim().toLowerCase() === t);
   if (exact.length === 1) return { goal: exact[0], candidates: exact };
   const part = goals.filter((g) => g.title.toLowerCase().includes(t) || (t.length > 3 && t.includes(g.title.toLowerCase())));
-  return part.length === 1 ? { goal: part[0], candidates: part } : { candidates: exact.length > 1 ? exact : part };
+  if (part.length === 1) return { goal: part[0], candidates: part };
+  if (part.length > 1) return { candidates: part };
+  // Plain words ("my Japan goal"): every meaningful word of the target appears in exactly one goal title.
+  const tw = goalWords(t);
+  const byWords = tw.length ? goals.filter((g) => { const gw = goalWords(g.title); return tw.every((w) => gw.some((x) => x === w || x.startsWith(w) || w.startsWith(x))); }) : [];
+  return byWords.length === 1 ? { goal: byWords[0], candidates: byWords } : { candidates: byWords };
 }
+/** "X to Y": the goal title itself may contain "to", so pick the split whose left side is an existing goal. */
+function splitModify(rest: string, goals: Goal[]): [string, string] | null {
+  const seps = [...rest.matchAll(/\s+(?:to|into|as|muotoon|ksi)\s+/gi)];
+  const parts = seps.map((m) => [rest.slice(0, m.index).trim(), rest.slice((m.index ?? 0) + m[0].length).trim()] as [string, string]).filter(([l, r]) => l && r);
+  return parts.find(([l]) => goals.some((g) => g.title.trim().toLowerCase() === l.toLowerCase()))
+    ?? parts.find(([l]) => findGoal(goals, l).goal) ?? parts[0] ?? null;
+}
+// G47: a remove/modify that matched a goal only partially asks first; a removal can be undone with its details.
+const pendingGoalAction = new Map<string, { kind: 'remove' | 'modify'; goalId: string; title?: string; expires: number }>();
+const lastRemovedGoal = new Map<string, { goal: Goal; expires: number }>();
+const CONFIRM_YES = /^\s*(?:yes|yep|yeah|confirm|do it|go ahead|sure|kyllä|kylla|joo|vahvista)\b[\s,.!]*(?:please\s*)?(?:remove|delete|change|rename|do)?[\s\w]{0,20}[.!]*\s*$/i;
+const UNDO = /^\s*(?:please\s+)?(?:undo(?:\s+(?:that|it|the\s+(?:removal|delete)))?|bring\s+(?:it|that|the\s+goal)\s+back|restore\s+(?:it|that|the\s+goal))[.!?]*\s*$/i;
+
 /** Add / modify / remove a goal from chat. Ambiguous or unmatched targets ask instead of acting. */
 function goalIntentTurn(uid: string, text: string): { reply: string; used: string[]; intent: ChatIntent } | null {
   const used = ['user-db'];
-  const head = text.match(GOAL_MODIFY_HEAD);
-  const split = head ? splitModify(head[1], loadUserDb(uid).goals) : null;
-  const mod = split ? [text, split[0], split[1]] : null, rem = text.match(GOAL_REMOVE), add = text.match(GOAL_ADD);
-  if (!mod && !rem && !add) return null;
-  if (add && !mod && !rem) {
-    const g = addGoalDirect(uid, add[1]);
+  const body = text.replace(POLITE, '').trim();
+  const goals = loadUserDb(uid).goals;
+  const t0 = Date.now();
+  if (UNDO.test(body)) {
+    const last = lastRemovedGoal.get(uid);
+    if (!last || last.expires < t0) return null; // nothing to undo: not a goal action, the normal chat answers
+    lastRemovedGoal.delete(uid);
+    const back = addGoalDirect(uid, last.goal.title, last.goal.detail ?? '');
+    return { reply: `Brought back the goal "${back.title}"${back.detail ? ` with its details (${back.detail})` : ''}.`, used, intent: 'goal_add' };
+  }
+  const pend = pendingGoalAction.get(uid);
+  if (pend && pend.expires >= t0 && CONFIRM_YES.test(body)) {
+    pendingGoalAction.delete(uid);
+    const g = goals.find((x) => x.id === pend.goalId);
+    if (!g) return { reply: 'That goal is no longer there. Nothing changed.', used, intent: pend.kind === 'remove' ? 'goal_remove' : 'goal_modify' };
+    if (pend.kind === 'modify') { appWrites.updateGoal(uid, g.id, { title: pend.title }); return { reply: `Changed the goal "${g.title}" to "${pend.title}".`, used, intent: 'goal_modify' }; }
+    lastRemovedGoal.set(uid, { goal: g, expires: t0 + 30 * 60_000 });
+    appWrites.removeGoal(uid, g.id);
+    return { reply: `Removed the goal "${g.title}" from your User DB. Say "undo" to bring it back with its details.`, used, intent: 'goal_remove' };
+  }
+  if (pend && pend.expires >= t0 && /^\s*(?:no|nope|cancel|never\s*mind|stop|ei|peruuta)\b/i.test(body)) { pendingGoalAction.delete(uid); return { reply: 'OK, nothing changed.', used, intent: pend.kind === 'remove' ? 'goal_remove' : 'goal_modify' }; }
+  const rem = body.match(GOAL_REMOVE_A) ?? body.match(GOAL_REMOVE_B);
+  const head = rem ? null : body.match(GOAL_MODIFY_HEAD);
+  let split = head ? splitModify(head[1], goals) : null;
+  // Only a goal request: it names "goal" or its left side is an existing goal. "Update my address to ..." is not ours.
+  if (split && !/goal|tavoit/i.test(text) && !findGoal(goals, split[0]).goal) split = null;
+  const isQuestion = /\?/.test(body);
+  const add = rem || split ? null : (body.match(GOAL_ADD_A) ?? body.match(GOAL_ADD_FI_A) ?? body.match(GOAL_ADD_FI_B) ?? (isQuestion ? null : (body.match(GOAL_ADD_B) ?? body.match(GOAL_ADD_C) ?? body.match(GOAL_ADD_D) ?? body.match(GOAL_ADD_FI_C))));
+  if (!rem && !split && !add) return null;
+  if (add) {
+    const g = addGoalDirect(uid, /^(?:add|new|set|my|goal|lisää|lisaa|tavoite|minun|uusi)/i.test(body) ? add[1].trim() : cap(add[1]));
     return { reply: `Saved "${g.title}" as a goal in your User DB. Direct input goes straight in - the sync airlock only gates things your connected personal agent pulls in from WhatsApp, calendar, notes or email.`, used, intent: 'goal_add' };
   }
-  const goals = loadUserDb(uid).goals;
   const list = goals.map((g) => `"${g.title}"`).join(', ') || 'none yet';
-  const target = (mod ? mod[1] : rem![1]);
+  const target = split ? split[0] : rem![1];
   const found = findGoal(goals, target);
+  // A removal phrase that names no goal at all ("forget it", "clear the chat") is not a goal request.
+  if (!found.goal && rem && !/goal|tavoit/i.test(text)) return null;
   if (!found.goal) {
-    return { reply: found.candidates.length > 1 ? `More than one goal matches "${target.trim()}" (${found.candidates.map((g) => `"${g.title}"`).join(', ')}). Say which one, using its full title. Nothing changed.` : `I couldn't find a goal called "${target.trim()}". Your goals: ${list}. Nothing changed.`, used, intent: mod ? 'goal_modify' : 'goal_remove' };
+    return { reply: found.candidates.length > 1 ? `More than one goal matches "${target.trim()}" (${found.candidates.map((g) => `"${g.title}"`).join(', ')}). Say which one, using its full title. Nothing changed.` : `I couldn't find a goal called "${target.trim()}". Your goals: ${list}. Nothing changed.`, used, intent: split ? 'goal_modify' : 'goal_remove' };
   }
-  if (mod) {
-    appWrites.updateGoal(uid, found.goal.id, { title: mod[2].trim() });
-    return { reply: `Changed the goal "${found.goal.title}" to "${mod[2].trim()}".`, used, intent: 'goal_modify' };
+  const exactTitle = (t: string) => found.goal!.title.trim().toLowerCase() === t.trim().toLowerCase();
+  if (!exactTitle(target)) {
+    // Partial match: never act on it silently. Ask, and act only on an explicit yes.
+    pendingGoalAction.set(uid, { kind: split ? 'modify' : 'remove', goalId: found.goal.id, title: split ? cap(split[1]) : undefined, expires: t0 + 5 * 60_000 });
+    return { reply: split
+      ? `Do you mean the goal "${found.goal.title}"? Change it to "${cap(split[1])}"? Reply yes to confirm or no to cancel. Nothing changed yet.`
+      : `Do you mean the goal "${found.goal.title}"? Remove it? Reply yes to confirm or no to cancel. Nothing changed yet.`, used, intent: split ? 'goal_modify' : 'goal_remove' };
   }
+  if (split) {
+    appWrites.updateGoal(uid, found.goal.id, { title: cap(split[1]) });
+    return { reply: `Changed the goal "${found.goal.title}" to "${cap(split[1])}".`, used, intent: 'goal_modify' };
+  }
+  lastRemovedGoal.set(uid, { goal: found.goal, expires: t0 + 30 * 60_000 });
   appWrites.removeGoal(uid, found.goal.id);
-  return { reply: `Removed the goal "${found.goal.title}" from your User DB. To bring it back, say: add goal ${found.goal.title}.`, used, intent: 'goal_remove' };
+  return { reply: `Removed the goal "${found.goal.title}" from your User DB. Say "undo" to bring it back with its details.`, used, intent: 'goal_remove' };
 }
 
 const EN_WORDS = /\b(the|is|are|was|were|what|who|whom|when|where|why|how|which|does|do|did|can|could|tell|explain|about|of|in|on|a|an|to|for|and|it|there|that|this)\b/gi;
@@ -385,7 +438,8 @@ async function planRoundLlm(uid: string, question: string): Promise<NonNullable<
 export interface ContextCard { id: string; title: string; detail: string; status?: string; conflict?: boolean; combines: number; unit: 'bank records' | 'sources'; source: string; at: string }
 function contextCards(rows: { id: string; title: string; detail: string; status?: string; conflict?: boolean; source: string; evidence?: Record<string, unknown> | null; at: string }[]): ContextCard[] {
   return rows.map((r) => {
-    const m = Number(r.evidence?.matched ?? (Array.isArray(r.evidence?.transactionIds) ? (r.evidence!.transactionIds as unknown[]).length : 0));
+    // The stored id list is capped (25), so the real count comes from `matched` or, for cabinet entries, from the detail text itself.
+    const m = Number(r.evidence?.matched ?? r.detail.match(/(\d+) transactions?\b/)?.[1] ?? (Array.isArray(r.evidence?.transactionIds) ? (r.evidence!.transactionIds as unknown[]).length : 0));
     return { id: r.id, title: r.title, detail: r.detail, status: r.status, conflict: r.conflict, combines: m > 0 ? m : 1, unit: m > 0 ? 'bank records' : 'sources', source: r.source, at: r.at };
   });
 }

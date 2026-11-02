@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,11 +52,11 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G46 | M | V7 | README after 452c67f still names removed `abel.ts` (README.md:57 mermaid, :308) and lists offers as high risk (:194). | `README.md:57,194,308` | open |
+| G46 | M | V7 | README after 452c67f still names removed `abel.ts` (README.md:57 mermaid, :308) and lists offers as high risk (:194). | `README.md:57,194,308` | fixed, Bill to verify |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
-| G47 | M | V2 | Chat 'remove goal car' deletes "Save for a car" on a partial match, no confirmation; the re-add hint drops the goal's detail (12 000 EUR by Dec 2027). Fix: exact title or confirm step; real undo that restores details. | `orchestrator.ts` goalIntentTurn/findGoal; Bill probe | open |
-| R6 | M | V4 | Chat intents built; remove part fails G47. | R-src | open (G47) |
+| G47 | M | V2 | Chat 'remove goal car' deletes "Save for a car" on a partial match, no confirmation; the re-add hint drops the goal's detail (12 000 EUR by Dec 2027). Fix: exact title or confirm step; real undo that restores details. | `orchestrator.ts` goalIntentTurn/findGoal; Bill probe | fixed, Bill to verify |
+| R6 | M | V4 | Chat intents built; remove part fails G47. | R-src | fixed, Bill to verify |
 
 R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
@@ -129,4 +129,15 @@ G47 (M) new: chat "remove goal car" deleted "Save for a car" (partial match, no 
 G46 still open: README.md:57 and :308 still name removed abel.ts; :194 lists offers. R7 note: mobile Add-goal modal remains.
 FACT: auto insights run contribute() after every goal change - with a real model that is paid calls per change.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 21:56
+```
+DID G47: partial match asks first (yes/no); undo restores the goal WITH details; exact title acts at once. Pins fail without fix.
+DID G46: README abel.ts (:57,:308), offers-high-risk (:194) fixed; goals-by-chat text. R8: distinct goal cards (pixels, populated CM too).
+DID R6: natural EN/FI goal requests ("I want to save for a car", "lisää/muuta/poista tavoite"); non-goal talk stays chat. R9: remove also refreshes.
+FACT: refresh only on a real goal change. arch 339 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3 tsc0 bank. Pixels synthetic, NOT live.
+NOT DONE: R2 gateway (owner pending), G42 (excluded), mobile untouched. Auto insights = model calls per goal change when a model is on.
+ASK@Bill: QC G46, G47, R6, R8, R9 at the new head.
+NEXT: Bill
 ```

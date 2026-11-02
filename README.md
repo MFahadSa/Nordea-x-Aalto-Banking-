@@ -54,7 +54,7 @@ flowchart TD
     PA -->|"Customer section"| CTX
     CM -->|"Context memory section + finalise stamp"| CTX
     NOR -->|"Nordea section"| CTX
-    APP --> ABEL["💬 Abel<br/><code>abel.ts</code> - gateway-only imports"]
+    APP --> ABEL["💬 Abel chat<br/><code>orchestrator.ts</code> - answers from context.md"]
 ```
 
 ## 🚀 Quick start
@@ -87,7 +87,7 @@ LLM_PROVIDER=mock npm run dev        # bash (Mac/Linux)
 | Page | What it is |
 |---|---|
 | **http://localhost:3000/** | The main Abel app (the banking UI from `main`) |
-| **http://localhost:3000/arch.html** | The three-agent demo: pick a demo customer (`alex`, `eeva` or `lauri`) in the Customer picker, add a goal, chat |
+| **http://localhost:3000/arch.html** | The three-agent demo: pick a demo customer (`alex`, `eeva` or `lauri`) in the Customer picker and chat - goals are added, changed or removed by telling the personal agent in the chat |
 | **http://localhost:3000/dev-monitor.html** | Read-only developer monitor - on by default; set `DEV_MONITOR=0` to turn it off (same per-OS form as `LLM_PROVIDER` above) |
 
 **Real AI answers (the normal run).** Copy `.env.example` to `.env` and add one free key, then restart without `LLM_PROVIDER=mock`. (`.env.example` is worded for the hosted AI Studio deployment; locally the same variable names go in `.env`, which git ignores.)
@@ -191,7 +191,7 @@ With a provider configured (`GEMINI_API_KEY` or `LLM_PROVIDER=openai`), all thre
 
 | | Feature | How it works |
 |:-:|---|---|
-| 📏 | **Risk decided by code rules** | High risk always waits for the customer: offers, sharing beyond the three agents, inferences, sensitive topics. Never the agent's judgement. |
+| 📏 | **Risk decided by code rules** | High risk always waits for the customer: sharing beyond the three agents, inferences, sensitive topics. Never the agent's judgement. |
 | 🧾 | **Observed vs inferred, derived** | "Observed" comes from the evidence (transaction ids + a total, or the customer's own words) - never trusted from the proposer's own flag. |
 | 🎚️ | **Standing permissions** | Set once via `POST /api/arch/:uid/permissions`. Until then every proposal waits in merge review; afterwards low and medium risk items are stored automatically - always logged, explainable and disputable. |
 
@@ -252,7 +252,7 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 
 | Check | Command | Covers |
 |---|---|---|
-| Architecture tests | `npm run test:arch` | 319 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
+| Architecture tests | `npm run test:arch` | 339 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
 | End-to-end | `npm run test:e2e` | 37 checks over a real booted server (incl. requestId dedup + late pickup): a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
 | Data-layer adapter | `npm run test:adapter` | 43 checks: the old app store as an adapter over the three agent databases, legacy migration, and plumbing separation |
 | Hosted sync | `npm run test:remote` | 36 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
@@ -305,6 +305,6 @@ scripts/
   run_python.mjs   runs Python as "python" or "python3", whichever the machine has
 ```
 
-The main Abel app (`src/server/abel.ts`, cabinet UI, access gateway) is shared with `main`; this branch wires Abel's chat into the three-agent context described above.
+Abel's chat on this branch lives in the three-agent code (`src/server/arch/orchestrator.ts` and the personal agent) and answers from the session's `context.md`; the access gateway (`src/server/accessGateway.ts`) is shared with `main`.
 
 </details>

@@ -81,8 +81,9 @@ export function registerArchRoutes(app: Express) {
     await autoInsights(uid(req));
     res.json({ ok: true });
   }));
-  app.post('/api/arch/:uid/goals/:goalId/delete', h((req, res) => {
+  app.post('/api/arch/:uid/goals/:goalId/delete', h(async (req, res) => {
     appWrites.removeGoal(uid(req), String(req.params.goalId));
+    await autoInsights(uid(req));
     res.json({ ok: true });
   }));
 

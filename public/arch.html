@@ -41,6 +41,12 @@
   .queue { margin-top:18px; background:#f4f5f7; border-radius:14px; padding:14px 18px; box-shadow:0 10px 30px rgba(0,0,0,.4); }
   .queue h2 { font-size:16px; color:#1c2128; margin-bottom:8px; }
   .item { background:#fff; border:1px solid #d8dce2; border-radius:10px; padding:9px 13px; margin-bottom:8px; font-size:13px; }
+  .goalcard { background:#fff; border:1px solid #d8dce2; border-left:4px solid #0000a0; border-radius:10px; padding:10px 13px; margin-bottom:9px; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .goalcard .gt { font-size:14px; font-weight:700; color:#12151a; }
+  .goalcard .gd { font-size:12.5px; color:#3b434d; margin-top:3px; }
+  .goalcard .gm { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:11.5px; color:#6a737d; }
+  .goalcard .gm .sp { flex:1; }
+  .goalcard .gm button { font-size:11.5px; padding:2px 9px; }
   .item .meta { color:#6a737d; font-size:12px; margin-top:3px; }
   .chatlog { background:#fff; border:1px solid #d8dce2; border-radius:10px; padding:10px 13px; max-height:150px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:6px; }
   .chatlog .me { color:#0000A0; } .chatlog .agent { color:#0b4f43; }
@@ -217,8 +223,8 @@ async function refresh() {
   $('conn-nordea').innerHTML = conn(s.stores.nordea);
   $('user-summary').innerHTML = `Goals: <b>${s.databases.user.goals}</b> · Personal facts: <b>${s.databases.user.personalFacts}</b>`;
   $('user-goals').innerHTML = (s.goals ?? []).length ? (s.goals ?? []).map((g) =>
-    `<div class="entry"><b>${esc(g.title)}</b>${g.detail ? ` - ${esc(g.detail)}` : ''}
-     <div class="meta">in Abel's knowledge (User DB) · <a href="#" onclick="editGoal('${g.id}','${esc(g.title).replace(/'/g, '')}');return false;">edit</a> · <a href="#" onclick="deleteGoal('${g.id}','${esc(g.title).replace(/'/g, '')}');return false;">delete</a></div></div>`).join('')
+    `<div class="goalcard"><div class="gt">${esc(g.title)}</div>${g.detail ? `<div class="gd">${esc(g.detail)}</div>` : ''}
+     <div class="gm"><span>in Abel's knowledge (User DB)</span><span class="sp"></span><button onclick="editGoal('${g.id}','${esc(g.title).replace(/'/g, '')}')">Edit</button><button class="danger" onclick="deleteGoal('${g.id}','${esc(g.title).replace(/'/g, '')}')">Delete</button></div></div>`).join('')
     : '<div class="empty">No goals yet - tell Abel in the chat, for example "my goal is to visit Japan".</div>';
   $('cm-summary').innerHTML = `Cabinet entries: <b>${s.databases.contextMemory.entries}</b>${s.databases.contextMemory.disputed ? ` · <span style="color:#a4352c">${s.databases.contextMemory.disputed} disputed</span>` : ''}`;
   $('perm').value = s.databases.contextMemory.permissions?.reviewLevel ?? 'all';
