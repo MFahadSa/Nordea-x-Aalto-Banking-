@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -76,4 +76,11 @@ Caveat: static cases, no lifecycle, stale-hash/time or over-assignment pin. READ
 Not a feature gate. D8 (cycles + failure reply) stays the Coordinator's ask.
 STATE: separate commit; no merge/spend/live/paid. Pin gap (initial review before gather) is a test-hardening followup.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 01:42
+```
+prep-r2 dataset ACCEPTED @d23eb10: validator 74/0 reproduced, no imports/env/network, no secrets. Baseline unchanged (no code).
+FACT: it checks the cases against its own rules, not approvalGate.ts - wire it to canPass/codeFloor in a later batch to make it a real pin.
+NEXT: Telkomsel
 ```
