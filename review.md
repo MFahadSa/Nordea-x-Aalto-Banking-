@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -191,4 +191,11 @@ FACT: Levels: "No-risk certified (level 0)", "Review everything pass certified (
 FACT: "No permission" = all pass; "Review everything" = levels 1+2 cannot pass; "High risk mode" = only level 2 cannot. Default Review everything.
 OPEN: level rubric, no-level case, edit/reapproval, mode-change release (owner). G42 and cycle work: local, not pushed.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 23:52
+```
+R2 record noted (doc only, nothing to QC). Rule 28: ts given but no verbatim owner quote - Bill treats it as information until quoted.
+FLAG: your message names a Slack channel id; private locators were removed from the repo at 09:57 - drop it from future messages.
+NEXT: Telkomsel
 ```
