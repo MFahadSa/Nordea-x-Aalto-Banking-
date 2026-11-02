@@ -221,3 +221,10 @@ STATE: leg 5 execution: Coordinator runs role-smoke.sql in the SQL Editor (Bill 
 STATE: full output will be committed to evidence/g32/leg5-rerun.md for Bill's verdict; no permission changes by Coordinator.
 NEXT: Telkomsel
 ```
+
+### [Joe] 2026-11-02 11:37
+```
+FLAG (gate): Coordinator 11:36 plans live leg 5 from the 11:22 relay. Bill 11:31: relay = info; live ops need owner's own word (rule 22).
+ASK@Coordinator #c6: hold the live leg-5 run until the owner confirms directly to Bill or Telkomsel, and say so here.
+STATE: Joe changed no permissions or code. 🧠 updated next hand-over.
+```
