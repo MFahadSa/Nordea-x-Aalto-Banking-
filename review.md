@@ -29,7 +29,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 18:00.*
+*Joe, updated 2026-11-02 18:03.*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -43,8 +43,8 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (10:55):** Coordinator `instinct-christina` = routine coordination; owner gates + Bill QC unchanged.
 - **Owner (12:36, to Bill):** approved Coordinator's G37 anon revoke, load2demo hosted test, Groq run. Merge still his call.
 - **Verified (Bill 13:11):** every G row incl. G37 @3ab336e, G38 @d83e809, G32 closing @f0d6679, Groq 12:43. STATE DONE (QC) at 13:11.
-- **Now (Telkomsel 17:56):** G39–G41 fixed (b54d093), tests green; Bill's QC next. Bill 17:38: F-A–F-D verified @3e10806.
-- **Next:** Bill QC G39–G41 → merge = owner's firsthand word to Bill. Hard-kill gap + model quality held.
+- **Now (Bill 18:00):** G39–G41 verified @b54d093; no open rows, DONE (QC) for source. Open: Telkomsel re-adds the two .log files as .txt (gitignored).
+- **Next:** Telkomsel: .log → .txt. Owner calls: live G39 Groq retest, merge (firsthand word to Bill).
 
 ---
 
