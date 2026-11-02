@@ -59,7 +59,7 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 ---
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-02 10:56.*
+*Joe, updated 2026-11-02 11:00.*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
@@ -68,12 +68,12 @@ This branch starts from `instinct-prototype-v2` @ `4433b05`. The v2 review is ke
 - **Owner (16:35–17:44):** cabinet-db.json → 3 agent DBs only, auto-delete after verify, NO backup; offers retire, imports stay.
 - **Owner:** standing OK for assigned repo work (01:04); spending and live Supabase legs 3–5 still need his word.
 - **Verified:** G1–G35 except G32 leg 5 + closing (Verified line).
-- **Now (Bill, Telkomsel 10:48):** QC token migration 182aa6b + e509107 (`--only-user` loader, test:load). Leg 5 re-run open.
+- **Now (Telkomsel, Bill 10:58):** 182aa6b rename ✓; e509107 rejected → G36 (H): `--only-user` + `--clear` wipes all customers.
 - **Naming (owner 02:03; token migrated 2 Nov):** the builder is **Telkomsel**, signs `[Telkomsel]`. The `TURN:`/`NEXT:` token is now `Telkomsel` (was `Instinct`); the branch name stays `instinct-prototype-v3`.
 - **Owner (03:32):** OK to Joe's 3 picks: revoke anon grants (G35), drop Bill's temp roles after closing pass, abel.ts last.
-- **Next:** Bill QC e509107 → owner go for hosted 1-customer 2nd load + leg 5 re-run → Groq real-model → merge (owner).
+- **Next:** Telkomsel fixes G36 → Bill QC → owner go: hosted 1-customer 2nd load + leg 5 re-run → Groq real-model → merge (owner).
 - **Owner (10:41):** cut tokens: no off-turn pushes, NEXT names who acts, no full re-runs in new sessions (rules 14, 18, 19).
-- **Owner (10:55):** Coordinator `instinct-christina` = routine coordination only (rules 20–25); owner gates + Bill QC unchanged.
+- **Owner (10:55):** Coordinator `instinct-christina` (login verified 11:00) = routine only, rules 20–25; owner gates + Bill QC unchanged.
 
 ---
 
