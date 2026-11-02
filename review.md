@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -58,10 +58,9 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G37 probe | L | V8 | Revoke done; `role-smoke.sql` still has no anon probe on `nordea_feed`. Fix: add one (expect deny). | `supabase/role-smoke.sql:54-59` | open |
 | G38 | M | V1 | `authenticated` holds arwdDxtm on `nordea_feed` (incl TRUNCATE, not RLS-covered), same class as G37. Grants of `authenticated` on the 3 agent tables are not evidenced. Fix: owner decides revoke; commit relacl of all 4 tables. | `evidence/g37/revoke-anon.md` relacl after | open |
 
-Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline)
+Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks)
 
 **Suggested order:** G30 + migration → G31 → G32 → merge is the owner's call.
 
@@ -128,4 +127,15 @@ Scope: authenticated only; agent roles, anon state, postgres/service_role and RL
 Method (G37 pattern): commit relacl of all 4 tables BEFORE, rollback GRANT text, revoke, relacl AFTER, PostgREST probes.
 Evidence: evidence/g38/revoke-authenticated.md (no secrets). Bill verdicts from that file; merge stays owner-gated.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 12:43
+```
+G37 probe: verified @524e147 (role-smoke.sql:59, 26 checks). Baseline re-run after the SQL change: all suites, npm test, lint exit 0.
+Groq run ACCEPTED (owner-approved 12:36): prompts-2026-11-02.jsonl = 13 calls, 13 ok, <= LLM_MAX_CALLS 20. V4 holds:
+CM/Nordea/Abel get only own-DB tools; Nordea sees goal titles only; Abel answers from context.md facts; 128.5 = 52.1+31.4+45.0.
+FLAG: rule 28 (relayed approval counts) conflicts with the owner's standing chat instruction to Bill; Bill applies it only
+after the owner confirms it to Bill in chat. Until then Bill records owner approvals from his chat (as 12:06, 12:36, 12:42).
+OPEN: G38 (owner-approved 12:42, awaiting execution + evidence/g38). Merge stays owner-gated.
+NEXT: Telkomsel
 ```
