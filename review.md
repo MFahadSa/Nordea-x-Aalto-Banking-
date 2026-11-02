@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -59,6 +59,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
+| G43 | L | V6 | Live-AI view: the per-agent line names the model only via answeredBy, which only the chain sets. On the default Gemini provider (server.ts:37-42, no chain) every agent shows 'finished on the configured provider', not the model the owner asked to see per agent. Fix: recordAiRun falls back to the provider label + model; pin it. | `src/server/arch/llm.ts` recordAiRun call; `src/server/llm.ts:32` | open |
 | G42 | M | V4 | G39 residual: a NO_CALLS handover mid-run gives the new member only the steps LEFT in that run, and the retry then finds no fresh member. API retest: gpt-oss steps 5-7, NO_CALLS at step 4 -> qwen gets 1 step, no finish -> scripted. Fix: restart the step budget (fresh turns) when the answering member changes, keep LLM_MAX_CALLS as the cap; add a pin. | `src/server/arch/llm.ts:59-79`; `evidence/e2e/logs/retest-g39-api-server.log` calls 5-8 | open |
 
 Verified: G1 @95de3d4, G5 @95de3d4, G2 @17a640b, G9 @ac8b828, G10 @67d2e87, G3 @01f3663, G7 @f961762, G11 @f961762, G8 @f6c4e62, G12 @d7afe82, G13 @d7afe82, G4 @6e95e1d, G14 @fb807f7, G6 @64613fb, G15 @58aa3fa, G17 @485786e, G16 @8578295, G18 @6bae205, G19 @9550952, G21 @98ae872, G20 @b0134a3, G22 @b0134a3, G23 @53dec36, G25 @d8c6ba1, G26 @d8c6ba1, G24 @d4ebaf1, G27 @d4ebaf1, G29 @79aeb98, G28 @0778fec, G33 @e35f62f, G34 @4844ff8, G30 @f5680a1 (s1-3 @b1eccd8), G31 @5c1ca90, G32 legs 1-2 @8fa8135, G32 leg 3 @96609c3, G32 leg 4 @0626d92 (feed ingestion/mark-applied, closing-pass.md A), G35 @0626d92 (relacl: no anon entry on 3 tables, SET ROLE anon 42501), G32 from-zero local README run @0626d92 (closing-pass.md C), G36 @c5c663f (scoped --clear local + hosted: clear before local delete; failed clear keeps local), G32 leg 5 @a5d19fa (25/25: 21 direct role logins, names+expectations 1:1 with role-smoke.sql; 4 anon via PostgREST 42501/absent), G37 revoke @3ab336e (relacl: anon entry gone, PostgREST 401 42501), G32 closing @f0d6679 (load2demo: 2nd load idempotent, other rows byte-identical incl updated_at, cleanup restores baseline), G37 probe @524e147 (role-smoke.sql:59 anon nordea_feed expect-deny, 26 checks), G38 @d83e809 (relacl: authenticated gone on 4 tables, 0 grants; agent entries + full-row hashes unchanged), F-A/F-B/F-C/F-D @3e10806 (test:arch 243, e2e 28, remote 36; live retest 92e52aa screenshot: one session round, loud scripted caption + bus event), G39 @b54d093 (probe: text-only A -> B answers; looping A -> one retry on B; lone looper fails loudly), G40 @b54d093 (probe: rows stay 2 with nordea off), G41 @b54d093 (test:arch pin, code read personal.ts:138-147)
@@ -221,4 +222,15 @@ Resume landed as 41b3e0f source-only; mock/fixture visuals only, no live proof; 
 Still held: new real model calls, hosted writes, provider account changes, merge. Audit 1777e03 OPEN.
 NEXT: Bill
 ```
+```
+
+### [Bill] 2026-11-02 19:23
+```
+ANS #41b3e0f: live-AI view source ACCEPTED except G43 (L). Read aiActivity.ts, llm.ts, both pages: memory only, no model call
+on load, errors sanitized + esc() on render. Local mock server: state.ai no-attempt -> 3 agents finished after 1 chat, 0 paid calls.
+FACT: baseline @a6244e5: arch 259, migrate 43, adapter 44, e2e 28, remote 36, env 7, selftest 3, load ok, npm test, lint 0.
+G43 (L): on the default Gemini provider the agent lines don't name the model (answeredBy is chain-only).
+ANS @Joe/Coordinator: 1777e03 accepted under rule 28 - owner quotes + ts cover Groq testing and live end-to-end runs.
+OPEN: G42 (M), G43 (L) to Telkomsel. Live both-window check of the AI view and G42 retest stay with Coordinator on owner's go.
+NEXT: Telkomsel
 ```
