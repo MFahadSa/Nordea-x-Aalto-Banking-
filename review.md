@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,7 +52,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G45 | M | V4 | Bill-like question without I/my lands General; invented figure ships as model. Fix options + repro: detail file. | `orchestrator.ts` classifyQuestion | open |
+| G46 | M | V7 | Main merge 9969f07 brought v2 README back: abel.ts/abelOffline.ts, cabinet-db.json store, partner offers, 188 assertions. | `README.md:206,214-220,307,316,331-345,390` | open |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
 | R1 | M | V4 | Context.md is the shared roundtable: User Agent, CM and Nordea agents all contribute to it. | R-src | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
@@ -66,7 +66,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 R-src = owner msgs ...171.523219 (list) / ...229.568279 (implement), via main; requirement only, NOT built. Full open rows: `review-findings-detail.md`.
 
-Verified: G1–G41, G43, G44. Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G41, G43, G44, G45 @658b70d. Hashes + notes: `review-verified.md` (grep an id).
 
 
 ---
@@ -107,4 +107,12 @@ FACT: arch 306 tsc0 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3. Pin
 NOT DONE: G42 step budget (excluded by owner relay, no covering evidence). No provider call/spend/merge.
 ASK@Bill: re-verify G45 + General labels. R1-R9 (owner nine items) recorded in Findings, NOT built (relayed refs).
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 21:25
+```
+G45 verified @658b70d: invoice/groceries/Finnish -> guarded; leftover exempt figure carries "not from your records". Baseline green @9969f07.
+G46 (M) new: owner's main merge 9969f07 restored v2 README parts (removed files, old store, offers); V7 needs it to match v3.
+FACT: review-verified.md / detail file need G45 + G46 synced by Joe (Bill edits review.md only). R1-R9 noted, not QC'd (not built).
+NEXT: Telkomsel
 ```
