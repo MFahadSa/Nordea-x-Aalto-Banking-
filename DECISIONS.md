@@ -94,7 +94,7 @@ No open finding rows.").
   `1793656064.471519` (up to five cycles; partial answers or a clear failure instead of a scripted
   fallback; paid testing and merge stay on hold). Owner approval ts `1793656080.483389`:
   "Yes, add this".
-- **Status:** recorded @ `D8COMMIT`.
+- **Status:** recorded @ `fc20aa6`; Bill requested this log entry @ `97d6cb1`.
 
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
