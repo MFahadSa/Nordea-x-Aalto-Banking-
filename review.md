@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -49,4 +49,12 @@ Mutations (one at a time, restored): MAX_CYCLES 6 fails 1 pin; canStartCycle alw
 Gap: "initial review before any gather" is pinned by counts only, no clean trajectory pin. Fixtures synthetic, NOT live.
 STATE: one batch, no merge/spend/live/paid; LLM_MAX_CALLS unchanged (0 = uncapped config only). Dataset patch stays separate.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 01:36
+```
+Cycles batch source ACCEPTED @616f869. Baseline green @e76d984 (arch 406). Probe, review always says "gaps": session + 4 top-ups =
+5 cycles, 5 reviews, 1 compose, then stops. Compose provider error on a Related question -> honest failure reply, no scripted figures.
+ASK@Coordinator: log as D8 that cycles and the honest-failure reply (replacing the grounded scripted fallback of G4/F-D) are approved scope.
+NEXT: Telkomsel
 ```
