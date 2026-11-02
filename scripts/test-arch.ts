@@ -361,6 +361,10 @@ check('AC1: the Nordea agent module imports only its own store plus shared infra
 check('AC2: only the personal agent module writes the Customer section', personalSrc.includes('writeCustomerSection') && !personalSrc.includes('writeMemorySection') && !personalSrc.includes('writeNordeaSection'));
 check('AC2: only the CM agent module writes the Context memory section and the header', cmSrc.includes('writeMemorySection') && cmSrc.includes('writeHeader') && !cmSrc.includes('writeCustomerSection') && !cmSrc.includes('writeNordeaSection'));
 check('AC2: only the Nordea agent module writes the Nordea section', nordeaSrc.includes('writeNordeaSection') && !nordeaSrc.includes('writeCustomerSection') && !nordeaSrc.includes('writeMemorySection'));
+{ const ctxSrc = readSrc('../src/server/arch/store/contextStore.ts'), appSrc = readSrc('../src/server/arch/orchestrator.ts') + readSrc('../src/server/arch/routes.ts');
+  const saveCalls = [...ctxSrc.matchAll(/\bsave\(uid, doc\)/g)].length;
+  check('G50: only the private writer, the header, the session reset and the app delete touch the shared document; no other exported function rewrites a section', !/pruneGoalRows/.test(ctxSrc + appSrc) && saveCalls <= 3 && !/export function (?!write|readSection|loadContext|renderContextMd|resetContextForSession|deleteContext|contextMdPath)\w+\(/.test(ctxSrc.replace(/export function (writeCustomerSection|writeMemorySection|writeNordeaSection|writeHeader)/g, '')), `save calls ${saveCalls}`);
+  check('G50: the app layer imports no section writer from contextStore', !/import\s*\{[^}]*\bwrite(Customer|Memory|Nordea)Section\b[^}]*\}\s*from\s*'\.\/store\/contextStore/.test(appSrc)); }
 check('AC1: the dispatcher and round engine open no agent store at all',
   !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/dispatcher.ts')) && !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/rounds.ts')));
 

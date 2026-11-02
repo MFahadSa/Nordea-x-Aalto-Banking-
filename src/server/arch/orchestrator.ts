@@ -20,7 +20,7 @@ import './agents/nordea.js'; // side effect: registers the Nordea agent's bus ha
 import { loadUserDb, saveUserDb, deleteUserDb } from './store/userStore.js';
 import { loadCmDb, deleteCmDb } from './store/cmStore.js';
 import { loadNordeaDb, nordeaFileExists, deleteNordeaDb } from './store/nordeaStore.js';
-import { deleteContext, loadContext, pruneGoalRows, renderContextMd, resetContextForSession } from './store/contextStore.js';
+import { deleteContext, loadContext, renderContextMd, resetContextForSession } from './store/contextStore.js';
 import {
   appendMessage, findMessage, getAgentsOff, setAgentsOff, loadBus, busKvGet, busKvSet, getCabinetParkedMirror,
 } from './store/busStore.js';
@@ -594,7 +594,9 @@ export const appWrites = {
     const r = controlRoundTrip(uid, 'personal', 'The app removes a goal from the User DB.', { control: 'remove-goal', goalId });
     // G12: the CM agent owns the review queue - it withdraws pending proposals for the goal.
     controlRoundTrip(uid, 'cm', 'Withdraw pending proposals for the removed goal.', { control: 'withdraw-goal-proposals', goalId });
-    pruneGoalRows(uid, goalId); // its active Customer/Nordea rows leave context.md; cabinet history stays
+    // Its active rows leave context.md, each written by the agent that owns the section (the personal agent drops its
+    // Customer row inside remove-goal); cabinet history stays.
+    controlRoundTrip(uid, 'nordea', 'Drop the removed goal\'s aggregate row from the Nordea section of context.md.', { control: 'drop-goal-rows', goalId });
     return r;
   },
   updateGoal: (uid: string, goalId: string, fields: { title?: string; detail?: string }) =>

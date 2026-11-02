@@ -131,20 +131,7 @@ export function writeHeader(uid: string, meta: RoundMeta & { finalise?: boolean 
   save(uid, doc);
 }
 
-/**
- * A removed goal's ACTIVE contribution rows leave the shared document: its Customer row (id = goal id)
- * and its Nordea aggregate (`nagg-<goalId>`). Called by the app layer (never an agent) after the personal
- * agent has removed the goal; rounds merge rows by id and so would otherwise keep them for the whole
- * session, and an undo/re-add under a new id would then show the goal twice. Cabinet history is untouched:
- * the Context Memory agent keeps its own stale-flagged entries.
- */
-export function pruneGoalRows(uid: string, goalId: string): number {
-  const doc = loadContext(uid);
-  if (!doc) return 0;
-  const before = doc.sections.customer.rows.length + doc.sections.nordea.rows.length;
-  doc.sections.customer.rows = doc.sections.customer.rows.filter((r) => r.id !== goalId);
-  doc.sections.nordea.rows = doc.sections.nordea.rows.filter((r) => r.id !== `nagg-${goalId}`);
-  const removed = before - (doc.sections.customer.rows.length + doc.sections.nordea.rows.length);
-  if (removed) save(uid, doc);
-  return removed;
+/** The section's note, so a writer that rewrites only its rows keeps it. */
+export function readSectionNote(uid: string, section: ContextSection): string | undefined {
+  return loadContext(uid)?.sections[section].note;
 }

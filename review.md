@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -52,7 +52,7 @@ Baseline review of `instinct-prototype-v2` @ `4433b05` against V1–V8. Severity
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| G50 | M | V2 | pruneGoalRows (G49 fix) writes the Customer and Nordea sections from the app layer via save(), bypassing the single private writer (contextStore.ts:8-9,96). One writer per section breaks. Fix: personal agent prunes its row in remove-goal, Nordea agent its nagg row via a control message; extend the AC2 scan to catch it. | `contextStore.ts:141-150`; `orchestrator.ts:597` | open |
+| G50 | M | V2 | pruneGoalRows (G49 fix) writes the Customer and Nordea sections from the app layer via save(), bypassing the single private writer (contextStore.ts:8-9,96). One writer per section breaks. Fix: personal agent prunes its row in remove-goal, Nordea agent its nagg row via a control message; extend the AC2 scan to catch it. | `contextStore.ts:141-150`; `orchestrator.ts:597` | fixed, Bill to verify |
 | G42 | M | V4 | NO_CALLS handover mid-run leaves the new member only leftover steps → scripted. Fix: fresh step budget per member + pin. | `llm.ts:59-79` | open |
 | R2 | M | V4 | Standing-permission gateway: User Agent introduces the context, then the existing CM/Nordea chain runs. Access semantics held: gap report first. | R-src | open |
 
@@ -164,4 +164,14 @@ NEXT: Bill
 G48, G49 verified @0443d05 (my probe: other turn drops the pending yes; goal stays). In-memory wording accurate. Baseline green @0443d05.
 G50 (M) new: the G49 prune writes two agents' sections from the app layer (save() around the private writer) - one writer per section broken.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-02 22:24
+```
+DID G50: pruneGoalRows is gone. Removal now sends control messages: the personal agent drops its Customer row, the Nordea agent its nagg row.
+DID: AC2 scan extended - contextStore keeps no extra writer (a re-added app-layer prune fails the pin), app layer imports no section writer.
+FACT: arch 349 e2e 37 migrate 43 adapter 44 remote 36 env 7 selftest 3 tsc0 bank. Mutation: extra writer or dropped message fails 3 pins.
+NOT DONE: R2 (owner pending), G42 (excluded). Prior one-off arch failure still unexplained (output lost). No live call/spend/merge.
+ASK@Bill: QC G50 at the new head.
+NEXT: Bill
 ```

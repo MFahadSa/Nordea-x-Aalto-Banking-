@@ -259,6 +259,14 @@ function handleMessage(uid: string, msg: AgentMessage) {
   }
 
   // --- App control: prepare the Nordea DB (seed from core on first use) and report counts.
+  if (msg.type === 'control' && payload.control === 'drop-goal-rows') {
+    // A removed goal's aggregate row leaves this agent's section of context.md (it owns the write; it works while the agent is off, like every storage write).
+    const rows = readSectionRows(uid, 'nordea');
+    if (rows.some((r) => r.id === `nagg-${payload.goalId as string}`)) writeNordeaSection(uid, rows.filter((r) => r.id !== `nagg-${payload.goalId as string}`));
+    appendMessage(uid, { from: 'nordea', to: 'app', type: 'reply', summary: 'Nordea agent dropped the removed goal from its section of context.md.', payload: { inReplyTo: msg.id, ok: true } });
+    updateMessage(uid, msg.id, { status: 'answered' });
+    return;
+  }
   if (msg.type === 'control' && payload.control === 'prepare') {
     const counts = prepare(uid);
     appendMessage(uid, { from: 'nordea', to: 'app', type: 'reply', summary: `Nordea agent prepared its DB: ${counts.transactions} transactions, ${counts.accounts} accounts.`, payload: { inReplyTo: msg.id, ...counts } });

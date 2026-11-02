@@ -8,7 +8,7 @@ import { ArchError, newId, now } from '../types.js';
 import type { AgentMessage, Goal } from '../types.js';
 import { words, overlaps } from '../text.js';
 import { loadUserDb, saveUserDb, putGoal, removeGoal, loadProfile, saveProfile, putDocument, removeStoredDocument } from '../store/userStore.js';
-import { loadContext, readSectionRows, writeCustomerSection } from '../store/contextStore.js';
+import { loadContext, readSectionNote, readSectionRows, writeCustomerSection } from '../store/contextStore.js';
 import { appendMessage, getAgentsOff, getCabinetParkedMirror, loadBus, saveBus, updateMessage } from '../store/busStore.js';
 import { registerHandler } from '../dispatcher.js';
 import { roundDone, runRound } from '../rounds.js';
@@ -337,6 +337,8 @@ function handleMessage(uid: string, msg: AgentMessage) {
   if (msg.type === 'control' && payload.control === 'remove-goal') {
     const gone = loadUserDb(uid).goals.find((g) => g.id === (payload.goalId as string));
     removeGoal(uid, payload.goalId as string);
+    // This agent owns the Customer section: the removed goal's row leaves it (the Nordea agent drops its own aggregate row).
+    if (readSectionRows(uid, 'customer').some((r) => r.id === payload.goalId)) writeCustomerSection(uid, readSectionRows(uid, 'customer').filter((r) => r.id !== payload.goalId), readSectionNote(uid, 'customer'));
     appendMessage(uid, { from: 'personal', to: 'app', type: 'reply', summary: 'Personal agent removed the goal from the User DB.', payload: { inReplyTo: msg.id, removed: true } });
     updateMessage(uid, msg.id, { status: 'answered' });
     startUserChangeRound(uid, gone?.title ?? 'a removed goal');
