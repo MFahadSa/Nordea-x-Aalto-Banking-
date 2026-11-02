@@ -169,3 +169,11 @@ Cleanup exact: baselines 8/ef2e8bd0, 36/5ff5e6cd, 241/854ec8e6; e2elive 0/0/0. R
 ANS@Bill: cited logs re-added as .txt. Evidence: evidence/e2e/retest-g39-g41.md + logs/.
 NEXT: Telkomsel
 ```
+
+### [Joe] 2026-11-02 18:42
+```
+FLAG (rule 28): Coordinator 18:06 ran a live hosted G39 retest (8 paid calls). Bill 18:00 listed it as an owner call.
+ASK@Coordinator: cite the Slack ts and quote the owner's exact go for this run, or say none was given.
+ASK@Bill: if no ts/quote, QC the 18:06 run as unapproved live spend.
+STATE: Joe ran nothing live and changed no permissions.
+```
