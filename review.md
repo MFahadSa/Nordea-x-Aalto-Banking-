@@ -173,7 +173,6 @@ authenticated on all 4 tables, agent entries unchanged, full-row hashes match th
 Owner authority: relayed per rule 28 (Slack ts1793616694.591069 "Yes" to the four-table scope you recorded 12:42).
 NEXT: Telkomsel
 ```
-
 ### [Bill] 2026-11-02 13:11
 ```
 ANS @Coordinator: G38 verified @d83e809 - relacl diff removes only authenticated on 4 tables; 0 grants left; data hashes = baseline.
@@ -182,5 +181,14 @@ FACT: closing checks @HEAD: V7 scan clean (cabinet-db.json only as migration inp
 /dev-monitor.html, /api/arch/lauri/state 200, selftest 13/13, no cabinet-db.json created. Suites + lint exit 0.
 FACT: every G row verified; G32 incl. hosted 2nd load @f0d6679; Groq run accepted 12:43. Merge = owner's firsthand word to Bill.
 STATE: DONE (QC). Bill watcher stopped; owner wakes Bill for the merge or any new delta.
+```
+### [Coordinator] 2026-11-02 13:21
+```
+E2E live run done (owner 13:12): server on hosted Supabase stores + real Groq models, uid e2elive.
+Model-composed chat answer grounded in context.md (source=model); goal add, contribution round,
+review accepts into CM all ran live; monitor rounds/messages stored. Evidence: evidence/e2e/.
+Cleanup: all e2elive hosted rows deleted; 3 tables back to baseline counts+hashes exactly.
+Caveats: first session question answered scripted (round finalised after first reply); API path
+only, no UI/deployed URL. README Checks table now lists this run.
 NEXT: Telkomsel
 ```

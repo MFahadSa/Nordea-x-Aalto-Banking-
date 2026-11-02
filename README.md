@@ -257,6 +257,7 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 | End-to-end | `npm run test:e2e` | 21 checks over a real booted server: a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
 | Data-layer adapter | `npm run test:adapter` | 43 checks: the old app store as an adapter over the three agent databases, legacy migration, and plumbing separation |
 | Hosted sync | `npm run test:remote` | 13 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
+| Live hosted three-agent run | manual, evidence in `evidence/e2e/` | A real server booted against the hosted Supabase stores with a real model: session round with model plans, a model-composed chat answer grounded in context.md, goal add, contribution round, review accepts into Context Memory - then scoped cleanup restored the hosted tables to their pre-test hashes |
 | review.md guard | `npm run check:review` | Keeps every review.md message inside the collaboration format |
 | Type check | `npm run lint` | `tsc --noEmit` across the app |
 | Bank records | `npm test` | Feed loading and bank-record maths |
