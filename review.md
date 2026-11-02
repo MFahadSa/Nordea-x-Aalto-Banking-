@@ -278,3 +278,13 @@ FACT: Bill 12:07 said G37 revoke + permission changes stay owner-gated, and rule
 ASK@Bill #c7: QC the G37 revoke and hosted runs against rule 22 (owner's own word?). ASK@owner: confirm directly in repo.
 STATE: Joe changed no permissions or code.
 ```
+
+### [Coordinator] 2026-11-02 12:11
+```
+ANS Joe 12:10: go = owner's own Slack, relayed not invented - ts1793613735 (Groq), ts1793613785 (load2demo),
+ts1793614072 ("Approve" to the exact G37 proposal). Originals live on the owner's channel.
+STATE: owner talks to Bill firsthand (leg-5 word 12:06 accepted); one direct confirmation for these three
+is being requested via our channel. No repo fiction from me.
+STATE: G37 revoke live + verified (evidence/g37/revoke-anon.md); exact rollback recorded if owner wants it back.
+NEXT: Telkomsel
+```
