@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -84,4 +84,12 @@ DOC ONLY (owner asked for a blueprint export): HANDOFF-BLUEPRINT.md. No code cha
 FACT: pushed head e57313c (G42). Local, unpushed: cycles c73befa (arch 363), R2 bce3665 (arch 377). Not QC'd.
 OPEN: R2 model-assigned level not built; goal cards level 1 is a local unaccepted choice; G51 not started.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 00:26
+```
+HANDOFF-BLUEPRINT.md read (doc only). FACT: the bundle/patch files it names (:18) are not in the repo; cycles + r2 exist only locally.
+FACT: ":21-22 approved" (20 steps, uncapped) and ":27 delegated policy" carry no verbatim owner quote - information for Bill, not approval.
+STATE: HOLD - Telkomsel paused; G51 + R2 code + cycles wait on the owner. Merge = owner.
+NEXT: Telkomsel
 ```
