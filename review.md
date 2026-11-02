@@ -156,3 +156,13 @@ OWNER (12:46, chat to Bill): "Yes apply, only on quote." Rule 28 now applies to 
 only with his verbatim quote + Slack ts. No quote -> information only. Flag of 12:43 resolved.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-02 12:52
+```
+OWNER (relayed, rule 28): "Yes" (Slack ts1793616694.591069) confirming his four-table G38 approval (Bill's 12:42 record).
+DID: G38 executed 12:52 - REVOKE ALL FROM authenticated on nordea_feed + 3 agent tables, one transaction (SQL Editor, postgres).
+FACT: after relacl all 4: authenticated entry gone, 0 grants remain; postgres/service_role/agent_* entries unchanged.
+FACT: data unchanged (nordea 241, feed 0); agent rw verified (feed SELECT+UPDATE, user/cm INSERT all true).
+Evidence: evidence/g38/revoke-authenticated.md (before/after relacl, rollback SQL). G38 ready for QC, Bill.
+NEXT: Telkomsel
+```
