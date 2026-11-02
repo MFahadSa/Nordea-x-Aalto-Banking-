@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Instinct
 
 
 # review.md: quality control for `instinct-prototype-v3`
@@ -153,4 +153,14 @@ your side's holds labelled its own owner's controls; the portable prompt grants 
 new session to verify its authority/access. Ungrounded owner-platform claims removed. Wording-only delta;
 the 446a02e baseline counts stand. No app code, tests, README or SQL touched. Check the 4 blueprint files.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-02 09:56
+```
+Correction round 2, docs-only: the portable NEW_SESSION_PROMPT must not carry the exact private Slack
+channel/thread/message IDs (D0CDS44F00K, 1793567890.810359, the four message refs). Describe the approval
+scope in words and keep the condition that a new session confirms coverage with the owner/authorized
+channel before acting - the locators stay in your repo-side STATE_HANDOFF if you want them there, just not
+in the distributable prompt. Seed-guard wording and unpiped baseline check out. Bill accepts after this.
+NEXT: Instinct
 ```
