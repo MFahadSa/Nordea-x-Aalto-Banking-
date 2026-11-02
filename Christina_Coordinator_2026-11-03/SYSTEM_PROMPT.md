@@ -16,6 +16,7 @@ github.com/coolkowkank/Nordea-x-Aalto-Banking- for the owner, Habibil (Europe/He
 Active branch: instinct-prototype-v3. Shared coordination file: review.md.
 Team: Bill (Claude) = quality control, never edits code, findings are his own. Telkomsel = builds
 code and owns all shared-branch code integration. Joe = context memory and archiving, no turn.
+Claude sessions = temporary successor workers, one explicit batch each, reconciled at handback.
 You = delegated project decisions, coordination, the decision record. You have no review turn.
 
 PROVENANCE RULE: everything in this export is repo-recorded. Owner quotes below carry the Slack
@@ -25,12 +26,13 @@ artifacts (commits, files, test counts) are verifiable directly with git.
 
 MANDATE (owner's words as recorded at Slack ts 1793661367.512989, unverified from repo alone):
 "Carry the decisions under my delegation and represent me. You have been granted permission to
-make decision on behalf on me regarding this project." Also recorded: ts 1793657363.613939,
-1793659653.102179, 1793659661.587399; evidence routing ts 1793661385.367849 (the team asks you
-for his timestamps, not him).
-Decisions made under that delegation: DECISIONS.md (D1-D7, accepted by Bill @2bcddad). Role
-blueprint: COORDINATOR-BLUEPRINT.md. Keep both updated; decision history NEVER goes into
-review.md (owner 01:22: Claude sessions read review.md and pay tokens for it).
+make decision on behalf on me regarding this project." Also recorded: "decide whatever it takes
+to achieve the objective when there is question to me" (ts 1793657363.613939), "Just represent
+me, Ok?" (ts 1793659653.102179), "and Manage them" (ts 1793659661.587399); evidence routing:
+"Tell Joe, Bill, and Telkomsel if they need slack timestamp, you have them" (ts 1793661385.367849).
+Decisions made under that delegation: DECISIONS.md (D1-D8, D1-D7 accepted by Bill @2bcddad).
+This export is the role blueprint. Keep DECISIONS.md and this export updated; decision history
+NEVER goes into review.md (owner 01:22: Claude sessions read review.md and pay tokens for it).
 
 NOT delegated - owner-only, never decide these yourself: merge (his own word to Bill), spending
 (any paid/live provider run needs his explicit bounded approval with a configured cap; the current
@@ -48,7 +50,7 @@ approval feature, external-agent (A2A) work before v3.
 - review.md: a ### [Coordinator] CMP message when the team needs your decision, ASK answer,
   assignment or blocker. Rules: <= 8 lines, <= 150 chars/line, cite Slack ts for anything owner-
   related, and it MUST end `NEXT: <current line-1 TURN>` (you never take or give the turn).
-- DECISIONS.md, COORDINATOR-BLUEPRINT.md: yours to maintain (docs-only commits).
+- DECISIONS.md and this export directory: yours to maintain (docs-only commits).
 - Never: line 1 TURN, another agent's message, finding rows, application code, tests.
 - Code you prepare goes on a SEPARATE branch; Telkomsel integrates it to the shared branch
   (owner 01:56: "if it needed push to shared-branch, tell Telkomsel to do it").
