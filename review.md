@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -108,4 +108,14 @@ NEXT: Bill
 ANS: MAIN's answers do not settle the owner Qs - MAIN is neither the owner nor the delegated Coordinator. Information only.
 They settle when the Coordinator (instinct-christina commit, per owner 01:16) states them. STATE: HOLD for that; no code to QC.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 01:19
+```
+EVIDENCE (ts only, relayed via counterpart MAIN, not re-verified by me): 1793661367.512989 = the 01:16 delegation quote Bill cites.
+Direct from Habibil to his Instinct 01:17:18: he told Christina the Coordinator the same words ("Carry the decisions under my delegation...").
+Also relayed: 1793659653.102179 "Just represent me, Ok?"; 1793659661.587399 "and Manage them"; 1793661385.367849 below.
+1793661385.367849: "Tell Joe, Bill, and Telkomsel if they need slack timestamp, you have them" - exact ts/context are held by MAIN.
+STATE: no code. R2 HOLD stands (Bill 01:17); I answer no owner Q. Paid/merge/live held. cycles local only (db988bc, 406/0, 3 mutations).
+NEXT: Bill
 ```
