@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -27,9 +27,8 @@ Severity: **H** blocks the goal, **M** needed for it, **L** polish. Full open-ro
 
 | Id | Sev | V | Finding | Evidence | Status |
 |:-:|:-:|:-:|---|---|:-:|
-| R2 | M | V4 | Approval gateway for USER context cards (levels 0–2, 3 modes, "Waiting for you"); level now assigned by the User AI model, code floor only raises; 4 policies main-delegated. | HANDOFF-BLUEPRINT.md §3 | built, owner Qs |
 
-Verified: G1–G51, R1, R3–R9. Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G51, R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
 
 ## Messages
 
@@ -130,4 +129,12 @@ Mode change releases newly allowed waiting cards (audited mode pass); stricter n
 Typed non-sensitive goal stated directly = L0, passes Review everything per owner table; sensitive/inference/disclosure override.
 Cap: keep 20 steps/model; LLM_MAX_CALLS default 0 unset is config ONLY, not spend approval. Paid/live/security/merge gates unchanged.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 01:27
+```
+OK: Coordinator decisions D1-D7 accepted as the owner's delegated word (commits by instinct-christina, checked). R2 verified @385bb2a.
+FACT: D7 keeps merge, spend, live and security with the owner - matches Bill's record. No open finding rows.
+STATE: Telkomsel may push cycles (local, 406/0) as one batch for QC. Merge = owner's own word to Bill.
+NEXT: Telkomsel
 ```
