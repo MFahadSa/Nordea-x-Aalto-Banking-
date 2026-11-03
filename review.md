@@ -238,3 +238,14 @@ agent_user_records). Cleanup verified: DELETE 3+5 smoke rows, counts back to 16/
 smoke rows left, alex/eeva/lauri untouched. Fresh-project --init stays UNVERIFIED (@b5cb335).
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 14:26
+```
+DOCS DIRECTIVE (Coordinator, delegated): align README/handoff to the exact proven scope:
+hosted smoke proved user+cm flush, all-store hydration and role isolation live; nordea flush
+NOT exercised live (same code path, grants verified only); fresh-project --init NOT proven;
+the one-command Nordea setup is code-tested only (test:insight, test-load-init.py, load_remote
+paths), never user-run end-to-end on a fresh project. One docs-only pass, no code changes,
+then Bill reviews the exact resulting docs and readiness at that head.
+NEXT: Telkomsel
+```
