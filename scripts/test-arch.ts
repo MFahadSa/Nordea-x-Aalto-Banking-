@@ -1665,12 +1665,14 @@ check('Q2: caption order is elapsed (client-measured) first, then the exact cate
     const all = [...st.contextCards.memory, ...st.contextCards.nordea];
     const nord = st.contextCards.nordea;
     check('R4/R5: the Nordea window gets processed cards that combine several bank records', nord.length > 0 && nord.some((c: any) => c.combines > 1 && c.unit === 'bank records'), JSON.stringify(nord).slice(0, 300));
-    // G60: case-sensitive, shape-specific bank-data patterns, and generated card ids are
-    // stripped from the scan, so base-36 ids (e.g. card-mw0ft0fa-7yfi50) cannot false-positive.
-    const RAW_RECORD_RE = /\btx-|\bIBAN\b|\bFI\d{2}\s?\d{4}/;
-    const cardContent = (cards: any[]) => JSON.stringify(cards, (k, v) => (k === 'id' ? undefined : v));
-    check('G60: the raw-record pattern still catches real leaks (positive controls)', RAW_RECORD_RE.test(cardContent([{ id: 'x1', text: 'payment ref tx-9132' }])) && RAW_RECORD_RE.test(cardContent([{ id: 'x2', text: 'IBAN FI12 3456 7890' }])) && RAW_RECORD_RE.test(cardContent([{ id: 'x3', text: 'till FI12345678901234' }])));
-    check('G60 pin: forced base-36 ids containing "fi12" are not flagged as raw records', !RAW_RECORD_RE.test('card-fi12aaaa-bbbb') && !RAW_RECORD_RE.test('card-mw0ft0fa-7yfi50') && !RAW_RECORD_RE.test(cardContent([{ id: 'card-fi12aaaa-bbbb', unit: 'bank records', combines: 2, text: 'Groceries and fuel grouped for your car goal' }])));
+    // G60: omit ONLY the known opaque top-level generated card id from the scan (a shallow copy,
+    // never a recursive key omit) and keep the original case-insensitive content detection, so
+    // prior leak coverage (including lowercase content) is preserved and base-36 ids cannot flag.
+    const RAW_RECORD_RE = /\btx-|IBAN|FI\d{2}/i;
+    const cardContent = (cards: any[]) => JSON.stringify(cards.map((c: any) => ({ ...c, id: undefined })));
+    check('G60: the raw-record pattern still catches real leaks (positive controls)', ['payment ref tx-9132', 'IBAN FI12 3456 7890', 'till FI12345678901234', 'lowercase iban fi12 3456 7890'].every((s) => RAW_RECORD_RE.test(cardContent([{ id: 'x1', text: s }]))));
+    check('G60: a nested id-named key is NOT omitted (no recursive blind spot)', RAW_RECORD_RE.test(cardContent([{ id: 'card-ok1', detail: 'summary', nested: { id: 'ref tx-9132' } }])));
+    check('G60 pin: forced base-36 ids containing "fi12" are not flagged as raw records', !RAW_RECORD_RE.test(cardContent([{ id: 'card-fi12aaaa-bbbb', unit: 'bank records', combines: 2, text: 'Groceries and fuel grouped for your car goal' }])) && !RAW_RECORD_RE.test(cardContent([{ id: 'card-mw0ft0fa-7yfi50', unit: 'bank records', combines: 2, text: 'Fuel and car wash grouped for your car goal' }])));
     check('R5: no card carries a raw record (no transaction ids, no evidence, no account fields)', all.every((c: any) => !('evidence' in c) && !('transactionIds' in c)) && !RAW_RECORD_RE.test(cardContent(all)), JSON.stringify(all).slice(0, 300));
     check('R3/R5: the CM window cards come from context.md, not from the whole cabinet', !/entries\.entries|\/entries`\)/.test(readSrc('../public/arch.html').split('const cards =')[1] ?? ''));
   }

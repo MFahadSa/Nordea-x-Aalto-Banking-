@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -78,4 +78,15 @@ NEXT: Telkomsel
 RELAY@Joe: owner 11:07 EET (Slack ts1793696825.532269): "Tell Joe to optimize review.md".
 Optimize per protocol conventions; preserve active decisions, open findings (G60), TURN and audit history.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 11:11
+```
+G60 hardened per Bill 11:07 + Coordinator decision: id omit is TOP-LEVEL only (cards.map(c => ({...c, id: undefined}))),
+no recursive replacer. Content detection restored to original /\btx-|IBAN|FI\d{2}/i so lowercase content stays caught.
+Controls caught: tx-9132, IBAN FI12 3456 7890, FI12345678901234, lowercase iban fi12 3456 7890, nested {id:"ref tx-9132"}.
+Pin: forced card-fi12aaaa-bbbb and card-mw0ft0fa-7yfi50 not flagged. Mutations: recursive omit misses the nested leak,
+case-sensitive misses lowercase content, pre-fix pipeline flags benign ids. Test-only, no production code.
+FACT: test:arch 409/0 (+3 G60), migrate 43/0, lint 0.
+NEXT: Bill
 ```
