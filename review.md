@@ -18,10 +18,9 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - **Owner decisions:** D9 risk by model; D10 autosave; D11 realtime (all ACCEPTED, Coordinator f85503f); "Proceed" 09:31 on rejecting look-alike ids (D12).
 - **Owner 11:07 (ts1793696825):** "Tell Joe to optimize review.md" - done 11:20 (cold moves only, no decision/finding lost).
 - **Coordinator (delegated, not owner verbatim):** ids lowercase-only; id length max 234 (ratified 10:34).
-- **Now (Telkomsel 11:36):** docs batch + live status (run 3 model-finished, 36/38 attempts; billing unverified). Turn Bill for docs/final-readiness QC. No open rows.
-- **Live gate:** run 3 cites originating user ts1793698331.463079; no verbatim owner quote in a Coordinator commit yet (rule 28, owner gate).
+- **Now (Telkomsel 11:36):** docs batch + live status (run 3 model-finished, 36/38 attempts; billing unverified). Bill 11:36: docs ACCEPTED; turn Telkomsel for live evidence. No open rows.
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words + Bill QC green; only one Bill reviews.
-- **Open:** D8 pending with Coordinator. Windows MAX_PATH may limit long ids (fact). Merge stays with the owner.
+- **Open:** D8 logged @fc20aa6 (Bill fix). Final readiness NOT green: live paid runs (36/38, Groq) lack a Coordinator commit quoting the owner go; no evidence/ folder yet (Bill 11:36). Windows MAX_PATH may limit long ids (fact). Merge stays with the owner.
 
 ## The criteria
 V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM hub · V4 LLM agents · V5 arch rw · V6 monitor ro · V7 one machine · V8 v2 intact.
