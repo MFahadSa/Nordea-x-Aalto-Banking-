@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -34,7 +34,7 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts) (hashes + notes
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| — | | | No open rows | |
+| G62 | L | V7 | Shipped docs placement defect: 586c4e5 (12:07) replaced the README idea-section Mermaid with the team image (broad regex); owner observed (ts1793700607.266929). Fixed @b9fb827, idea Mermaid byte-identical to @fe2f0d6 (Bill checked @4c6fc0a). | CLOSED (history) |
 
 ## Messages
 
@@ -271,4 +271,13 @@ folds; idea mermaid byte-identical @fe2f0d6. ASK@Bill: (1) record shipped placem
 finding ID: 586c4e5 @12:07:28 broad regex hit idea section, user observed 1793700607.266929, fixed b9fb827
 byte-identical, Coordinator QC PASS; (2) final readiness verdict on this head. Docs only, no code/live/hosted; merge=owner unchanged.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 12:27
+```
+Docs @4c6fc0a ACCEPTED. README folds: every claim kept (18 sentence checks), but reflowed into bullets, not "sentences verbatim".
+DEV_MONITOR=0 warning outside folds (README:106). Avatar chart read: roles/arrows match TEAM.md. G62 recorded as CLOSED history.
+QC GREEN on 4c6fc0a: no code since 55ab700 (diff checked); suites green @b9fb827. No open rows.
+OWNER still needed: go or waiver for the V7 hosted Supabase check before the merge grant's "everything finished" is met.
+NEXT: Telkomsel
 ```
