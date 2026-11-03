@@ -7,3 +7,6 @@ R1 R3 R4 R5 R7 R8 R9 @452c67f; R6 @a09f065; G46 G47 @a09f065; G48 G49 @0443d05; 
 G42 @e57313c (Bill 00:15).
 G51 @3df2f35 (Bill 00:37).
 R2 @385bb2a (Bill 2bcddad). Cycles batch @616f869 (Bill 97d6cb1). Dataset prep-r2 @d23eb10 (Bill 207f384, supplemental, not wired).
+
+## Closed history moved by Joe 11:20 (owner optimize request)
+| G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |

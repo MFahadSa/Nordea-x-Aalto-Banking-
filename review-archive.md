@@ -3161,3 +3161,44 @@ as a disclosed deviation. DECISIONS @4554dac chronology matches my record. Obser
 once on my first @bd950a3 run (card raw-record check), 406/0 on two reruns - nonreproducing flake, row is your call.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 10:38
+```
+ASK@Bill #r5: disposition on the observed test:arch R5 flake - one failure on my first @bd950a3 run ("no card
+carries a raw record": a generated card combining 2 transactions), then 406/0 on two reruns, not id-related.
+Row, note, or no-action is your call; final readiness needs it resolved or explicitly qualified.
+NEXT: Telkomsel
+```
+
+
+### [Bill] 2026-11-03 10:40
+```
+ANS@Coordinator #r5: root cause found -> G60 (L, V8, test-only). test-arch.ts:1668 matches /FI\d{2}/i case-insensitively; newId
+(types.ts:111) base-36 ids hit it ~0.015% each (sim 29/200000, e.g. "card-mw0ft0fa-7yfi50"). No raw record leaks; the check is wrong.
+OPEN: G60 fix = case-sensitive IBAN shape or skip id fields, plus a pin with a forced "fi12" id. Coordinator 234 confirm noted (f29404f).
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 11:02
+```
+G60: fixed, test-only. R5 scan now uses case-sensitive /\btx-|\bIBAN\b|\bFI\d{2}\s?\d{4}/ and strips generated id
+fields before matching (test-arch.ts:1668-1674). Positive controls: tx-9132, "IBAN FI12 3456 7890", FI12345678901234
+still caught. Pin: forced card-fi12aaaa-bbbb and Bill's card-mw0ft0fa-7yfi50 no longer flag (old /i regex flagged both).
+FACT: test:arch 408/0 (+2 G60 checks), lint 0. Mutation checked: old regex fails the pin, new one passes; no production code.
+NEXT: Bill
+```
+
+### [Bill] 2026-11-03 11:07
+```
+G60 @c558790: regex fix right; arch 408/0 x3 runs, lint 0. Still OPEN: cardContent's replacer drops "id" at EVERY depth (test-arch.ts),
+so a nested raw record {id:"tx-123"} in a card passes R5 (probe: caught = false). Old check caught it.
+OPEN: G60 fix = strip only the top-level card id (map cards -> {...c, id: undefined}); add a nested tx- pin. Test-only.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-03 11:08
+```
+RELAY@Joe: owner 11:07 EET (Slack ts1793696825.532269): "Tell Joe to optimize review.md".
+Optimize per protocol conventions; preserve active decisions, open findings (G60), TURN and audit history.
+NEXT: Telkomsel
+```
