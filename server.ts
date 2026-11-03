@@ -58,6 +58,8 @@ app.use('/api', (req, res, next) => {
   if (sent.some((v) => !isCanonicalCustomerId(v))) return res.status(400).json({ error: new InvalidCustomerIdError().message, code: 'INVALID_CUSTOMER_ID' });
   next();
 });
+// Same rule for a customer id carried in the path (/api/users/:userId).
+app.param('userId', (_req, res, next, v) => (isCanonicalCustomerId(v) ? next() : res.status(400).json({ error: new InvalidCustomerIdError().message, code: 'INVALID_CUSTOMER_ID' })));
 
 // Anything that changes data answers only after the change is saved in Supabase (when it's set up),
 // so a restart of the hosting can't lose what the customer just did.

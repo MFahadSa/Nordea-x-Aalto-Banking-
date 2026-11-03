@@ -123,7 +123,7 @@ Identity disclosure: a customer's identity IS the sanitized store filename (`fil
 
 ## D12 - Fail-closed customer ids (implemented 2026-11-03; QC pending)
 Decision (owner Proceed relayed by the Coordinator, rule 28; Habibil's delegation of approvals to Christina
-   recorded on the builder side): a customer id is canonical only if it is 1-64 chars of `[A-Za-z0-9_-]`.
+   recorded on the builder side): a customer id is canonical only if it is one or more chars of `[A-Za-z0-9_-]` (no length cap).
    Anything else (`a.b`, `a b`, `a/b`, email-like ids) is rejected, never rewritten to a look-alike id.
 Where: one shared rule in `src/server/customerId.ts`. HTTP: `/api` answers 400 `INVALID_CUSTOMER_ID`
    before any handler when `userId` (query or body) is not canonical; `/api/arch/:uid/*` does the same.

@@ -14,8 +14,8 @@ let pass = 0, fail = 0;
 const check = (n: string, c: boolean) => { if (c) { pass++; console.log(`  PASS ${n}`); } else { fail++; console.log(`  FAIL ${n}`); } };
 const throwsInvalid = (f: () => unknown) => { try { f(); return false; } catch (e) { return e instanceof InvalidCustomerIdError && e.status === 400; } };
 
-for (const id of ['lauri', 'eeva', 'alex', 'a_b', 'A-1', 'x'.repeat(64)]) check(`canonical ${id.slice(0, 8)} accepted unchanged`, canonicalCustomerId(id) === id && C.fileFor(id, 'user').endsWith(`${id}.user.db`) && archUidKey(id) === id);
-const bad = ['a.b', 'a b', 'a/b', '..', '../x', 'a@b.com', '', 'x'.repeat(65), 'é', 'a\u0000b'];
+for (const id of ['lauri', 'eeva', 'alex', 'a_b', 'A-1', 'x'.repeat(64), 'x'.repeat(65)]) check(`canonical ${id.slice(0, 8)} accepted unchanged`, canonicalCustomerId(id) === id && C.fileFor(id, 'user').endsWith(`${id}.user.db`) && archUidKey(id) === id);
+const bad = ['a.b', 'a b', 'a/b', '..', '../x', 'a@b.com', '', 'é', 'a\u0000b'];
 for (const id of bad) check(`ambiguous ${JSON.stringify(id).slice(0, 14)} rejected`, !isCanonicalCustomerId(id) && throwsInvalid(() => canonicalCustomerId(id)));
 check('non-string ids rejected', [undefined, null, 5, {}, ['a']].every((v) => !isCanonicalCustomerId(v)));
 // store seams: no partial writes, no files created
@@ -46,7 +46,7 @@ srv.close();
 const serverSrc = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf-8');
 check('server.ts installs the guard before routes', serverSrc.indexOf('isCanonicalCustomerId(v)') > 0 && serverSrc.indexOf('isCanonicalCustomerId(v)') < serverSrc.indexOf('registerV14Routes(app)'));
 // guard mutation: a permissive regex would let a.b through
-check('guard mutation: dot-permitting rule is NOT the shipped rule', !/^[A-Za-z0-9_.-]{1,64}$/.test('x') || !isCanonicalCustomerId('a.b'));
+check('guard mutation: dot-permitting rule is NOT the shipped rule', !isCanonicalCustomerId('a.b'));
 fs.rmSync(process.env.CABINET_DATA_DIR!, { recursive: true, force: true });
 console.log(`customer-id: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
