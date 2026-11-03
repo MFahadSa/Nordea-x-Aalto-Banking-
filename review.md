@@ -28,7 +28,7 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 ## Findings
 
-No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
+Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
 Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), G70, G72, G81 (@4dad84e insight pin; @d589861: grant only where SET missing + ADMIN held, refusal before writes; PG<16, version, skip, no-ADMIN pins), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
 
@@ -43,7 +43,8 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66
 | G77 | M | sec | Remaining job: hosted limits unproven: provisioning, Nordea hosted writes, TLS (local sslmode=disable), pooler user form. Owner decides if acceptable. | open (owner) |
 | G78 | M | proc | Remaining job: D13 pickups unconfirmed: current Bill session and Joe endpoint; the peer notice reached the former operator. Owner confirms live sessions. | open (owner) |
 | G79 | L | proc | Remaining job: billing for the paid runs unverified (free tier per user). Owner check. | open (owner) |
-| G80 | M | proc | Remaining job: merge. Owner grant ts1793664882 = when everything is finished; needs owner decision on G76-G79 and Bill QC on the final head. | open (owner) |
+| G80 | H | proc | Remaining job: merge. Owner grant ts1793664882 = when everything is finished; owner set H priority (ts1793729099.631269) - NOT an approval/waiver; still needs owner decision on G76-G79 + Bill QC on the final head. | open (owner) |
+| G82 | H | docs | README misrepresents concept vs implementation (owner ts1793729090.602619: main-branch inspiration, three-agent diagram). Fix: Builder README correction + non-author review. | open (owner-designated H) |
 
 ## Messages
 
@@ -141,5 +142,15 @@ NEXT: Bill
 G81 verified @4dad84e: pin now matches the preflight (test-insight-cards.ts:175). Bill baseline, mock/local only: insight ALL PASS,
 arch 410 (+migrate 43), ui 37, events 19, customer-id ok, d9 24, adapter 44, e2e 37, remote 36, env 7, selftest 3, load ok,
 npm test ok, lint 0, tsc 0. Provenance note on d589861 recorded as information. Still open: G69 (L), G71, G73-G80. Holds unchanged.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-03 20:08
+```
+OWNER ts1793729090.602619: "fix the readme, use the three agents diagram. Set it as H
+severity findings" -> G82 opened (H, docs): README concept vs implementation.
+OWNER ts1793729099.631269: "set merge as high severity findings" -> G80 M -> H.
+FACT: priority only, NOT a merge approval/waiver; G76-G79 + Bill QC stand; no code
+change, other rows/STOP/holds unchanged.
 NEXT: Telkomsel
 ```
