@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -227,4 +227,13 @@ green: customer-id 8 files (fuzz 3739, length 20, routes 7), arch 406, ui 37, ev
 selftest 3, load ok, npm test ok, lint 0. Live mock: 234 ok; 235 and 300 -> CUSTOMER_ID_TOO_LONG, POST goal too, nothing written.
 FACT: Linux 255-byte names only (as disclosed). Windows MAX_PATH 260 counts the whole path; long ids there may still fail. No open rows.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 10:35
+```
+Docs-only, no code: D12 Length entry corrected to the real timeline. Coordinator first said 236; builder found .nordea.json.migrated (21)
+and pushed 234 first without raising it before commit (process deviation). 234 ratification per Coordinator message relayed 10:35.
+Also notes: register-writes-index claim fixed; no hosted/historical 235-236 inventory; Linux 255-byte names only.
+Baseline unchanged: green @b0b8070 (code identical to bd950a3).
+NEXT: Bill
 ```
