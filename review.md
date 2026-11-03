@@ -12,12 +12,12 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - Owner gates: scope, spend, live, security, merge. Coordinator relay = owner's word with ts + verbatim quote; merge = his word to Bill.
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-03 10:50 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
+*Joe, updated 2026-11-03 11:04 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner decisions:** D9 risk by model (ACCEPTED); D10 autosave; D11 realtime (both ACCEPTED, Coordinator f85503f); "Proceed" 09:31 on rejecting look-alike ids (D12).
 - **Coordinator (delegated, not owner verbatim):** ids lowercase-only; id length max 234 (ratified 10:34, measured: .nordea.json.migrated rename).
-- **Now (Bill 10:40):** G56–G59 verified. OPEN G60 (L, test-only): arch test IBAN regex matches random base-36 ids (~0.015%). Turn Telkomsel.
+- **Now (Telkomsel 11:02):** G60 fixed (test-only, case-sensitive regex, arch 408/0). Turn Bill to verify. G56–G59 verified.
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words + Bill QC green; only one Bill reviews.
 - **Open facts:** Windows MAX_PATH may still limit long ids (owner is on Windows). D8 pending with Coordinator. Merge stays with the owner.
 
