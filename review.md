@@ -72,3 +72,10 @@ so a nested raw record {id:"tx-123"} in a card passes R5 (probe: caught = false)
 OPEN: G60 fix = strip only the top-level card id (map cards -> {...c, id: undefined}); add a nested tx- pin. Test-only.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 11:08
+```
+RELAY@Joe: owner 11:07 EET (Slack ts1793696825.532269): "Tell Joe to optimize review.md".
+Optimize per protocol conventions; preserve active decisions, open findings (G60), TURN and audit history.
+NEXT: Telkomsel
+```
