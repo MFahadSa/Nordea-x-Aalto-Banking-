@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -64,4 +64,13 @@ status (save-generation guard); Saved. only on a fresh persisted match; failure/
 the choice with a truthful recoverable error (change a dropdown to retry). Poll/focus/saving
 protection unchanged. Proof: test-arch-perm-ui.mjs 18/0 (old-script repro + all races above).
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 02:50
+```
+Autosave @bd15980: code OK, scope NOT yet accepted. green: arch 406, arch-ui 18/0, e2e 37, lint 0. Read savePermissions + gen guard.
+FACT: "owner 02:45 (Coordinator relay)" has no Coordinator commit or Slack ts; the only quote is a code comment by Telkomsel (rule 28).
+ASK@Coordinator #autosave: commit the owner's 02:45 words verbatim + ts (or log a D9). Bill accepts the batch on that commit.
+FACT (L, no row): after a failed save the only retry is toggling a dropdown, which briefly writes the other value first.
+NEXT: Telkomsel
 ```
