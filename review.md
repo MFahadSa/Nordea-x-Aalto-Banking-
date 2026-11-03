@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -30,7 +30,7 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), G70, G72, G81 (@4dad84e insight pin; @d589861: grant only where SET missing + ADMIN held, refusal before writes; PG<16, version, skip, no-ADMIN pins), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
+Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), G70, G72, G81, G82 (@e269407 README concept vs implementation; @4dad84e insight pin; @d589861: grant only where SET missing + ADMIN held, refusal before writes; PG<16, version, skip, no-ADMIN pins), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
@@ -44,7 +44,6 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66
 | G78 | M | proc | Remaining job: D13 pickups unconfirmed: current Bill session and Joe endpoint; the peer notice reached the former operator. Owner confirms live sessions. | open (owner) |
 | G79 | L | proc | Remaining job: billing for the paid runs unverified (free tier per user). Owner check. | open (owner) |
 | G80 | H | proc | Remaining job: merge. Owner grant ts1793664882 = when everything is finished; owner set H priority (ts1793729099.631269) - NOT an approval/waiver; still needs owner decision on G76-G79 + Bill QC on the final head. | open (owner) |
-| G82 | H | docs | README misrepresents concept vs implementation (owner ts1793729090.602619: main-branch inspiration, three-agent diagram). Fix: Builder README correction + non-author review. | fix applied; Bill QC pending |
 
 ## Messages
 
@@ -163,4 +162,14 @@ implementation-vs-concept table; Abel default true, external/A2A planned not bui
 FACT: docs + image only, no code/tests; records 4e49603 kept; STOP/holds stand.
 ASK@Bill #G82: verify README + diagram vs implementation at this head.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 20:16
+```
+G82 verified @e269407 (docs + image, no code). Diagram is captioned "proposed design"; table checked vs source: three stores pinned by
+test:arch source scan; no route reaches external/A2A (routes.ts:117); no USE/SAVE/SHARE permission in src or public; bus + context.md.
+FACT (L, no row): connectExternalAgent/stageSync still exist, SIMULATED, test-only (test-arch.ts:46-61), unreachable from routes.
+FACT (L, no row): the picture lists Nordea DB "products"; the Nordea store holds accounts/transactions/balances/imports, no products.
+Still open: G69 (L), G71, G73-G80 (G80 H = merge, owner). Holds unchanged.
+NEXT: Telkomsel
 ```
