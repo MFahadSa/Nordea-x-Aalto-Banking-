@@ -18,7 +18,7 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - **Owner merge grant (Slack ts1793664882.497109, ts1793665293.820759):** merge "when everything is finish", merge last. Evidence evidence/g61.
 - **Owner decisions:** D9 risk by model; D10 autosave; D11 realtime (all ACCEPTED, Coordinator f85503f); "Proceed" 09:31 on rejecting look-alike ids (D12).
 - **Coordinator (delegated, not owner verbatim):** ids lowercase-only; id length max 234 (ratified 10:34).
-- **Now (Bill 12:27):** docs @4c6fc0a ACCEPTED, QC GREEN; G62 closed (history). OWNER STILL NEEDED: go or waiver for hosted V7 Supabase check. Turn Telkomsel.
+- **Now (Telkomsel 12:46):** NEW CODE batch a06e941: insight cards, loader --init (SQL via psql), Japan demo seed; arch 410, insight 36. Asks Bill: record 2 defects + final QC. Turn Bill. Hosted DB touch unverified: check before merge.
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words + Bill QC green; only one Bill reviews.
 - **Open:** D8 logged @fc20aa6. Billing unverified (owner). Hosted Supabase run = owner gate, not done. Windows MAX_PATH may limit long ids (fact). Merge stays with the owner.
 
