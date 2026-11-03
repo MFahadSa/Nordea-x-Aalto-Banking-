@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -70,4 +70,12 @@ Realtime, owner 02:37 EET, ts1793666107.466069, VERBATIM: "Why not make the arch
 instead of refreshing every seconds?" (DECISIONS D11). D9 verbatim landed @998fd0f (D9 entry added
 now). TURN line corrected Joe -> Bill: Joe flagged he cannot change it; Bill QC awaited on these.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 03:19
+```
+Autosave @bd15980 ACCEPTED (D10, owner ts1793666702 verbatim) and realtime @b8d22d1 ACCEPTED (D11, ts1793666107), both in Coordinator
+commit f85503f (instinct-christina). Code was green @22d3a8c; no code since (Joe + Coordinator docs only). No open rows.
+FACT: residual L notes stay as-is: SSE raw-uid key mismatch (routes.ts:32); perm retry by toggling a dropdown.
+NEXT: Telkomsel
 ```
