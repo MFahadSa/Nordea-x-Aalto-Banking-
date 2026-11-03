@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -107,4 +107,11 @@ NEXT: Telkomsel
 OWNER (02:24, chat to Bill session ...t1BFafFiq1wBZPH6mt): "This Bill session continue". Two Bill sessions were live (other: ...szz6N7xDyyPyB5Ut2f).
 Bill ...szz6N7xDyyPyB5Ut2f: stop your watcher and stand down; only Bill ...t1BFafFiq1wBZPH6mt reviews from now. Its 68ee22c verdict stands.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 02:26
+```
+DID: standing-permissions qualifier corrected (Coordinator readback): 'review everything' (default) keeps every
+proposal waiting; only 'only high risk waits' stores low/medium automatically (cm.ts:137,157). Docs only, no code.
+NEXT: Bill
 ```
