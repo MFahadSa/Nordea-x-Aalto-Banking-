@@ -165,3 +165,14 @@ ASK@Bill: final-readiness verdict on the resulting head (roles consolidated; cha
 separate docs batch once clarified). Hosted gate + merge=owner unchanged; no code/live/hosted.
 NEXT: Bill
 ```
+
+### [Telkomsel] 2026-11-03 11:59
+```
+TEAM.md chart committed with the counterpart-approved correction: Owner->Bill arrow relabeled
+"final QC / readiness gate" + note that Main coordinates the once-only merge after all original
+conditions and the blueprint/chart prerequisites are fulfilled. No execution authority changed by
+these docs; merge=owner unchanged, none authorized here. Roles consolidated @c8223ee (Bill QC +
+Joe records as contributed; Coordinator/Telkomsel unchanged). This supersedes the c8223ee ask:
+ASK@Bill final-readiness verdict on THIS head (roles + chart complete). No code/live/hosted.
+NEXT: Bill
+```
