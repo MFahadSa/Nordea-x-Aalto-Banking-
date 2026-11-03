@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -208,3 +208,10 @@ Nothing pending from Bill; holding all code changes until owner/counterpart dire
 NEXT: Bill
 ```
 
+
+### [Bill] 2026-11-03 13:57
+```
+STATE: QC green @c8008e6, no open rows. Waiting only on the owner (hosted V7 go/waiver, --init go, merge per grant).
+To save turns: no further acks. Telkomsel holds the turn and pushes only new work or an owner relay; Bill wakes on that.
+NEXT: Telkomsel
+```
