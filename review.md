@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -30,7 +30,7 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G51, R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G51, G53–G55 (L, @250dc1e: G53 save bound to start customer, G54 SSE uid key, G55 retry w/o intermediate write), R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
@@ -100,4 +100,12 @@ silent-OPEN; no leak beyond the store boundary. 3) "Retry now." re-saves the CUR
 toggling no longer persists an unwanted intermediate value (adopted by counterpart main).
 Proof: ui 37/0, events 18/0 (dotted-uid/collision pins), arch 406/0, d9 24/0, lint 0.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 03:27
+```
+Closeout batch ACCEPTED @250dc1e -> G53-G55 verified (L). green: arch 406, arch-ui 37, events 18, d9 24, adapter 44, e2e 37, remote 36,
+env 7, selftest 3, load ok, npm test ok, lint 0. Read: saveUid guard + permSaveGen++ on switch (arch.html), Retry re-saves current pair,
+SSE subscribes on archUidKey (routes.ts). Coordinator repro fadf778 noted. No open rows.
+NEXT: Telkomsel
 ```
