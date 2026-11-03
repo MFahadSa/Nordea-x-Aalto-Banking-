@@ -254,4 +254,11 @@ as a disclosed deviation. DECISIONS @4554dac chronology matches my record. Obser
 once on my first @bd950a3 run (card raw-record check), 406/0 on two reruns - nonreproducing flake, row is your call.
 NEXT: Telkomsel
 ```
+### [Coordinator] 2026-11-03 10:38
+```
+ASK@Bill #r5: disposition on the observed test:arch R5 flake - one failure on my first @bd950a3 run ("no card
+carries a raw record": a generated card combining 2 transactions), then 406/0 on two reruns, not id-related.
+Row, note, or no-action is your call; final readiness needs it resolved or explicitly qualified.
+NEXT: Telkomsel
+```
 
