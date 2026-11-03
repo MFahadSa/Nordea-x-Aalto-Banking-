@@ -7,7 +7,7 @@ import {
 } from './orchestrator.js';
 import { hostedClearOutcome } from './store/common.js';
 import { setStoreWriteHook } from './store/common.js';
-import { noteArchChange, subscribeArch, archUidFromFile } from './events.js';
+import { noteArchChange, subscribeArch, archUidFromFile, archUidKey } from './events.js';
 
 // Realtime: EVERY store write (local or hosted, any agent DB or the bus) becomes one
 // coalesced per-customer change event for the SSE stream - coverage at the write layer,
@@ -40,7 +40,7 @@ export function registerArchRoutes(app: Express) {
   // ?after=<seq> or the Last-Event-ID header replays the bounded buffer of missed events.
   // Isolation: a connection only ever receives its own uid's events; keepalive every 25s.
   app.get('/api/arch/:uid/events', h((req, res) => {
-    const user = uid(req);
+    const user = archUidKey(uid(req)); // emissions key on the store-sanitized uid - subscribe on the same key
     const after = Math.max(0, Number(req.query.after) || Number(req.headers['last-event-id']) || 0);
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     res.write(': connected\n\n');

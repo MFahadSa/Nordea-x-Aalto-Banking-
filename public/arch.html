@@ -306,19 +306,32 @@ window.deleteGoal = async (id, title) => { if (!confirm(`Delete goal "${title}"?
 // afterwards; a stale confirmation or failure never overwrites a newer pending choice.
 const perm = { dirty: false, saving: false };
 let permSaveGen = 0;
-function permStatus(text, isError) { const el = $('perm-status'); el.textContent = text; el.style.color = isError ? '#a4352c' : '#8b949e'; }
+function permStatus(text, isError, retry) {
+  const el = $('perm-status');
+  el.textContent = text; el.style.color = isError ? '#a4352c' : '#8b949e';
+  if (retry) { // retry re-saves the CURRENT choice directly - no dropdown toggle, so no
+    const a = document.createElement('a'); // unwanted intermediate value is ever persisted
+    a.href = '#'; a.textContent = ' Retry now.';
+    a.onclick = (e) => { e.preventDefault(); savePermissions(); };
+    el.appendChild(a);
+  }
+}
 async function savePermissions() {
   if (perm.saving) return; // the in-flight save re-checks the selects when it finishes
   const gen = ++permSaveGen;
+  const saveUid = uid; // a save belongs to the customer it started on...
   perm.saving = true; perm.dirty = true; permStatus('Saving...');
   const want = { reviewLevel: $('perm').value, userCardMode: $('ucmode').value };
   let posted = false;
-  try { await api(`/api/arch/${uid}/permissions`, { body: want }); posted = true; }
+  try { await api(`/api/arch/${saveUid}/permissions`, { body: want }); posted = true; }
   catch { /* api() already surfaces the error in the chat log */ }
+  if (saveUid !== uid) return; // ...so a customer switch mid-save abandons it completely: no
+  // follow-up save of the OLD customer's values onto the NEW one, no status painted on its
+  // screen, and perm.saving untouched - the NEW customer's own in-flight save is never clobbered.
   perm.saving = false;
   const now = { reviewLevel: $('perm').value, userCardMode: $('ucmode').value };
   if (now.reviewLevel !== want.reviewLevel || now.userCardMode !== want.userCardMode) { savePermissions(); return; } // persist the LATEST pair
-  if (!posted) { permStatus('Save failed - your choice is kept here; change a dropdown to retry.', true); return; }
+  if (!posted) { permStatus('Save failed - your choice is kept here.', true, true); return; }
   let s = null;
   try { s = await refresh(); } catch { /* keep dirty; the next successful read confirms */ }
   if (gen !== permSaveGen) return; // a newer save started while confirming - it owns the status
@@ -327,7 +340,7 @@ async function savePermissions() {
     if ((p.reviewLevel ?? 'all') === now.reviewLevel && (p.userCardMode ?? 'Review everything') === now.userCardMode) {
       perm.dirty = false; permStatus('Saved.');
     } else {
-      permStatus('Not saved yet - the server still shows the old setting; change a dropdown to retry.', true);
+      permStatus('Not saved yet - the server still shows the old setting.', true, true);
     }
   } else {
     permStatus('Sent - confirming against the server...');
@@ -348,7 +361,7 @@ $('btn-park-cm').onclick = async () => { const parked = $('btn-park-cm').textCon
 $('btn-newsession').onclick = async () => { const j = await api(`/api/arch/${uid}/session/new`, {}); sessionId = j.sessionId; say('agent', 'New session started - the next question opens a fresh context.md.'); refresh(); };
 for (const a of ['personal', 'cm', 'nordea']) $(`btn-off-${a}`).onclick = async () => { const off = $(`btn-off-${a}`).textContent === 'Turn off'; await api(`/api/arch/${uid}/agents/${a}/${off ? 'off' : 'on'}`, {}); refresh(); };
 for (const w of ['user', 'cm', 'nordea']) $(`btn-del-${w}`).onclick = async () => { if (confirm(`Really delete the ${w === 'cm' ? 'Context Memory' : w === 'user' ? 'User' : 'Nordea'} DB? Other databases are not touched.`)) { await api(`/api/arch/${uid}/db/${w}`, { method: 'DELETE' }); refresh(); } };
-$('uid').addEventListener('change', () => { perm.dirty = false; perm.saving = false; permStatus(''); uid = $('uid').value || 'lauri'; evtLastSeq = 0; startStream(); refresh(); });
+$('uid').addEventListener('change', () => { perm.dirty = false; perm.saving = false; permSaveGen++; permStatus(''); uid = $('uid').value || 'lauri'; evtLastSeq = 0; startStream(); refresh(); });
 let refreshing = false, lastFallbackPoll = 0;
 async function tick() {
   // Bounded fallback only: while the SSE stream is open or reconnecting (EventSource retries

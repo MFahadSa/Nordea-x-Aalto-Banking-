@@ -47,10 +47,10 @@ function makePage(scriptSource, extraSandbox = {}) {
     if (!elements.has(id)) {
       elements.set(id, {
         id, value: '', innerHTML: '', textContent: '', disabled: false, className: '', style: {},
-        files: [], onclick: null, onchange: null, listeners: {}, scrollTop: 0,
+        files: [], onclick: null, onchange: null, listeners: {}, scrollTop: 0, children: [],
         addEventListener(ev, fn) { (this.listeners[ev] ??= []).push(fn); },
-        async click() { if (this.onclick) await this.onclick(); },
-        appendChild() {},
+        async click() { if (this.onclick) await this.onclick({ preventDefault() {} }); },
+        appendChild(c) { this.children.push(c); },
       });
     }
     return elements.get(id);
@@ -66,7 +66,7 @@ function makePage(scriptSource, extraSandbox = {}) {
     document: {
       hidden: false, activeElement: null,
       getElementById: el,
-      createElement: () => ({ style: {}, className: '', textContent: '', appendChild() {} }),
+      createElement: () => ({ style: {}, className: '', textContent: '', href: '', onclick: null, children: [], appendChild(c) { this.children.push(c); }, async click() { if (this.onclick) await this.onclick({ preventDefault() {} }); } }),
     },
     fetch: (url, opts) => new Promise((resolve) => { pending.push({ url: String(url), opts, resolve }); }),
   };
@@ -351,6 +351,75 @@ class FakeEventSource {
   page.tick();
   await flush();
   check('SSE: a reopened stream stops fallback polling', page.pending.length === n2, page.pending.length - n2);
+}
+
+
+// ---------- Closeout safety remedies (Coordinator 03:19): switch mid-save + retry without intermediate write ----------
+{
+  // A save belongs to the customer it started on: switching mid-save abandons it - no
+  // follow-up save of the OLD customer's values onto the NEW customer, no status painted.
+  const page = makePage(newScript);
+  await boot(page); // lauri
+  await change(page, 'perm', 'high');
+  const saveA = await page.waitReq('/permissions', 'POST');
+  if (!saveA.url.includes('/api/arch/lauri/permissions')) throw new Error('save did not target lauri: ' + saveA.url);
+  await change(page, 'uid', 'maija'); // switch while A's save is in flight
+  page.respond(await page.waitReq('/state'), baseState()); // maija's state
+  await flush();
+  page.respond(saveA, { ok: true }); // A's save completes after the switch
+  await flush(20);
+  const wrongTarget = page.pending.filter((r) => r.url.includes('/api/arch/maija/permissions'));
+  check('SAFETY: mid-save customer switch never writes the old values to the new customer', wrongTarget.length === 0, wrongTarget.map((r) => r.url));
+  check('SAFETY: the abandoned save paints no status on the new customer', page.el('perm-status').textContent === '', page.el('perm-status').textContent);
+}
+{
+  // Retry after a failed save uses the Retry action (current values, one write) - no dropdown
+  // toggle, so no unwanted intermediate value is ever persisted.
+  const page = makePage(newScript);
+  await boot(page);
+  await change(page, 'perm', 'high');
+  page.respond(await page.waitReq('/permissions', 'POST'), {}, false); // save fails
+  await flush(20);
+  check('SAFETY: failed save keeps the choice and offers Retry', /Save failed/.test(page.el('perm-status').textContent) && page.el('perm-status').children.length === 1, page.el('perm-status').textContent);
+  const postsBefore = page.pending.filter((r) => r.url.includes('/permissions') && (r.opts?.method ?? 'GET') === 'POST').length;
+  await page.el('perm-status').children[0].click(); // Retry now.
+  const retry = await page.waitReq('/permissions', 'POST');
+  const body = JSON.parse(retry.opts.body);
+  check('SAFETY: Retry re-saves the kept choice directly (no intermediate write)', body.reviewLevel === 'high' && body.userCardMode === 'Review everything', body);
+  page.respond(retry, { ok: true });
+  page.respond(await page.waitReq('/state'), baseState('high'));
+  await flush(20);
+  check('SAFETY: retry confirms Saved.', page.el('perm-status').textContent === 'Saved.', page.el('perm-status').textContent);
+}
+
+
+{
+  // Switching mid-save must not suppress or clobber the NEW customer's own save: A's abandoned
+  // completion leaves perm.saving alone, so a save started for B stays the only one in flight.
+  const page = makePage(newScript);
+  await boot(page); // lauri
+  await change(page, 'perm', 'high');
+  const saveA = await page.waitReq('/permissions', 'POST'); // A in flight
+  await change(page, 'uid', 'maija');
+  page.respond(await page.waitReq('/state'), baseState());
+  await flush();
+  await change(page, 'perm', 'high'); // B's own change starts B's save
+  let saveB = null;
+  for (let i = 0; i < 50 && !saveB; i++) { saveB = page.pending.find((r) => r.url.includes('/api/arch/maija/permissions')); if (!saveB) await flush(2); }
+  if (!saveB) throw new Error('B save missing');
+  page.respond(saveA, { ok: true }); // A completes while B's save is in flight
+  await flush(20);
+  await change(page, 'ucmode', 'High risk mode'); // must queue, not start a parallel B save
+  await flush(10);
+  check('SAFETY: abandoned save never clobbers the new customer\'s in-flight save', page.pending.filter((r) => r.url.includes('/api/arch/maija/permissions') && r !== saveB).length === 0, page.pending.map((r) => r.url));
+  page.respond(saveB, { ok: true }); // B's save finishes -> follow-up persists the latest pair
+  const follow = await page.waitReq('/permissions', 'POST');
+  const fb = JSON.parse(follow.opts.body);
+  check('SAFETY: the new customer\'s latest pair persists after the abandoned save', fb.reviewLevel === 'high' && fb.userCardMode === 'High risk mode', fb);
+  page.respond(follow, { ok: true });
+  page.respond(await page.waitReq('/state'), baseState('high', 'High risk mode'));
+  await flush(20);
+  check('SAFETY: the new customer\'s save confirms Saved.', page.el('perm-status').textContent === 'Saved.', page.el('perm-status').textContent);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

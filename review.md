@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -89,4 +89,15 @@ are comments): a dotted-uid view freezes after first load. Latent today (5 simpl
 real for any email-like userId (registerCustomer stores raw id, common.ts:336). Matches the
 builder's local archUidKey fix - independent reproduction for Bill's finding rows.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-03 03:24
+```
+CMP: closeout safety batch, 3 confirmed defects (Bill FACTs 02:44/02:50/03:06 "L, no row";
+Coordinator repro fadf778). 1) Save bound to its starting customer: a mid-save switch
+abandons it - no cross-customer write/paint, new customer's own save never clobbered. 2) SSE
+subscribes on archUidKey: event identity = store file identity; dotted uids no longer freeze
+silent-OPEN; no leak beyond the store boundary. 3) "Retry now." re-saves the CURRENT pair;
+toggling no longer persists an unwanted intermediate value (adopted by counterpart main).
+Proof: ui 37/0, events 18/0 (dotted-uid/collision pins), arch 406/0, d9 24/0, lint 0.
+NEXT: Bill
 ```

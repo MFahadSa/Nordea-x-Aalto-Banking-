@@ -6,7 +6,7 @@
  * write hook (local mode included - not an assumed call site). No server, no deps.
  */
 import { emitArchChange, noteArchChange, subscribeArch, archUidFromFile, archUidKey, type ArchEvent } from '../src/server/arch/events.js';
-import { setStoreWriteHook } from '../src/server/arch/store/common.js';
+import { setStoreWriteHook, fileFor } from '../src/server/arch/store/common.js';
 import { appendMessage } from '../src/server/arch/store/busStore.js';
 
 let pass = 0, fail = 0;
@@ -74,5 +74,25 @@ try {
 } finally {
   setStoreWriteHook(null);
 }
+
+// Regression (Bill FACT @03:06): the SSE route must subscribe on the SAME sanitized key the
+// store-write emissions use, or a uid with '.'/space would silently get no events.
+import fs from 'node:fs';
+{
+  const src = fs.readFileSync(new URL('../src/server/arch/routes.ts', import.meta.url), 'utf-8');
+  const m = src.match(/\/api\/arch\/:uid\/events'[\s\S]{0,300}/);
+  check('route subscribes on the sanitized uid key', !!m && /archUidKey\(uid\(req\)\)/.test(m[0]));
+  const keyed: ArchEvent[] = [];
+  subscribeArch(archUidKey('My User.1'), 0, (ev) => keyed.push(ev));
+  noteArchChange('My User.1'); // raw uid, as the store hook produces
+  await sleep(500);
+  check('raw-uid emission reaches the sanitized-key subscriber', keyed.length === 1 && keyed[0].seq >= 1);
+}
+
+// Identity grounding (Coordinator 03:22): an event stream's identity IS the store's file
+// identity - uids that sanitize alike already share ONE database file, so keying events on
+// the sanitized uid cannot leak across customers beyond the store's own data boundary.
+check('event identity is exactly the store file identity', fileFor('a.b', 'bus') === fileFor('a_b', 'bus') && archUidKey('a.b') === archUidKey('a_b'));
+check('distinct identities stay isolated at both layers', fileFor('ab', 'bus') !== fileFor('a.b', 'bus') && archUidKey('ab') !== archUidKey('a.b'));
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
