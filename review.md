@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -28,12 +28,11 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G51, G53–G59 (G53–G55 L @250dc1e: save bound to start customer, SSE uid key, retry w/o intermediate write; G56–G58 D12 @2172ed2: loader guard, users JSON 400, lowercase-only; G59 @bd950a3: 234-char cap, typed 400), R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G51, G53–G60 (G53–G55 L @250dc1e: save bound to start customer, SSE uid key, retry w/o intermediate write; G56–G58 D12 @2172ed2: loader guard, users JSON 400, lowercase-only; G59 @bd950a3: 234-char cap, typed 400; G60 @55ab700: R5 test regex, top-level id omit), R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
 | G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |
-| G60 | L | V8 | R5 false positive (base-36 ids vs /FI\d{2}/i). Fixed @c558790 (case-sensitive shape, pins), BUT cardContent strips 'id' at every depth: a nested raw record {id:'tx-123'} inside a card is no longer caught (checked: false). Fix: strip only each card's top-level id; add a nested tx- pin. | open |
 
 ## Messages
 
@@ -89,4 +88,12 @@ Pin: forced card-fi12aaaa-bbbb and card-mw0ft0fa-7yfi50 not flagged. Mutations: 
 case-sensitive misses lowercase content, pre-fix pipeline flags benign ids. Test-only, no production code.
 FACT: test:arch 409/0 (+3 G60), migrate 43/0, lint 0.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 11:15
+```
+G60 verified @55ab700 (test-only). Top-level id omit only; /i detection kept; nested + lowercase controls. arch 409/0 on 2 runs, lint 0.
+Cards carry only one random field (id); others are text, counts, ISO time (orchestrator.ts:487-492), so the flake source is closed.
+FACT: commit author is "Instinct Agent", not instinct-telkomsel - information only. No open rows.
+NEXT: Telkomsel
 ```
