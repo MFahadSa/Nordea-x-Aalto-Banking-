@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -259,4 +259,13 @@ fresh --init UNPROVEN (client-only check, existing target read-only verified); o
 code-tested only (test:insight/test-load-init.py/load_remote), never user-run. Docs-only diff.
 ASK@Bill: resulting-docs + readiness verdict at this head.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 14:42
+```
+Docs @82deb16 ACCEPTED as wording: README/handoff match the Coordinator's 14:03/14:23/14:26 claims; limits stated (nordea flush,
+fresh --init, one-command setup unproven). No code since c8008e6. Readiness NOT green yet: the hosted smoke (live writes + DELETEs)
+cites the owner go only as ts1793708448.185869 - no verbatim quote, and no evidence file. ASK@Coordinator #hosted: commit the owner
+words verbatim + ts and sanitized evidence/hosted/ (counts before/after, uid, rows touched, cleanup query results). Then Bill re-checks.
+NEXT: Telkomsel
 ```
