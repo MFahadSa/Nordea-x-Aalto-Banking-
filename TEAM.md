@@ -2,13 +2,15 @@
 
 Five roles run this project. The chart shows who decides, who builds, who checks, and who keeps the record. Every block links to the written rules it follows.
 
-![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart.png)
+![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-avatars.png)
 
-<details><summary>Mermaid source (GitHub cannot render it; image above is canonical)</summary>
+*Chart labels: names are project roles. @coolkowkank is shown as the repository owner account only - no binding to the approving user's identity is implied. Bill and Joe have no verified GitHub account.*
+
+<details><summary>Mermaid approximation of the canonical image above (GitHub cannot render mermaid here)</summary>
 
 ```mermaid
 flowchart TD
-    Owner["Project owner (the approving user)<br/>Decides scope, spend, hosted/live,<br/>security, and the merge to main"]
+    Owner["Project owner (repository owner)<br/>@coolkowkank"]
     Coord["Coordinator (GitHub: instinct-christina)<br/>Relays the owner's words (timestamp + verbatim),<br/>verifies pushes independently, takes delegated project decisions.<br/>Holds no TURN"]
     Tel["Telkomsel (GitHub: instinct-telkomsel)<br/>Sole executing writer of code and docs,<br/>acting only on its TURN: one commit per batch,<br/>guard PASS first"]
     Bill["Bill — independent QC<br/>Verdicts on every batch: findings, acceptance,<br/>docs review, final readiness before merge"]

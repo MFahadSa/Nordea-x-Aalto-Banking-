@@ -101,7 +101,48 @@ LLM_PROVIDER=mock npm run dev        # bash (Mac/Linux)
 - Port 3000 already in use: stop the other app, or run on another port - `PORT=3001 npm run dev` (bash), `$env:PORT=3001; npm run dev` (PowerShell), `set PORT=3001 && npm run dev` (cmd).
 - `python` is not recognized / command not found: use `python3`; if neither exists, install Python 3 from [python.org](https://www.python.org) (no packages needed). The npm test scripts try both names automatically (via `scripts/run_python.mjs`).
 
-Open **http://localhost:3000/arch.html** for the three-agent demo UI. Its controls: pick a customer in the **Customer** picker; chat (answered from the session's document); **New session** starts a fresh session whose next question rebuilds `context.md`; goals are added, changed or removed by telling the personal agent in the chat ("add goal ...", "change goal X to Y", "remove goal X"), and the goal cards below the chat box keep each goal's **edit**/**delete**; the Context Memory and Nordea windows show the processed cards the agents put on `context.md` (each combining several stored records, never raw rows or the whole cabinet); **Upload bank file** imports a JSON/CSV statement through the airlock; **Check feed** applies new rows of the Supabase `nordea_feed` table (feed section below); the agent **off/on** switches pause one agent's reasoning; **Park** silences the whole cabinet; **Permissions** set the standing review level for bank-side proposals and the User-card approval mode (default 'Review everything': only level 0 passes and levels 1-2 wait in **waiting for you**; 'High risk mode' also passes level 1; 'No permission' passes every level as a logged mode pass - never an AI certification - and a card the AI could not level counts as level 2); goal-relevant Nordea insights run by themselves after a goal is added or changed; and the review and airlock queues take accept/reject decisions. The developer monitor at **http://localhost:3000/dev-monitor.html** is on by default - set `DEV_MONITOR=0` to turn it off. It shows private cards, so always set `DEV_MONITOR=0` on a hosted or shared deployment. **Live-AI view (both pages):** each agent line shows whether its last reasoning run finished on a model (and which chain member answered; a single provider such as Gemini shows its label and model), failed and fell back to scripted, was never attempted since the server started, is off, or has no provider; observations older than 30 minutes are marked stale. The three agents share ONE provider chain, shown once with each member's key/resting/last-ok/last-problem state. A key being set means configured, not working. The view is built from in-memory results (`ai` in `/api/arch/:uid/state` and `/api/dev/monitor`), is per customer, resets on restart, never calls a model on load or refresh, and error text is sanitized (keys and tokens removed, 160 chars). Without `LLM_PROVIDER=mock`, Abel uses Gemini (`GEMINI_API_KEY`) or an OpenAI-compatible provider, as on `main`.
+Open **http://localhost:3000/arch.html** for the three-agent demo UI.
+
+The developer monitor at **http://localhost:3000/dev-monitor.html** is on by default - set `DEV_MONITOR=0` to turn it off. It shows private cards, so always set `DEV_MONITOR=0` on a hosted or shared deployment.
+
+<details><summary>Demo UI controls (arch.html)</summary>
+
+- **Customer picker**: pick a demo customer; chat answers from that session's document.
+- **New session**: starts a fresh session; its next question rebuilds `context.md`.
+- **Goals**: add, change or remove goals by telling the personal agent in the chat
+  ("add goal ...", "change goal X to Y", "remove goal X"); the goal cards below the chat box
+  keep each goal's **edit**/**delete**.
+- **Context Memory and Nordea windows**: show the processed cards the agents put on
+  `context.md` (each combining several stored records, never raw rows or the whole cabinet).
+- **Upload bank file**: imports a JSON/CSV statement through the airlock.
+- **Check feed**: applies new rows of the Supabase `nordea_feed` table (feed section below).
+- **Agent off/on switches**: pause one agent's reasoning. **Park** silences the whole cabinet.
+- **Permissions**: the standing review level for bank-side proposals and the User-card approval
+  mode. Default 'Review everything': only level 0 passes and levels 1-2 wait in
+  **waiting for you**; 'High risk mode' also passes level 1; 'No permission' passes every level
+  as a logged mode pass - never an AI certification - and a card the AI could not level counts
+  as level 2.
+- Goal-relevant Nordea insights run by themselves after a goal is added or changed; the review
+  and airlock queues take accept/reject decisions.
+
+</details>
+
+<details><summary>Live-AI view (both pages)</summary>
+
+- Each agent line shows whether its last reasoning run finished on a model (and which chain
+  member answered; a single provider such as Gemini shows its label and model), failed and fell
+  back to scripted, was never attempted since the server started, is off, or has no provider.
+  Observations older than 30 minutes are marked stale.
+- The three agents share ONE provider chain, shown once with each member's
+  key/resting/last-ok/last-problem state. A key being set means configured, not working.
+- The view is built from in-memory results (`ai` in `/api/arch/:uid/state` and
+  `/api/dev/monitor`), is per customer, resets on restart, never calls a model on load or
+  refresh, and error text is sanitized (keys and tokens removed, 160 chars).
+
+</details>
+
+Without `LLM_PROVIDER=mock`, Abel uses Gemini (`GEMINI_API_KEY`) or an OpenAI-compatible
+provider, as on `main`.
 
 ### Settings worth knowing
 
@@ -172,7 +213,28 @@ New (fictional) Nordea account data can be dropped into Supabase for the running
 3. The **Context Memory agent** retrieves what is relevant from `cm.db` and writes the Context memory section.
 4. The **Nordea agent** adds relevant aggregates from `nordea.db`.
 
-With a provider configured (`GEMINI_API_KEY` or `LLM_PROVIDER=openai`), all three agents also **reason with an LLM**: the CM and Nordea models get tools for their own database only and propose the round's retrieval plan and match terms, and the personal agent's model reads its own User DB through tools and composes the chat reply from what it saw (a figure the model writes that is not in the selected facts or its tool results - compared as whole numbers - drops the model's reply; the customer gets an honest answer that declines to quote unverified figures, never the invented number). Code validates every proposal and owns numbers, evidence, risk and every write. Each round record and chat answer states truthfully which path ran - `model`, `scripted`, or `scripted (model unavailable)` - and /arch.html shows it under each reply; the same status is auditable on the bus. On a related question the User AI can also send the cabinet back for another retrieval cycle - User AI > CM > Nordea > User AI, at most 5 cycles per turn - and stops as soon as its review says the facts are enough; when `LLM_MAX_CALLS` caps paid calls the final answer call stays reserved, best effort. Without a key the scripted behaviour runs unchanged (that is also what the tests use).
+With a provider configured (`GEMINI_API_KEY` or `LLM_PROVIDER=openai`), all three agents also **reason with an LLM**:
+
+<details><summary>How the reasoning path works</summary>
+
+- The CM and Nordea models get tools for their own database only and propose the round's
+  retrieval plan and match terms, and the personal agent's model reads its own User DB through
+  tools and composes the chat reply from what it saw.
+- A figure the model writes that is not in the selected facts or its tool results - compared as
+  whole numbers - drops the model's reply; the customer gets an honest answer that declines to
+  quote unverified figures, never the invented number.
+- Code validates every proposal and owns numbers, evidence, risk and every write.
+- Each round record and chat answer states truthfully which path ran - `model`, `scripted`, or
+  `scripted (model unavailable)` - and /arch.html shows it under each reply; the same status is
+  auditable on the bus.
+- On a related question the User AI can also send the cabinet back for another retrieval
+  cycle - User AI > CM > Nordea > User AI, at most 5 cycles per turn - and stops as soon as its
+  review says the facts are enough; when `LLM_MAX_CALLS` caps paid calls the final answer call
+  stays reserved, best effort.
+- Without a key the scripted behaviour runs unchanged (that is also what the tests use).
+
+</details>
+
 5. The Context Memory agent **finalises** the document and stamps it with the session id. Every later question in that session is answered from that document.
 6. If an agent is off or the cabinet is parked, no round runs and no other session's document is served - the app says plainly that shared context is unavailable.
 7. Accepted knowledge is stored in `cm.db`; decay maintenance re-checks it before reuse (below).
@@ -317,13 +379,15 @@ Abel's chat on this branch lives in the three-agent code (`src/server/arch/orche
 
 Five roles ran this project. The chart shows who decided, who built, who checked, and who kept the record; the signatures below are each role's confirmed acknowledgment.
 
-![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart.png)
+![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-avatars.png)
 
-<details><summary>Mermaid source (GitHub cannot render it; image above is canonical)</summary>
+*Chart labels: names are project roles. @coolkowkank is shown as the repository owner account only - no binding to the approving user's identity is implied. Bill and Joe have no verified GitHub account.*
+
+<details><summary>Mermaid approximation of the canonical image above (GitHub cannot render mermaid here)</summary>
 
 ```mermaid
 flowchart TD
-    Owner["Project owner (the approving user)<br/>Decides scope, spend, hosted/live,<br/>security, and the merge to main"]
+    Owner["Project owner (repository owner)<br/>@coolkowkank"]
     Coord["Coordinator (GitHub: instinct-christina)<br/>Relays the owner's words (timestamp + verbatim),<br/>verifies pushes independently, takes delegated routine decisions.<br/>Holds no TURN"]
     Tel["Telkomsel (GitHub: instinct-telkomsel)<br/>Sole executing writer of code and docs,<br/>acting only on its TURN: one commit per batch,<br/>guard PASS first"]
     Bill["Bill — independent QC<br/>Verdicts on every batch: findings, acceptance,<br/>docs review, final readiness before merge"]

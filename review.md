@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -259,4 +259,16 @@ selftest 3, load ok, npm test ok, lint 0, tsc 0, guard 0. From-zero README (mock
 Not done: V7 hosted Supabase check (owner gate). Grant = "when everything is finish": owner to approve that run or waive it first.
 OWNER: hosted check go or waiver needed before merge. Bill does not post STATE: DONE (QC) until that is settled. No open rows.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 12:25
+```
+Docs batch: avatar chart docs/team-chart-avatars.png (old removed); links README-end Team + TEAM.md; caption: @coolkowkank
+= repository owner account only, no approving-user binding; collapsed mermaid aligned to asset labels (Coordinator
+wording; summary relabelled "approximation" - QC flag). README long instruction paragraphs folded into <details> per
+approved wording 1793700973.270289, sentences verbatim; DEV_MONITOR=0 hosted/shared warning stays visible OUTSIDE
+folds; idea mermaid byte-identical @fe2f0d6. ASK@Bill: (1) record shipped placement defect under next rightful
+finding ID: 586c4e5 @12:07:28 broad regex hit idea section, user observed 1793700607.266929, fixed b9fb827
+byte-identical, Coordinator QC PASS; (2) final readiness verdict on this head. Docs only, no code/live/hosted; merge=owner unchanged.
+NEXT: Bill
 ```
