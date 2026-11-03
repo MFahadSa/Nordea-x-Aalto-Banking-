@@ -88,7 +88,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
       // free prose never ships here (adversarial QC 983be84: label-preserving rewrites with
       // grounded digits still carried unsupported causal/judgment/directive claims); the
       // supporting numbers ride in evidenceText behind the expandable Evidence block.
-      const analysis = analyseMatches(matches);
+      const analysis = analyseMatches(matches, goal.title);
       const card = buildGoalCard(goal.title, analysis);
       const evidence = { total, matched: matches.length, transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)), monthlyAvg: analysis.monthlyAvg, coverageMonths: analysis.coverageMonths, changePct: analysis.changePct, topCategories: analysis.topCategories, sparse: card.sparse };
       sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: card.text, source: 'nordea', evidence, evidenceText: card.evidence || undefined, at: now() });
@@ -189,7 +189,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
       for (const g of docGoals) {
         const gm = matchForTitles(nordea, [g.title]);
         if (gm.length) {
-        const ra = analyseMatches(gm);
+        const ra = analyseMatches(gm, g.title);
         const rc2 = buildGoalCard(g.title, ra);
         rows.push({ id: `nagg-${g.id}`, title: g.title, detail: `${rc2.text} (Refreshed against current bank data.)`, evidenceText: rc2.evidence || undefined, source: 'nordea', evidence: { total: totalOf(gm), matched: gm.length, transactionIds: gm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(gm.map((t) => t.id)), monthlyAvg: ra.monthlyAvg, coverageMonths: ra.coverageMonths, changePct: ra.changePct, topCategories: ra.topCategories }, at: now() });
       }
@@ -479,7 +479,7 @@ export function prepareInsightDrafts(uid: string, goalTitles: string[], terms: R
   for (const title of goalTitles) {
     const matches = matchForTitles(nordea, [title, ...(terms[title] ?? [])]);
     if (!matches.length) continue;
-    const analysis = analyseMatches(matches);
+    const analysis = analyseMatches(matches, title);
     const card = buildGoalCard(title, analysis);
     drafts.push({ title, text: card.text, figures: analysis.figures });
   }

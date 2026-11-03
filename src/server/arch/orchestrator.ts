@@ -485,12 +485,12 @@ async function planRoundLlm(uid: string, question: string): Promise<NonNullable<
   return { ...(cmPlan.plan ? { goalTitles: cmPlan.plan } : {}), ...(nordeaPlan.plan ? { terms: nordeaPlan.plan } : {}), status };
 }
 
-export interface ContextCard { id: string; title: string; detail: string; status?: string; conflict?: boolean; combines: number; unit: 'bank records' | 'sources'; source: string; at: string }
-function contextCards(rows: { id: string; title: string; detail: string; status?: string; conflict?: boolean; source: string; evidence?: Record<string, unknown> | null; at: string }[]): ContextCard[] {
+export interface ContextCard { id: string; title: string; detail: string; evidenceText?: string; status?: string; conflict?: boolean; combines: number; unit: 'bank records' | 'sources'; source: string; at: string }
+function contextCards(rows: { id: string; title: string; detail: string; evidenceText?: string; status?: string; conflict?: boolean; source: string; evidence?: Record<string, unknown> | null; at: string }[]): ContextCard[] {
   return rows.map((r) => {
     // The stored id list is capped (25), so the real count comes from `matched` or, for cabinet entries, from the detail text itself.
     const m = Number(r.evidence?.matched ?? r.detail.match(/(\d+) transactions?\b/)?.[1] ?? (Array.isArray(r.evidence?.transactionIds) ? (r.evidence!.transactionIds as unknown[]).length : 0));
-    return { id: r.id, title: r.title, detail: r.detail, status: r.status, conflict: r.conflict, combines: m > 0 ? m : 1, unit: m > 0 ? 'bank records' : 'sources', source: r.source, at: r.at };
+    return { id: r.id, title: r.title, detail: r.detail, evidenceText: r.evidenceText, status: r.status, conflict: r.conflict, combines: m > 0 ? m : 1, unit: m > 0 ? 'bank records' : 'sources', source: r.source, at: r.at };
   });
 }
 

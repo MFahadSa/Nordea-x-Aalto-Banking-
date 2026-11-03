@@ -14,11 +14,14 @@
  * - Sparse data (few rows, short coverage) says so instead of implying trends.
  */
 import type { Transaction } from '../../types.js';
+import { words, overlaps } from './text.js';
 
 /** Categories that are never consumption: income and movements between the customer's own accounts. */
 const NON_SPENDING = new Set(['salary', 'pension', 'savings_transfer', 'savings_transfer_in']);
 /** Categories a "cut back" scenario may target - essentials (housing, bills, groceries, pharmacy) are never framed as cuttable. */
 const SCENARIO_CATEGORIES = new Set(['restaurants', 'shopping', 'subscriptions', 'transport', 'other']);
+/** Goal words that only name the savings CATEGORY (via text hints) never tag a transfer to the goal. */
+const GENERIC_GOAL_WORDS = new Set(['save', 'saving', 'savings', 'goal', 'fund', 'money', 'transfer']);
 
 export interface Share { name: string; total: number; sharePct: number; }
 
@@ -30,11 +33,13 @@ export interface InsightAnalysis {
   coverageMonths: number;   // distinct calendar months with at least one matched row
   firstDate: string | null;
   lastDate: string | null;
-  monthlyAvg: number | null;        // whole-EUR spending average per covered month
-  changePct: number | null;         // last 3 covered months vs the 3 before, whole percent
+  monthlyAvg: number | null;        // whole-EUR spending average per SPENDING-covered month
+  spendingMonths: number;           // distinct calendar months with at least one spending row
+  changePct: number | null;         // last 3 spending months vs the 3 before, whole percent
   topCategories: Share[];           // up to 3, consumption only
   topMerchants: Share[];            // up to 3, consumption only
-  savingsMonthlyAvg: number | null; // matched savings transfers per covered month (goal pace)
+  savingsMonthlyAvg: number | null; // GOAL-TAGGED savings transfers per savings month (goal pace)
+  genericSavings: boolean;          // savings matched only via the generic category hint - never earmarked
   /** Every figure the card text (or the model's rewrite) may cite, exactly as displayed. */
   figures: number[];
 }
@@ -42,7 +47,7 @@ export interface InsightAnalysis {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const monthOf = (date: string) => date.slice(0, 7);
 
-export function analyseMatches(matches: Transaction[]): InsightAnalysis {
+export function analyseMatches(matches: Transaction[], goalTitle?: string): InsightAnalysis {
   const total = r2(matches.reduce((s, t) => s + Math.abs(t.amount), 0));
   const spending = matches.filter((t) => t.amount < 0 && !NON_SPENDING.has(t.category));
   const savings = matches.filter((t) => t.category === 'savings_transfer' || t.category === 'savings_transfer_in');
@@ -52,14 +57,18 @@ export function analyseMatches(matches: Transaction[]): InsightAnalysis {
   const firstDate = matches.length ? matches.map((t) => t.date).sort()[0] : null;
   const lastDate = matches.length ? matches.map((t) => t.date).sort().slice(-1)[0] : null;
 
-  const monthlyAvg = coverageMonths && spending.length ? Math.round(spendingTotal / coverageMonths) : null;
+  // Spending averages and trends use SPENDING-covered months: months with only transfers or
+  // income never dilute the spending picture (a broad category hint can match years of them).
+  const spendingMonthsList = [...new Set(spending.map((t) => monthOf(t.date)))].sort();
+  const spendingMonths = spendingMonthsList.length;
+  const monthlyAvg = spendingMonths && spending.length ? Math.round(spendingTotal / spendingMonths) : null;
 
   let changePct: number | null = null;
-  if (months.length >= 6) {
+  if (spendingMonthsList.length >= 6) {
     const byMonth = new Map<string, number>();
     for (const t of spending) byMonth.set(monthOf(t.date), (byMonth.get(monthOf(t.date)) ?? 0) + Math.abs(t.amount));
-    const recent = months.slice(-3).reduce((s, m) => s + (byMonth.get(m) ?? 0), 0);
-    const prior = months.slice(-6, -3).reduce((s, m) => s + (byMonth.get(m) ?? 0), 0);
+    const recent = spendingMonthsList.slice(-3).reduce((s, m) => s + (byMonth.get(m) ?? 0), 0);
+    const prior = spendingMonthsList.slice(-6, -3).reduce((s, m) => s + (byMonth.get(m) ?? 0), 0);
     if (prior > 0) changePct = Math.round(((recent - prior) / prior) * 100);
   }
 
@@ -77,18 +86,27 @@ export function analyseMatches(matches: Transaction[]): InsightAnalysis {
   const topCategories = shares((t) => t.category);
   const topMerchants = shares((t) => t.counterparty?.trim() || undefined);
 
-  const savingsMonthlyAvg = coverageMonths && savings.length
-    ? Math.round(r2(savings.reduce((s, t) => s + Math.abs(t.amount), 0)) / coverageMonths)
+  // Goal pace comes only from transfers TAGGED to the goal (a specific goal word in the
+  // description/counterparty). Generic savings transfers matched via the category hint are
+  // never earmarked: they are reported as matched evidence but project no pace.
+  const specificGoalWords = goalTitle ? words(goalTitle).filter((w: string) => !GENERIC_GOAL_WORDS.has(w)) : null;
+  const taggedSavings = specificGoalWords
+    ? savings.filter((t) => overlaps(specificGoalWords, words(`${t.description ?? ''} ${t.counterparty ?? ''}`)))
+    : savings;
+  const genericSavings = specificGoalWords != null && savings.length > 0 && taggedSavings.length === 0;
+  const savingsMonths = [...new Set(taggedSavings.map((t) => monthOf(t.date)))].length;
+  const savingsMonthlyAvg = savingsMonths && taggedSavings.length
+    ? Math.round(r2(taggedSavings.reduce((s, t) => s + Math.abs(t.amount), 0)) / savingsMonths)
     : null;
 
   const figures: number[] = [matches.length, total];
   const push = (n: number | null) => { if (n != null && !figures.some((f) => Math.abs(f - n) < 1e-9)) figures.push(n); };
-  push(spendingTotal); push(monthlyAvg); push(changePct); push(savingsMonthlyAvg); push(coverageMonths); push(spending.length);
+  push(spendingTotal); push(monthlyAvg); push(changePct); push(savingsMonthlyAvg); push(coverageMonths); push(spending.length); push(spendingMonths);
   for (const s of [...topCategories, ...topMerchants]) { push(s.total); push(s.sharePct); }
   return {
     matched: matches.length, total, spendingRows: spending.length, spendingTotal,
-    coverageMonths, firstDate, lastDate, monthlyAvg, changePct, topCategories, topMerchants,
-    savingsMonthlyAvg, figures,
+    coverageMonths, firstDate, lastDate, monthlyAvg, spendingMonths, changePct, topCategories, topMerchants,
+    savingsMonthlyAvg, genericSavings, figures,
   };
 }
 
@@ -142,7 +160,7 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
       ? (Number(a.lastDate.slice(0, 4)) * 12 + Number(a.lastDate.slice(5, 7))) - (Number(a.firstDate.slice(0, 4)) * 12 + Number(a.firstDate.slice(5, 7))) + 1 > a.coverageMonths
       : false;
     let s = `Spending linked to this goal is mostly ${a.topCategories.length ? a.topCategories[0].name : 'everyday purchases'}`;
-    let ev = `It averages about ${a.monthlyAvg} EUR a month over ${a.coverageMonths} months (${a.spendingRows} purchases, ${a.firstDate} to ${a.lastDate}).`;
+    let ev = `It averages about ${a.monthlyAvg} EUR a month over ${a.spendingMonths} spending months (${a.spendingRows} purchases, ${a.firstDate} to ${a.lastDate}).`;
     if (a.topCategories.length) ev += ` Biggest drivers: ${a.topCategories.map((c) => `${c.name} ${c.sharePct}%`).join(', ')}.`;
     if (a.changePct != null && Math.abs(a.changePct) >= 5) {
       s += `, and it is ${a.changePct > 0 ? 'rising' : 'falling'}.`;
@@ -173,9 +191,12 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
   // transfers exist to pace against. Labeled as a projection.
   if (target && a.savingsMonthlyAvg != null && a.savingsMonthlyAvg > 0) {
     const monthsNeeded = Math.ceil(target.amount / a.savingsMonthlyAvg);
-    textParts.push(`At the matched savings pace of about ${a.savingsMonthlyAvg} EUR a month, the ${target.amount} EUR target takes about ${monthsNeeded} months${target.date ? ` (goal date ${target.date})` : ''} - a projection from your matched transfers, not a promise.`);
+    textParts.push(`At the matched savings pace of about ${a.savingsMonthlyAvg} EUR a month, the ${target.amount} EUR target takes about ${monthsNeeded} months${target.date ? ` (goal date ${target.date})` : ''} - a projection from your goal-tagged transfers, not a promise.`);
     if (!a.figures.some((f) => Math.abs(f - target.amount) < 1e-9)) a.figures.push(target.amount);
     if (!a.figures.some((f) => Math.abs(f - monthsNeeded) < 1e-9)) a.figures.push(monthsNeeded);
+  } else if (target && a.genericSavings) {
+    // Honest insufficiency: generic transfers matched the category hint, not the goal.
+    textParts.push('The matched savings transfers are not tagged to this goal, so no pace is projected from them.');
   }
   return { sparse: false, target, text: textParts.join(' '), evidence: evidenceParts.join(' ') };
 }

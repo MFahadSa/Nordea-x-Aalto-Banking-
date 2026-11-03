@@ -366,7 +366,7 @@ check('AC2: only the Nordea agent module writes the Nordea section', nordeaSrc.i
   check('G50: only the private writer, the header, the session reset and the app delete touch the shared document; no other exported function rewrites a section', !/pruneGoalRows/.test(ctxSrc + appSrc) && saveCalls <= 3 && !/export function (?!write|readSection|loadContext|renderContextMd|resetContextForSession|deleteContext|contextMdPath)\w+\(/.test(ctxSrc.replace(/export function (writeCustomerSection|writeMemorySection|writeNordeaSection|writeHeader)/g, '')), `save calls ${saveCalls}`);
   check('G50: the app layer imports no section writer from contextStore', !/import\s*\{[^}]*\bwrite(Customer|Memory|Nordea)Section\b[^}]*\}\s*from\s*'\.\/store\/contextStore/.test(appSrc)); }
 check('AC1: the insight builder is pure shared infra - no agent store, no bus, no LLM driver',
-  importsOf(readSrc('../src/server/arch/insight.ts')).every((spec) => spec === '../../types.js'));
+  importsOf(readSrc('../src/server/arch/insight.ts')).every((spec) => spec === '../../types.js' || spec === './text.js'));
 check('AC1: the dispatcher and round engine open no agent store at all',
   !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/dispatcher.ts')) && !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/rounds.ts')));
 

@@ -34,6 +34,8 @@ export interface ArchEntry {
   proposedBy: AgentId | 'user';
   viaMessageId?: string;
   evidence?: { transactionIds?: string[]; transactionIdsHash?: string; total?: number; note?: string };
+  /** Supporting numbers for a meaning-first card, carried from the accepted proposal. */
+  evidenceText?: string;
   observed?: 'observed' | 'inferred';
   risk?: 'low' | 'medium' | 'high'; // AC7: code-rule risk level from risk.ts
   approval?: { id: string; level: 0 | 1 | 2 }; // R2: durable user-card approval (id contains the level)

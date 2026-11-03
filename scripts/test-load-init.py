@@ -55,7 +55,7 @@ check("privileged URL never in argv (fake psql rejects it)", "password in argv" 
 check("no password in stdout/stderr", "secretpw" not in out and "postgresql://agent_" not in out)
 content = (tmp / ".env.local").read_text()
 check(".env.local merge: unrelated keys preserved", 'GEMINI_API_KEY="keep-me"' in content and "SUPABASE_DB_URL" in content, content)
-check("existing roles keep credentials: no URL written without the matching env password", "USER_DB_URL" not in content and "CM_DB_URL" not in content and "oldpw" not in content, content)
+check("existing managed URLs preserved when no validated replacement (G64d: rerun never deletes working config)", 'USER_DB_URL="postgresql://stale:oldpw@db.example:5432/postgres"' in content and "CM_DB_URL" not in content, content)
 check("new role URL written under the app key name NORDEA_DB_URL", 'NORDEA_DB_URL="postgresql://agent_nordea' in content, content)
 r2 = run(tmp, env, AGENT_USER_PASSWORD="knownpw2")
 content2 = (tmp / ".env.local").read_text()

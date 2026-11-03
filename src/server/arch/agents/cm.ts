@@ -100,6 +100,7 @@ function retrieveRelevant(uid: string, queryWords: string[]): ContextRow[] {
       id: e.id, title: e.title, detail: e.detail, source: 'cm', status: e.status,
       observed: e.observed ?? (e.evidence?.total != null ? 'observed' : 'inferred'),
       evidence: (e.evidence ?? null) as Record<string, unknown> | null,
+      evidenceText: e.evidenceText,
       at: e.createdAt,
       ...(conflict ? { conflict: true } : {}),
     });
@@ -628,7 +629,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
         return;
       }
       updateMessage(uid, messageId, { status: 'accepted' });
-      const p = (proposal.payload ?? {}) as { goalIds?: string[]; detail?: string; transactionIds?: string[]; transactionIdsHash?: string; total?: number; observed?: 'observed' | 'inferred'; appWrite?: boolean; entry?: ArchEntry };
+      const p = (proposal.payload ?? {}) as { goalIds?: string[]; detail?: string; evidenceText?: string; transactionIds?: string[]; transactionIdsHash?: string; total?: number; observed?: 'observed' | 'inferred'; appWrite?: boolean; entry?: ArchEntry };
       // G10: an app write accepted from the queue lands as its carried entry (own id,
       // provenance, doc), explicitly reviewed - not autoAccepted, so per-entry undo skips it.
       const entry: ArchEntry = p.appWrite && p.entry
@@ -642,6 +643,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
         proposedBy: proposal.from === 'personal' ? 'personal' : 'nordea',
         viaMessageId: proposal.id,
         evidence: { transactionIds: p.transactionIds, transactionIdsHash: p.transactionIdsHash, total: p.total },
+        evidenceText: p.evidenceText,
         observed: deriveObserved(proposal), // F20: derived from evidence, not the proposer's flag
         ...(proposal.from === 'personal' ? (() => { const ap = effectiveApproval(proposal.payload, { title: proposal.summary, detail: p.detail ?? '', source: 'personal', risk: assessProposalRisk(proposal) }); return { approval: { id: ap.id, level: ap.level } }; })() : {}),
         status: 'active',

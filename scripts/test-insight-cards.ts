@@ -45,7 +45,7 @@ check('tie-out: savings pace from matched savings transfers', a.savingsMonthlyAv
 
 const card = I.buildGoalCard('Japan trip 3 000 € by 2027-06', a);
 check('card leads with meaning, not an aggregate', card.text.startsWith('Spending linked to this goal is mostly restaurants, and it is rising.'), card.text);
-check('supporting numbers sit in the expandable evidence, not the headline', !card.text.includes('averages about') && card.evidence.includes('It averages about 115 EUR a month over 6 months (12 purchases, 2026-05-02 to 2026-10-02).') && card.evidence.includes('Biggest drivers: restaurants 65%, shopping 35%.'), card.text + ' || ' + card.evidence);
+check('supporting numbers sit in the expandable evidence, not the headline', !card.text.includes('averages about') && card.evidence.includes('It averages about 115 EUR a month over 6 spending months (12 purchases, 2026-05-02 to 2026-10-02).') && card.evidence.includes('Biggest drivers: restaurants 65%, shopping 35%.'), card.text + ' || ' + card.evidence);
 check('card states the direction of change honestly', card.evidence.includes('up about 30% on the three months before.'), card.evidence);
 check('scenario is labeled and sized from the code average', card.text.includes('Scenario: cutting restaurants by a third would free about 25 EUR a month'), card.text);
 check('projection is labeled and uses the title target with the matched savings pace', card.text.includes('the 3000 EUR target takes about 15 months (goal date 2027-06)'), card.text);
@@ -133,6 +133,17 @@ check('adversarial rewrites still pass the old digit+label guards (why guards ar
   adversarial.every((t) => I.textFiguresGrounded(t, a.figures) && I.textPreservesLabels(card.text, t)));
 check('the shipped card path never consumes model insight texts', (() => { const s = fs.readFileSync('src/server/arch/agents/nordea.ts', 'utf-8'); return !s.includes('insightTexts') && !s.includes('llmDraftInsightTexts'); })());
 check('the deterministic card carries none of the adversarial claims', adversarial.every((t) => !card.text.includes(t.split('.')[0]) && !card.evidence.includes(t.split('.')[0])));
+
+// Goal-scope regression (Coordinator QC): generic savings transfers matched via the category
+// hint are never earmarked as goal pace, and spending averages use spending-covered months only.
+const genSavings = ['2024-11', '2024-12', '2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06', '2025-07', '2025-08', '2025-09', '2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04']
+  .map((m, i) => ({ id: `gs${i}`, userId: 'u', date: `${m}-15`, category: 'savings_transfer', amount: -850, account: 'current', description: 'Monthly buffer', counterparty: '' }));
+const mixed = I.analyseMatches([...TX, ...genSavings] as never, 'Japan trip 3 000 \u20ac by 2027-06');
+check('generic transfers are never earmarked: pace comes only from goal-tagged transfers', mixed.savingsMonthlyAvg === 200, String(mixed.savingsMonthlyAvg));
+check('spending average uses spending-covered months, not transfer-covered months', mixed.monthlyAvg === 115 && mixed.coverageMonths === 24, JSON.stringify({ avg: mixed.monthlyAvg, cov: mixed.coverageMonths }));
+const genericOnly = I.analyseMatches(months.map((m) => ({ id: `go${m}`, userId: 'u', date: `${m}-15`, category: 'savings_transfer', amount: -850, account: 'current', description: 'Monthly buffer', counterparty: '' })) as never, 'Japan trip 3 000 \u20ac by 2027-06');
+const genericCard = I.buildGoalCard('Japan trip 3 000 \u20ac by 2027-06', genericOnly);
+check('no goal-tagged transfers: no pace projection, honest insufficiency instead', genericOnly.genericSavings && genericOnly.savingsMonthlyAvg === null && !genericCard.text.includes('takes about') && genericCard.text.includes('not tagged to this goal'), genericCard.text);
 
 // Regression: the aggregate evidence semantics the cards build on are unchanged.
 check('evidence semantics unchanged (matched count, abs total, figures list)', a.matched === 19 && a.total === 5790 && a.figures.includes(19) && a.figures.includes(5790));

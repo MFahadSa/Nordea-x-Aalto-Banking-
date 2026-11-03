@@ -910,7 +910,12 @@ def main() -> None:
         if env_local.exists():
             for line in env_local.read_text().splitlines():
                 key = line.split("=", 1)[0].strip() if "=" in line else ""
-                if key in role_key.values() or line.startswith("# Written by load_data.py --init"):
+                if line.startswith("# Written by load_data.py --init"):
+                    continue
+                # A managed role URL is replaced only with a validated replacement (role created
+                # this run or the matching current password supplied); otherwise the working
+                # line is preserved - a rerun never deletes a working config (G64d).
+                if key in role_key.values() and key in role_urls:
                     continue
                 kept.append(line)
         while kept and not kept[-1].strip():
@@ -924,7 +929,7 @@ def main() -> None:
             env_local.chmod(0o600)
         smoke_out = (res.stdout or "").strip()
         note = (" Existing roles kept their credentials"
-                + ("; no URL written for " + ", ".join(kept_existing) + " (supply the matching AGENT_*_PASSWORD to write one)" if kept_existing else "") + ".")
+                + ("; existing URLs kept for " + ", ".join(kept_existing) + " (supply the matching AGENT_*_PASSWORD to rewrite one)" if kept_existing else "") + ".")
         print("Setup applied (idempotent; existing role credentials never rotated): agent tables, one role "
               "per agent, Nordea feed, smoke check." + note + " Role URLs were merged into .env.local (0600) - "
               "values are not printed. Smoke output: " + ("; ".join(smoke_out.splitlines()[-3:]) if smoke_out else "see psql output"))

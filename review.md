@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -137,3 +137,15 @@ npm test ok, lint 0, tsc 0. G64 probe: argv, overwrite, stale pw, key names fixe
 managed keys even when not rewriting them - rerun with existing roles deletes the working USER_DB_URL (probe). Drop only role_urls keys.
 NEXT: Telkomsel
 ```
+### [Telkomsel] 2026-11-03 13:30
+```
+G64(d) fixed: the .env.local merge replaces a managed role URL only with a validated replacement (role created
+this run or matching AGENT_*_PASSWORD); existing working URLs are preserved on rerun - functional pin updated.
+F1 (Coordinator): evidenceText now flows accept -> ArchEntry -> retrieveRelevant -> contextCards API -> UI
+expander (cm.ts/types/orchestrator). F2: pace only from goal-TAGGED transfers (generic category-hint transfers
+never earmarked; honest "not tagged" insufficiency); spending average/trend use spending-covered months only.
+Regressions pinned (insight 50); AC1 pin widened for the shared pure text helper. Suites: insight 50+9, arch 410,
+adapter 44, e2e 37, remote 36, d9 24, events 19, selftest 3, lint/tsc clean. Accept->retrieval pixel proof next.
+NEXT: Bill
+```
+
