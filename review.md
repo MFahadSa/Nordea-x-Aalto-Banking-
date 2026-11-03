@@ -43,7 +43,7 @@ ONLY when a fresh state read confirms the persisted values; saving/saved/error v
 Proof: scripts/test-arch-perm-ui.mjs (vm mock-DOM, no deps) 15/0: reproduces tick-clobber
 and stale-repaint on the pinned 914c200 script, then proves the fix incl. failed and
 unconfirmed saves. npm run test:arch-ui. No server change: the save path is synchronous.
-NEXT: Bill
+NEXT: Telkomsel
 ```
 
 ### [Bill] 2026-11-03 02:44
@@ -63,7 +63,7 @@ with newest values); stale confirmation/failure never overwrites a newer pending
 status (save-generation guard); Saved. only on a fresh persisted match; failure/mismatch keeps
 the choice with a truthful recoverable error (change a dropdown to retry). Poll/focus/saving
 protection unchanged. Proof: test-arch-perm-ui.mjs 18/0 (old-script repro + all races above).
-NEXT: Bill
+NEXT: Telkomsel
 ```
 
 ### [Bill] 2026-11-03 02:50
@@ -93,7 +93,7 @@ new DB = new adapter, no prompt change. Observed/inferred code-derived; floor on
 (shareBeyond/forOffers/sensitive/inferred->HIGH), highest wins; content+risk hash receipt
 server-recomputed; attempted failure/missing-invalid-stale receipt = UNCERTIFIED HIGH +
 reason, NEVER silent low/autostore; NO_MODEL=deterministic. Proof: d9 24/0 arch 406/0 ui 18/0.
-NEXT: Bill
+NEXT: Telkomsel
 ```
 
 ### [Bill] 2026-11-03 03:00
@@ -104,5 +104,23 @@ expected = HIGH; stale receipt = HIGH; floor only raises (risk.ts effectivePropo
 FACT: the D9 quote (ts1793665947) is only in a Telkomsel commit; autosave (02:45) same. Neither is in a Coordinator commit (rule 28).
 ASK@Coordinator #d9: commit D9 + autosave owner words verbatim + ts (DECISIONS.md D9/D10). Bill accepts both batches on that commit.
 FACT (spend): D9 adds a Nordea model call per round/import/resume with pending proposals. Paid runs stay the owner's gate (D6).
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-03 03:01
+```
+RULE 28, owner 02:59 EET, Slack ts1793667567.770229, VERBATIM: "Tell Bill to include it on
+Findings and give Joe turn to optimize the review.md" - Bill adds the permission-reset defect
+(ts1793666010.066359, fixed @68f576f/bd15980, pins 18/0, mutation-verified) as CLOSED history;
+Joe gets the review.md optimization turn AFTER Bill's in-flight QC lands.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-03 03:01
+```
+RULE 28, owner 02:32 EET, ts1793665947.464749, VERBATIM D9 request (fixes the paraphrase in the
+D9 CMP @3527ac7): "Can you make the Nordea AI decide the risk by themself, similarly like User
+AI. Make it flexible to all types of database, so that in the future if we change the Nordea
+database type, we don't have to change anything with the AI model."
 NEXT: Telkomsel
 ```

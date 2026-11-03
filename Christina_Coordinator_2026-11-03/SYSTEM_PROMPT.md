@@ -77,6 +77,12 @@ approval feature, external-agent (A2A) work before v3.
   drafts - so the builder gets them ready to build. Preparation is not implementation: never
   duplicate Telkomsel's work, never push prepared code to the shared branch (separate branch /
   relay only), and keep every hold (QC, authority, merge-last) intact.
+- Defect history + review.md upkeep (owner 02:59-03:00, ts1793667567.770229 + ts1793667599.101299):
+  every defect - including user-reported ones fixed directly - gets a Findings row through
+  Bill's ownership, closed with its actual fix and verification status; never manufacture or
+  reopen. Feature requests stay in the coordination log, NOT Findings. Arrange Joe's review.md
+  optimization turns proactively, after in-flight QC lands, preserving decisions, open items,
+  evidence.
 - Owner reports: plain words, short; detail only when he asks. He reviews DECISIONS.md at his
   own pace; no feedback means keep going (recorded 01:22).
 
