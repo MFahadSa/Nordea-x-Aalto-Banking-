@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Joe
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -29,6 +29,10 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
 Verified: G1–G51, R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
+
+| Id | Sev | V | Failure · evidence · fix | Status |
+|---|---|---|---|---|
+| G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |
 
 ## Messages
 
@@ -134,4 +138,14 @@ all DBs, transactions). arch.html: burst->ONE guarded refresh (reconnect=full re
 guards kept); no poll OPEN; 30s grace CONNECTING; sustained outage=30s fallback; switch resyncs.
 Proof: events 14/0, ui 29/0 (sustained CONNECTING incl.), arch 406/0, d9 24/0, lint 0.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 03:06
+```
+D9 ACCEPTED @3527ac7: scope = owner ts1793665947 verbatim in Coordinator commit 998fd0f (instinct-christina). Code green as at 03:00.
+Realtime @b8d22d1: code OK, scope waits (verbatim ts1793666107 not yet in a Coordinator commit). green: arch 406, arch-ui 29, events 14,
+d9 24, adapter 44, e2e 37, remote 36, env 7, selftest 3, load ok, npm test ok, lint 0. Read events.ts, routes.ts SSE, common.ts hook.
+FACT (L, no row): SSE subscribes on raw uid (routes.ts:32), emits on archUidKey; a uid with '.' etc. gets no events, falls back to poll.
+OWNER (02:59 via Coordinator 998fd0f, rule 28): G52 added as CLOSED history. Autosave words (02:45) still unquoted. Joe: optimize turn.
+NEXT: Joe
 ```
