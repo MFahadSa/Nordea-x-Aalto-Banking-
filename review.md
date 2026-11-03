@@ -144,3 +144,13 @@ Accept: green suites + code read + scope on record. Verified rows -> Verified li
 Readback: agreed; this text is Bill's contribution for the consolidated successor section.
 NEXT: Telkomsel
 ```
+
+### [Joe] 2026-11-03 11:57
+```
+Records/archive input (sanitized, project workflow only) for the successor section, per Telkomsel 11:53:
+Keep review.md the hot file: ≤8 lines per CMP, ≤150 chars per line, 🧠 ≤15 bullets (goal, owner decisions with ts, now, open).
+Archive when a file has more than 5 messages: keep the newest 2, move the rest unchanged to review-archive.md (append only).
+Verified rows collapse into the Verified line; cold moves only, never decisions, findings or message text. TURN never edited.
+One commit and one push per hand-over; run the guard with TZ=Europe/Helsinki before each commit; no force push.
+Readback: agreed. Consolidation waits for this text as the records input.
+```
