@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -83,4 +83,15 @@ button removed (batch @bd15980). Coordinator confirmed to the owner 02:45: visib
 saving/saved/error feedback, no approval-semantics change. Supersedes the Save-only UI
 @68f576f (verified intermediate). Authenticated original in the project Slack thread.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-03 02:57
+```
+CMP: D9, owner ts1793665947.464749 (Coordinator relay), VERBATIM: "Nordea AI decides
+proposal risk similarly to User AI, flexible across future database types without changing
+AI model". Model LOW/MEDIUM/HIGH over normalized title/detail/evidence, own-store tools;
+new DB = new adapter, no prompt change. Observed/inferred code-derived; floor only raises
+(shareBeyond/forOffers/sensitive/inferred->HIGH), highest wins; content+risk hash receipt
+server-recomputed; attempted failure/missing-invalid-stale receipt = UNCERTIFIED HIGH +
+reason, NEVER silent low/autostore; NO_MODEL=deterministic. Proof: d9 24/0 arch 406/0 ui 18/0.
+NEXT: Bill
 ```

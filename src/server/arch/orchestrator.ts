@@ -110,6 +110,7 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
       session.roundId = round.id;
       planStatus = plan?.status;
       await levelUserCards(uid); // R2: the User AI levels the user cards this session round proposed
+      await levelNordeaProposals(uid); // D9: the Nordea AI levels its own proposals from this round
     }
   }
   if (begin.kind === 'direct') { saveSession(uid, { ...session, lastActivityAt: now() }); return { ...begin.direct!, sessionId: session.id, source: 'scripted' }; }
@@ -121,6 +122,7 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
     const top = runRound(uid, 'topup', { question: text, sessionId: session.id, llm: plan });
     ranTopup = true;
     planStatus = plan?.status ?? planStatus;
+    await levelNordeaProposals(uid); // D9
     if (!session.roundId) session.roundId = top.id;
     begin = beginChat(uid, text, session.id);
     if (begin.kind === 'direct') { saveSession(uid, { ...session, lastActivityAt: now() }); return { ...begin.direct!, sessionId: session.id, source: 'scripted' }; }
@@ -149,6 +151,7 @@ export async function chat(uid: string, text: string, clientSessionId?: string):
         const gapQ = `${text} (also look for: ${rev.gaps.join(', ')})`;
         const plan = await planRoundLlm(uid, gapQ);
         runRound(uid, 'topup', { question: gapQ, sessionId: session.id, llm: plan });
+        await levelNordeaProposals(uid); // D9
         cycles++;
         const nb = beginChat(uid, text, session.id);
         if (nb.kind === 'direct') break;
@@ -404,6 +407,7 @@ export async function abelSharedContext(uid: string, sessionId: string, question
       resetContextForSession(uid, sessionId);
       runRound(uid, 'session', { question, sessionId, llm: await planRoundLlm(uid, question) });
       await levelUserCards(uid); // R2
+      await levelNordeaProposals(uid); // D9
     }
     const fresh = loadContext(uid);
     if (fresh && fresh.sessionId === sessionId && fresh.finalisedAt) {
@@ -508,6 +512,7 @@ export async function contribute(uid: string) {
   }
   const round = runRound(uid, 'contribution', { llm: await planRoundLlm(uid, '') });
   await levelUserCards(uid); // R2: the User AI levels the user cards this round proposed
+  await levelNordeaProposals(uid); // D9: the Nordea AI levels its own proposals from this round
   return {
     askedVia: round.id,
     proposals: round.proposals,
@@ -528,6 +533,20 @@ export async function levelUserCards(uid: string): Promise<{ asked: number; leve
   const { levelPendingCards } = await import('./agents/personal.js');
   const r = await levelPendingCards(uid);
   if (r.leveled) controlRoundTrip(uid, 'cm', 'Re-check the waiting user cards now that the User AI gave them levels.', { control: 'regate-user-cards' });
+  return r;
+}
+
+/**
+ * D9: after any round in which the Nordea agent may have proposed, the Nordea AI levels the
+ * pending bank-side proposals (mirrors R2 levelUserCards), then the CM agent re-gates the
+ * waiting list under the customer's standing permissions. Best effort like R2: an agent off or
+ * a parked cabinet means no pass; NO_MODEL leaves proposals on the deterministic code path.
+ */
+export async function levelNordeaProposals(uid: string): Promise<{ asked: number; leveled: number; status: string } | null> {
+  if (getOff(uid).some((a) => a === 'nordea' || a === 'cm') || getCabinetParkedMirror(uid)) return null;
+  const { levelPendingProposals } = await import('./agents/nordea.js');
+  const r = await levelPendingProposals(uid);
+  if (r.asked && r.status !== 'scripted') controlRoundTrip(uid, 'cm', 'Re-check the waiting bank-side proposals now that the Nordea AI assessed their risk.', { control: 'regate-proposals' });
   return r;
 }
 

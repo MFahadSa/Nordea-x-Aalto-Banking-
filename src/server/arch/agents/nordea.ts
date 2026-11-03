@@ -12,6 +12,8 @@ import { loadNordeaDb, saveNordeaDb, saveBalances, putBankAccount, putBalanceSna
 import { readSectionRows, writeNordeaSection } from '../store/contextStore.js';
 import type { ContextRow } from '../store/contextStore.js';
 import { appendMessage, loadBus, updateMessage } from '../store/busStore.js';
+import { nordeaRiskReceipt, validateNordeaRiskClaim, nordeaRiskRunner } from '../risk.js';
+import type { NordeaRiskItem, NordeaRiskRun } from '../risk.js';
 import { registerHandler } from '../dispatcher.js';
 import { recordProposals, loadRound, roundDone } from '../rounds.js';
 
@@ -340,4 +342,104 @@ export async function llmProposeMatchTerms(uid: string, goalTitles: string[]): P
     if (cleaned.length) terms[title] = cleaned;
   }
   return Object.keys(terms).length ? { plan: terms, status: 'model', ...(answeredBy ? { answeredBy } : {}) } : { plan: null, status: 'scripted' };
+}
+
+/**
+ * D9: the Nordea AI decides the risk of ITS OWN pending proposals (owner: the Nordea AI decides
+ * risk "similarly like User AI", flexible across future database types). The model sees only the
+ * NORMALIZED proposal (title, detail, code-derived observed, evidence hash/total) and may read its
+ * own Nordea DB through the same DB-agnostic semantic tools (categories + anonymized words) - no
+ * SQL shape, so a future database type only needs a new store adapter, never a model change.
+ * NO_MODEL (no provider / mock stand-in): nothing is asked; the deterministic code rules stay the
+ * path. An attempted model that fails or answers invalidly marks the proposal UNCERTIFIED (= HIGH
+ * at the gate) - never a silent low. Code validates every claim, derives observed itself (F20),
+ * binds a content receipt, and keeps a raising-only floor at the gate (risk.ts).
+ */
+export async function levelPendingProposals(uid: string): Promise<{ asked: number; leveled: number; status: 'model' | 'scripted' | 'error'; error?: string }> {
+  const pending = loadBus(uid).messages.filter((m) => m.type === 'propose' && m.from === 'nordea' && m.status === 'pending'
+    && !((m.payload ?? {}) as { riskModel?: string }).riskModel);
+  if (!pending.length) return { asked: 0, leveled: 0, status: 'scripted' };
+  const { archLlmEnabled, archLlmIsMock } = await import('../llm.js');
+  const runner = nordeaRiskRunner() ?? (archLlmEnabled() && !archLlmIsMock() ? llmAssignProposalRisk : null);
+  if (!runner) return { asked: 0, leveled: 0, status: 'scripted' }; // NO_MODEL: deterministic path, left unmarked
+  const items: NordeaRiskItem[] = pending.map((m) => {
+    const p = (m.payload ?? {}) as { detail?: string; goalIds?: string[]; transactionIdsHash?: string; total?: number };
+    return { messageId: m.id, title: m.summary, detail: p.detail ?? '', observed: 'observed', goalIds: p.goalIds ?? [], transactionIdsHash: p.transactionIdsHash, total: p.total };
+  });
+  // observed is code-derived per proposal, never the model's label (F20).
+  const { deriveObserved } = await import('../risk.js');
+  const msgs = loadBus(uid).messages;
+  for (const it of items) {
+    const m = msgs.find((x) => x.id === it.messageId);
+    if (m) it.observed = deriveObserved(m);
+  }
+  const out = await runner(uid, items);
+  let leveled = 0;
+  for (const it of items) {
+    const m = msgs.find((x) => x.id === it.messageId);
+    if (!m || m.status !== 'pending') continue;
+    const p = (m.payload ?? {}) as Record<string, unknown>;
+    const claim = out.status === 'model' ? validateNordeaRiskClaim(out.claims?.[it.messageId], it) : null;
+    if (claim) {
+      const receipt = nordeaRiskReceipt({ ...it, risk: claim.risk });
+      updateMessage(uid, m.id, { payload: { ...p, riskModel: 'model', riskClaim: { ...claim, ...(out.answeredBy ? { by: out.answeredBy } : {}), receipt } } });
+      leveled++;
+    } else {
+      updateMessage(uid, m.id, { payload: { ...p, riskModel: 'error', riskError: out.status === 'error' ? (out.error ?? 'the model call failed') : 'the model gave no valid risk assessment for this proposal' } });
+    }
+  }
+  appendMessage(uid, { from: 'nordea', to: 'cm', type: 'inform', summary: `Nordea AI assessed ${items.length} proposal${items.length === 1 ? '' : 's'}: ${leveled} got a validated risk level${items.length - leveled ? `, ${items.length - leveled} UNCERTIFIED (count as high risk)` : ''}.`, payload: { d9Risk: true, status: out.status, ...(out.error ? { error: out.error } : {}) } });
+  return { asked: items.length, leveled, status: out.status, ...(out.error ? { error: out.error } : {}) };
+}
+
+/** The production risk runner: one bounded tool call over the agent's OWN DB (semantic tools only). */
+async function llmAssignProposalRisk(uid: string, items: NordeaRiskItem[]): Promise<NordeaRiskRun> {
+  const { runAgentReasoning } = await import('../llm.js');
+  const { result: out, error, answeredBy } = await runAgentReasoning({
+    uid,
+    agent: 'nordea',
+    system: [
+      'You are the Nordea agent of a banking assistant. You own the Nordea DB (accounts and transactions). You decide the RISK of your own proposals; you never write anything.',
+      'You may read ONLY your own database through the tools. Amounts, matching, evidence and every write stay with code.',
+      'Risk rubric (highest applicable wins): LOW = the proposal only restates its own evidence, no new claim about the customer.',
+      'MEDIUM = an observed aggregate over the customer\'s transactions (a conclusion from data, but evidenced and non-sensitive).',
+      'HIGH = an inference or unsupported conclusion about the customer, sensitive personal content, or anything meant for offers or sharing beyond the three agents.',
+      'The observed/inferred flag is given by code (F20) - never restate it as your own; you only choose the risk level.',
+      'When unsure between two levels, choose the higher one. For each proposal give: risk (low, medium or high), a short reason,',
+      'and evidence: "goal:<id>" for a goal row behind the proposal, "txh:<hash>" for its evidence hash, and/or exact phrases copied from the proposal.',
+      'End with finishProposalRisk.',
+    ].join(' '),
+    prompt: `Proposals:\n${items.map((i) => `- proposal ${i.messageId} | title: ${i.title} | detail: ${i.detail} | ${i.observed} (code-derived) | matched total: ${i.total ?? 'n/a'} EUR | evidence hash: ${i.transactionIdsHash ?? 'none'} | goals: ${i.goalIds.join(',') || 'none'}`).join('\n')}`,
+    tools: [
+      { name: 'listMyCategories', description: 'List the transaction categories in your Nordea DB with counts.', parameters: { type: 'object', properties: {} } },
+      { name: 'sampleMyDescriptionWords', description: 'List frequent description words in your transactions (no amounts, no counterparties).', parameters: { type: 'object', properties: {} } },
+      { name: 'finishProposalRisk', description: 'Finish with one risk level per proposal.', parameters: { type: 'object', properties: { risks: { type: 'array', items: { type: 'object', properties: { messageId: { type: 'string' }, risk: { type: 'string' }, reason: { type: 'string' }, evidence: { type: 'array', items: { type: 'string' } } }, required: ['messageId', 'risk', 'reason', 'evidence'] } } }, required: ['risks'] } },
+    ],
+    runTool: (call) => {
+      const db = loadNordeaDb(uid);
+      if (!db) return { error: 'no data' };
+      if (call.name === 'listMyCategories') {
+        const counts = new Map<string, number>();
+        for (const t of db.transactions) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
+        return [...counts.entries()].map(([category, n]) => ({ category, transactions: n }));
+      }
+      if (call.name === 'sampleMyDescriptionWords') {
+        const freq = new Map<string, number>();
+        for (const t of db.transactions) for (const w of words(t.description ?? '')) freq.set(w, (freq.get(w) ?? 0) + 1);
+        return [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([word, n]) => ({ word, n }));
+      }
+      return { error: 'unknown tool' };
+    },
+    finishTool: 'finishProposalRisk',
+  });
+  if (error) return { claims: null, status: 'error', error };
+  const rows = Array.isArray(out?.risks) ? (out!.risks as unknown[]) : [];
+  const claims: Record<string, unknown> = {};
+  for (const r of rows) {
+    const id = (r as { messageId?: unknown })?.messageId;
+    if (typeof id === 'string' && items.some((i) => i.messageId === id)) claims[id] = r;
+  }
+  return Object.keys(claims).length
+    ? { claims, status: 'model', ...(answeredBy ? { answeredBy } : {}) }
+    : { claims: null, status: 'error', error: 'finishProposalRisk gave no usable risk level for any proposal' };
 }

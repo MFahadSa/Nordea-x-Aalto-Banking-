@@ -6,6 +6,7 @@
  * F20: "observed" is DERIVED from the evidence (transaction ids + a total, or the customer's
  * own direct input), never trusted from the proposing agent's own payload flag.
  */
+import { createHash } from 'node:crypto';
 import type { AgentMessage } from './types.js';
 import { isSensitiveTopic } from '../sensitive.js';
 
@@ -43,3 +44,100 @@ export function assessEntryRisk(e: { title: string; detail: string; source?: str
   if (observed === 'inferred') return { risk: 'high', observed };
   return { risk: e.source === 'customer' ? 'low' : 'medium', observed };
 }
+
+/* ---------- D9: the Nordea AI decides bank-side proposal risk (model + code floor) ---------- */
+
+/** The model's risk claim for one proposal, as validated by code. The receipt binds it to content. */
+export interface NordeaRiskClaim { risk: Risk; reason: string; evidence: string[]; by?: string; receipt?: string }
+
+/** The normalized, storage-independent content a risk claim is over: no DB rows, no SQL shape -
+ *  a future Nordea DB type keeps feeding this same contract through its own store adapter. */
+export interface RiskContent { title: string; detail: string; observed: 'observed' | 'inferred'; transactionIdsHash?: string; total?: number }
+
+/** Server-recomputed receipt binding the EXACT current content + the claimed risk. A receipt on
+ *  its own proves only that the claim matches this content - it is not an AI certification. */
+export function nordeaRiskReceipt(c: RiskContent & { risk: Risk }): string {
+  const n = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+  return createHash('sha256').update([n(c.title), n(c.detail), c.observed, c.transactionIdsHash ?? '', c.total ?? '', c.risk].join('\u0001')).digest('hex').slice(0, 12);
+}
+
+/** Validate ONE model claim for ONE proposal. Null = no valid claim. Evidence must be provenance
+ *  code can check: "goal:<id>" behind the proposal, "txh:<hash>" its own evidence hash, or a
+ *  verbatim phrase (4+ chars) from its title/detail. Unverifiable items are dropped; none left = invalid. */
+export function validateNordeaRiskClaim(raw: unknown, c: RiskContent & { goalIds: string[] }): NordeaRiskClaim | null {
+  const r = raw as { risk?: unknown; reason?: unknown; evidence?: unknown } | null | undefined;
+  if (!r || (r.risk !== 'low' && r.risk !== 'medium' && r.risk !== 'high')) return null;
+  const reason = typeof r.reason === 'string' ? r.reason.trim() : '';
+  if (reason.length < 8 || reason.length > 300) return null;
+  const hay = `${c.title}\n${c.detail}`.toLowerCase();
+  const evidence = (Array.isArray(r.evidence) ? r.evidence : [])
+    .filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean)
+    .filter((x) => {
+      const g = /^goal:(.+)$/.exec(x); if (g) return c.goalIds.includes(g[1]);
+      const h = /^txh:([0-9a-f]+)$/i.exec(x); if (h) return h[1].toLowerCase() === (c.transactionIdsHash ?? '').toLowerCase();
+      return x.length >= 4 && x.length <= 200 && hay.includes(x.toLowerCase());
+    })
+    .slice(0, 5);
+  if (!evidence.length) return null;
+  return { risk: r.risk, reason, evidence };
+}
+
+/** D9: the raising-only CODE FLOOR for a bank-side proposal: offers, sharing beyond the three
+ *  agents, a code-derived inference (F20), or a sensitive topic (F21) is HIGH whatever the model says. */
+export function proposalRiskFloor(proposal: AgentMessage): { reason: string } | null {
+  const p = (proposal.payload ?? {}) as { detail?: string; forOffers?: boolean; shareBeyond?: boolean };
+  if (p.forOffers === true || p.shareBeyond === true) return { reason: 'code floor: offers or sharing beyond the three agents' };
+  if (deriveObserved(proposal) === 'inferred') return { reason: 'code floor: an inference about the customer (F20)' };
+  if (isSensitiveTopic(`${proposal.summary} ${p.detail ?? ''}`)) return { reason: 'code floor: a sensitive topic (F21)' };
+  return null;
+}
+
+export interface NordeaRiskOutcome { risk: Risk; uncertified: boolean; reason: string }
+
+/**
+ * D9: the effective risk of a NORDEA (bank-side) proposal at gate time.
+ * - NO_MODEL (no provider, or the mock stand-in) and pre-D9 proposals: the existing deterministic
+ *   code rules - an explicit scripted path, NOT a model failure.
+ * - A proposal the model was asked about (payload.riskModel 'model'/'error'): the claim must be
+ *   valid AND its receipt must match the current content + claimed risk. Missing, invalid or stale
+ *   (edited) = UNCERTIFIED HIGH with the reason - never a silent low, never auto-stored.
+ * - modelExpected but not yet leveled (unmarked): UNCERTIFIED HIGH - it waits for the model.
+ * The code floor only RAISES; the model may distinguish evidenced low/medium or raise (highest wins).
+ * observed/inferred is ALWAYS code-derived (F20), never the model's own label.
+ */
+export function effectiveProposalRisk(proposal: AgentMessage, opts: { modelExpected: boolean }): NordeaRiskOutcome {
+  const p = (proposal.payload ?? {}) as { detail?: string; goalIds?: string[]; transactionIdsHash?: string; total?: number; riskModel?: string; riskClaim?: unknown; riskError?: string };
+  const content: RiskContent & { goalIds: string[] } = {
+    title: proposal.summary, detail: p.detail ?? '', observed: deriveObserved(proposal),
+    transactionIdsHash: p.transactionIdsHash, total: p.total, goalIds: p.goalIds ?? [],
+  };
+  const floor = proposalRiskFloor(proposal);
+  const withFloor = (risk: Risk, reason: string, uncertified: boolean): NordeaRiskOutcome =>
+    floor ? { risk: 'high', uncertified, reason: [reason, floor.reason].filter(Boolean).join('; ') } : { risk, uncertified, reason };
+  const marker = p.riskModel;
+  if (marker === undefined || marker === 'scripted') {
+    if (marker === undefined && opts.modelExpected) {
+      return { risk: 'high', uncertified: true, reason: 'the Nordea AI has not assessed this proposal yet' };
+    }
+    return withFloor(assessProposalRisk(proposal), '', false); // NO_MODEL: the deterministic path
+  }
+  if (marker === 'error') {
+    return { risk: 'high', uncertified: true, reason: `the Nordea AI could not assess this proposal${p.riskError ? `: ${p.riskError}` : ''}` };
+  }
+  const claim = validateNordeaRiskClaim(p.riskClaim, content);
+  if (!claim) return { risk: 'high', uncertified: true, reason: 'the Nordea AI gave no valid risk assessment' };
+  if ((p.riskClaim as { receipt?: string }).receipt !== nordeaRiskReceipt({ ...content, risk: claim.risk })) {
+    return { risk: 'high', uncertified: true, reason: 'the risk assessment no longer matches the proposal content' };
+  }
+  return withFloor(claim.risk, claim.reason, false);
+}
+
+/* ---------- D9 test seam: drive the model/error paths without a real provider ---------- */
+
+/** One proposal as the risk runner sees it (normalized, storage-independent). */
+export interface NordeaRiskItem { messageId: string; title: string; detail: string; observed: 'observed' | 'inferred'; goalIds: string[]; transactionIdsHash?: string; total?: number }
+export interface NordeaRiskRun { claims: Record<string, unknown> | null; status: 'model' | 'error'; error?: string; answeredBy?: string }
+let runnerForTests: ((uid: string, items: NordeaRiskItem[]) => Promise<NordeaRiskRun>) | null = null;
+/** Tests only: replace the model risk attempt (the production runner is the Nordea agent's own LLM call). */
+export function setNordeaRiskRunnerForTests(fn: ((uid: string, items: NordeaRiskItem[]) => Promise<NordeaRiskRun>) | null) { runnerForTests = fn; }
+export const nordeaRiskRunner = () => runnerForTests;

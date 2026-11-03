@@ -23,7 +23,8 @@
     "test:env": "tsx scripts/test-env.ts",
     "test:selftest": "tsx scripts/test-selftest.ts",
     "test:load": "node scripts/run_python.mjs scripts/test-load-merge.py",
-    "test:arch-ui": "node scripts/test-arch-perm-ui.mjs"
+    "test:arch-ui": "node scripts/test-arch-perm-ui.mjs",
+    "test:d9": "tsx scripts/test-d9-risk.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

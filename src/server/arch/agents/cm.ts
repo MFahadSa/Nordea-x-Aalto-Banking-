@@ -9,7 +9,8 @@ import { canPass, effectiveApproval, asMode, DEFAULT_MODE, LEVEL_NAMES } from '.
 import { newId, now } from '../types.js';
 import type { AgentMessage, ArchEntry, StaleFlag } from '../types.js';
 import { words, overlaps, overlapScore } from '../text.js';
-import { assessProposalRisk, assessEntryRisk, deriveObserved } from '../risk.js';
+import { assessProposalRisk, assessEntryRisk, deriveObserved, effectiveProposalRisk, nordeaRiskRunner } from '../risk.js';
+import { archLlmEnabled, archLlmIsMock } from '../llm.js';
 import { loadCmDb, saveCmDb, storeRoundRecord, storeContextSnapshot, putEntry, removeEntry, addHistoryEvent, deleteHistoryFor, putShare, putUndoRecord, removeUndoRecord } from '../store/cmStore.js';
 import { loadContext, readSectionRows, renderContextMd, writeHeader, writeMemorySection } from '../store/contextStore.js';
 import type { ContextRow } from '../store/contextStore.js';
@@ -140,8 +141,13 @@ export function autoStoreRoundProposals(uid: string, roundId?: string, opts?: { 
   const pending = loadBus(uid).messages.filter((m) =>
     m.type === 'propose' && m.status === 'pending' && (roundId === undefined || (m.payload as { roundId?: string } | undefined)?.roundId === roundId));
   let changed = false;
+  // D9: bank-side (Nordea) proposal risk is DECIDED by the Nordea AI's validated claim (bound to
+  // the exact content by a server-recomputed receipt); the deterministic code rules remain the
+  // explicit NO_MODEL path (no provider / mock stand-in / pre-D9 proposals). Uncertified = HIGH.
+  const d9Expected = nordeaRiskRunner() !== null || (archLlmEnabled() && !archLlmIsMock());
   for (const proposal of pending) {
-    const risk = assessProposalRisk(proposal);
+    const d9 = proposal.from === 'nordea' ? effectiveProposalRisk(proposal, { modelExpected: d9Expected }) : null;
+    const risk = d9 ? d9.risk : assessProposalRisk(proposal);
     // R2: EVERY USER card is gated by the owner's pass table through its EFFECTIVE approval, derived here from the
     // card's own content (not from the claim alone). Missing/invalid/stale level = UNKNOWN = effective level 2.
     // Bank-side proposals never use this gate (standing permissions, unchanged).
@@ -187,7 +193,7 @@ export function autoStoreRoundProposals(uid: string, roundId?: string, opts?: { 
     updateMessage(uid, proposal.id, { status: 'accepted' });
     appendMessage(uid, { from: 'cm', to: 'user', type: 'inform', summary: approval
       ? `Stored automatically by your "${userCardMode}" setting (not your approval): "${entry.title}", ${LEVEL_NAMES[approval.level]}${approval.unknown ? ` - the AI gave no valid level (${approval.reason}), so it counted as level 2` : ''}${opts?.fromModeChange ? ', released because you changed the mode' : ''}. You can explain, dispute or delete it anytime.`
-      : `Stored automatically under your standing permissions (${risk} risk): "${entry.title}". You can explain, dispute or delete it anytime.` });
+      : `Stored automatically under your standing permissions (${risk} risk${d9 && !d9.uncertified && (proposal.payload as { riskModel?: string } | undefined)?.riskModel === 'model' ? ', assessed by the Nordea AI' : ''}): "${entry.title}". You can explain, dispute or delete it anytime.` });
   }
   if (changed) saveCmDb(cm);
 }
@@ -433,6 +439,13 @@ function handleMessage(uid: string, msg: AgentMessage) {
   if (msg.type === 'control') {
     const control = payload.control as string;
 
+    if (control === 'regate-proposals') {
+      // D9: the Nordea AI assessed the waiting bank-side proposals: re-apply standing permissions.
+      autoStoreRoundProposals(uid);
+      appendMessage(uid, { from: 'cm', to: 'app', type: 'reply', summary: 'Waiting bank-side proposals re-checked.', payload: { inReplyTo: msg.id } });
+      updateMessage(uid, msg.id, { status: 'answered' });
+      return;
+    }
     if (control === 'regate-user-cards') {
       // R2: the User AI gave waiting user cards their levels after the round: apply the customer's mode to them now.
       autoStoreRoundProposals(uid);

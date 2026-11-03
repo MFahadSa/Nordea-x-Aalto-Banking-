@@ -38,7 +38,7 @@ export async function checkFeed(): Promise<{ applied: { rowId: number; userId: s
       await feedDone(r.id, `${result.ok ? 'Applied' : 'Not applied'}: ${result.message}`);
       // The applied feed row IS the trigger: source-owner DB refresh + staleness detection.
       if (result.ok) {
-        try { applyBankImportToArch(userId); } catch (err) { console.error('arch import hook failed:', err); }
+        try { applyBankImportToArch(userId); void import('./arch/orchestrator.js').then((O) => O.levelNordeaProposals(userId)).catch(() => {}); } catch (err) { console.error('arch import hook failed:', err); }
       }
       applied.push({ rowId: r.id, userId, result });
       status = { ...status, lastApplied: { at: new Date().toISOString(), rowId: r.id, userId, result: result.message } };

@@ -391,6 +391,7 @@ export function registerV14Routes(app: Express) {
     // The import IS the trigger: the Nordea agent (source owner) refreshes its own DB and
     // staleness detection runs immediately - no manual contribution press, no background loop.
     const arch = applyBankImportToArch(userId);
+    void import('./arch/orchestrator.js').then((O) => O.levelNordeaProposals(userId)).catch(() => {}); // D9: level the decay round's proposals
     res.json({ result: r, arch });
   });
   app.post('/api/nordea-data/check', async (req, res) => {

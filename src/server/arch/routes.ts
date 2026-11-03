@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import {
   agentQuery, archState, archCustomers, newSession, chat, addGoalDirect,
-  decideAirlock, autoInsights, levelUserCards, reviewQueue, decideProposal, setStandingPermissions, undoEntry,
+  decideAirlock, autoInsights, levelUserCards, levelNordeaProposals, reviewQueue, decideProposal, setStandingPermissions, undoEntry,
   explainEntry, disputeEntry, setAgentOff, deleteDatabase, parkCabinet, listEntries, ArchError,
   appWrites,
 } from './orchestrator.js';
@@ -113,7 +113,7 @@ export function registerArchRoutes(app: Express) {
   // Cabinet park: suspended (no agent reads, no new contributions, no acceptances) but never
   // deleted, and resumed ONLY by this explicit reconnect - never by the connect/disconnect swap.
   app.post('/api/arch/:uid/cabinet/park', h((req, res) => res.json(parkCabinet(uid(req), true))));
-  app.post('/api/arch/:uid/cabinet/resume', h((req, res) => res.json(parkCabinet(uid(req), false))));
+  app.post('/api/arch/:uid/cabinet/resume', h(async (req, res) => { const r = parkCabinet(uid(req), false); await levelNordeaProposals(uid(req)); res.json(r); })); // D9: level the decay round's proposals
 
   // Separate controls: turn an agent off, disconnect the personal agent, delete one database.
   app.post('/api/arch/:uid/agents/:agent/off', h((req, res) => res.json({ agentsOff: setAgentOff(uid(req), req.params.agent as AgentId, true) })));

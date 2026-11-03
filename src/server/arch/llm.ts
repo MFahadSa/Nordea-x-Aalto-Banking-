@@ -21,6 +21,12 @@ export function archLlmProviderName(): string | null {
   try { const p = getProvider(); return p.isConfigured() ? p.name : null; } catch { return null; }
 }
 
+/** True when the configured provider is the scripted test stand-in: wiring, NOT a model (D9:
+ * the mock counts as NO_MODEL, the same as no key - the deterministic code path stays honest). */
+export function archLlmIsMock(): boolean {
+  try { const p = getProvider(); return p.isConfigured() && /mock/i.test(p.name); } catch { return false; }
+}
+
 /** G17: the agent reasoning step budget and per-step timeout are configurable via env so a
  *  slow real model gets room (or a faster one is chosen) without code edits. Defaults keep
  *  a 120s per-call timeout; the step budget is 20 per answering model (G42). */
