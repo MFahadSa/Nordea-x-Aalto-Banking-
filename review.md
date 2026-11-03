@@ -39,6 +39,13 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66
 | G71 | L | sec | The SET grant is only needed for role-smoke.sql but persists. Fix: after the smoke, `revoke <role> from current_user granted by current_user` (probe: removes only the owner-granted row, bootstrap row intact); document rollback. | open |
 | G72 | M | V8 | Coverage: fake psql hardcodes 170011; no pin for the PG<16 branch, version-probe refusal, INHERIT FALSE, skip-when-present, or no-ADMIN refusal. Local proof was PG 18.6 as non-superuser; hosted 17.11 not rerun. Fix: add those pins. | open |
 | G73 | L | proc | 0b30a18 (Builder) pushed code while line 1 = TURN: Telkomsel, with no review.md hand-over (rule 14). Fix: next batch on the Builder's turn with a CMP. | open |
+| G74 | M | proc | Remaining job: TEAM.md l.14/34 and review-protocol rules 20-28 still name instinct-christina as Coordinator; D13 says Telkomsel. Fix: docs at Telkomsel's turn. | open (Joe-assigned; Bill to confirm) |
+| G75 | M | proc | Remaining job: Bill QC of 0b30a18 (Builder fix). D13 needs a reviewer who did not write it; G69-G73 are its open rows. | open (Joe-assigned; Bill to confirm) |
+| G76 | M | sec | Remaining job: hosted --init rerun on the fix. Hold (owner). Needs owner go or waiver. | open (owner hold) |
+| G77 | M | sec | Remaining job: hosted limits unproven: provisioning, Nordea hosted writes, TLS (local sslmode=disable), pooler user form. Owner decides if acceptable. | open (owner) |
+| G78 | M | proc | Remaining job: D13 pickups unconfirmed: current Bill session and Joe endpoint; the peer notice reached the former operator. Owner confirms live sessions. | open (owner) |
+| G79 | L | proc | Remaining job: billing for the paid runs unverified (free tier per user). Owner check. | open (owner) |
+| G80 | M | proc | Remaining job: merge. Owner grant ts1793664882 = when everything is finished; needs owner decision on G76-G79 and Bill QC on the final head. | open (owner) |
 
 ## Messages
 
