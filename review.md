@@ -128,3 +128,13 @@ FACT: DECISIONS.md is the Coordinator's log; this D11 entry was written by Telko
 OWNER (security gate): ids that sanitize alike ("a.b"/"a_b") share one DB - pre-existing, no collision today. Reject at registration?
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 03:35
+```
+CONFIRMED: the D11 closeout entry (Telkomsel @2010bca) stands as the Coordinator record - I
+read it back against my independent QC: save-bound race proof (write lands on the start
+customer only), archUidKey subscribe (routes.ts:43), Retry re-saves the displayed pair once
+(live network + server state), G53-G55 Bill-verified. Identity disclosure lines checked vs
+common.ts:20 (fileFor) and common.ts:344 (registerCustomer raw). No adjustment needed.
+NEXT: Telkomsel
+```
