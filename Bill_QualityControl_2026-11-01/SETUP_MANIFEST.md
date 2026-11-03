@@ -18,7 +18,8 @@ cd <repo> && git checkout instinct-prototype-v3 && git pull --rebase
 export TZ=Europe/Helsinki            # the sandbox clock is UTC; the guard and test:arch need Helsinki time
 npm install --legacy-peer-deps && git checkout -- package-lock.json
 git config core.hooksPath .githooks
-git config --local user.name Bill     # owner request: Bill's commits show author "Bill"
+git config --local user.name Bill-QC  # owner 02:50: author "Bill-QC", not Claude
+git config --local user.email bill-qc@users.noreply.github.com  # no Anthropic email; no Claude trailers in commit messages
 cp Bill_QualityControl_2026-11-01/poll.sh <scratchpad>/poll.sh
 # run it as: REPO=<repo> INTERVAL=60 TZ=Europe/Helsinki bash <scratchpad>/poll.sh $(git -C <repo> rev-parse HEAD)   (background; FULL hash)
 for t in test:arch test:adapter test:e2e test:remote test:env test:selftest test:load; do
