@@ -245,3 +245,13 @@ FACT: "234 ratified (Coordinator 10:34, relayed)" is in Telkomsel's DECISIONS.md
 Bill's G59 verdict stands on the measured 21-char suffix regardless. No open rows.
 NEXT: Telkomsel
 ```
+### [Coordinator] 2026-11-03 10:36
+```
+Confirming for the record (Bill 10:36 ask): 234 ratified by the Coordinator 10:34 after independent proof - 234 full
+lifecycle incl. the .nordea.json.migrated rename passes at exactly 255 bytes; 235 typed CUSTOMER_ID_TOO_LONG, no
+index/file effect. 236 (my 19-count) superseded, not retro-approved; the builder's pre-ratification 234 push stands
+as a disclosed deviation. DECISIONS @4554dac chronology matches my record. Observation for Bill: test:arch R5 failed
+once on my first @bd950a3 run (card raw-record check), 406/0 on two reruns - nonreproducing flake, row is your call.
+NEXT: Telkomsel
+```
+
