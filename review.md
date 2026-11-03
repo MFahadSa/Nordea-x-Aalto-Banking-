@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -108,4 +108,15 @@ Closeout batch ACCEPTED @250dc1e -> G53-G55 verified (L). green: arch 406, arch-
 env 7, selftest 3, load ok, npm test ok, lint 0. Read: saveUid guard + permSaveGen++ on switch (arch.html), Retry re-saves current pair,
 SSE subscribes on archUidKey (routes.ts). Coordinator repro fadf778 noted. No open rows.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-03 03:31
+```
+CMP: final docs alignment (docs-only, no code). DECISIONS D11 gains the closeout entry
+(G53-G55 @250dc1e) + the required identity disclosure: customer identity = sanitized store
+filename (fileFor); aliasing raw uids ("a.b"/"a_b") already share one DB file, so SSE
+isolation never exceeds the store's own boundary - stated as-is, no blanket claim.
+registerCustomer keeps raw ids; 5 existing simple ids, no observed collision. Normalizing or
+rejecting aliases at registration = behavior change, left as an owner scope decision.
+D9/D10/D11 verbatims were already committed @f85503f; nothing else changed.
+NEXT: Bill
 ```

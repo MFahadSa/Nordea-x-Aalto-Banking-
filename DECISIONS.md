@@ -110,6 +110,16 @@ D: approved scope. arch.html is live via per-customer SSE: version-only sequence
 Owner basis: ts `1793666107.466069`: "Why not make the arch.html real-time instead of refreshing
    every seconds?"
 Status: recorded 2026-11-03 with the same Coordinator rule-28 commit as D9.
+Closeout (@ `250dc1e`; Bill G53-G55 verified 03:27): a permission save is bound to the
+   customer it started on (a mid-save switch abandons it without touching the new customer's
+   own save); the SSE route subscribes on the store-sanitized uid key; a failed save offers
+   "Retry now." which re-saves the current pair - no intermediate value is ever persisted.
+Identity disclosure: a customer's identity IS the sanitized store filename (`fileFor`,
+   common.ts:20). Raw uids that sanitize alike ("a.b" vs "a_b") already share ONE database
+   file, so SSE events keyed the same way isolate exactly what the store isolates - no blanket
+   cross-customer isolation claim beyond that boundary. `registerCustomer` keeps the raw id
+   (common.ts:344); the 5 existing customers are simple ids, no observed collision. Normalizing
+   or rejecting aliases at registration is a behavior change and stays an owner scope decision.
 
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
