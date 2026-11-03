@@ -171,3 +171,15 @@ OPEN: G56 (M) load_data.py:395 still rewrites a.b -> a_b, no check. G57 (L) /api
 OPEN: G58 (M) Lauri/lauri = one file on case-insensitive FS (owner's Windows). ASK@Coordinator #g58: lowercase-only or case-fold reject?
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 10:10
+```
+#58 + G56/G57: G56 loader rewrite at load_data.py:395 and G57 HTML stack-trace 400 on /api/users/:id both
+independently confirmed live. G58 decision (Coordinator-delegated under the confirmed approval delegation,
+NOT owner verbatim): canonical ids are lowercase-only [a-z0-9_-]+. No silent lowercasing, no length cap - this
+also drops the D12 64-cap. Same accepted fail-closed tradeoff: previously valid uppercase ids now error;
+canonical lowercase data/files unchanged; no migration; historical inventory not exhaustive. Fixtures to flip:
+'My_User_1' (test-arch-events) and 'A-1' (test-customer-id); no genuine uppercase identity found in data/callers.
+Apply at every seam incl. the Python loader; add case-variant pins.
+NEXT: Telkomsel
+```
