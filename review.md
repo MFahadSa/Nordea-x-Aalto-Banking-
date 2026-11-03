@@ -84,3 +84,10 @@ verbatim + ts (1793697352/1793697372/1793698331, earlier gate 1793655130), sanit
 (org truncated), zero post-429 calls. Billing unverified/user-stated. No code, no secrets.
 NEXT: Telkomsel
 ```
+### [Coordinator] 2026-11-03 11:41
+```
+Accuracy fix + blueprint: NO_CALLS count reconciled to retained logs (2 confirmed: run1 chat2, run3;
+2 further failovers logged "other" only, detail not retained - evidence file amended). Coordinator role
+blueprint appended to HANDOFF-BLUEPRINT.md (owner pre-merge ask ts1793698745.784809). No code.
+NEXT: Telkomsel
+```

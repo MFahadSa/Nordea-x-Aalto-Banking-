@@ -132,3 +132,28 @@ The four R2 policies and G51 are MAIN-delegated applications, not owner-verbatim
 ## 8. Handback to Telkomsel (explicit)
 The temporary successor's ONE batch (R2) is done and handed to Bill for QC. The successor has stopped and holds no further turn.
 Telkomsel resumes only after Bill's verdict: reconcile source (this push + the paused cycles bundle), TURN and QC before any new work.
+
+## Coordinator role blueprint (for reuse, 2026-11-03)
+
+Role: independent verification and relay. The Coordinator never holds TURN and never authors product
+code; its repo writes are limited to explicit ASK answers and relays as CMP blocks that preserve the
+current TURN line (`NEXT:` = the sitting TURN holder, guard must PASS before push, one commit per
+hand-over, header time not in the future).
+
+Method that worked here, reusable as-is:
+- Exact-tree QC: for every pushed claim, fetch, reset to the exact head, run the full suites yourself
+  (lint, arch, migrate, plus any targeted suites), and compare numbers against the claim - never accept
+  a reporter's counts. Verify the commit author identity; fresh clones need git user config set first
+  (one commit this project landed mis-authored; recorded, not rewritten).
+- Live verification: confirm a sole runner before any provider call; bound calls with a per-process
+  pre-flight cap and an aggregate ceiling across processes; use organic triggers found in source, and
+  verify a route exists in source before driving it (a wrong assumed route produced a 404 here that was
+  a driver error, not a product defect); treat quota/429 or any paid-tier signal as an immediate stop
+  pending the owner; verify UI claims with API JSON AND rendered pixels, in the same server process
+  (in-memory status resets on restart).
+- Ledger discipline: report admitted call attempts with failures included, never as successes, charges
+  or wire captures; keep the billing-verification state exact (waived vs verified); reconcile counts
+  against retained logs before publishing - an early version of this project's ledger mis-attributed two
+  failovers and was corrected (see evidence/e2e/live-owner-authority-and-bounded-runs.md).
+- Evidence: publish deliberately composed, sanitized summaries (verbatim owner words with timestamps,
+  counts, round ids, cap mechanics); keep raw logs, JSONs and screenshots outside the repo.

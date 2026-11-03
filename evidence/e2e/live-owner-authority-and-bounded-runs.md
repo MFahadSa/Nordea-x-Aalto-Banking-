@@ -49,7 +49,9 @@ Used 578, Requested 625. Please try again in 12.18s." The chain honored the 12s 
 then refused all further attempts; ZERO post-429 admitted attempts were logged (local-counter evidence).
 
 Honest-failure history kept: one 400 output_parse_failed (model produced unparseable output), two
-NO_CALLS events (model answered without any tool call), each followed by chain failover; a test-driver
+confirmed NO_CALLS events (model answered without any tool call - run 1's final chat attempt and run 3,
+per retained chain status), plus two further failovers (run 1 call-13, run 2 pre-call-6) logged only as
+category "other" with no retained detail; each followed by chain failover; a test-driver
 POST to /api/rounds/contribute returned 404 because that route does not exist - a driver error, NOT a
 product defect (real contribution triggers are goal add and bank import, source-verified).
 
