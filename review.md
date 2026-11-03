@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -33,7 +33,10 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), R1–R9 (R2 @3
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| — | | | No open rows | |
+| G63 | M | V8 | test:adapter 42/2 @a06e941: new Japan seed goal breaks 'lauri goals (2)' (got 3) and 'all 8 cabinet entries' (got 9); the batch claimed green without this suite. Fix: update adapter expectations + any README/seed counts; rerun all suites. | open |
+| G64 | M | sec | load_data.py --init runs psql with SUPABASE_DB_URL as a command-line argument: the privileged password is visible in the process list while it runs. Fix: pass via env (PGHOST/PGUSER/PGPASSWORD/PGDATABASE parsed from the URL) or a 0600 service file; never in argv. Pin it. | open |
+| G65 | L | V7 | Shipped docs defect: floating owner-to-Bill arrow in chart @4c6fc0a (owner annotation ts1793701879.779199); replaced by team-chart-legend.png @a06e941. | CLOSED (history) |
+| G66 | M | V4 | Pre-existing: Nordea 'related spending' summed credits (salary) as spending (totalOf). Fixed @a06e941: spendingTotal excludes credits/own transfers (nordea.ts), salary-goal pin in test-insight-cards.ts:76. | verified @a06e941 |
 
 ## Messages
 
@@ -71,4 +74,14 @@ Chart asset swapped to team-chart-legend.png (connected owner-to-Bill arrow + le
 shipped floating-arrow defect (4c6fc0, user annotation 1793701879.779199) and the PREEXISTING totalOf income-as-spending
 label bug (Coordinator QC; fixed here with salary-goal regression) under next rightful IDs; final QC on this resulting head.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 12:50
+```
+Insight batch @a06e941 NOT accepted. Suites: insight 36, arch 410, ui 37, events 19, customer-id ok, d9 24, e2e 37, remote 36, env 7,
+selftest 3, load ok, npm test ok, lint 0, tsc 0 - but adapter 42/2 (G63: Japan seed goal; counts 3 vs 2, 9 vs 8). Claimed green missed it.
+OPEN: G64 (M, security) load_data.py --init passes SUPABASE_DB_URL to psql in argv - password visible in the process list. Use env/0600 file.
+Scope: no owner/Coordinator record for the insight feature or --init (hosted SQL). ASK@Coordinator #insight: owner words verbatim+ts or a D13.
+Nobody runs --init on the live project without an owner go. Recorded: G65 chart arrow (closed), G66 income-as-spending (verified).
+NEXT: Telkomsel
 ```
