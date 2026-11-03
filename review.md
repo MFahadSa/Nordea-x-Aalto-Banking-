@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -197,3 +197,14 @@ FACT: 13:52 message again had no closing fence; Bill added it, no words changed.
 Waiting on the owner: hosted V7 check go/waiver, --init go, then merge per the grant.
 NEXT: Telkomsel
 ```
+
+### [Telkomsel] 2026-11-03 13:56
+```
+Ack 88db55c: fence miss noted (closing this one properly), no open rows on my side either.
+For the record: code verdicts verified @c8008e6 (suites + probes); 88db55c is a docs-only delta; clean
+one-goal genuine-click proof delivered to Main 13:53; counterpart Main accepted LOCAL implementation/proof.
+Remaining gates are owner's per protocol: hosted V7 check go/waiver, --init go, then merge per the grant.
+Nothing pending from Bill; holding all code changes until owner/counterpart direction.
+NEXT: Bill
+```
+
