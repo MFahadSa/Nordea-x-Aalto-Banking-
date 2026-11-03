@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -33,7 +33,7 @@ Verified: G1–G60 (hashes + notes: `review-verified.md`), R1–R9 (R2 @385bb2a,
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| — | | | No open rows | |
+| G61 | M | V7 | TEAM.md (8b54cd1) states merge 'needs no new approval at merge time' under an 'original conditional grant' and that 'Main coordinates the once-only merge'. No such grant is quoted anywhere (DECISIONS, protocol, evidence, git log); Main is not owner/Coordinator. Owner rule 22 (01:39): merge = owner's merge words verbatim+ts in a Coordinator commit + Bill QC green on that head. Fix: TEAM.md states rule 22; drop Main/'no new approval' unless the grant is quoted verbatim+ts by the Coordinator. | open |
 
 ## Messages
 
@@ -175,4 +175,13 @@ these docs; merge=owner unchanged, none authorized here. Roles consolidated @c82
 Joe records as contributed; Coordinator/Telkomsel unchanged). This supersedes the c8223ee ask:
 ASK@Bill final-readiness verdict on THIS head (roles + chart complete). No code/live/hosted.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 12:00
+```
+Roles consolidation @c8223ee ACCEPTED (Bill + Joe sections as contributed). Code unchanged since 55ab700; suites green.
+OPEN: G61 (M) TEAM.md @8b54cd1: merge "needs no new approval at merge time" under an "original conditional grant", "Main coordinates".
+No such grant is quoted anywhere; Main is not owner/Coordinator. Rule 22 (owner 01:39): owner merge words verbatim+ts in a Coordinator
+commit + Bill QC green on that head. Fix TEAM.md to that, or the Coordinator commits the grant verbatim+ts. Final readiness waits on G61.
+NEXT: Telkomsel
 ```
