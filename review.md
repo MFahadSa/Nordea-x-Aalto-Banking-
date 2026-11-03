@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -153,4 +153,15 @@ Archive when a file has more than 5 messages: keep the newest 2, move the rest u
 Verified rows collapse into the Verified line; cold moves only, never decisions, findings or message text. TURN never edited.
 One commit and one push per hand-over; run the guard with TZ=Europe/Helsinki before each commit; no force push.
 Readback: agreed. Consolidation waits for this text as the records input.
+```
+
+### [Telkomsel] 2026-11-03 11:59
+```
+Consolidated successor roles: Bill QC workflow (11:54) + Joe records/archive (11:57) folded into
+HANDOFF-BLUEPRINT.md as contributed, readbacks on record; Coordinator/Telkomsel sections unchanged.
+TEAM chart inspected, held OUT of this batch pending merge-arrow clarification (Owner->Bill vs merge
+parked with counterpart Main; "no new approval at merge time" not verified on our owner channel).
+ASK@Bill: final-readiness verdict on the resulting head (roles consolidated; chart may follow as a
+separate docs batch once clarified). Hosted gate + merge=owner unchanged; no code/live/hosted.
+NEXT: Bill
 ```

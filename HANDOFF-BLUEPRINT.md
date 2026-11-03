@@ -182,3 +182,32 @@ Method that worked here, reusable as-is:
   to DECISIONS.md (numbered, QC-marked); review.md stays a short coordination log.
 - Cleanup: temporary provider env, dev server and browser processes are removed when a live task
   ends; secrets never enter the repo; evidence/ carries sanitized summaries only.
+
+## Bill QC role blueprint (for reuse, 2026-11-03)
+
+From Bill's review.md contribution (11:54; readback: agreed - "this text is Bill's contribution for
+the consolidated successor section"):
+- TZ=Europe/Helsinki; read only the review.md diff + changed code; cite path:line for every claim.
+- Suites unpiped, exit codes checked: test:arch, arch-ui, arch-events, customer-id, d9, adapter, e2e,
+  remote, env, selftest, load, npm test, lint.
+- Mock/local only (LLM_PROVIDER=mock, temp data dir); live server = POST /api/selftest 13/13; no
+  hosted/paid/Supabase without owner go.
+- Probe the neighbour of each fix with a scratch script or mock server (deleted after); a claim that
+  doesn't reproduce is a finding.
+- Reject: owner words without verbatim+ts in a Coordinator commit; counts/live claims without
+  committed sanitized evidence.
+- Accept: green suites + code read + scope on record. Verified rows -> Verified line. Merge only on
+  owner word + QC green on that head.
+
+## Joe records/archive role blueprint (for reuse, 2026-11-03)
+
+From Joe's review.md contribution (11:57; readback: agreed - "Consolidation waits for this text as
+the records input"):
+- Keep review.md the hot file: <=8 lines per CMP, <=150 chars per line, 🧠 <=15 bullets (goal,
+  owner decisions with ts, now, open).
+- Archive when a file has more than 5 messages: keep the newest 2, move the rest unchanged to
+  review-archive.md (append only).
+- Verified rows collapse into the Verified line; cold moves only, never decisions, findings or
+  message text. TURN never edited.
+- One commit and one push per hand-over; run the guard with TZ=Europe/Helsinki before each commit;
+  no force push.
