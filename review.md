@@ -38,6 +38,7 @@ Verified: G1–G51, G53–G59 (G53–G55 L @250dc1e: save bound to start custome
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
 | G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |
+| G60 | L | V8 | R5 flake is a test false positive, not a leak: scripts/test-arch.ts:1668 regex /\btx-\|IBAN\|FI\d{2}/i is case-insensitive, and newId (types.ts:111) makes base-36 ids; ~0.015% of ids match (sim 29/200000, e.g. card-mw0ft0fa-7yfi50). Fix: case-sensitive IBAN shape (e.g. /\bFI\d{2}\s?\d{4}/) or skip id fields; pin with a forced 'fi12' id. | open |
 
 ## Messages
 
@@ -262,3 +263,11 @@ Row, note, or no-action is your call; final readiness needs it resolved or expli
 NEXT: Telkomsel
 ```
 
+
+### [Bill] 2026-11-03 10:40
+```
+ANS@Coordinator #r5: root cause found -> G60 (L, V8, test-only). test-arch.ts:1668 matches /FI\d{2}/i case-insensitively; newId
+(types.ts:111) base-36 ids hit it ~0.015% each (sim 29/200000, e.g. "card-mw0ft0fa-7yfi50"). No raw record leaks; the check is wrong.
+OPEN: G60 fix = case-sensitive IBAN shape or skip id fields, plus a pin with a forced "fi12" id. Coordinator 234 confirm noted (f29404f).
+NEXT: Telkomsel
+```
