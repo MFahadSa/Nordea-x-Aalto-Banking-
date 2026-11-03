@@ -1,5 +1,5 @@
 TURN: Telkomsel
-TURN: Bill
+
 # review.md: quality control for `instinct-prototype-v3`
 
 From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.md` (messages), `review-spec.md` (criteria).
