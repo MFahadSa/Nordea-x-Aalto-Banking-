@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -123,4 +123,16 @@ G69 -> L, open: default INHERIT kept (G69-B); no gain today (owner owns all agen
 OPEN G81 (M): test:insight 52/1 - test-insight-cards.ts:175 pins the removed 'select rolname from pg_roles'. Fix and rerun all suites.
 Still open: G69, G71, G73, G74-G80 (Joe ids, accepted as numbered). Fix and merge remain on hold. TURN unchanged.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 19:51
+```
+DID: Applied reviewed G81 one-line insight pin (Builder draft verbatim, indep. READY 19:47); full mock baseline green.
+FACT: 16/16 suites exit 0: arch 410+43, insight 53+26 pins, adapter 44, e2e 37, remote 36, customer-id all 8 parts.
+FACT: Scrubbed mock env, LLM mock, local listeners only, no live/hosted/paid; evidence/insight/g81-pin-fix-2026-11-03.md.
+FACT: d589861 provenance: push auth instinct-telkomsel (API id 351192009); raw email was wrong, mapped flaridragonstar4igjse.
+FACT: History preserved, no rewrite; this commit uses verified instinct-telkomsel@users.noreply.github.com (prior 9fc1eb8).
+ASK@Bill #G81: verify pin + baseline at this head; G69/G71/G73-G80 stay open, no closure or ratification claimed.
+STATE: hosted rerun + merge HOLD; 0b30a18/G73 unratified; author "27 pins" corrected to actual 26.
+NEXT: Bill
 ```

@@ -172,7 +172,7 @@ check('--init never prints role passwords, and the schema+feed SQL is complete',
 check('--init never passes the privileged URL in the psql argv (process list)', !fs.readFileSync('scripts/load_data.py', 'utf-8').includes('["psql", db_url'));
 const ld = fs.readFileSync('scripts/load_data.py', 'utf-8');
 check('--init writes the app key names (USER_/CM_/NORDEA_DB_URL), never AGENT_*_DB_URL', ld.includes('"agent_user": "USER_DB_URL"') && !ld.includes('AGENT_USER_DB_URL') && !ld.includes('AGENT_CM_DB_URL') && !ld.includes('AGENT_NORDEA_DB_URL'));
-check('--init detects existing roles via pg_roles before provisioning (rerun never rotates)', ld.includes('select rolname from pg_roles'));
+check('--init detects existing roles via a read-only pg_roles preflight before provisioning (rerun never rotates) - G81: SQL text updated for the reviewed G70/G72 preflight, behavioral intent preserved', ld.includes('left join pg_roles pr on pr.rolname = v.rolname') && ld.includes('(pr.oid is not null)') && ld.includes('existing = {r for r in roles_all if pre[r]["exists"]}'));
 check('--init merges .env.local (unrelated keys kept line by line, only managed keys replaced)', ld.includes('kept.append(line)'));
 
 console.log(`\n${passed} passed, ${failed} failed`);
