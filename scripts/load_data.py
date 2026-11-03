@@ -424,7 +424,8 @@ def _db_file(uid: str, which: str) -> Path:
 _MIGRATIONS = {
     "user": [("goals", "doc", "doc TEXT")],
     "cm": [("entries", "observed", "observed TEXT"), ("entries", "risk", "risk TEXT"),
-           ("entries", "auto_accepted", "auto_accepted INTEGER"), ("entries", "doc", "doc TEXT")],
+           ("entries", "auto_accepted", "auto_accepted INTEGER"), ("entries", "doc", "doc TEXT"),
+           ("entries", "evidence_text", "evidence_text TEXT")],
     "nordea": [],
 }
 
@@ -526,14 +527,14 @@ class LocalFile:
                                        "transactionIdsHash": ev.get("inputsHash")}, ensure_ascii=False) if ev else None
                 with _open_db(uid, "cm") as con:
                     con.execute("INSERT INTO entries (id, title, detail, goal_ids, proposed_by, via_message_id, evidence, "
-                                "status, dispute_reason, created_at, observed, risk, auto_accepted, doc) "
-                                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                                "status, dispute_reason, created_at, observed, risk, auto_accepted, doc, evidence_text) "
+                                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                                 "ON CONFLICT(id) DO UPDATE SET title=excluded.title, detail=excluded.detail, "
-                                "status=excluded.status, doc=excluded.doc",
+                                "status=excluded.status, doc=excluded.doc, evidence_text=excluded.evidence_text",
                                 (rid, data.get("title", ""), data.get("detail", ""), "[]",
                                  "nordea" if data.get("source") == "nordea" else "user", None, evidence,
                                  data.get("status", "active"), None, data.get("createdAt", NOW), None, None, None,
-                                 json.dumps(data, ensure_ascii=False)))
+                                 json.dumps(data, ensure_ascii=False), data.get("evidenceText")))
             return
         if kind == "transactions":
             with _open_db(uid, "nordea") as con:

@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -156,3 +156,14 @@ npm test ok, lint 0, tsc 0. AC1 pin widening is safe: text.ts imports nothing. e
 Still owner-gated: --init or any hosted run (no go yet); V7 hosted check before merge.
 NEXT: Telkomsel
 ```
+
+### [Telkomsel] 2026-11-03 13:44
+```
+F1 root cause fixed: cm entries table had NO evidence_text column - SCHEMAS.cm + MIGRATIONS.cm
+(PRAGMA->ALTER ADD, existing files migrate in place) + cmStore INSERT/upsert/SELECT map; load_data.py
+_MIGRATIONS + loader INSERT mirrored; hosted push is generic row-JSON (SELECT *), flows automatically.
+F2 fixed: scenario freed uses spending-covered months (guard >=2), not transfer-diluted coverageMonths.
+Regressions: putEntry/saveCmDb reload keeps evidenceText; diluted-coverage scenario 25 EUR not 6.
+Compat: retained PRE-column lauri.cm.db -> column added, 7 entries preserved; fresh accept persists it.
+Suites: insight 53+9, arch 410, adapter 44, e2e 37, remote 36, d9 24, events 19, ui 37, lint/tsc clean; pixels to Main.
+NEXT: Bill - please record rightful finding IDs for F1-persistence/F2-denominator and re-verify.

@@ -36,7 +36,7 @@ const SCHEMAS: Record<DbKind, string> = {
     CREATE TABLE IF NOT EXISTS entries (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, detail TEXT NOT NULL, goal_ids TEXT NOT NULL,
       proposed_by TEXT NOT NULL, via_message_id TEXT, evidence TEXT, status TEXT NOT NULL,
-      dispute_reason TEXT, created_at TEXT NOT NULL, observed TEXT, risk TEXT, auto_accepted INTEGER, doc TEXT, approval_id TEXT, approval_level INTEGER);
+      dispute_reason TEXT, created_at TEXT NOT NULL, observed TEXT, risk TEXT, auto_accepted INTEGER, doc TEXT, approval_id TEXT, approval_level INTEGER, evidence_text TEXT);
     CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, at TEXT NOT NULL, json TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS shares (id TEXT PRIMARY KEY, json TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS undo (token TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL);
@@ -84,6 +84,7 @@ const MIGRATIONS: Partial<Record<DbKind, { table: string; col: string; ddl: stri
     { table: 'entries', col: 'doc', ddl: 'doc TEXT' },
     { table: 'entries', col: 'approval_id', ddl: 'approval_id TEXT' },
     { table: 'entries', col: 'approval_level', ddl: 'approval_level INTEGER' },
+    { table: 'entries', col: 'evidence_text', ddl: 'evidence_text TEXT' },
   ],
 };
 

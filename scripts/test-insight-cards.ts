@@ -148,6 +148,19 @@ check('no goal-tagged transfers: no pace projection, honest insufficiency instea
 // Regression: the aggregate evidence semantics the cards build on are unchanged.
 check('evidence semantics unchanged (matched count, abs total, figures list)', a.matched === 19 && a.total === 5790 && a.figures.includes(19) && a.figures.includes(5790));
 
+// Scenario denominator: sized from spending-covered months, not transfer-diluted coverage.
+const mixedCard = I.buildGoalCard('Japan trip 3 000 \u20ac by 2027-06', mixed);
+check('scenario is sized from spending-covered months (25 EUR, not 6 from diluted coverage)', mixedCard.text.includes('free about 25 EUR a month'), mixedCard.text);
+
+// F1 persistence: evidenceText survives save -> reload -> retrieval (Coordinator QC).
+const cmstore = await import('../src/server/arch/store/cmStore.js');
+const evEntry = { id: 'ev-persist-1', title: 'Activity related to goal "Japan trip"', detail: 'x', goalIds: [], proposedBy: 'nordea', evidenceText: 'It averages about 115 EUR a month.', status: 'active', createdAt: '2026-10-15T00:00:00Z' };
+cmstore.putEntry(UID, evEntry as never);
+check('evidenceText survives putEntry -> reload', cmstore.loadCmDb(UID).entries.find((e) => e.id === 'ev-persist-1')?.evidenceText === 'It averages about 115 EUR a month.');
+const dbNow = cmstore.loadCmDb(UID);
+cmstore.saveCmDb({ ...dbNow, entries: dbNow.entries.map((e) => e.id === 'ev-persist-1' ? { ...e, detail: 'y' } : e) });
+check('evidenceText survives saveCmDb -> reload', cmstore.loadCmDb(UID).entries.find((e) => e.id === 'ev-persist-1')?.evidenceText === 'It averages about 115 EUR a month.');
+
 // --init: the setup SQL prints without executing, is idempotent, and never leaks the URL.
 const out1 = execSync('node scripts/run_python.mjs scripts/load_data.py --init --print-sql', { encoding: 'utf-8' });
 const out2 = execSync('node scripts/run_python.mjs scripts/load_data.py --init --print-sql', { encoding: 'utf-8' });

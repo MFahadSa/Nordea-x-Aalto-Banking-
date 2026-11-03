@@ -180,8 +180,8 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
   // A next step is offered only when the numbers support it: a clearly cuttable category
   // with a meaningful share, sized from the code-computed average. Labeled as a scenario.
   const cut = a.topCategories.find((c) => SCENARIO_CATEGORIES.has(c.name) && c.sharePct >= 20);
-  if (cut && a.monthlyAvg != null && a.monthlyAvg >= 50 && a.coverageMonths >= 2) {
-    const freed = Math.round((cut.total / a.coverageMonths) / 3);
+  if (cut && a.monthlyAvg != null && a.monthlyAvg >= 50 && a.spendingMonths >= 2) {
+    const freed = Math.round((cut.total / a.spendingMonths) / 3);
     if (freed > 0) {
       textParts.push(`Scenario: cutting ${cut.name} by a third would free about ${freed} EUR a month for this goal - an illustration from your own averages, not a recommendation you must follow.`);
       if (!a.figures.some((f) => Math.abs(f - freed) < 1e-9)) a.figures.push(freed);

@@ -29,6 +29,7 @@ export function loadCmDb(uid: string): CmDb {
         proposedBy: r.proposed_by as ArchEntry['proposedBy'],
         ...(r.via_message_id ? { viaMessageId: r.via_message_id } : {}),
         ...(r.evidence ? { evidence: JSON.parse(r.evidence) } : {}),
+        ...(r.evidence_text ? { evidenceText: r.evidence_text } : {}),
         status: r.status as ArchEntry['status'],
         ...(r.dispute_reason ? { disputeReason: r.dispute_reason } : {}),
         ...(r.observed ? { observed: r.observed as ArchEntry['observed'] } : {}),
@@ -55,13 +56,13 @@ export function saveCmDb(d: CmDb) {
     db.exec('BEGIN');
     db.prepare('DELETE FROM entries').run();
     const ins = db.prepare(`INSERT INTO entries
-      (id, title, detail, goal_ids, proposed_by, via_message_id, evidence, status, dispute_reason, created_at, observed, risk, auto_accepted, doc, approval_id, approval_level)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      (id, title, detail, goal_ids, proposed_by, via_message_id, evidence, status, dispute_reason, created_at, observed, risk, auto_accepted, doc, approval_id, approval_level, evidence_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     for (const e of d.entries) {
       ins.run(e.id, e.title, e.detail, JSON.stringify(e.goalIds), e.proposedBy,
         e.viaMessageId ?? null, e.evidence ? JSON.stringify(e.evidence) : null,
         e.status, e.disputeReason ?? null, e.createdAt, e.observed ?? null, e.risk ?? null, e.autoAccepted ? 1 : 0,
-        e.doc ? JSON.stringify(e.doc) : null, e.approval?.id ?? null, e.approval?.level ?? null);
+        e.doc ? JSON.stringify(e.doc) : null, e.approval?.id ?? null, e.approval?.level ?? null, e.evidenceText ?? null);
     }
     db.exec('COMMIT');
   } finally { db.close(); }
@@ -185,18 +186,18 @@ export function putEntry(uid: string, e: ArchEntry) {
   try {
     ensureColumns(db);
     db.prepare(`INSERT INTO entries
-      (id, title, detail, goal_ids, proposed_by, via_message_id, evidence, status, dispute_reason, created_at, observed, risk, auto_accepted, doc, approval_id, approval_level)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, title, detail, goal_ids, proposed_by, via_message_id, evidence, status, dispute_reason, created_at, observed, risk, auto_accepted, doc, approval_id, approval_level, evidence_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title, detail = excluded.detail, goal_ids = excluded.goal_ids,
         via_message_id = excluded.via_message_id, evidence = excluded.evidence, status = excluded.status,
         dispute_reason = excluded.dispute_reason, observed = excluded.observed, risk = excluded.risk,
         auto_accepted = excluded.auto_accepted, doc = excluded.doc,
-        approval_id = excluded.approval_id, approval_level = excluded.approval_level`)
+        approval_id = excluded.approval_id, approval_level = excluded.approval_level, evidence_text = excluded.evidence_text`)
       .run(e.id, e.title, e.detail, JSON.stringify(e.goalIds), e.proposedBy,
         e.viaMessageId ?? null, e.evidence ? JSON.stringify(e.evidence) : null,
         e.status, e.disputeReason ?? null, e.createdAt, e.observed ?? null, e.risk ?? null, e.autoAccepted ? 1 : 0,
-        e.doc ? JSON.stringify(e.doc) : null, e.approval?.id ?? null, e.approval?.level ?? null);
+        e.doc ? JSON.stringify(e.doc) : null, e.approval?.id ?? null, e.approval?.level ?? null, e.evidenceText ?? null);
   } finally { db.close(); }
 }
 
