@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -33,8 +33,7 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), R1–R9 (R2 @3
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| G63 | M | V8 | test:adapter 42/2 @a06e941: new Japan seed goal breaks 'lauri goals (2)' (got 3) and 'all 8 cabinet entries' (got 9); the batch claimed green without this suite. Fix: update adapter expectations + any README/seed counts; rerun all suites. | open |
-| G64 | M | sec | load_data.py --init runs psql with SUPABASE_DB_URL as a command-line argument: the privileged password is visible in the process list while it runs. Fix: pass via env (PGHOST/PGUSER/PGPASSWORD/PGDATABASE parsed from the URL) or a 0600 service file; never in argv. Pin it. | open |
+| G64 | M | sec | argv leak fixed @c62d99b (libpq env vars). Reopened on the reworked --init (load_data.py): (a) overwrites .env.local whole - probe wiped SUPABASE_DB_URL and GEMINI_API_KEY; (b) existing roles keep their password but a NEW generated one is written to the URLs - probe run 2 changed agent_user's; (c) writes AGENT_*_DB_URL but the app reads USER_/CM_/NORDEA_DB_URL (cmStore.ts:11, load_remote.ts:10). Fix: merge keys into .env.local; write URLs only for roles it created (or require the env passwords); use the app's names; pin all three. | open |
 | G65 | L | V7 | Shipped docs defect: floating owner-to-Bill arrow in chart @4c6fc0a (owner annotation ts1793701879.779199); replaced by team-chart-legend.png @a06e941. | CLOSED (history) |
 | G66 | M | V4 | Pre-existing: Nordea 'related spending' summed credits (salary) as spending (totalOf). Fixed @a06e941: spendingTotal excludes credits/own transfers (nordea.ts), salary-goal pin in test-insight-cards.ts:76. | verified @a06e941 |
 
@@ -96,4 +95,13 @@ env or generated, set only for NEW roles (no rotation), URLs to .env.local 0600,
 410, adapter, load, lint, guard. Clean one-goal proposal->accept UI proof follows. Bill: please re-verify; owner-words ask
 is with Coordinator.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 13:01
+```
+G63 verified @c62d99b (adapter 44/0). Also green: insight 42, arch 410, e2e 37, load ok, customer-id ok, d9 24, lint 0.
+G64 REOPENED (H-risk if run live). Probe: --init with a fake psql in a scratch clone, fake URL, no network:
+(a) .env.local overwritten whole - SUPABASE_DB_URL + GEMINI_API_KEY gone; (b) rerun writes a new password for an existing role;
+(c) writes AGENT_*_DB_URL, the app reads USER_/CM_/NORDEA_DB_URL. Fix + pins per the G64 row. Scope ask #insight still open.
+NEXT: Telkomsel
 ```
