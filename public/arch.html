@@ -68,6 +68,7 @@
   .msg b { color:#e6e9ed; }
   .empty { color:#8b949e; font-size:13px; }
   .entrydisputed { border-color:#e2b6b2; background:#fff5f4; }
+details.ev{margin:4px 0}details.ev summary{cursor:pointer;font-size:12px;opacity:.75}
 </style>
 </head>
 <body>
@@ -267,14 +268,14 @@ function applyState(s) {
   for (const a of ['personal', 'cm', 'nordea']) $(`ai-${a}`).innerHTML = aiLine(s.ai?.agents?.[a]);
   $('ai-chain').innerHTML = aiChain(s.ai);
   const cards = (list, cm) => list.length ? list.map((c) =>
-    `<div class="item ${c.conflict ? 'entrydisputed' : ''}"><b>${esc(c.title)}</b> ${c.conflict ? '<span class="pill off">conflict</span>' : ''}<br>${esc(c.detail)}
+    `<div class="item ${c.conflict ? 'entrydisputed' : ''}"><b>${esc(c.title)}</b> ${c.conflict ? '<span class="pill off">conflict</span>' : ''}<br>${esc(c.detail)}${c.evidenceText ? `<details class="ev"><summary>Evidence</summary>${esc(c.evidenceText)}</details>` : ''}
      <div class="meta">${c.combines > 1 ? `combines ${c.combines} ${esc(c.unit)}` : 'from 1 stored entry'} · ${esc(c.source)} agent${cm ? ' · <a href="#" onclick="explain(\'' + esc(c.id) + '\');return false;">why is this here?</a>' : ''}</div></div>`).join('') : null;
   $('cm-entries').innerHTML = cards(s.contextCards?.memory ?? [], true) ?? '<div class="empty">No context cards from the Context Memory agent for this session yet. Say something to Abel and its retrieved cards land on context.md.</div>';
   $('nordea-cards').innerHTML = cards(s.contextCards?.nordea ?? [], false) ?? '<div class="empty">No Nordea context cards for this session yet. They appear after a goal or a question that relates to your bank data.</div>';
   const q = [];
   for (const b of s.queues.airlock) q.push(`<div class="item"><b>Airlock:</b> ${b.items.length} item(s) from ${esc(b.source)}<br>${b.items.map((i) => esc(i.text)).join('<br>')}
     <div class="meta"><button class="primary" onclick="airlock('${b.id}',true)">Approve into User DB</button> <button class="danger" onclick="airlock('${b.id}',false)">Reject</button></div></div>`);
-  for (const m of s.queues.review) { const ea = m.effectiveApproval; q.push(`<div class="item"><b>${ea ? 'Approval needed:' : 'Merge review:'}</b> ${esc(m.summary)}<br>${ea ? `<span class="meta">${esc(ea.label)} · approval ${esc(ea.id)}${ea.why ? ` · why: ${esc(ea.why)}` : ''}</span><br>` : ''}${esc(m.payload?.detail ?? '')}
+  for (const m of s.queues.review) { const ea = m.effectiveApproval; q.push(`<div class="item"><b>${ea ? 'Approval needed:' : 'Merge review:'}</b> ${esc(m.summary)}<br>${ea ? `<span class="meta">${esc(ea.label)} · approval ${esc(ea.id)}${ea.why ? ` · why: ${esc(ea.why)}` : ''}</span><br>` : ''}${esc(m.payload?.detail ?? '')}${m.payload?.evidenceText ? `<details class="ev"><summary>Evidence</summary>${esc(m.payload.evidenceText)}</details>` : ''}
     <div class="meta">proposed by ${esc(m.from)} agent · <button class="primary" onclick="review('${m.id}',true)">Accept into cabinet</button> <button class="danger" onclick="review('${m.id}',false)">Reject</button></div></div>`); }
   $('queues').innerHTML = q.length ? q.join('') : '<div class="empty">Nothing waiting. Bank proposals and (one day) external-agent syncs land here for your decision.</div>';
   $('msgs').innerHTML = s.messages.length ? s.messages.map((m) =>

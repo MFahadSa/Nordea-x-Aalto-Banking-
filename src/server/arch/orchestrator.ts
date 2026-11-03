@@ -465,13 +465,10 @@ async function planRoundLlm(uid: string, question: string): Promise<NonNullable<
   const titles = relevant.map((g) => g.title);
   if (!titles.length) return undefined;
   const { llmPlanRetrieval } = await import('./agents/cm.js');
-  const { llmProposeMatchTerms, prepareInsightDrafts, llmDraftInsightTexts } = await import('./agents/nordea.js');
+  const { llmProposeMatchTerms } = await import('./agents/nordea.js');
   const [cmPlan, nordeaPlan] = await Promise.all([llmPlanRetrieval(uid, question, titles), llmProposeMatchTerms(uid, titles)]);
-  // Insight cards, model path: the Nordea model may polish each goal's card text from the
-  // code-computed breakdown (built from its own DB with the round's match terms). The figure
-  // guard admits each text or the deterministic card stands - a failure changes nothing else.
-  const insightDrafts = prepareInsightDrafts(uid, titles, nordeaPlan.plan ?? {});
-  const insight = await llmDraftInsightTexts(uid, insightDrafts);
+  // Insight cards ship code-assembled meaning only (adversarial QC 983be84): the model plans
+  // retrieval and match terms here, but it never rewrites the goal card text.
   const { archLlmProviderName } = await import('./llm.js');
   // V4: name the model(s) that served the plan calls, not the chain; fall back to the
   // configured provider only when neither plan ran on a model.
@@ -482,10 +479,10 @@ async function planRoundLlm(uid: string, question: string): Promise<NonNullable<
     ...(planProvider ? { provider: planProvider } : {}),
     ...(cmPlan.error || nordeaPlan.error ? { error: [cmPlan.error, nordeaPlan.error].filter(Boolean).join('; ') } : {}),
   };
-  if (!cmPlan.plan && !nordeaPlan.plan && !status.error && !Object.keys(insight.texts).length) return undefined; // fully scripted, nothing to record
+  if (!cmPlan.plan && !nordeaPlan.plan && !status.error) return undefined; // fully scripted, nothing to record
   const say = (s: 'model' | 'scripted' | 'error') => s === 'model' ? 'model' : s === 'error' ? 'scripted (provider error)' : 'scripted';
   appendMessage(uid, { from: 'cm', to: 'app', type: 'inform', summary: `Round plan: cm ${say(cmPlan.status)}, nordea ${say(nordeaPlan.status)}.`, payload: { llm: true, status } });
-  return { ...(cmPlan.plan ? { goalTitles: cmPlan.plan } : {}), ...(nordeaPlan.plan ? { terms: nordeaPlan.plan } : {}), ...(Object.keys(insight.texts).length ? { insightTexts: insight.texts } : {}), status };
+  return { ...(cmPlan.plan ? { goalTitles: cmPlan.plan } : {}), ...(nordeaPlan.plan ? { terms: nordeaPlan.plan } : {}), status };
 }
 
 export interface ContextCard { id: string; title: string; detail: string; status?: string; conflict?: boolean; combines: number; unit: 'bank records' | 'sources'; source: string; at: string }

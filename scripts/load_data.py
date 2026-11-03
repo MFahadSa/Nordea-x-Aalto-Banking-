@@ -842,41 +842,91 @@ def main() -> None:
         })
         smoke = (ROOT / "supabase" / "role-smoke.sql").read_text()
         # Fresh projects need a password per agent role. Passwords come from the environment
-        # (AGENT_USER_PASSWORD / AGENT_CM_PASSWORD / AGENT_NORDEA_PASSWORD) or are generated here; they
-        # are never printed or logged, they are set ONLY for roles that do not exist yet (an existing
-        # role's credentials are never rotated), and the three role URLs are written to .env.local
-        # (chmod 600) for the app to use. --print-sql never includes them.
+        # (AGENT_USER_PASSWORD / AGENT_CM_PASSWORD / AGENT_NORDEA_PASSWORD) or are generated here;
+        # they are never printed or logged and are set ONLY for roles that do not exist yet (an
+        # existing role's credentials are never rotated). Existing roles are detected via pg_roles
+        # first - if that check cannot run, nothing is provisioned blindly. Role URLs go to
+        # .env.local under the names the app reads (USER_DB_URL / CM_DB_URL / NORDEA_DB_URL),
+        # merged into the file (unrelated keys are preserved), and only for roles this run
+        # created or whose current password was supplied via the environment. --print-sql never
+        # includes passwords.
         import secrets
         owner_user = urllib.parse.unquote(parts.username or "")
         suffix = owner_user.split(".", 1)[1] if "." in owner_user else ""
+        role_key = {"agent_user": "USER_DB_URL", "agent_cm": "CM_DB_URL", "agent_nordea": "NORDEA_DB_URL"}
+        host = parts.hostname or ""
+        port = str(parts.port or 5432)
+        dbname = (parts.path or "/").lstrip("/")
+        role_pws = []
+
+        def role_url(role: str, pw: str) -> str:
+            role_user = role + ("." + suffix if suffix else "")
+            return ("postgresql://" + urllib.parse.quote(role_user, safe="")
+                    + ":" + urllib.parse.quote(pw, safe="")
+                    + "@" + host + ":" + port + "/" + dbname)
+
+        def scrub(msg: str) -> str:
+            out = (msg or "").replace(db_url, "***").replace(env["PGPASSWORD"], "***")
+            for p in role_pws:
+                out = out.replace(p, "***")
+            return out
+
+        probe = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-tA", "-c",
+                                "select rolname from pg_roles where rolname = any "
+                                "(array['agent_user','agent_cm','agent_nordea'])"],
+                               text=True, capture_output=True, env=env)
+        if probe.returncode != 0:
+            sys.exit("could not verify which agent roles already exist via pg_roles: "
+                     + (scrub(probe.stderr).strip().splitlines() or ["unknown error"])[-1]
+                     + ". Refusing to provision credentials blindly; no changes were made.")
+        existing = set(probe.stdout.split())
         role_sql = ""
         role_urls = {}
-        role_pws = []
+        kept_existing = []
         for role in ("agent_user", "agent_cm", "agent_nordea"):
-            pw = os.environ.get(role.upper() + "_PASSWORD", "") or secrets.token_urlsafe(24)
+            env_pw = os.environ.get(role.upper() + "_PASSWORD", "")
+            if role in existing:
+                # Existing role: never rotate. A URL is written only with the matching current
+                # password supplied via the environment; otherwise that role's URL is left out.
+                if env_pw:
+                    role_pws.append(env_pw)
+                    role_urls[role_key[role]] = role_url(role, env_pw)
+                else:
+                    kept_existing.append(role)
+                continue
+            pw = env_pw or secrets.token_urlsafe(24)
             role_pws.append(pw)
             role_sql += ("do $$ begin if not exists (select from pg_roles where rolname = '" + role + "') "
                          "then create role " + role + " login password '" + pw.replace("'", "''") + "'; end if; end $$;\n")
-            role_user = role + ("." + suffix if suffix else "")
-            role_urls[role.upper() + "_DB_URL"] = ("postgresql://" + urllib.parse.quote(role_user, safe="")
-                                                   + ":" + urllib.parse.quote(pw, safe="")
-                                                   + "@" + (parts.hostname or "") + ":" + str(parts.port or 5432)
-                                                   + "/" + ((parts.path or "/").lstrip("/")))
+            role_urls[role_key[role]] = role_url(role, pw)
         res = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],
                              input=role_sql + sql + "\n" + smoke, text=True, capture_output=True, env=env)
         if res.returncode != 0:
-            err = (res.stderr or "").replace(db_url, "***").replace(env["PGPASSWORD"], "***")
-            for pw in role_pws:
-                err = err.replace(pw, "***")
-            sys.exit("psql failed: " + (err.strip().splitlines() or ["unknown error"])[-1])
-        # Write the three role URLs to .env.local (0600) - values are never printed.
-        lines = ["# Written by load_data.py --init - role connection URLs for the three agent stores."]
-        lines += [k + '="' + v + '"' for k, v in role_urls.items()]
-        env_local.write_text("\n".join(lines) + "\n")
-        env_local.chmod(0o600)
+            sys.exit("psql failed: " + (scrub(res.stderr).strip().splitlines() or ["unknown error"])[-1])
+        # Merge the role URLs into .env.local (0600): unrelated keys (SUPABASE_DB_URL,
+        # GEMINI_API_KEY, ...) are preserved; only the three managed role-URL keys are replaced,
+        # and only with URLs carrying a known-current password. Values are never printed.
+        kept = []
+        if env_local.exists():
+            for line in env_local.read_text().splitlines():
+                key = line.split("=", 1)[0].strip() if "=" in line else ""
+                if key in role_key.values() or line.startswith("# Written by load_data.py --init"):
+                    continue
+                kept.append(line)
+        while kept and not kept[-1].strip():
+            kept.pop()
+        lines = kept
+        if role_urls:
+            lines += ["", "# Written by load_data.py --init - role connection URLs for the three agent stores."]
+            lines += [k + '="' + v + '"' for k, v in role_urls.items()]
+        if lines:
+            env_local.write_text("\n".join(lines) + "\n")
+            env_local.chmod(0o600)
         smoke_out = (res.stdout or "").strip()
+        note = (" Existing roles kept their credentials"
+                + ("; no URL written for " + ", ".join(kept_existing) + " (supply the matching AGENT_*_PASSWORD to write one)" if kept_existing else "") + ".")
         print("Setup applied (idempotent; existing role credentials never rotated): agent tables, one role "
-              "per agent, Nordea feed, smoke check. The three role URLs were written to .env.local (0600) - "
+              "per agent, Nordea feed, smoke check." + note + " Role URLs were merged into .env.local (0600) - "
               "values are not printed. Smoke output: " + ("; ".join(smoke_out.splitlines()[-3:]) if smoke_out else "see psql output"))
 
         return

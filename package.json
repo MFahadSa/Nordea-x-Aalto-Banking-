@@ -14,7 +14,7 @@
     "test": "tsx scripts/test-bank-records.ts",
     "check:feed": "tsx scripts/check-feed-csv.ts",
     "test:arch": "node scripts/run_python.mjs scripts/check_review_lines.py && tsx scripts/test-arch.ts && tsx scripts/test-migrate.ts",
-    "test:insight": "tsx scripts/test-insight-cards.ts",
+    "test:insight": "tsx scripts/test-insight-cards.ts && node scripts/run_python.mjs scripts/test-load-init.py",
     "test:adapter": "tsx scripts/test-adapter.ts",
     "test:remote": "tsx scripts/test-remote.ts",
     "check:review": "node scripts/run_python.mjs scripts/check_review_lines.py",

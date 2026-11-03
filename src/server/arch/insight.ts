@@ -7,6 +7,8 @@
  *
  * Correctness rules (binding, from the Coordinator brief):
  * - Every claim must be supported by the matched data, its time coverage and the goal.
+ * - Card text is strictly code-assembled from these rules; model free prose never ships as a
+ *   card - labels + grounded digits still admit unsupported claims (adversarial QC 983be84).
  * - Scenarios are labeled as scenarios; an invented percentage or false precision is never a finding.
  * - Income/credits are never spending; savings transfers are not consumption.
  * - Sparse data (few rows, short coverage) says so instead of implying trends.
@@ -113,8 +115,10 @@ export function parseTargetFromTitle(title: string): GoalTarget | null {
 }
 
 export interface GoalCard {
-  /** The card's main text: meaning first, next step only when the numbers support one. */
+  /** The card's headline: meaning first, a next step only when the numbers support one. */
   text: string;
+  /** The supporting numbers, shown under the expandable "Evidence" - never the headline. */
+  evidence: string;
   sparse: boolean;
   target: GoalTarget | null;
 }
@@ -125,31 +129,35 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
   if (a.matched < 4 || a.coverageMonths < 2) {
     const span = a.firstDate ? ` (${a.firstDate} to ${a.lastDate})` : '';
     return {
-      sparse: true, target,
+      sparse: true, target, evidence: '',
       text: `Only ${a.matched} matched transaction${a.matched === 1 ? '' : 's'} so far${span} - too little history to read a pattern for this goal yet. This card updates as new bank rows arrive.`,
     };
   }
-  const parts: string[] = [];
+  // Meaning first: the takeaway in plain words; every supporting number rides in the
+  // expandable evidence block, not inline in the headline (owner's doctor/patient framing).
+  const textParts: string[] = [];
+  const evidenceParts: string[] = [];
   if (a.spendingRows > 0 && a.monthlyAvg != null) {
-    // Meaning first: the takeaway in plain words, then the numbers as its support.
     const gapped = a.firstDate && a.lastDate
       ? (Number(a.lastDate.slice(0, 4)) * 12 + Number(a.lastDate.slice(5, 7))) - (Number(a.firstDate.slice(0, 4)) * 12 + Number(a.firstDate.slice(5, 7))) + 1 > a.coverageMonths
       : false;
-    const drivers = a.topCategories.length ? ` - biggest drivers: ${a.topCategories.map((c) => `${c.name} ${c.sharePct}%`).join(', ')}.` : '.';
-    const base = ` It averages about ${a.monthlyAvg} EUR a month over ${a.coverageMonths} months (${a.spendingRows} purchases, ${a.firstDate} to ${a.lastDate})`;
     let s = `Spending linked to this goal is mostly ${a.topCategories.length ? a.topCategories[0].name : 'everyday purchases'}`;
+    let ev = `It averages about ${a.monthlyAvg} EUR a month over ${a.coverageMonths} months (${a.spendingRows} purchases, ${a.firstDate} to ${a.lastDate}).`;
+    if (a.topCategories.length) ev += ` Biggest drivers: ${a.topCategories.map((c) => `${c.name} ${c.sharePct}%`).join(', ')}.`;
     if (a.changePct != null && Math.abs(a.changePct) >= 5) {
-      s += `, and it is ${a.changePct > 0 ? 'rising' : 'falling'}.` + base + drivers;
-      s += ` That is ${a.changePct > 0 ? 'up' : 'down'} about ${Math.abs(a.changePct)}% on the three ${gapped ? 'covered ' : ''}months before.`;
+      s += `, and it is ${a.changePct > 0 ? 'rising' : 'falling'}.`;
+      ev += ` That is ${a.changePct > 0 ? 'up' : 'down'} about ${Math.abs(a.changePct)}% on the three ${gapped ? 'covered ' : ''}months before.`;
     } else if (a.changePct != null) {
-      s += '.' + base + drivers + ` That has been fairly steady across recent months.`;
+      s += ', and it has been fairly steady across recent months.';
     } else {
-      s += '.' + base + drivers;
+      s += '.';
     }
-    parts.push(s);
+    textParts.push(s);
+    evidenceParts.push(ev);
   } else {
     // Matched rows but no consumption (e.g. a pure savings goal): say what the rows are.
-    parts.push(`${a.matched} matched transactions over ${a.coverageMonths} months (${a.firstDate} to ${a.lastDate}), none of them consumption spending - income and transfers between your own accounts are not spending.`);
+    textParts.push('The matched rows are income and transfers between your own accounts - none of them consumption spending.');
+    evidenceParts.push(`${a.matched} matched transactions over ${a.coverageMonths} months (${a.firstDate} to ${a.lastDate}).`);
   }
   // A next step is offered only when the numbers support it: a clearly cuttable category
   // with a meaningful share, sized from the code-computed average. Labeled as a scenario.
@@ -157,7 +165,7 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
   if (cut && a.monthlyAvg != null && a.monthlyAvg >= 50 && a.coverageMonths >= 2) {
     const freed = Math.round((cut.total / a.coverageMonths) / 3);
     if (freed > 0) {
-      parts.push(`Scenario: cutting ${cut.name} by a third would free about ${freed} EUR a month for this goal - an illustration from your own averages, not a recommendation you must follow.`);
+      textParts.push(`Scenario: cutting ${cut.name} by a third would free about ${freed} EUR a month for this goal - an illustration from your own averages, not a recommendation you must follow.`);
       if (!a.figures.some((f) => Math.abs(f - freed) < 1e-9)) a.figures.push(freed);
     }
   }
@@ -165,11 +173,11 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
   // transfers exist to pace against. Labeled as a projection.
   if (target && a.savingsMonthlyAvg != null && a.savingsMonthlyAvg > 0) {
     const monthsNeeded = Math.ceil(target.amount / a.savingsMonthlyAvg);
-    parts.push(`At the matched savings pace of about ${a.savingsMonthlyAvg} EUR a month, the ${target.amount} EUR target takes about ${monthsNeeded} months${target.date ? ` (goal date ${target.date})` : ''} - a projection from your matched transfers, not a promise.`);
+    textParts.push(`At the matched savings pace of about ${a.savingsMonthlyAvg} EUR a month, the ${target.amount} EUR target takes about ${monthsNeeded} months${target.date ? ` (goal date ${target.date})` : ''} - a projection from your matched transfers, not a promise.`);
     if (!a.figures.some((f) => Math.abs(f - target.amount) < 1e-9)) a.figures.push(target.amount);
     if (!a.figures.some((f) => Math.abs(f - monthsNeeded) < 1e-9)) a.figures.push(monthsNeeded);
   }
-  return { sparse: false, target, text: parts.join(' ') };
+  return { sparse: false, target, text: textParts.join(' '), evidence: evidenceParts.join(' ') };
 }
 
 /** Figure guard for the model path (mirrors the Abel reply guard): every number the model
@@ -189,9 +197,9 @@ export function textFiguresGrounded(text: string, figures: number[]): boolean {
   return figuresFromText(text).every((n) => figures.some((f) => Math.abs(f - n) < 1e-9 || Math.abs(f - Math.round(n)) < 1e-9));
 }
 
-/** Semantic guard: a model rewrite must keep the labeled claim types of the card. Grounded
- *  digits alone are unsafe - a rewrite that drops "Scenario:" or the projection/hedge wording
- *  can turn a labeled illustration into an unsupported claim. Failing this falls back. */
+/** Label guard (defense-in-depth only, NOT claim safety): a rewrite keeping every label and
+ *  only grounded digits can still carry unsupported causal/judgment/directive claims, which is
+ *  why the card path ships code-assembled text only. Kept for the adversarial pins. */
 export function textPreservesLabels(card: string, text: string): boolean {
   const need: string[] = [];
   if (card.includes('Scenario:')) need.push('scenario:');

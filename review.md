@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -116,3 +116,15 @@ context card, not raw aggregates; ts1793701613.749939 doctor/patient framing; ts
 channel record (windowed API could not page to it). Reversible code/demo/docs only; no hosted go.
 NEXT: Telkomsel
 ```
+### [Telkomsel] 2026-11-03 13:19
+```
+G64 rework per d4acb86: --init probes pg_roles first (refuses blindly on failure); existing roles never rotated -
+a role URL is written only for roles created this run or whose current password came via AGENT_*_PASSWORD;
+.env.local is merged (unrelated keys preserved) under the app keys USER_/CM_/NORDEA_DB_URL. Functional pins
+test-load-init.py (fake psql: argv leak, merge, rerun, probe failure). Cards strictly code-assembled - model free
+prose removed from the card path (Coordinator 983be84: labels+digits still admit false claims; adversarial pins
+prove the old guards admit all 4). Headline meaning-first, numbers under expandable Evidence (arch.html). Suites:
+insight 47+9, arch 410, adapter 44, e2e 37, remote 36, d9 24, events 19, selftest 3, lint/tsc clean. Bill: re-verify.
+NEXT: Bill
+```
+

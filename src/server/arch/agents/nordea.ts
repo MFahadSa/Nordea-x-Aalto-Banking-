@@ -16,7 +16,7 @@ import { nordeaRiskReceipt, validateNordeaRiskClaim, nordeaRiskRunner } from '..
 import type { NordeaRiskItem, NordeaRiskRun } from '../risk.js';
 import { registerHandler } from '../dispatcher.js';
 import { recordProposals, loadRound, roundDone } from '../rounds.js';
-import { analyseMatches, buildGoalCard, textFiguresGrounded, textPreservesLabels } from '../insight.js';
+import { analyseMatches, buildGoalCard } from '../insight.js';
 
 /** F26: evidence carries a hash of the FULL sorted id set, so churn checks compare like
  * with like. The 25-id sample stays for display/risk only - never for comparison.
@@ -84,22 +84,21 @@ function handleMessage(uid: string, msg: AgentMessage) {
       const matches = matchForTitles(nordea, [goal.title, ...(llmTerms[goal.title] ?? [])]);
       if (!matches.length) continue;
       const total = totalOf(matches);
-      // Insight cards: the row's main text is the code-computed meaning for the goal (a
-      // model-polished variant only when the round carries one that passes the figure
-      // guard); the aggregate numbers stay as evidence, unchanged.
+      // Insight cards: the row's main text is the code-computed meaning for the goal. Model
+      // free prose never ships here (adversarial QC 983be84: label-preserving rewrites with
+      // grounded digits still carried unsupported causal/judgment/directive claims); the
+      // supporting numbers ride in evidenceText behind the expandable Evidence block.
       const analysis = analyseMatches(matches);
       const card = buildGoalCard(goal.title, analysis);
-      const polished = round?.llm?.insightTexts?.[goal.title];
-      const insightText = polished && textFiguresGrounded(polished, analysis.figures) && textPreservesLabels(card.text, polished) ? polished : card.text;
       const evidence = { total, matched: matches.length, transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)), monthlyAvg: analysis.monthlyAvg, coverageMonths: analysis.coverageMonths, changePct: analysis.changePct, topCategories: analysis.topCategories, sparse: card.sparse };
-      sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: insightText, source: 'nordea', evidence, at: now() });
+      sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: card.text, source: 'nordea', evidence, evidenceText: card.evidence || undefined, at: now() });
       const title = `Activity related to goal "${goal.title}"`;
       if (alreadyPending.has(title)) continue; // no duplicate pending proposals
-      const detail = `${insightText} (Matched on category and description keywords; proposed by the Nordea agent from the Nordea DB only - the raw transactions stay there. Evidence: ${matches.length} matched, ${total} EUR total.)`;
+      const detail = `${card.text} (Matched on category and description keywords; proposed by the Nordea agent from the Nordea DB only - the raw transactions stay there. Evidence: ${matches.length} matched, ${total} EUR total.)`;
       const posted = appendMessage(uid, {
         from: 'nordea', to: 'cm', type: 'propose', status: 'pending',
         summary: title,
-        payload: { inReplyTo: msg.id, roundId: payload.roundId, goalIds: [goal.id], detail, transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)), total },
+        payload: { inReplyTo: msg.id, roundId: payload.roundId, goalIds: [goal.id], detail, evidenceText: [card.evidence, `Evidence: ${matches.length} matched, ${total} EUR total.`].filter(Boolean).join(' '), transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)), total },
       });
       proposals.push({ messageId: posted.id, title, detail, matched: matches.length, total });
     }
@@ -168,13 +167,15 @@ function handleMessage(uid: string, msg: AgentMessage) {
       const agedUnverifiable = item.reason === 'aged' && storedIds.length === 0;
       const changed = item.was != null ? item.was !== nowTotal || idsChanged || agedUnverifiable : matches.length > 0;
       if (changed && !alreadyPending.has(item.title)) {
+        const rc = buildGoalCard(item.title, analyseMatches(matches));
         appendMessage(uid, {
           from: 'nordea', to: 'cm', type: 'propose', status: 'pending',
           summary: item.title,
           payload: {
             roundId: payload.roundId,
             goalIds: item.goalIds ?? [],
-            detail: `${buildGoalCard(item.title, analyseMatches(matches)).text} (${item.was == null ? 'The stored entry had no evidence to check' : 'Refreshed after the earlier values went stale'}; proposed by the Nordea agent from the Nordea DB only. Evidence: ${matches.length} matched, ${nowTotal} EUR total.)`,
+            detail: `${rc.text} (${item.was == null ? 'The stored entry had no evidence to check' : 'Refreshed after the earlier values went stale'}; proposed by the Nordea agent from the Nordea DB only. Evidence: ${matches.length} matched, ${nowTotal} EUR total.)`,
+            evidenceText: [rc.evidence, `Evidence: ${matches.length} matched, ${nowTotal} EUR total.`].filter(Boolean).join(' '),
             transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: currentHash, total: nowTotal, refreshOf: item.entryId,
           },
         });
@@ -189,7 +190,8 @@ function handleMessage(uid: string, msg: AgentMessage) {
         const gm = matchForTitles(nordea, [g.title]);
         if (gm.length) {
         const ra = analyseMatches(gm);
-        rows.push({ id: `nagg-${g.id}`, title: g.title, detail: `${buildGoalCard(g.title, ra).text} (Refreshed against current bank data.)`, source: 'nordea', evidence: { total: totalOf(gm), matched: gm.length, transactionIds: gm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(gm.map((t) => t.id)), monthlyAvg: ra.monthlyAvg, coverageMonths: ra.coverageMonths, changePct: ra.changePct, topCategories: ra.topCategories }, at: now() });
+        const rc2 = buildGoalCard(g.title, ra);
+        rows.push({ id: `nagg-${g.id}`, title: g.title, detail: `${rc2.text} (Refreshed against current bank data.)`, evidenceText: rc2.evidence || undefined, source: 'nordea', evidence: { total: totalOf(gm), matched: gm.length, transactionIds: gm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(gm.map((t) => t.id)), monthlyAvg: ra.monthlyAvg, coverageMonths: ra.coverageMonths, changePct: ra.changePct, topCategories: ra.topCategories }, at: now() });
       }
       }
       // F18: maintenance merges - refreshed figures update matching rows, no row is dropped.
@@ -468,8 +470,8 @@ async function llmAssignProposalRisk(uid: string, items: NordeaRiskItem[]): Prom
 export interface InsightDraft { title: string; text: string; figures: number[]; }
 
 /**
- * Insight cards, code half of the model path: match each goal (title + validated model terms)
- * against the Nordea DB and build the deterministic card. Returns only goals with matches.
+ * Insight cards: match each goal (title + validated model terms) against the Nordea DB and
+ * build the deterministic, code-assembled card. Returns only goals with matches.
  */
 export function prepareInsightDrafts(uid: string, goalTitles: string[], terms: Record<string, string[]>): InsightDraft[] {
   const nordea = nordeaDbOrEmpty(uid);
@@ -484,38 +486,3 @@ export function prepareInsightDrafts(uid: string, goalTitles: string[], terms: R
   return drafts;
 }
 
-/**
- * Insight cards, model half (brief path 2): with a provider configured the Nordea model writes
- * 1-2 sentences of meaning + recommendation per goal FROM the code-computed breakdown. The
- * guard mirrors the Abel reply path: any figure that is not among the code-computed values
- * drops that goal's text back to the deterministic card. No provider = no drafts (scripted).
- */
-export async function llmDraftInsightTexts(uid: string, drafts: InsightDraft[]): Promise<{ texts: Record<string, string>; status: 'model' | 'scripted' | 'error'; error?: string }> {
-  const { archLlmEnabled, runAgentReasoning } = await import('../llm.js');
-  if (!archLlmEnabled() || !drafts.length) return { texts: {}, status: 'scripted' };
-  const { result: out, error } = await runAgentReasoning({
-    uid,
-    agent: 'nordea',
-    system: [
-      'You are the Nordea agent of a banking assistant, writing for the customer in plain language.',
-      'For each goal you are given a code-computed card: rewrite it as 1-2 short sentences of meaning and, only if the card offers one, a next step.',
-      'You may use ONLY the numbers given in the card text itself - any other figure, percentage or date makes the text unusable. Keep "Scenario:" and projection labels exactly as given. Never add advice the card does not contain.',
-      'End with finishInsightTexts.',
-    ].join(' '),
-    prompt: `Goal cards:\n${drafts.map((d) => `- goal "${d.title}": ${d.text}`).join('\n')}`,
-    tools: [
-      { name: 'finishInsightTexts', description: 'Finish with the rewritten card text per goal title.', parameters: { type: 'object', properties: { texts: { type: 'object' } }, required: ['texts'] } },
-    ],
-    runTool: () => ({ error: 'unknown tool' }),
-    finishTool: 'finishInsightTexts',
-  });
-  if (error) return { texts: {}, status: 'error', error };
-  const raw = (out && typeof out.texts === 'object' && out.texts ? out.texts : {}) as Record<string, unknown>;
-  const texts: Record<string, string> = {};
-  for (const d of drafts) {
-    const v = raw[d.title] ?? raw[d.title.toLowerCase()];
-    // The figure guard: an ungrounded model figure drops this goal back to the deterministic card.
-    if (typeof v === 'string' && v.trim().length >= 20 && textFiguresGrounded(v, d.figures) && textPreservesLabels(d.text, v)) texts[d.title] = v.trim();
-  }
-  return Object.keys(texts).length ? { texts, status: 'model' } : { texts: {}, status: 'scripted' };
-}

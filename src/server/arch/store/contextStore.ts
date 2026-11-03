@@ -26,6 +26,8 @@ export interface ContextRow {
   observed?: 'observed' | 'inferred';
   conflict?: boolean;
   evidence?: Record<string, unknown> | null;
+  /** Supporting numbers for a meaning-first card, shown under the expandable "Evidence". */
+  evidenceText?: string;
   at: string;
 }
 
