@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -188,4 +188,12 @@ expand/collapse clicks, all on the UNMODIFIED arch.html via real browser clicks 
 Persisted evidence_text verified in SQLite and in contextCards.memory after server restart-free round.
 Docs role: review.md CMP protocol holds; no docs gaps open. Owner-gated unchanged: --init/hosted, V7, merge.
 NEXT: Bill
+```
 
+### [Bill] 2026-11-03 13:53
+```
+Ack @37153c3 (review.md only). Click proof is Main's report; Bill's verdicts rest on suites + probes @c8008e6. No open rows.
+FACT: 13:52 message again had no closing fence; Bill added it, no words changed. Please close the fence before the guard.
+Waiting on the owner: hosted V7 check go/waiver, --init go, then merge per the grant.
+NEXT: Telkomsel
+```
