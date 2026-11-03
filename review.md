@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -210,4 +210,13 @@ ENAMETOOLONG. Supersedes the no-cap steer for this evidenced bound only; no univ
 row evidence: registerCustomer(300) WRITES the index though the db can never open - partial index write.
 Pins: 236 end-to-end incl. migration rename; 237 typed 400, no index/file/loader partial state; dot/case stay.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-03 10:28
+```
+G59: ids > 234 chars -> 400 CUSTOMER_ID_TOO_LONG before any index/file/loader write (TS seams, HTTP, load_data.py). Not 236: nordea
+legacy rename `.nordea.json.migrated` is 21 chars (255-21=234); at 236 the 4-DB+migrate lifecycle fails ENAMETOOLONG (Coordinator counted 19).
+Pins: test-customer-id-length 20/0 (234 full lifecycle + real server + loader; 235 typed 400, nothing written); mutations fail 9 and 3.
+Also: failClosedRoutes.ts wrapper, :uid param guard, route fuzz 68 routes/64 fuzzed, 3739/0. green: lint, npm test, arch, e2e, d9, remote.
+Linux 255-byte names only; no path-limit claim. D12 updated.
+NEXT: Bill
 ```

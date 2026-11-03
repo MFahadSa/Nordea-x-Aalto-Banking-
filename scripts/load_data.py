@@ -394,9 +394,13 @@ _SCHEMAS = {
 # D12: the same customer-id rule as src/server/customerId.ts (lowercase letters, digits, _ and -).
 # A non-canonical id is refused before anything is written; it is never rewritten to another id.
 _CANONICAL_UID = re.compile(r"[a-z0-9_-]+")
+# Mirrors src/server/customerId.ts: 255 - len(".nordea.json.migrated") = 234. Rejected, never truncated.
+_MAX_UID_LEN = 255 - len(".nordea.json.migrated")
 
 
 def _check_uid(uid) -> str:
+    if isinstance(uid, str) and _CANONICAL_UID.fullmatch(uid) and len(uid) > _MAX_UID_LEN:
+        sys.exit(f"CUSTOMER_ID_TOO_LONG: customer id has {len(uid)} characters, at most {_MAX_UID_LEN} (storage file-name limit). Nothing was written.")
     if not isinstance(uid, str) or not _CANONICAL_UID.fullmatch(uid):
         sys.exit(f"Unsupported customer id {uid!r}: use lowercase letters, digits, '_' or '-' only. Nothing was written.")
     return uid
@@ -404,7 +408,7 @@ def _check_uid(uid) -> str:
 
 def _canonical_only(uids: list[str]) -> list[str]:
     """Ids from the stored index that are not canonical are left exactly as they are (never touched, never renamed)."""
-    keep = [u for u in uids if isinstance(u, str) and _CANONICAL_UID.fullmatch(u)]
+    keep = [u for u in uids if isinstance(u, str) and _CANONICAL_UID.fullmatch(u) and len(u) <= _MAX_UID_LEN]
     for u in uids:
         if u not in keep:
             print(f"Skipping unsupported customer id {u!r} in the stored index: left unchanged.")

@@ -51,7 +51,7 @@ check('HTTP no userId -> 200 (default)', (await call('')) === 200);
 srv.close();
 // the real server guard is the same code path: pin it in the source
 const serverSrc = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf-8');
-check('server.ts installs the guard before routes', serverSrc.indexOf('isCanonicalCustomerId(v)') > 0 && serverSrc.indexOf('isCanonicalCustomerId(v)') < serverSrc.indexOf('registerV14Routes(app)'));
+check('server.ts installs the guard before routes', serverSrc.indexOf('customerIdRejection(v)') > 0 && serverSrc.indexOf('customerIdRejection(v)') < serverSrc.indexOf('registerV14Routes(app)'));
 // guard mutation: a permissive regex would let a.b through
 check('guard mutation: dot-permitting rule is NOT the shipped rule', !isCanonicalCustomerId('a.b'));
 fs.rmSync(process.env.CABINET_DATA_DIR!, { recursive: true, force: true });

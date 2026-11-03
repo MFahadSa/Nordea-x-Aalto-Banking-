@@ -7,7 +7,8 @@ import { db } from './src/server/db.js';
 import { readCabinetThroughGateway } from './src/server/accessGateway.js';
 import { getAllAgents, getAgentManifest } from './src/server/agentRegistry.js';
 import { CabinetEntry, UndoRecord } from './src/types.js';
-import { isCanonicalCustomerId, InvalidCustomerIdError } from './src/server/customerId.js';
+import { failClosedRoutes } from './src/server/failClosedRoutes.js';
+import { customerIdRejection } from './src/server/customerId.js';
 import { registerV14Routes } from './src/server/routes.js';
 import { registerDevMonitor } from './src/server/devMonitor.js';
 import { registerArchRoutes } from './src/server/arch/routes.js';
@@ -47,6 +48,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+failClosedRoutes(app); // D12: a bad customer id that reaches a store seam is a typed JSON 400 on every route, never an HTML page or a dead process
 const PORT = Number(process.env.PORT || 3000);
 
 // Photos and PDFs are sent as base64, so allow bigger bodies (the client shrinks photos first).
@@ -55,11 +57,11 @@ app.use(express.json({ limit: '12mb' }));
 // D12: a customer id that is not canonical is a plain 400 before any storage is touched.
 app.use('/api', (req, res, next) => {
   const sent = [req.query?.userId, (req.body as Record<string, unknown> | undefined)?.userId].filter((v) => v !== undefined);
-  if (sent.some((v) => !isCanonicalCustomerId(v))) return res.status(400).json({ error: new InvalidCustomerIdError().message, code: 'INVALID_CUSTOMER_ID' });
+  for (const v of sent) { const bad = customerIdRejection(v); if (bad) return res.status(400).json({ error: bad.message, code: bad.code }); }
   next();
 });
-// Same rule for a customer id carried in the path (/api/users/:userId).
-app.param('userId', (_req, res, next, v) => (isCanonicalCustomerId(v) ? next() : res.status(400).json({ error: new InvalidCustomerIdError().message, code: 'INVALID_CUSTOMER_ID' })));
+// Same rule for a customer id carried in the path (/api/users/:userId, /api/arch/:uid/...), checked before the handler reads its body.
+for (const name of ['userId', 'uid']) app.param(name, (_req, res, next, v) => { const bad = customerIdRejection(v); if (bad) return res.status(400).json({ error: bad.message, code: bad.code }); next(); });
 
 // Anything that changes data answers only after the change is saved in Supabase (when it's set up),
 // so a restart of the hosting can't lose what the customer just did.

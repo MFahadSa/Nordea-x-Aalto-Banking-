@@ -122,7 +122,7 @@ Identity disclosure: a customer's identity IS the sanitized store filename (`fil
    or rejecting aliases at registration is a behavior change and stays an owner scope decision.
 
 ## D12 - Fail-closed customer ids (implemented 2026-11-03; QC in progress)
-Decision: a customer id is canonical only if it is one or more of `[a-z0-9_-]`: lowercase only, no length cap.
+Decision: a customer id is canonical only if it is one or more of `[a-z0-9_-]`: lowercase only, at most 234 characters.
    Anything else (`a.b`, `a b`, `a/b`, email-like ids, `Lauri`) is rejected with a typed error, never
    rewritten, never lowercased for the caller. Lowercase-only was chosen by the Coordinator under the
    project delegation (Bill G58: `Lauri` and `lauri` would share one file on a case-insensitive disk).
@@ -139,6 +139,16 @@ Stored ids: `listCustomers()` returns canonical ids only, so an old non-canonica
    stays under the wrong name.
 Hosted: rows under a non-canonical id are skipped on hydrate (count, store, id, row count are shown in the
    status above), never written, deleted or renamed. No hosted calls were made to test this.
+Length (G59, Coordinator-authored storage decision, not an owner quote; the earlier "no length cap" is superseded only by this
+   evidenced storage limit): ids longer than MAX_CUSTOMER_ID_LENGTH are rejected with 400 `CUSTOMER_ID_TOO_LONG` before any
+   index or file effect (TS seams, HTTP, loader). Measured on this Linux box: 255-byte file name minus the longest name the
+   store derives, `<id>.nordea.json.migrated` (21), so 234 passes the whole lifecycle and 235 fails. The Coordinator's own
+   count was 19 (`.user.json.migrated`); the nordea legacy name is 21. Earlier claim that a long id writes nothing was wrong:
+   registerCustomer wrote the index before the DB open failed. Not truncated, hashed or migrated. Other systems with
+   narrower path limits are not covered by this number. Test: scripts/test-customer-id-length.ts.
+Error boundary: every route registered on the app is wrapped (`failClosedRoutes.ts`) so an InvalidCustomerIdError from
+   a sync or async handler is the typed JSON 400, not an HTML page or an unhandled rejection. Any other error keeps
+   its old behavior. `:uid` and `:userId` path params are checked before the handler reads its body.
 Not done: no migration, no file move or delete, no hosted change, no auth redesign, no merge.
 Effect: this REPLACES the D11 identity disclosure ("a.b" and "a_b" sharing one file). Canonical ids keep
    their files: lauri, eeva, alex and the other checked ids. That is not a hosted or historical inventory:
