@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { DatabaseSync } from 'node:sqlite';
+import { canonicalCustomerId, isCanonicalCustomerId } from '../../customerId.js';
 
 export const DATA_DIR = process.env.CABINET_DATA_DIR ? path.resolve(process.env.CABINET_DATA_DIR) : path.resolve(process.cwd(), 'data');
 export const ARCH_DIR = path.join(DATA_DIR, 'arch');
@@ -18,7 +19,7 @@ export const ARCH_DIR = path.join(DATA_DIR, 'arch');
 export type DbKind = 'user' | 'cm' | 'nordea' | 'bus';
 
 export function fileFor(uid: string, db: DbKind) {
-  const safe = uid.replace(/[^a-z0-9_-]/gi, '_');
+  const safe = canonicalCustomerId(uid);
   return path.join(ARCH_DIR, `${safe}.${db}.db`);
 }
 export const legacyFileFor = (uid: string, db: DbKind) => fileFor(uid, db).replace(/\.db$/, '.json');
@@ -233,6 +234,8 @@ async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[]
         byUid.set(r.user_id, list);
       }
       for (const [uid, list] of byUid) {
+        // D12: a hosted row set under a non-canonical id is left untouched in the hosted store and not hydrated.
+        if (!isCanonicalCustomerId(uid)) { console.error(`Remote hydrate skipped a non-canonical customer id in ${kind} (${list.length} rows, left unchanged hosted).`); continue; }
         const file = fileFor(uid, kind);
         fs.mkdirSync(path.dirname(file), { recursive: true });
         const db = new DatabaseSync(file);
@@ -342,6 +345,7 @@ export function listCustomers(): string[] {
 }
 
 export function registerCustomer(uid: string) {
+  canonicalCustomerId(uid);
   const uids = listCustomers();
   if (uids.includes(uid)) return;
   fs.mkdirSync(ARCH_DIR, { recursive: true });

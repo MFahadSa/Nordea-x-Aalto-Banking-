@@ -25,7 +25,8 @@
     "test:load": "node scripts/run_python.mjs scripts/test-load-merge.py",
     "test:arch-ui": "node scripts/test-arch-perm-ui.mjs",
     "test:d9": "tsx scripts/test-d9-risk.ts",
-    "test:arch-events": "tsx scripts/test-arch-events.ts"
+    "test:arch-events": "tsx scripts/test-arch-events.ts",
+    "test:customer-id": "tsx scripts/test-customer-id.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

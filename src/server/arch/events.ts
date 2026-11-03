@@ -7,6 +7,7 @@
  * re-reads /state, so a lost connection simply resyncs from the latest seq it saw.
  */
 export interface ArchEvent { seq: number; at: string }
+import { canonicalCustomerId } from '../customerId.js';
 type Sink = (ev: ArchEvent) => void;
 
 const BUFFER = 200; // bounded replay window per customer
@@ -16,7 +17,7 @@ const sinks = new Map<string, Set<Sink>>();
 
 /** Sanitize a uid exactly like store fileFor, so a store-write hook event and an SSE
  *  subscription for the same customer always meet on the same key. */
-export const archUidKey = (uid: string) => uid.replace(/[^a-z0-9_-]/gi, '_');
+export const archUidKey = (uid: string) => canonicalCustomerId(uid);
 /** Recover the customer key from a store file path written through common.openDb. */
 export function archUidFromFile(file: string, kind: string): string | null {
   const base = file.replace(/\\/g, '/').split('/').pop() ?? '';

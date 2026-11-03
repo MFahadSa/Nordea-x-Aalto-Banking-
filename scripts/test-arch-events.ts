@@ -58,7 +58,7 @@ try {
   check('a later change emits the next seq', burst.length === 2 && burst[1].seq === 2);
 
   // uid keys: raw route uid and store-file uid meet on the same key
-  check('uid key sanitization matches store fileFor', archUidKey('My User.1') === 'My_User_1');
+  check('uid key is the store identity for canonical ids; My User.1 is rejected, not sanitized', archUidKey('My_User_1') === 'My_User_1' && (() => { try { archUidKey('My User.1'); return false; } catch { return true; } })());
   check('uid recovered from a store file path', archUidFromFile('/data/arch/My_User_1.bus.db', 'bus') === 'My_User_1');
   check('foreign file rejected', archUidFromFile('/data/arch/My_User_1.bus.db', 'cm') === null);
 
@@ -81,18 +81,19 @@ import fs from 'node:fs';
 {
   const src = fs.readFileSync(new URL('../src/server/arch/routes.ts', import.meta.url), 'utf-8');
   const m = src.match(/\/api\/arch\/:uid\/events'[\s\S]{0,300}/);
-  check('route subscribes on the sanitized uid key', !!m && /archUidKey\(uid\(req\)\)/.test(m[0]));
+  check('route subscribes on the canonical uid key', !!m && /archUidKey\(uid\(req\)\)/.test(m[0]));
   const keyed: ArchEvent[] = [];
-  subscribeArch(archUidKey('My User.1'), 0, (ev) => keyed.push(ev));
-  noteArchChange('My User.1'); // raw uid, as the store hook produces
+  subscribeArch(archUidKey('My_User_1'), 0, (ev) => keyed.push(ev));
+  noteArchChange('My_User_1'); // canonical uid, as the store hook produces
   await sleep(500);
-  check('raw-uid emission reaches the sanitized-key subscriber', keyed.length === 1 && keyed[0].seq >= 1);
+  check('canonical-uid emission reaches the key subscriber', keyed.length === 1 && keyed[0].seq >= 1);
 }
 
 // Identity grounding (Coordinator 03:22): an event stream's identity IS the store's file
 // identity - uids that sanitize alike already share ONE database file, so keying events on
 // the sanitized uid cannot leak across customers beyond the store's own data boundary.
-check('event identity is exactly the store file identity', fileFor('a.b', 'bus') === fileFor('a_b', 'bus') && archUidKey('a.b') === archUidKey('a_b'));
-check('distinct identities stay isolated at both layers', fileFor('ab', 'bus') !== fileFor('a.b', 'bus') && archUidKey('ab') !== archUidKey('a.b'));
+check('event identity is exactly the store file identity for canonical ids', fileFor('a_b', 'bus') === fileFor('a_b', 'bus') && archUidKey('a_b') === 'a_b');
+check('ambiguous id a.b is rejected at both layers, never aliased to a_b', (() => { try { fileFor('a.b', 'bus'); return false; } catch { /* expected */ } try { archUidKey('a.b'); return false; } catch { return true; } })());
+check('distinct identities stay isolated at both layers', fileFor('ab', 'bus') !== fileFor('a_b', 'bus') && archUidKey('ab') !== archUidKey('a_b'));
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

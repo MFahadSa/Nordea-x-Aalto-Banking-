@@ -14,6 +14,7 @@ import { noteArchChange, subscribeArch, archUidFromFile, archUidKey } from './ev
 // not per call site.
 setStoreWriteHook((file, kind) => { const uid = archUidFromFile(file, kind); if (uid) noteArchChange(uid); });
 import type { AgentId } from './types.js';
+import { canonicalCustomerId, InvalidCustomerIdError } from '../customerId.js';
 import { runOnce, requestState } from '../chatRequests.js';
 
 /**
@@ -24,12 +25,13 @@ import { runOnce, requestState } from '../chatRequests.js';
 export function registerArchRoutes(app: Express) {
   const h = (fn: (req: Request, res: Response) => unknown | Promise<unknown>) => async (req: Request, res: Response) => {
     try { await fn(req, res); } catch (err) {
+      if (err instanceof InvalidCustomerIdError) { res.status(400).json({ error: err.message, code: err.code }); return; }
       if (err instanceof ArchError) { res.status(err.status).json({ error: err.message }); return; }
       console.error('arch route failed:', err);
       res.status(500).json({ error: 'Something went wrong in the three-agent architecture.' });
     }
   };
-  const uid = (req: Request) => String(req.params.uid || '');
+  const uid = (req: Request) => canonicalCustomerId(req.params.uid);
 
   app.get('/api/arch/customers', h((_req, res) => res.json(archCustomers())));
 

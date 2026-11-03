@@ -121,6 +121,22 @@ Identity disclosure: a customer's identity IS the sanitized store filename (`fil
    (common.ts:344); the 5 existing customers are simple ids, no observed collision. Normalizing
    or rejecting aliases at registration is a behavior change and stays an owner scope decision.
 
+## D12 - Fail-closed customer ids (implemented 2026-11-03; QC pending)
+Decision (owner Proceed relayed by the Coordinator, rule 28; Habibil's delegation of approvals to Christina
+   recorded on the builder side): a customer id is canonical only if it is 1-64 chars of `[A-Za-z0-9_-]`.
+   Anything else (`a.b`, `a b`, `a/b`, email-like ids) is rejected, never rewritten to a look-alike id.
+Where: one shared rule in `src/server/customerId.ts`. HTTP: `/api` answers 400 `INVALID_CUSTOMER_ID`
+   before any handler when `userId` (query or body) is not canonical; `/api/arch/:uid/*` does the same.
+   Store: `fileFor`, `registerCustomer`, `deleteDbFile`, the context store and `archUidKey` throw the
+   typed error before any file is opened or written, so a rejected call leaves no partial write.
+Not done: no migration, no file move or delete, no hosted change (hosted rows under a non-canonical id are
+   skipped on hydrate and left as they are), no auth redesign, no merge.
+Effect: this REPLACES the D11 identity disclosure ("a.b" and "a_b" sharing one file). Canonical ids keep
+   their files unchanged: lauri, eeva, alex and the other checked demo ids. That is not a hosted or
+   historical inventory: any existing id with a dot, space or similar now gets 400 by design.
+   Email-like ids stay unsupported until a separate storage-encoding change.
+Tests: `npm run test:customer-id` (canonical unchanged, rejects, no files created, HTTP 400, guard pin).
+
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
   Coordinator's delegated interpretation; D4 scope narrowed to unchanged approved/stored content

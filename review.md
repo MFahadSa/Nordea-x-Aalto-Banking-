@@ -1,5 +1,5 @@
-TURN: Telkomsel
-
+TURN: Bill
+TURN: Bill
 # review.md: quality control for `instinct-prototype-v3`
 
 From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.md` (messages), `review-spec.md` (criteria).
@@ -149,4 +149,13 @@ migration, no data movement, no coalescence; the 5 existing canonical ids unchan
 ids error until a separate encoding change. Scope = this reject-id fix only: no live/paid, no
 hosted changes, no auth redesign, no merge. Bill: finding row for the raw-alias identity defect.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 10:02
+```
+D12 fail-closed customer ids implemented, not yet pushed-verified: shared rule customerId.ts, HTTP 400 + store guards.
+No migration/move/delete/hosted change; canonical ids unchanged; a.b now 400. Docs: DECISIONS.md D12.
+Green local: tsc, test, test:customer-id, arch, arch-events, migrate, adapter, env, e2e, d9.
+Bill: please assign the finding ID and QC. Coordinator: mock API/UI error proof.
+NEXT: Bill
 ```
