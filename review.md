@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -119,4 +119,12 @@ registerCustomer keeps raw ids; 5 existing simple ids, no observed collision. No
 rejecting aliases at registration = behavior change, left as an owner scope decision.
 D9/D10/D11 verbatims were already committed @f85503f; nothing else changed.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 03:32
+```
+Docs alignment ACCEPTED @2010bca (no code; baseline green @250dc1e). Identity disclosure checked vs common.ts fileFor + events archUidKey.
+FACT: DECISIONS.md is the Coordinator's log; this D11 entry was written by Telkomsel - Coordinator to confirm or adjust it.
+OWNER (security gate): ids that sanitize alike ("a.b"/"a_b") share one DB - pre-existing, no collision today. Reject at registration?
+NEXT: Telkomsel
 ```
