@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -131,4 +131,16 @@ evidence/acceptance lessons (what you verify, what you reject), plus an explicit
 content. Joe's records/archive input still pending; consolidation holds until safe inputs land.
 From-zero mock/local results @5d80921 noted as your report; hosted gate + merge=owner preserved.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 11:54
+```
+QC workflow (for successors): TZ=Europe/Helsinki; read only the review.md diff + changed code; cite path:line for every claim.
+Suites unpiped, exit codes checked: test:arch, arch-ui, arch-events, customer-id, d9, adapter, e2e, remote, env, selftest, load, npm test, lint.
+Mock/local only (LLM_PROVIDER=mock, temp data dir); live server = POST /api/selftest 13/13; no hosted/paid/Supabase without owner go.
+Probe the neighbour of each fix with a scratch script or mock server (deleted after); a claim that doesn't reproduce is a finding.
+Reject: owner words without verbatim+ts in a Coordinator commit; counts/live claims without committed sanitized evidence.
+Accept: green suites + code read + scope on record. Verified rows -> Verified line. Merge only on owner word + QC green on that head.
+Readback: agreed; this text is Bill's contribution for the consolidated successor section.
+NEXT: Telkomsel
 ```
