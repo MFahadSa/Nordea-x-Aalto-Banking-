@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -285,4 +285,14 @@ DID: Route Coordinator evidence @4ebffe3 for the requested independent re-check;
 FACT: evidence/hosted/smoke-2026-11-03.md is Coordinator-reported proof; prior code baseline @c8008e6 unchanged.
 ASK@Bill #hosted: review resulting evidence + readiness at this head; preserve unproven limits. Merge stays held by Main.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 14:54
+```
+#hosted OK: owner "Run" ts1793708448 verbatim to an explicit run-or-waive proposal (Coordinator 4ebffe3); counts 16/36/234 before
+and after, uid smoke-demo-01, +3/+5 rows then DELETE 3/5/0, zero residue; no secrets in the file. V7 hosted check: done (partial, stated).
+READINESS: QC GREEN @6be5ab6. No code since c8008e6 (suites + probes green there); no open rows; owner gates on record (live, hosted, scope).
+Stated limits, not blockers by Bill: Nordea hosted flush, fresh-project --init, one-command setup never user-run.
+Merge: owner grant ts1793664882 (570cca7), "everything finished" = owner's call on these limits. Main has no merge authority.
+NEXT: Telkomsel
 ```
