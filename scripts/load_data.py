@@ -872,15 +872,10 @@ def main() -> None:
                 out = out.replace(p, "***")
             return out
 
-        probe = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-tA", "-c",
-                                "select rolname from pg_roles where rolname = any "
-                                "(array['agent_user','agent_cm','agent_nordea'])"],
-                               text=True, capture_output=True, env=env)
-        if probe.returncode != 0:
-            sys.exit("could not verify which agent roles already exist via pg_roles: "
-                     + (scrub(probe.stderr).strip().splitlines() or ["unknown error"])[-1]
-                     + ". Refusing to provision credentials blindly; no changes were made.")
-        existing = set(probe.stdout.split())
+        roles_all = ("agent_user", "agent_cm", "agent_nordea")
+        # VERSION FIRST: the SET ROLE grant form and every later catalog probe depend on the
+        # server version, so the version is read before anything else; an unknown version
+        # refuses before any other query or write.
         ver = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-tA", "-c", "show server_version_num"],
                              text=True, capture_output=True, env=env)
         try:
@@ -891,23 +886,122 @@ def main() -> None:
             sys.exit("could not determine the PostgreSQL server version via server_version_num: "
                      + (scrub(ver.stderr).strip().splitlines() or ["unknown error"])[-1]
                      + ". Refusing to provision roles without the right SET ROLE grant form; no changes were made.")
-        # SET ROLE grant for the smoke check (hosted failure 2026-11-03): on PG >= 16 a
-        # non-superuser with CREATEROLE - hosted Supabase `postgres` - gets each role it creates
-        # back only WITH ADMIN TRUE, SET FALSE, INHERIT FALSE, so role-smoke.sql's `set role`
-        # is denied even though pg_has_role(..., 'MEMBER') is true. The grant below either adds a
-        # PERSISTENT, cluster-level membership row for the connecting owner (grantor = owner;
-        # SET TRUE; INHERIT left unspecified, so it takes the member role's default) or, when a
-        # same-grantor membership already exists, raises only SET to TRUE and leaves that row's
-        # other options untouched (PG16 GRANT: omitted options retain existing values). The
-        # membership survives this session and setup run until explicitly revoked; the owner may
-        # grant it because it holds ADMIN OPTION on these roles (the documented mechanism). It
-        # changes no agent-role table grants or RLS. PG < 16 has no per-grant SET/INHERIT
-        # options (plain membership permits SET ROLE) and cannot parse WITH SET, so a plain
-        # GRANT is emitted there.
+        # All-role preflight, read-only, before ANY write or CREATE. For each agent role it
+        # reports existence, effective SET capability, direct ADMIN OPTION (any grantor),
+        # superuser status, and - on PG >= 16 - a snapshot of the exact owner-grantor
+        # membership row (role, member = current_user, grantor = current_user) with its
+        # admin/inherit/set options. The snapshot is preservation PROOF ONLY: G71 cleanup is
+        # deferred, so this script never revokes or restores anything. PG >= 16 uses
+        # pg_has_role(current_user, role, 'SET'), which is true exactly when SET ROLE would
+        # succeed: direct membership WITH SET TRUE, an indirect chain of SET TRUE
+        # memberships, or superuser status (docs/16 functions-info). PG < 16 has no per-grant
+        # options - pg_auth_members carries admin_option but no set_option/inherit_option
+        # columns (docs/15 catalog-pg-auth-members) - and plain membership permits SET ROLE,
+        # so the probe checks MEMBER and never references set_option or 'SET'. ADMIN OPTION
+        # exists in both models. On PG >= 16 the no-ADMIN refusal below matches server
+        # capability (a non-superuser needs ADMIN OPTION to grant). On PG < 16 the refusal is
+        # conservative LOADER POLICY, not a server limit: pre-16 a CREATEROLE role could grant
+        # or revoke membership in any non-superuser role WITHOUT ADMIN OPTION (docs/15
+        # sql-grant), but this loader deliberately does not rely on those pre-16 CREATEROLE
+        # powers - it grants only roles it created this run or holds direct ADMIN OPTION on,
+        # keeping behavior uniform across versions. Indirect ADMIN chains are not resolved and
+        # are refused conservatively. For an existing
+        # owner-grantor row GRANT raises only SET and retains the row's other options (PG16:
+        # omitted options keep existing values); no INHERIT clause is ever emitted (G69-B).
+        owner = urllib.parse.unquote(parts.username or "")
+        # pg_has_role uses the oid form: the name form raises on a missing role (regrole lookup);
+        # a NULL oid yields NULL, coalesced to false, so the missing-role path reaches CREATE.
+        me = "(select oid from pg_roles where rolname = current_user)"
+        if server_num >= 160000:
+            preflight_sql = (
+                "select v.rolname, (pr.oid is not null), "
+                "coalesce(pg_has_role(current_user, pr.oid, 'SET'), false), "
+                "coalesce(bool_or(am.admin_option), false), "
+                "(select rolsuper from pg_roles where rolname = current_user), "
+                "(og.roleid is not null), "
+                "coalesce(og.admin_option, false), coalesce(og.inherit_option, false), "
+                "coalesce(og.set_option, false) "
+                "from (values ('agent_user'), ('agent_cm'), ('agent_nordea')) as v(rolname) "
+                "left join pg_roles pr on pr.rolname = v.rolname "
+                "left join pg_auth_members am on am.roleid = pr.oid and am.member = " + me + " "
+                "left join pg_auth_members og on og.roleid = pr.oid and og.member = " + me
+                + " and og.grantor = " + me + " "
+                "group by v.rolname, pr.oid, og.roleid, og.admin_option, og.inherit_option, og.set_option "
+                "order by 1")
+        else:
+            preflight_sql = (
+                "select v.rolname, (pr.oid is not null), "
+                "coalesce(pg_has_role(current_user, pr.oid, 'MEMBER'), false), "
+                "coalesce(bool_or(am.admin_option), false), "
+                "(select rolsuper from pg_roles where rolname = current_user) "
+                "from (values ('agent_user'), ('agent_cm'), ('agent_nordea')) as v(rolname) "
+                "left join pg_roles pr on pr.rolname = v.rolname "
+                "left join pg_auth_members am on am.roleid = pr.oid and am.member = " + me + " "
+                "group by v.rolname, pr.oid order by 1")
+        pf = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-tA", "-F", "\t", "-c", preflight_sql],
+                            text=True, capture_output=True, env=env)
+        if pf.returncode != 0:
+            sys.exit("could not run the read-only role preflight (pg_roles/pg_auth_members): "
+                     + (scrub(pf.stderr).strip().splitlines() or ["unknown error"])[-1]
+                     + ". Refusing to provision credentials blindly; no changes were made.")
+        def tf(s: str) -> bool:
+            return s.strip() == "t"
+        pre = {}
+        for line in pf.stdout.splitlines():
+            c = line.split("\t")
+            if server_num >= 160000 and len(c) == 9:
+                pre[c[0]] = dict(exists=tf(c[1]), can_set=tf(c[2]), admin=tf(c[3]), superuser=tf(c[4]),
+                                 og_row=tf(c[5]), og_admin=tf(c[6]), og_inherit=tf(c[7]), og_set=tf(c[8]))
+            elif server_num < 160000 and len(c) == 5:
+                # PG < 16: plain membership permits SET ROLE, so membership IS the capability.
+                pre[c[0]] = dict(exists=tf(c[1]), can_set=tf(c[2]), admin=tf(c[3]), superuser=tf(c[4]),
+                                 og_row=False, og_admin=False, og_inherit=False, og_set=False)
+        if sorted(pre) != sorted(roles_all):
+            sys.exit("role preflight returned an unexpected row set (expected one row per agent role); "
+                     "refusing to provision blindly; no changes were made.")
+        for r in roles_all:
+            i = pre[r]
+            snap = ""
+            if server_num >= 160000:
+                snap = " og_row_exists=" + str(i["og_row"]).lower()
+                if i["og_row"]:
+                    snap += ("(admin=" + str(i["og_admin"]).lower() + ",inherit=" + str(i["og_inherit"]).lower()
+                             + ",set=" + str(i["og_set"]).lower() + ")")
+            print("preflight " + r + ": exists=" + str(i["exists"]).lower()
+                  + " can_set=" + str(i["can_set"]).lower() + " direct_admin=" + str(i["admin"]).lower()
+                  + " superuser=" + str(i["superuser"]).lower() + snap)
+        refused = [r for r in roles_all
+                   if pre[r]["exists"] and not pre[r]["can_set"] and not pre[r]["superuser"] and not pre[r]["admin"]]
+        if refused:
+            if server_num >= 160000:
+                advice = ("Grant ADMIN OPTION or membership WITH SET TRUE to '" + owner
+                          + "' (or connect as a user that has them) and rerun.")
+            else:
+                advice = ("This server predates per-grant SET/INHERIT options and cannot parse WITH SET TRUE; "
+                          "grant ADMIN OPTION or plain membership (GRANT <role> TO " + owner
+                          + "; plain membership permits SET ROLE pre-16) and rerun. This refusal is "
+                          "conservative loader policy: pre-16 a CREATEROLE role may grant non-superuser "
+                          "roles without ADMIN OPTION (docs/15 sql-grant), but this loader does not rely "
+                          "on those powers.")
+            sys.exit("cannot grant SET ROLE capability for existing role(s) " + ", ".join(refused)
+                     + ": the connecting user '" + owner + "' has no effective permission to SET ROLE to them "
+                     "(not a superuser) and holds no direct ADMIN OPTION on them from any "
+                     "grantor; indirect ADMIN chains are not resolved and are refused conservatively. "
+                     + advice + " No changes were made.")
+        existing = {r for r in roles_all if pre[r]["exists"]}
+        # Grant only where effective SET is missing: pg_has_role 'SET' already covers direct,
+        # indirect and superuser cases, so a skipped role needs no row touched at all. Missing
+        # roles are created below and always granted (the creator holds ADMIN on its own roles).
+        # Known nonblocking limit: a role skipped on effective SET may still lack INHERIT/USAGE
+        # (SET TRUE with INHERIT FALSE), so role-smoke.sql's inheritance-based union can then
+        # fail LOUDLY after the schema step; the preflight predicts SET ROLE readiness only,
+        # not full smoke readiness.
         set_clause = " with set true" if server_num >= 160000 else ""
         setrole_sql = "".join(
             "grant " + role + " to current_user" + set_clause + ";\n"
-            for role in ("agent_user", "agent_cm", "agent_nordea"))
+            for role in roles_all
+            if not pre[role]["can_set"] and not pre[role]["superuser"])
+
         role_sql = ""
         role_urls = {}
         kept_existing = []
