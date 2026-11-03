@@ -173,3 +173,14 @@ FACT (L, no row): the picture lists Nordea DB "products"; the Nordea store holds
 Still open: G69 (L), G71, G73-G80 (G80 H = merge, owner). Holds unchanged.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 21:37
+```
+OWNER ts1793728879.132079: "delete the coordinator and builder blueprint before you and Christina
+export your blueprint"; resumed ts1793734500.805269, clarified ts1793734516.581699 ("blueprint").
+DID: deleted stale role exports Christina_Coordinator_2026-11-03/ (2 files) and
+Telkomsel_Builder_2026-11-01/ (4 files), verified unchanged at 7727c798 since the a81e7df inventory.
+FACT: prompt_to_audit_coordinator.md still cites the old Coordinator export; owner: Christina's side.
+FACT: HANDOFF-BLUEPRINT.md, Bill/Joe dirs, findings, STOP and holds untouched; docs-only commit.
+NEXT: Telkomsel
+```
