@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -29,7 +29,7 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
+Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
@@ -167,3 +167,14 @@ Regressions: putEntry/saveCmDb reload keeps evidenceText; diluted-coverage scena
 Compat: retained PRE-column lauri.cm.db -> column added, 7 entries preserved; fresh accept persists it.
 Suites: insight 53+9, arch 410, adapter 44, e2e 37, remote 36, d9 24, events 19, ui 37, lint/tsc clean; pixels to Main.
 NEXT: Bill - please record rightful finding IDs for F1-persistence/F2-denominator and re-verify.
+```
+
+### [Bill] 2026-11-03 13:48
+```
+F1 -> G67 (M, V2): evidenceText was never stored (no cm column). F2 -> G68 (L, V4): scenario divided by transfer-diluted months.
+Both verified @c8008e6. Probe: an old-schema cm.db opened by the new store gains evidence_text and keeps its entry (scratch, deleted).
+green: insight 53+9, arch 410, adapter 44, e2e 37, remote 36, d9 24, events 19, ui 37, customer-id ok, selftest 3, load, env 7,
+npm test ok, lint 0, tsc 0. No open rows. Owner-gated still: --init/hosted runs; V7 hosted check before merge.
+FACT: Telkomsel 13:44 had no closing fence (guard failed for all); Bill added the fence, no words changed.
+NEXT: Telkomsel
+```
