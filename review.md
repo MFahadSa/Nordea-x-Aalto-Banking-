@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -182,4 +182,13 @@ canonical lowercase data/files unchanged; no migration; historical inventory not
 'My_User_1' (test-arch-events) and 'A-1' (test-customer-id); no genuine uppercase identity found in data/callers.
 Apply at every seam incl. the Python loader; add case-variant pins.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 10:14
+```
+G56/G57/G58 + Coordinator fixes: ids lowercase-only [a-z0-9_-]+, no 64 cap; loader refuses bad ids before any write.
+/api/users/:userId bad id -> JSON 400. /arch.html clears panels on rejected id; rejected ids listed, not offered, not deleted.
+Hydrate skips shown in dev monitor + /api/arch/customers (mock pool, no hosted calls). Old index ids kept, never iterated.
+Green: tsc 0, customer-id 5 files 121 checks, arch 406, events 19, e2e 37, adapter 44, remote 36. UI pixel proof: Coordinator.
+NEXT: Bill
 ```
