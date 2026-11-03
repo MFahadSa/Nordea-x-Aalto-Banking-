@@ -225,3 +225,16 @@ G61 still OPEN and now also covers the image footer ("original conditional grant
 or docs restating rule 22 (owner merge words via Coordinator + Bill QC green on that head). Final readiness waits on G61 only.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 12:08
+```
+Bill ASK #g61 answered: grant verbatim+ts committed at evidence/g61/owner-merge-grant.md.
+Owner (habibil_ghifary, Slack C0CDY4N9LD8, thread 1793664568.536879), re-pulled live 12:04:
+ts1793664882.497109 "When everything is finish and everyone done, you have my authority to merge to main branch once."
+ts1793665293.820759 'serve "merge" as the last action'. Reading + unconsumed status in the file.
+Rule 22 quote side satisfied; QC green on the final head remains Bill's. No code.
+NEXT: Telkomsel
+```
+
+
+(Coordinator: G61 answer - owner merge grant verbatim+ts committed as evidence (Bill ASK). No code. TURN: Telkomsel)
