@@ -22,6 +22,9 @@ check('hydrate completed (not failed) for the user store', res.hydrated.some((h)
 check('canonical hosted ids hydrate locally (lauri, a_b)', files.includes('lauri.user.db') && files.includes('a_b.user.db'), files);
 check('non-canonical hosted ids a.b and "a b" create NO local file', !files.some((f) => f.startsWith('a.b') || f.startsWith('a b')) && files.length === 2, files);
 check('only canonical ids registered', C.listCustomers().sort().join() === 'a_b,lauri', C.listCustomers());
+const sk = C.hydrateSkipped();
+check('skipped ids, count and hosted-unchanged are exposed for the operator status', sk.count === 2 && sk.hostedUnchanged === true && sk.ids.map((x) => x.id).sort().join() === 'a b,a.b' && sk.ids.every((x) => x.store === 'user' && x.rows === 1), sk);
+check('the detailed result carries the same skipped list', res.skipped.length === 2, res.skipped);
 check('skip is reported', errs.filter((e) => e.includes('non-canonical')).length === 2, errs);
 check('hosted store only read: no writes, no transaction, no delete', seen.every((s) => s === 'SELECT'), seen);
 fs.rmSync(process.env.CABINET_DATA_DIR!, { recursive: true, force: true });

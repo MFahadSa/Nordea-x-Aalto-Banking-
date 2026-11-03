@@ -11,11 +11,11 @@ const ctx = await import('../src/server/arch/store/contextStore.js');
 const { appendMessage } = await import('../src/server/arch/store/busStore.js');
 const express = (await import('express')).default;
 let pass = 0, fail = 0;
-const check = (n: string, c: boolean) => { if (c) { pass++; console.log(`  PASS ${n}`); } else { fail++; console.log(`  FAIL ${n}`); } };
+const check = (n: string, c: boolean, d?: unknown) => { if (c) { pass++; console.log(`  PASS ${n}`); } else { fail++; console.log(`  FAIL ${n} ${d === undefined ? '' : JSON.stringify(d)}`); } };
 const throwsInvalid = (f: () => unknown) => { try { f(); return false; } catch (e) { return e instanceof InvalidCustomerIdError && e.status === 400; } };
 
-for (const id of ['lauri', 'eeva', 'alex', 'a_b', 'A-1', 'x'.repeat(64), 'x'.repeat(65)]) check(`canonical ${id.slice(0, 8)} accepted unchanged`, canonicalCustomerId(id) === id && C.fileFor(id, 'user').endsWith(`${id}.user.db`) && archUidKey(id) === id);
-const bad = ['a.b', 'a b', 'a/b', '..', '../x', 'a@b.com', '', 'é', 'a\u0000b'];
+for (const id of ['lauri', 'eeva', 'alex', 'a_b', 'a-1', 'x'.repeat(64), 'x'.repeat(65)]) check(`canonical ${id.slice(0, 8)} accepted unchanged`, canonicalCustomerId(id) === id && C.fileFor(id, 'user').endsWith(`${id}.user.db`) && archUidKey(id) === id);
+const bad = ['Lauri', 'LAURI', 'A-1', 'a.b', 'a b', 'a/b', '..', '../x', 'a@b.com', '', 'é', 'a\u0000b'];
 for (const id of bad) check(`ambiguous ${JSON.stringify(id).slice(0, 14)} rejected`, !isCanonicalCustomerId(id) && throwsInvalid(() => canonicalCustomerId(id)));
 check('non-string ids rejected', [undefined, null, 5, {}, ['a']].every((v) => !isCanonicalCustomerId(v)));
 // store seams: no partial writes, no files created
@@ -29,6 +29,13 @@ check('no files created by rejected calls', (fs.existsSync(C.ARCH_DIR) ? fs.read
 // canonical a_b data is NOT reachable through a.b
 C.registerCustomer('a_b');
 check('canonical a_b registers; a.b still rejected afterwards', C.listCustomers().join() === 'a_b' && throwsInvalid(() => C.fileFor('a.b', 'user')));
+
+// a historical non-canonical index entry is kept untouched, never iterated, and survives register/unregister
+fs.writeFileSync(path.join(C.ARCH_DIR, 'customers.json'), JSON.stringify(['te.st', 'a_b']));
+C.registerCustomer('lauri');
+check('historic te.st stays in the stored index after register, but listCustomers never offers it', C.listStoredIds().join() === 'te.st,a_b,lauri' && C.listCustomers().join() === 'a_b,lauri', C.listStoredIds());
+C.unregisterCustomer('lauri');
+check('unregister removes only that id; te.st is untouched', C.listStoredIds().join() === 'te.st,a_b');
 
 // HTTP: the same guard as server.ts, answered before any handler
 const { isCanonicalCustomerId: ok } = await import('../src/server/customerId.js');

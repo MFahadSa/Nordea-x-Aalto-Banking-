@@ -1,15 +1,15 @@
 /**
  * D12: one canonical customer-id rule shared by HTTP and every store seam.
- * A canonical id is one or more of [A-Za-z0-9_-] and maps to its own files unchanged.
+ * A canonical id is one or more of [a-z0-9_-] (lowercase only: no silent lowercasing, no length cap) and maps to its own files unchanged. Uppercase is rejected, so Lauri and lauri can never share a file on a case-insensitive disk.
  * Anything else (a.b, "a b", a/b, emails) is rejected with a typed error - never
  * rewritten to a look-alike id, so one id can no longer open another customer's data.
  */
-export const CANONICAL_CUSTOMER_ID = /^[A-Za-z0-9_-]+$/;
+export const CANONICAL_CUSTOMER_ID = /^[a-z0-9_-]+$/;
 
 export class InvalidCustomerIdError extends Error {
   status = 400;
   code = 'INVALID_CUSTOMER_ID';
-  constructor() { super('Invalid customer id: use letters, digits, "_" or "-" only.'); }
+  constructor() { super('Invalid customer id: use lowercase letters, digits, "_" or "-" only.'); }
 }
 
 export const isCanonicalCustomerId = (uid: unknown): uid is string => typeof uid === 'string' && CANONICAL_CUSTOMER_ID.test(uid);

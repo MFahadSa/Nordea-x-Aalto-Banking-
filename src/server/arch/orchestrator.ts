@@ -29,7 +29,8 @@ import {
 } from './store/busStore.js';
 import fs from 'fs';
 import path from 'path';
-import { fileFor, remoteConfigured, listCustomers } from './store/common.js';
+import { fileFor, remoteConfigured, listCustomers, listStoredIds, hydrateSkipped } from './store/common.js';
+import { isCanonicalCustomerId } from '../customerId.js';
 
 // ---------- Coordination state (bus kv), with one-time migration from the legacy User DB field ----------
 
@@ -775,7 +776,9 @@ function storeLine(uid: string, kind: 'user' | 'cm' | 'nordea') {
 
 /** V5: the customers the loaded dataset knows (picker on /arch.html). */
 export function archCustomers() {
-  return { customers: listCustomers() };
+  const all = listStoredIds();
+  // D12: ids stored under an unsupported (non-canonical) name are not offered; they are reported, never deleted or renamed.
+  return { customers: all.filter(isCanonicalCustomerId), rejected: all.filter((u) => !isCanonicalCustomerId(u)), hydrateSkipped: hydrateSkipped() };
 }
 
 /** V5: "new session" - rotate the chat session and start from an empty stamped document (F16). */

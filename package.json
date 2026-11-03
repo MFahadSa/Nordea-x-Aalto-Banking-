@@ -26,7 +26,7 @@
     "test:arch-ui": "node scripts/test-arch-perm-ui.mjs",
     "test:d9": "tsx scripts/test-d9-risk.ts",
     "test:arch-events": "tsx scripts/test-arch-events.ts",
-    "test:customer-id": "tsx scripts/test-customer-id.ts && tsx scripts/test-customer-id-hydrate.ts && tsx scripts/test-customer-id-server.ts"
+    "test:customer-id": "node scripts/test-arch-customer-ui.mjs && node scripts/test-customer-id-loader.mjs && tsx scripts/test-customer-id.ts && tsx scripts/test-customer-id-hydrate.ts && tsx scripts/test-customer-id-server.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

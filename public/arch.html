@@ -213,10 +213,19 @@ const aiChain = (ai) => {
   return `${head}${rows}<div class="aiknown">A key being set only means configured. The per-agent lines show what each agent's last run really did (this server process, memory only). Nothing here calls a model.</div>`;
 };
 let stateReq = 0; // every state read gets a sequence number; only the newest response may paint
+// D12: no customer's panels may stay on screen under another (or a rejected) customer's name.
+const PANEL_HTML = ['a-personal', 'conn-user', 'a-cm', 'conn-cm', 'a-nordea', 'conn-nordea', 'user-summary', 'user-goals', 'cm-summary', 'nordea-summary', 'ctx-meta', 'ai-personal', 'ai-cm', 'ai-nordea', 'ai-chain', 'cm-entries', 'nordea-cards', 'queues', 'msgs'];
+function clearPanels(msg) {
+  for (const id of PANEL_HTML) { const el = $(id); if (el) el.innerHTML = ''; }
+  $('ctx-md').textContent = '';
+  $('ctx-meta').textContent = msg; // textContent: the message may carry an id typed by someone else
+}
 async function refresh() {
   uid = $('uid').value || 'lauri';
   const seq = ++stateReq;
-  const s = await api(`/api/arch/${uid}/state`);
+  let s;
+  try { s = await api(`/api/arch/${encodeURIComponent(uid)}/state`); }
+  catch (e) { if (seq === stateReq) clearPanels(`Cannot show customer "${uid}": ${e.message || 'request failed'}. Nothing from another customer is shown here.`); throw e; }
   if (seq !== stateReq) return null; // a newer read (tick or action) superseded this one - discard the stale response
   applyState(s);
   return s;
@@ -361,7 +370,7 @@ $('btn-park-cm').onclick = async () => { const parked = $('btn-park-cm').textCon
 $('btn-newsession').onclick = async () => { const j = await api(`/api/arch/${uid}/session/new`, {}); sessionId = j.sessionId; say('agent', 'New session started - the next question opens a fresh context.md.'); refresh(); };
 for (const a of ['personal', 'cm', 'nordea']) $(`btn-off-${a}`).onclick = async () => { const off = $(`btn-off-${a}`).textContent === 'Turn off'; await api(`/api/arch/${uid}/agents/${a}/${off ? 'off' : 'on'}`, {}); refresh(); };
 for (const w of ['user', 'cm', 'nordea']) $(`btn-del-${w}`).onclick = async () => { if (confirm(`Really delete the ${w === 'cm' ? 'Context Memory' : w === 'user' ? 'User' : 'Nordea'} DB? Other databases are not touched.`)) { await api(`/api/arch/${uid}/db/${w}`, { method: 'DELETE' }); refresh(); } };
-$('uid').addEventListener('change', () => { perm.dirty = false; perm.saving = false; permSaveGen++; permStatus(''); uid = $('uid').value || 'lauri'; evtLastSeq = 0; startStream(); refresh(); });
+$('uid').addEventListener('change', () => { perm.dirty = false; perm.saving = false; permSaveGen++; permStatus(''); uid = $('uid').value || 'lauri'; evtLastSeq = 0; stateReq++; clearPanels(`Loading customer "${uid}"...`); startStream(); refresh().catch(() => { /* the error is already shown in the panels */ }); });
 let refreshing = false, lastFallbackPoll = 0;
 async function tick() {
   // Bounded fallback only: while the SSE stream is open or reconnecting (EventSource retries
@@ -405,6 +414,7 @@ async function boot() {
   try {
     const j = await api('/api/arch/customers');
     const list = j.customers.length ? j.customers : ['lauri'];
+    if ((j.rejected || []).length || (j.hydrateSkipped?.count ?? 0)) say('agent', `Unsupported customer ids are not offered and were left unchanged: ${(j.rejected || []).join(', ') || 'none'} locally, ${j.hydrateSkipped?.count ?? 0} hosted.`);
     $('uid').innerHTML = list.map((c) => `<option value="${esc(c)}"${c === uid ? ' selected' : ''}>${esc(c)}</option>`).join('');
   } catch { $('uid').innerHTML = '<option value="lauri">lauri</option>'; }
   refresh().catch((e) => say('agent', e.message));

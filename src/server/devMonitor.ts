@@ -1,3 +1,5 @@
+import { hydrateSkipped, listStoredIds } from './arch/store/common.js';
+import { isCanonicalCustomerId } from './customerId.js';
 // Read-only developer monitoring surface: the three agent stores, their connection
 // lines, the session context.md, the message bus and the access log (V6/G8).
 // It only READS state. It never changes data, and it is on by default (DEV_MONITOR=0 turns it off).
@@ -31,6 +33,8 @@ export function registerDevMonitor(app: Express) {
       userId,
       customers,
       storage: db.status(),
+      // D12: hosted/historical ids that are not canonical are skipped, listed here, and left unchanged hosted and local.
+      unsupportedIds: { rejectedLocal: listStoredIds().filter((u) => !isCanonicalCustomerId(u)), hydrateSkipped: hydrateSkipped() },
       feed: feedStatus(),
       // The three-database architecture, live: per-store connection lines, agent on/off,
       // session context.md, queues and the message bus tail. Read-only composition.

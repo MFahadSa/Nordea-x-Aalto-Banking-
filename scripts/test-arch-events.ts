@@ -58,9 +58,9 @@ try {
   check('a later change emits the next seq', burst.length === 2 && burst[1].seq === 2);
 
   // uid keys: raw route uid and store-file uid meet on the same key
-  check('uid key is the store identity for canonical ids; My User.1 is rejected, not sanitized', archUidKey('My_User_1') === 'My_User_1' && (() => { try { archUidKey('My User.1'); return false; } catch { return true; } })());
-  check('uid recovered from a store file path', archUidFromFile('/data/arch/My_User_1.bus.db', 'bus') === 'My_User_1');
-  check('foreign file rejected', archUidFromFile('/data/arch/My_User_1.bus.db', 'cm') === null);
+  check('uid key is the store identity for canonical ids; My User.1 is rejected, not sanitized', archUidKey('my_user_1') === 'my_user_1' && (() => { try { archUidKey('My User.1'); return false; } catch { return true; } })());
+  check('uid recovered from a store file path', archUidFromFile('/data/arch/my_user_1.bus.db', 'bus') === 'my_user_1');
+  check('foreign file rejected', archUidFromFile('/data/arch/my_user_1.bus.db', 'cm') === null);
 
   // actual write coverage: a bus write (through common.openDb, local mode) emits via the hook
   const U5 = `${U1}-e`;
@@ -83,8 +83,8 @@ import fs from 'node:fs';
   const m = src.match(/\/api\/arch\/:uid\/events'[\s\S]{0,300}/);
   check('route subscribes on the canonical uid key', !!m && /archUidKey\(uid\(req\)\)/.test(m[0]));
   const keyed: ArchEvent[] = [];
-  subscribeArch(archUidKey('My_User_1'), 0, (ev) => keyed.push(ev));
-  noteArchChange('My_User_1'); // canonical uid, as the store hook produces
+  subscribeArch(archUidKey('my_user_1'), 0, (ev) => keyed.push(ev));
+  noteArchChange('my_user_1'); // canonical uid, as the store hook produces
   await sleep(500);
   check('canonical-uid emission reaches the key subscriber', keyed.length === 1 && keyed[0].seq >= 1);
 }

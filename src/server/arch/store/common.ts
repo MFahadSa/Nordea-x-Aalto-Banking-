@@ -211,7 +211,7 @@ export async function drainRemoteFlushes(): Promise<void> {
  * for that kind are replaced by the remote ones. Runs before the app serves requests.
  */
 /** G20: hydrate with per-store failure reporting (the hosted data loader must stop on a failed pull). */
-export async function hydrateAgentStoresDetailed(): Promise<{ hydrated: string[]; failed: string[] }> {
+export async function hydrateAgentStoresDetailed(): Promise<{ hydrated: string[]; failed: string[]; skipped: HydrateSkip[] }> {
   return hydrateDetailed();
 }
 
@@ -219,7 +219,13 @@ export async function hydrateAgentStores(): Promise<string[]> {
   return (await hydrateDetailed()).hydrated;
 }
 
-async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[] }> {
+/** D12: hosted id sets skipped by the last hydrate because the id is not canonical. Hosted rows are left unchanged. */
+export interface HydrateSkip { store: DbKind; id: string; rows: number }
+let lastHydrateSkipped: HydrateSkip[] = [];
+export const hydrateSkipped = () => ({ count: lastHydrateSkipped.length, ids: lastHydrateSkipped.slice(), hostedUnchanged: true as const });
+
+async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[]; skipped: HydrateSkip[] }> {
+  lastHydrateSkipped = [];
   const hydrated: string[] = [];
   const failed: string[] = [];
   for (const [kind, url] of REMOTE_SECRETS) {
@@ -235,7 +241,7 @@ async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[]
       }
       for (const [uid, list] of byUid) {
         // D12: a hosted row set under a non-canonical id is left untouched in the hosted store and not hydrated.
-        if (!isCanonicalCustomerId(uid)) { console.error(`Remote hydrate skipped a non-canonical customer id in ${kind} (${list.length} rows, left unchanged hosted).`); continue; }
+        if (!isCanonicalCustomerId(uid)) { lastHydrateSkipped.push({ store: kind, id: uid, rows: list.length }); console.error(`Remote hydrate skipped a non-canonical customer id in ${kind} (${list.length} rows, left unchanged hosted).`); continue; }
         const file = fileFor(uid, kind);
         fs.mkdirSync(path.dirname(file), { recursive: true });
         const db = new DatabaseSync(file);
@@ -262,7 +268,7 @@ async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[]
       failed.push(kind);
     }
   }
-  return { hydrated, failed };
+  return { hydrated, failed, skipped: lastHydrateSkipped.slice() };
 }
 
 
@@ -336,25 +342,32 @@ export function migrateLegacy(uid: string, kind: DbKind, apply: (data: Record<st
  */
 const INDEX_FILE = () => path.join(ARCH_DIR, 'customers.json');
 
-export function listCustomers(): string[] {
+/** Every id in the stored index, supported or not (the index is never rewritten except to add or remove one id). */
+export function listStoredIds(): string[] {
   try {
     if (!fs.existsSync(INDEX_FILE())) return [];
-    const uids = JSON.parse(fs.readFileSync(INDEX_FILE(), 'utf-8')) as string[];
-    return Array.isArray(uids) ? uids : [];
+    const uids = JSON.parse(fs.readFileSync(INDEX_FILE(), 'utf-8')) as unknown;
+    return Array.isArray(uids) ? uids.filter((u): u is string => typeof u === 'string') : [];
   } catch { return []; }
+}
+
+/** D12: the customers the app can serve. A historical id that is not canonical stays in the index, untouched, but is never iterated or opened. */
+export function listCustomers(): string[] {
+  return listStoredIds().filter(isCanonicalCustomerId);
 }
 
 export function registerCustomer(uid: string) {
   canonicalCustomerId(uid);
-  const uids = listCustomers();
+  const uids = listStoredIds();
   if (uids.includes(uid)) return;
   fs.mkdirSync(ARCH_DIR, { recursive: true });
   fs.writeFileSync(INDEX_FILE(), JSON.stringify([...uids, uid]), 'utf-8');
 }
 
 export function unregisterCustomer(uid: string) {
-  const uids = listCustomers().filter((u) => u !== uid);
-  if (uids.length === listCustomers().length) return;
+  const all = listStoredIds();
+  const uids = all.filter((u) => u !== uid);
+  if (uids.length === all.length) return;
   fs.mkdirSync(ARCH_DIR, { recursive: true });
   fs.writeFileSync(INDEX_FILE(), JSON.stringify(uids), 'utf-8');
 }

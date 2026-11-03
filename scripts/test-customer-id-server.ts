@@ -14,6 +14,9 @@ const PORT = 4300 + Math.floor(Math.random() * 400);
 const BASE = `http://127.0.0.1:${PORT}`;
 const seed = spawnSync(process.execPath, ['scripts/run_python.mjs', 'scripts/load_data.py', 'seed/demo', '--target', 'file', '--no-reload'], { env: { ...process.env, CABINET_DATA_DIR: DIR }, encoding: 'utf-8' });
 if (seed.status !== 0) { console.error(seed.stdout, seed.stderr); process.exit(1); }
+// A historical index entry under an unsupported name (e.g. registered before D12): it must be reported, not offered, and left untouched.
+const idxFile = path.join(DIR, 'arch', 'customers.json');
+fs.writeFileSync(idxFile, JSON.stringify([...(JSON.parse(fs.readFileSync(idxFile, 'utf-8')) as string[]), 'te.st']));
 const server = spawn('npx', ['tsx', 'server.ts'], { env: { ...process.env, CABINET_DATA_DIR: DIR, LLM_PROVIDER: 'mock', PORT: String(PORT) }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
 let log = ''; server.stdout.on('data', (d) => { log += d; }); server.stderr.on('data', (d) => { log += d; });
 let pass = 0, fail = 0;
@@ -32,7 +35,7 @@ function snapshot(): string {
   } };
   walk(DIR); return out.join('\n');
 }
-const BAD = ['a.b', 'a b', 'a%2Fb', '..', 'a@b.com', 'lauri.x'];
+const BAD = ['te.st', 'Lauri', 'a.b', 'a b', 'a%2Fb', '..', 'a@b.com', 'lauri.x'];
 try {
   const deadline = Date.now() + 40000;
   for (;;) {
@@ -40,6 +43,10 @@ try {
     if (Date.now() > deadline) { console.error(log); throw new Error('server did not start'); }
     await sleep(300);
   }
+  const cust = await api('GET', '/api/arch/customers');
+  check('customers endpoint does not offer te.st, and lists it as rejected', !cust.json.customers.includes('te.st') && cust.json.rejected.join() === 'te.st' && cust.json.customers.includes('lauri'), cust.json);
+  const mon0 = await api('GET', '/api/dev/monitor?userId=lauri');
+  check('dev monitor shows the unsupported id, skipped hosted ids and that nothing was changed', mon0.status === 200 && mon0.json.unsupportedIds?.rejectedLocal?.join() === 'te.st' && mon0.json.unsupportedIds?.hydrateSkipped?.hostedUnchanged === true, { s: mon0.status, u: mon0.json?.unsupportedIds, e: JSON.stringify(mon0.json).slice(0, 200) });
   const files0 = fs.readdirSync(path.join(DIR, 'arch')).sort().join(',');
   const idx0 = JSON.stringify((await api('GET', '/api/arch/customers')).json);
   const snap0 = snapshot();
@@ -65,6 +72,7 @@ try {
   check('real SSE /api/arch/a.b/events -> 400, no stream', sse.status === 400 && !(sse.headers.get('content-type') || '').includes('event-stream'), sse.status);
   check('rejected calls left no state behind (every data file hash identical)', snapshot() === snap0);
   check('no a_b / a.b / alias files or index entries were created', fs.readdirSync(path.join(DIR, 'arch')).sort().join(',') === files0 && JSON.stringify((await api('GET', '/api/arch/customers')).json) === idx0 && !snapshot().includes('a_b'));
+  check('te.st index entry still stored unchanged', (JSON.parse(fs.readFileSync(idxFile, 'utf-8')) as string[]).includes('te.st'));
   for (const id of ['lauri', 'eeva', 'alex']) {
     const st = await api('GET', `/api/state?userId=${id}`);
     const arch = await api('GET', `/api/arch/${id}/state`);

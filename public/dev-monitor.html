@@ -144,7 +144,9 @@ async function refresh() {
   const j = await r.json();
   if (!r.ok) { $('sysline').textContent = j.error || 'Monitor unavailable'; return; }
   const s = j.arch;
-  $('sysline').textContent = `app storage: ${j.storage.mode}${j.storage.ok ? '' : ' (degraded)'} · feed: ${j.feed?.message ?? 'n/a'} · reasoning: ${s.llm?.provider ?? 'scripted (no provider)'} · budget ${s.llm?.maxSteps ?? '-'} steps x ${Math.round((s.llm?.stepTimeoutMs ?? 0) / 1000)}s · generated ${j.generatedAt.slice(0, 19).replace('T', ' ')}`;
+  const un = j.unsupportedIds ?? { rejectedLocal: [], hydrateSkipped: { count: 0, ids: [] } };
+  const unsupported = un.rejectedLocal.length || un.hydrateSkipped.count ? ` · unsupported ids left unchanged (not shown, not deleted): local ${un.rejectedLocal.join(', ') || 'none'}; hosted skipped ${un.hydrateSkipped.count}${un.hydrateSkipped.ids.length ? ' (' + un.hydrateSkipped.ids.map((x) => x.store + ':' + x.id + ' ' + x.rows + ' rows').join(', ') + ')' : ''}` : '';
+  $('sysline').textContent = `app storage: ${j.storage.mode}${j.storage.ok ? '' : ' (degraded)'} · feed: ${j.feed?.message ?? 'n/a'} · reasoning: ${s.llm?.provider ?? 'scripted (no provider)'} · budget ${s.llm?.maxSteps ?? '-'} steps x ${Math.round((s.llm?.stepTimeoutMs ?? 0) / 1000)}s · generated ${j.generatedAt.slice(0, 19).replace('T', ' ')}${unsupported}`;
   $('a-personal').innerHTML = `<b>Personal agent: ${esc(s.agents.personal.name)}</b> ${s.agents.personal.off ? '<span class="pill off">off</span>' : '<span class="pill">on</span>'} <span class="pill ${s.agents.personal.simulated ? 'scripted' : 'model'}">${s.agents.personal.simulated ? 'external (simulated)' : 'built-in'}</span>`;
   $('conn-user').innerHTML = conn(s.stores.user);
   $('user-summary').innerHTML = `Goals: <b>${s.databases.user.goals}</b> · Personal facts: <b>${s.databases.user.personalFacts}</b> · Profile: <b>${s.databases.user.profile ? 'loaded' : 'none'}</b>`;

@@ -391,9 +391,28 @@ _SCHEMAS = {
 }
 
 
+# D12: the same customer-id rule as src/server/customerId.ts (lowercase letters, digits, _ and -).
+# A non-canonical id is refused before anything is written; it is never rewritten to another id.
+_CANONICAL_UID = re.compile(r"[a-z0-9_-]+")
+
+
+def _check_uid(uid) -> str:
+    if not isinstance(uid, str) or not _CANONICAL_UID.fullmatch(uid):
+        sys.exit(f"Unsupported customer id {uid!r}: use lowercase letters, digits, '_' or '-' only. Nothing was written.")
+    return uid
+
+
+def _canonical_only(uids: list[str]) -> list[str]:
+    """Ids from the stored index that are not canonical are left exactly as they are (never touched, never renamed)."""
+    keep = [u for u in uids if isinstance(u, str) and _CANONICAL_UID.fullmatch(u)]
+    for u in uids:
+        if u not in keep:
+            print(f"Skipping unsupported customer id {u!r} in the stored index: left unchanged.")
+    return keep
+
+
 def _db_file(uid: str, which: str) -> Path:
-    safe = re.sub(r"[^a-z0-9_-]", "_", str(uid), flags=re.I)
-    return ARCH_DIR / f"{safe}.{which}.db"
+    return ARCH_DIR / f"{_check_uid(uid)}.{which}.db"
 
 
 # G21: the same column migrations the app applies (userStore.ts / cmStore.ts) - a database file
@@ -563,6 +582,9 @@ class LocalFile:
         sys.exit(f"internal: {kind} is not a customer kind")
 
     def upsert(self, rows: list[dict]) -> None:
+        for r in rows:  # validate every id first: a bad id must not leave a half-loaded dataset behind
+            if r["kind"] in CUSTOMER_KINDS:
+                _check_uid(str(r.get("user_id") or r["id"]))
         for r in rows:
             if r["kind"] in CUSTOMER_KINDS:
                 self._upsert_customer(r)
@@ -571,7 +593,7 @@ class LocalFile:
 
     # ---- deletes
     def _delete_customer(self, kind: str, user_id: str | None) -> None:
-        uids = [user_id] if user_id else _index_read()
+        uids = [_check_uid(user_id)] if user_id else _canonical_only(_index_read())
         for uid in uids:
             if kind == "users":
                 for which, table in (("user", "kv"), ("nordea", "kv")):
@@ -700,6 +722,8 @@ class Hosted(LocalFile):
     def upsert(self, rows: list[dict]) -> None:
         cust = [r for r in rows if r["kind"] in CUSTOMER_KINDS]
         plumb = [r for r in rows if r["kind"] not in CUSTOMER_KINDS]
+        for r in cust:  # D12: refuse a non-canonical id before ANY local or hosted write
+            _check_uid(str(r.get("user_id") or r["id"]))
         if cust:
             super().upsert(cust)
             run_remote("push", *self._uids(cust))
@@ -720,7 +744,7 @@ class Hosted(LocalFile):
                 self.plumbing.delete()
             run_remote("clear", "--all")  # the loader's --clear IS the explicit confirmation
             return
-        uids = [user_id] if user_id else _index_read()
+        uids = [_check_uid(user_id)] if user_id else _canonical_only(_index_read())
         if kind is None:
             # G36 hosted leg: a whole-customer delete is an explicit clear, and it goes FIRST:
             # the local delete prunes the customer's files, so a push afterwards would be refused
