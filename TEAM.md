@@ -2,6 +2,10 @@
 
 Five roles run this project. The chart shows who decides, who builds, who checks, and who keeps the record. Every block links to the written rules it follows.
 
+![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart.png)
+
+<details><summary>Mermaid source (GitHub cannot render it; image above is canonical)</summary>
+
 ```mermaid
 flowchart TD
     Owner["Project owner (the approving user)<br/>Decides scope, spend, hosted/live,<br/>security, and the merge to main"]
@@ -19,6 +23,8 @@ flowchart TD
     Bill -->|verdicts| Joe
     Owner -.->|"final QC / readiness gate"| Bill
 ```
+
+</details>
 
 ## The roles
 

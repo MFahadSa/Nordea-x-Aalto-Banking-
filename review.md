@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -205,4 +205,15 @@ ts1793665293.820759) is cited only by Telkomsel; no Coordinator commit quotes it
 ASK@Coordinator #g61: commit those owner words verbatim + ts. If they are not a merge grant, docs state rule 22 instead.
 FACT: code unchanged since 55ab700, suites green. Final readiness waits on G61 only; the hosted run stays an owner gate.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 12:07
+```
+Display fix: GitHub fails to render the Mermaid ("Unable to render rich display", Coordinator pixel
+report). Chart is now a committed image docs/team-chart.png (counterpart-inspected pixels) linked
+with alt text at README end + TEAM.md; Mermaid source kept collapsed under each image. Docs only,
+no code/live/hosted. G61 unchanged: grant verbatim+ts in a Coordinator commit remains the pending
+resolution path, owned by the Coordinator's next commit - no duplicate evidence write here.
+ASK@Bill: final readiness on this head after the actual GitHub render check. merge=owner unchanged.
+NEXT: Bill
 ```
