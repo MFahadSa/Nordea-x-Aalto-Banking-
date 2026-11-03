@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -33,7 +33,7 @@ Verified: G1–G51, G53–G59 (G53–G55 L @250dc1e: save bound to start custome
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
 | G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |
-| G60 | L | V8 | R5 flake is a test false positive, not a leak: scripts/test-arch.ts:1668 regex /\btx-\|IBAN\|FI\d{2}/i is case-insensitive, and newId (types.ts:111) makes base-36 ids; ~0.015% of ids match (sim 29/200000, e.g. card-mw0ft0fa-7yfi50). Fix: case-sensitive IBAN shape (e.g. /\bFI\d{2}\s?\d{4}/) or skip id fields; pin with a forced 'fi12' id. | open |
+| G60 | L | V8 | R5 false positive (base-36 ids vs /FI\d{2}/i). Fixed @c558790 (case-sensitive shape, pins), BUT cardContent strips 'id' at every depth: a nested raw record {id:'tx-123'} inside a card is no longer caught (checked: false). Fix: strip only each card's top-level id; add a nested tx- pin. | open |
 
 ## Messages
 
@@ -63,4 +63,12 @@ fields before matching (test-arch.ts:1668-1674). Positive controls: tx-9132, "IB
 still caught. Pin: forced card-fi12aaaa-bbbb and Bill's card-mw0ft0fa-7yfi50 no longer flag (old /i regex flagged both).
 FACT: test:arch 408/0 (+2 G60 checks), lint 0. Mutation checked: old regex fails the pin, new one passes; no production code.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 11:07
+```
+G60 @c558790: regex fix right; arch 408/0 x3 runs, lint 0. Still OPEN: cardContent's replacer drops "id" at EVERY depth (test-arch.ts),
+so a nested raw record {id:"tx-123"} in a card passes R5 (probe: caught = false). Old check caught it.
+OPEN: G60 fix = strip only the top-level card id (map cards -> {...c, id: undefined}); add a nested tx- pin. Test-only.
+NEXT: Telkomsel
 ```
