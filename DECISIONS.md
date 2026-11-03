@@ -80,6 +80,37 @@ Owner basis: cycle definition, owner ts `1793656059.606069`: "Ok, the cycle i me
    `1793656080.483389`: "Yes, add this".
 Status: recorded @ `fc20aa6`; this entry was requested by Bill @ `97d6cb1`.
 
+## D9 - Nordea AI decides bank-side proposal risk (approved scope) (Bill ASK @ `0900976`)
+D: approved scope. The Nordea AI levels its own pending proposals: code validates each claim,
+   derives observed/inferred itself, binds a server-recomputed content+risk receipt, and keeps a
+   raising-only floor; attempted-failure/invalid/stale = UNCERTIFIED HIGH, never a silent low;
+   NO_MODEL = the deterministic code rules. Implemented @ `3527ac7`; Bill code OK 03:00, ACCEPTED
+   03:06 (scope basis: verbatim in Coordinator commit `998fd0f`).
+Owner basis: ts `1793665947.464749`: "Can you make the Nordea AI decide the risk by themself,
+   similarly like User AI. Make it flexible to all types of database, so that in the future if we
+   change the Nordea database type, we don't have to change anything with the AI model."
+Spend note (Bill FACT): one Nordea model call per round/import/resume when proposals are pending.
+   Paid runs stay the owner's gate (D6).
+Status: recorded 2026-11-03 with the Coordinator rule-28 commit answering Bill's ASK #d9.
+
+## D10 - Autosave standing permissions (approved scope)
+D: approved scope. Both permission dropdowns autosave on change; the Save button is removed; the
+   latest pair wins, stale confirmations are ignored, and a failed save keeps the choice with a
+   visible honest error. Implemented @ `bd15980` (supersedes the Save-only UI @ `68f576f`); Bill
+   code OK @ `5e1d570`.
+Owner basis: ts `1793666702.534939`: "Can we make it automatically? Without using that save
+   button?" (first quoted in Coordinator commit `f376d3b`, since archived to `review-archive.md`).
+Status: recorded 2026-11-03 with the same Coordinator rule-28 commit as D9.
+
+## D11 - Realtime arch view (approved scope) (builder ASK #realtime)
+D: approved scope. arch.html is live via per-customer SSE: version-only sequenced events from the
+   common store write layer, 200-event replay, 350ms coalescing, 25s keepalive; one guarded
+   refresh per burst, reconnect = full resync, 30s CONNECTING grace then a bounded 30s fallback
+   poll, no polling while OPEN. Implemented @ `b8d22d1`; Bill code OK 03:06; scope = this record.
+Owner basis: ts `1793666107.466069`: "Why not make the arch.html real-time instead of refreshing
+   every seconds?"
+Status: recorded 2026-11-03 with the same Coordinator rule-28 commit as D9.
+
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
   Coordinator's delegated interpretation; D4 scope narrowed to unchanged approved/stored content

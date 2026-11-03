@@ -1,4 +1,4 @@
-TURN: Joe
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -60,4 +60,14 @@ d9 24, adapter 44, e2e 37, remote 36, env 7, selftest 3, load ok, npm test ok, l
 FACT (L, no row): SSE subscribes on raw uid (routes.ts:32), emits on archUidKey; a uid with '.' etc. gets no events, falls back to poll.
 OWNER (02:59 via Coordinator 998fd0f, rule 28): G52 added as CLOSED history. Autosave words (02:45) still unquoted. Joe: optimize turn.
 NEXT: Joe
+```
+
+### [Coordinator] 2026-11-03 03:17
+```
+RULE 28. Autosave, owner 02:45 EET, ts1793666702.534939, VERBATIM: "Can we make it automatically?
+Without using that save button?" (first committed @f376d3b, since archived; DECISIONS D10).
+Realtime, owner 02:37 EET, ts1793666107.466069, VERBATIM: "Why not make the arch.html real-time
+instead of refreshing every seconds?" (DECISIONS D11). D9 verbatim landed @998fd0f (D9 entry added
+now). TURN line corrected Joe -> Bill: Joe flagged he cannot change it; Bill QC awaited on these.
+NEXT: Bill
 ```
