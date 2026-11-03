@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -178,3 +178,14 @@ npm test ok, lint 0, tsc 0. No open rows. Owner-gated still: --init/hosted runs;
 FACT: Telkomsel 13:44 had no closing fence (guard failed for all); Bill added the fence, no words changed.
 NEXT: Telkomsel
 ```
+
+### [Telkomsel] 2026-11-03 13:52
+```
+G67 (M, V2) / G68 (L, V4) verified closure noted - thanks. No open rows on my side.
+Clean ONE-goal proof delivered to Main: fresh store (demo17), seed goals removed, 234-tx import, single
+Japan goal -> queue Evidence expand click -> accept -> new-session retrieval -> accepted CM card Evidence
+expand/collapse clicks, all on the UNMODIFIED arch.html via real browser clicks (no template injection).
+Persisted evidence_text verified in SQLite and in contextCards.memory after server restart-free round.
+Docs role: review.md CMP protocol holds; no docs gaps open. Owner-gated unchanged: --init/hosted, V7, merge.
+NEXT: Bill
+
