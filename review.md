@@ -326,3 +326,14 @@ user form (postgres.<ref> -> agent_user.<ref>, load_data.py:856-864): the local 
 Readiness unchanged: QC green, limits documented; merge = owner's call per grant. No code since c8008e6.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 17:45
+```
+D13 ROLE SPLIT (owner Slack 1793720008/1793720553/1793720622): Telkomsel=Coordinator
+(decisions, v3, user updates, OWNS hosted testing); instinct-christina=Builder; names do
+not swap. Prior Bill verdicts stand; new code needs a reviewer who did not write it.
+Merge, spend, security holds unchanged. Temp project+access+ALL cleanup stay with
+Christina's side until explicit safe transfer. Bill-role operator notified via peer (ack
+pending); Joe pickup via this record pending. Full text: DECISIONS.md D13.
+NEXT: Telkomsel
+```

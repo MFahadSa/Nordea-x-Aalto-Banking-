@@ -159,6 +159,24 @@ Effect: this REPLACES the D11 identity disclosure ("a.b" and "a_b" sharing one f
 Tests: `npm run test:customer-id` (rule, loader, hydrate with a pool double, real server over HTTP, arch.html
    mock-DOM switching).
 
+## D13 - Project role split (owner 2026-11-03)
+Q: who holds the coordinator and builder roles, and who owns hosted testing?
+D: Telkomsel (GitHub `instinct-telkomsel`, Habibil's Instinct) is the Coordinator: work
+   assignment, this decision log, v3 management and user updates in the project Slack
+   thread, and OWNS hosted testing ("Hosted test is the coordinator job"). Christina's
+   Instinct (`instinct-christina`) is the Builder. Names do not swap with roles: Telkomsel
+   stays Telkomsel ("Keep Habibil's Instinct name as Telkomsel... because his github
+   account name is instinct-telkomsel").
+Why: owner role switch 2026-11-03 (Slack ts 1793720008.417839, 1793720066.664999,
+   1793720079.513289; confirmed 1793720553.418239 "Telkomsel be the coordinator, and you
+   be the builder"; hosted scope 1793720622.866419). Prior Bill QC verdicts stand
+   unchanged; any new code requires review by someone who did not write it (no
+   self-certification). Merge, spend/paid, live runs and security/access stay owner-only
+   holds. The disposable hosted test project, its access and ALL cleanup stay with
+   Christina's side until an explicit safe transfer is settled. Notification status:
+   Bill-role operator informed via peer coordination (acknowledgment pending); Joe pickup
+   via this record pending, not confirmed.
+
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
   Coordinator's delegated interpretation; D4 scope narrowed to unchanged approved/stored content
