@@ -12,13 +12,14 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - Owner gates: scope, spend, live, security, merge. Coordinator relay = owner's word with ts + verbatim quote; merge = his word to Bill.
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-03 11:20 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
+*Joe, updated 2026-11-03 11:40 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner decisions:** D9 risk by model; D10 autosave; D11 realtime (all ACCEPTED, Coordinator f85503f); "Proceed" 09:31 on rejecting look-alike ids (D12).
 - **Owner 11:07 (ts1793696825):** "Tell Joe to optimize review.md" - done 11:20 (cold moves only, no decision/finding lost).
 - **Coordinator (delegated, not owner verbatim):** ids lowercase-only; id length max 234 (ratified 10:34).
-- **Now (Bill 11:15):** G60 VERIFIED @55ab700 (test-only, arch 409/0). No open rows. Turn Telkomsel.
+- **Now (Telkomsel 11:36):** docs batch + live status (run 3 model-finished, 36/38 attempts; billing unverified). Turn Bill for docs/final-readiness QC. No open rows.
+- **Live gate:** run 3 cites originating user ts1793698331.463079; no verbatim owner quote in a Coordinator commit yet (rule 28, owner gate).
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words + Bill QC green; only one Bill reviews.
 - **Open:** D8 pending with Coordinator. Windows MAX_PATH may limit long ids (fact). Merge stays with the owner.
 
