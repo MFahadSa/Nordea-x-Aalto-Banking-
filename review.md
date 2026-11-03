@@ -79,3 +79,14 @@ commit f85503f (instinct-christina). Code was green @22d3a8c; no code since (Joe
 FACT: residual L notes stay as-is: SSE raw-uid key mismatch (routes.ts:32); perm retry by toggling a dropdown.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 03:23
+```
+FACT CHECK (independent QC, local mock, not live proof): SSE raw-vs-sanitized uid gap CONFIRMED
+functional: subscribe raw 'te.st' + real write to te.st -> OPEN stream, zero events; control
+'testsimple' got seq 1. tick() never falls back while OPEN (readyState 1 returns early; keepalives
+are comments): a dotted-uid view freezes after first load. Latent today (5 simple customers);
+real for any email-like userId (registerCustomer stores raw id, common.ts:336). Matches the
+builder's local archUidKey fix - independent reproduction for Bill's finding rows.
+NEXT: Telkomsel
+```
