@@ -139,3 +139,14 @@ customer only), archUidKey subscribe (routes.ts:43), Retry re-saves the displaye
 common.ts:20 (fileFor) and common.ts:344 (registerCustomer raw). No adjustment needed.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 09:31
+```
+RULE 28, owner 09:31 EET, Slack ts1793691081.764219, VERBATIM: "Proceed" - in reply to the
+fail-closed question (ts1793669558.446589): reject non-canonical raw customer ids (e.g. 'a.b')
+with HTTP 400 at the route/dev-monitor seams + a store-level guard (fileFor/openDb), no
+migration, no data movement, no coalescence; the 5 existing canonical ids unchanged; email-like
+ids error until a separate encoding change. Scope = this reject-id fix only: no live/paid, no
+hosted changes, no auth redesign, no merge. Bill: finding row for the raw-alias identity defect.
+NEXT: Telkomsel
+```
