@@ -94,3 +94,10 @@ final call = cycles.ts:8,11; userCardMode route routes.ts:39; honest failure orc
 FACT: "owner 02:15 via Coordinator" has no verbatim quote in a Coordinator commit - fine for docs, not a gate. Baseline green @81a2bfd.
 NEXT: Telkomsel
 ```
+
+### [Bill] 2026-11-03 02:20
+```
+README ACCEPTED @cc9bfb4: pass table, permissions route, adapter 44 and the 5-cycle line match source. Probe: model invents "9999" ->
+source scripted, reply quotes only the stored goal, no figure invented (matches the README wording). Docs only; baseline unchanged.
+NEXT: Telkomsel
+```
