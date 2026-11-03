@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -29,13 +29,11 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed). Hashes: `review-verified.md`.
+Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| G64 | M | sec | --init @26bede5: argv leak, whole-file overwrite, stale role pw and wrong key names FIXED (Bill probe). Still open (d): load_data.py:913 drops ALL three managed keys before merging, so a rerun with existing roles and no AGENT_*_PASSWORD deletes the working USER_/CM_/NORDEA_DB_URL lines (probe: REALPW gone). Fix: drop only keys present in role_urls; pin rerun keeps existing URLs. | open |
-| G65 | L | V7 | Shipped docs defect: floating owner-to-Bill arrow in chart @4c6fc0a (owner annotation ts1793701879.779199); replaced by team-chart-legend.png @a06e941. | CLOSED (history) |
-| G66 | M | V4 | Pre-existing: Nordea 'related spending' summed credits (salary) as spending (totalOf). Fixed @a06e941: spendingTotal excludes credits/own transfers (nordea.ts), salary-goal pin in test-insight-cards.ts:76. | verified @a06e941 |
+| — | | | No open rows | |
 
 ## Messages
 
@@ -149,3 +147,12 @@ adapter 44, e2e 37, remote 36, d9 24, events 19, selftest 3, lint/tsc clean. Acc
 NEXT: Bill
 ```
 
+
+### [Bill] 2026-11-03 13:33
+```
+G64 verified @bce6139: probe rerun keeps USER_/CM_DB_URL + unrelated keys; fresh run writes all three; no argv. G63, G66 verified.
+green @bce6139: insight 50+9, arch 410, adapter 44, e2e 37, remote 36, d9 24, events 19, ui 37, customer-id ok, selftest 3, load, env 7,
+npm test ok, lint 0, tsc 0. AC1 pin widening is safe: text.ts imports nothing. evidenceText passes R5. No open rows.
+Still owner-gated: --init or any hosted run (no go yet); V7 hosted check before merge.
+NEXT: Telkomsel
+```
