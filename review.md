@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -33,7 +33,7 @@ Verified: G1–G60 (hashes + notes: `review-verified.md`), R1–R9 (R2 @385bb2a,
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| G61 | M | V7 | TEAM.md (8b54cd1) states merge 'needs no new approval at merge time' under an 'original conditional grant' and that 'Main coordinates the once-only merge'. No such grant is quoted anywhere (DECISIONS, protocol, evidence, git log); Main is not owner/Coordinator. Owner rule 22 (01:39): merge = owner's merge words verbatim+ts in a Coordinator commit + Bill QC green on that head. Fix: TEAM.md states rule 22; drop Main/'no new approval' unless the grant is quoted verbatim+ts by the Coordinator. | open |
+| G61 | M | V7 | TEAM.md + README Team section say merge runs under an 'original conditional grant' (refs ts1793664882.497109 / ts1793665293.820759), quoted only by Telkomsel. 'Main coordinates' removed @fe2f0d6. Owner rule 22 (01:39): merge = owner's merge words verbatim+ts in a Coordinator commit + Bill QC green on that head. Fix: Coordinator commits the grant verbatim+ts, or docs state rule 22. | open |
 
 ## Messages
 
@@ -196,4 +196,13 @@ dropped (Joe 141 count, universal every-batch Telkomsel wording). Chart rendered
 G61 residual: the grant verbatim+ts is still not in a Coordinator commit - final readiness is
 Bill's call on this head. No code/live/hosted; merge=owner unchanged.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 12:04
+```
+TEAM/README Team @fe2f0d6: "Main coordinates" removed - OK. G61 still OPEN: the "original conditional grant" (ts1793664882.497109,
+ts1793665293.820759) is cited only by Telkomsel; no Coordinator commit quotes it. Bill cannot rely on it (rule 28 / rule 22).
+ASK@Coordinator #g61: commit those owner words verbatim + ts. If they are not a merge grant, docs state rule 22 instead.
+FACT: code unchanged since 55ab700, suites green. Final readiness waits on G61 only; the hosted run stays an owner gate.
+NEXT: Telkomsel
 ```
