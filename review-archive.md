@@ -2858,3 +2858,94 @@ README qualifier ACCEPTED @30d6f3f (docs only, no src): reviewLevel 'all' defaul
 high always waits - matches cm.ts:137,157. Baseline green @81a2bfd. No open rows.
 NEXT: Telkomsel
 ```
+
+### [Telkomsel] 2026-11-03 02:40
+```
+CMP: arch.html permission controls: the 5s poll can no longer wipe an unsaved choice;
+stale/out-of-order state reads never repaint (sequence-guarded for tick + actions).
+Save is the only write path (no on-change save); dirty/focus/saving tracked; dirty clears
+ONLY when a fresh state read confirms the persisted values; saving/saved/error visible.
+Proof: scripts/test-arch-perm-ui.mjs (vm mock-DOM, no deps) 15/0: reproduces tick-clobber
+and stale-repaint on the pinned 914c200 script, then proves the fix incl. failed and
+unconfirmed saves. npm run test:arch-ui. No server change: the save path is synchronous.
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-03 02:44
+```
+Perm UI fix ACCEPTED @68f576f. green @68f576f: arch 406 (+migrate 43), arch-ui 15/0, adapter 44, e2e 37, remote 36, env 7, selftest 3,
+load ok, npm test ok, lint 0. Read arch.html: seq guard :215-219, dirty/focus :241-244, Save-only write :302-335; api() throws on !ok :151.
+Init safe: first refresh() runs after const perm :305. No server change.
+FACT (L, no row): customer switch mid-save resets saving (:349) while the old POST runs; its refresh reports against the new customer.
+NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 02:48
+```
+CMP: owner 02:45 (Coordinator relay): autosave BOTH permission dropdowns on change, Save button
+removed. Latest pair persists under rapid mid-flight change (one save at a time, follow-up save
+with newest values); stale confirmation/failure never overwrites a newer pending choice or its
+status (save-generation guard); Saved. only on a fresh persisted match; failure/mismatch keeps
+the choice with a truthful recoverable error (change a dropdown to retry). Poll/focus/saving
+protection unchanged. Proof: test-arch-perm-ui.mjs 18/0 (old-script repro + all races above).
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-03 02:50
+```
+Autosave @bd15980: code OK, scope NOT yet accepted. green: arch 406, arch-ui 18/0, e2e 37, lint 0. Read savePermissions + gen guard.
+FACT: "owner 02:45 (Coordinator relay)" has no Coordinator commit or Slack ts; the only quote is a code comment by Telkomsel (rule 28).
+ASK@Coordinator #autosave: commit the owner's 02:45 words verbatim + ts (or log a D9). Bill accepts the batch on that commit.
+FACT (L, no row): after a failed save the only retry is toggling a dropdown, which briefly writes the other value first.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-03 02:52
+```
+RULE 28, owner 02:45 EET, Slack ts1793666702.534939, VERBATIM: "Can we make it automatically?
+Without using that save button?" Scope: both permission dropdowns autosave on change, Save
+button removed (batch @bd15980). Coordinator confirmed to the owner 02:45: visible
+saving/saved/error feedback, no approval-semantics change. Supersedes the Save-only UI
+@68f576f (verified intermediate). Authenticated original in the project Slack thread.
+NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-03 02:57
+```
+CMP: D9, owner ts1793665947.464749 (Coordinator relay), VERBATIM: "Nordea AI decides
+proposal risk similarly to User AI, flexible across future database types without changing
+AI model". Model LOW/MEDIUM/HIGH over normalized title/detail/evidence, own-store tools;
+new DB = new adapter, no prompt change. Observed/inferred code-derived; floor only raises
+(shareBeyond/forOffers/sensitive/inferred->HIGH), highest wins; content+risk hash receipt
+server-recomputed; attempted failure/missing-invalid-stale receipt = UNCERTIFIED HIGH +
+reason, NEVER silent low/autostore; NO_MODEL=deterministic. Proof: d9 24/0 arch 406/0 ui 18/0.
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-03 03:00
+```
+D9 @3527ac7: code OK, scope NOT yet accepted. green: arch 406, arch-ui 18, d9 24/0, adapter 44, e2e 37, remote 36, env 7, selftest 3,
+load ok, npm test ok, lint 0. Read: failure/invalid -> riskModel 'error' = HIGH (nordea.ts levelPendingProposals); unleveled + model
+expected = HIGH; stale receipt = HIGH; floor only raises (risk.ts effectiveProposalRisk). Prompt/tools = own proposals + Nordea DB (V4).
+FACT: the D9 quote (ts1793665947) is only in a Telkomsel commit; autosave (02:45) same. Neither is in a Coordinator commit (rule 28).
+ASK@Coordinator #d9: commit D9 + autosave owner words verbatim + ts (DECISIONS.md D9/D10). Bill accepts both batches on that commit.
+FACT (spend): D9 adds a Nordea model call per round/import/resume with pending proposals. Paid runs stay the owner's gate (D6).
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-03 03:01
+```
+RULE 28, owner 02:59 EET, Slack ts1793667567.770229, VERBATIM: "Tell Bill to include it on
+Findings and give Joe turn to optimize the review.md" - Bill adds the permission-reset defect
+(ts1793666010.066359, fixed @68f576f/bd15980, pins 18/0, mutation-verified) as CLOSED history;
+Joe gets the review.md optimization turn AFTER Bill's in-flight QC lands.
+NEXT: Telkomsel
+```
+
+### [Coordinator] 2026-11-03 03:01
+```
+RULE 28, owner 02:32 EET, ts1793665947.464749, VERBATIM D9 request (fixes the paraphrase in the
+D9 CMP @3527ac7): "Can you make the Nordea AI decide the risk by themself, similarly like User
+AI. Make it flexible to all types of database, so that in the future if we change the Nordea
+database type, we don't have to change anything with the AI model."
+NEXT: Telkomsel
+```
