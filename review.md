@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -44,7 +44,7 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66
 | G78 | M | proc | Remaining job: D13 pickups unconfirmed: current Bill session and Joe endpoint; the peer notice reached the former operator. Owner confirms live sessions. | open (owner) |
 | G79 | L | proc | Remaining job: billing for the paid runs unverified (free tier per user). Owner check. | open (owner) |
 | G80 | H | proc | Remaining job: merge. Owner grant ts1793664882 = when everything is finished; owner set H priority (ts1793729099.631269) - NOT an approval/waiver; still needs owner decision on G76-G79 + Bill QC on the final head. | open (owner) |
-| G82 | H | docs | README misrepresents concept vs implementation (owner ts1793729090.602619: main-branch inspiration, three-agent diagram). Fix: Builder README correction + non-author review. | open (owner-designated H) |
+| G82 | H | docs | README misrepresents concept vs implementation (owner ts1793729090.602619: main-branch inspiration, three-agent diagram). Fix: Builder README correction + non-author review. | fix applied; Bill QC pending |
 
 ## Messages
 
@@ -153,4 +153,14 @@ OWNER ts1793729099.631269: "set merge as high severity findings" -> G80 M -> H.
 FACT: priority only, NOT a merge approval/waiver; G76-G79 + Bill QC stand; no code
 change, other rows/STOP/holds unchanged.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 20:14
+```
+DID: G82 README fix applied (Builder draft + independent review; owner ts1793729090.602619):
+main-style hero docs/images/three-agents-simplified.png, proposed-design caption,
+implementation-vs-concept table; Abel default true, external/A2A planned not built.
+FACT: docs + image only, no code/tests; records 4e49603 kept; STOP/holds stand.
+ASK@Bill #G82: verify README + diagram vs implementation at this head.
+NEXT: Bill
 ```

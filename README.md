@@ -15,6 +15,12 @@
 
 [**Quick start**](#-quick-start) · [**The idea**](#-the-idea-in-30-seconds) · [**How a session works**](#-how-a-session-works) · [**Features**](#-features) · [**Routes**](#-routes) · [**Checks**](#-checks) · [**Known limits**](#-known-limits)
 
+<br>
+
+<img width="1900" alt="Banking Context Cabinet, simplified view: the customer, a Personal Agent, the Context Cabinet and the Nordea Agent, each with its own database, over a separate USE / SAVE / SHARE permission strip" src="docs/images/three-agents-simplified.png">
+
+*The three-agent concept, simplified - the **proposed design**. What this branch actually runs today is mapped against the picture in [The idea in 30 seconds](#-the-idea-in-30-seconds).*
+
 </div>
 
 > [!NOTE]
@@ -41,7 +47,19 @@ Instead of one assistant reading one database, this branch splits the work betwe
   </tr>
 </table>
 
+The simplified picture above is the design goal. Read against this branch today:
+
+| In the picture | Status on this branch |
+|---|---|
+| **Three agents, three databases** | **Implemented.** Each agent opens only its own database, pinned by a source-scan test; the Context Cabinet never opens another agent's store. |
+| **Personal agent: Abel (default) or an external agent (A2A)** | Abel is the in-app default and runs today. The external-agent mode is **planned, not implemented**: the earlier simulated switch and its sync endpoint were removed, and no external or A2A connection exists. A bank-hosted MCP route is future work. |
+| **Arrows between the agents** | Logical message flows, not a literal relay. In code they travel as **bus messages** plus the per-session `context.md`; the Cabinet does not sit between the other agents passing data along. |
+| **USE for this answer \| SAVE as memory \| SHARE with Nordea** | **Proposed, not verified.** Today's prototype implements standing review levels and user-card approval modes (see Features); the three-way permission strip in the picture is not built. |
+| **"Same Cabinet and Nordea agent in both modes"** | By design: the in-app chat and the planned external-agent mode would share one Cabinet and one Nordea agent - one banking system, not two. |
+
 **Abel**, the in-app assistant, joins the same pattern: its User DB facts come from the personal agent *by message*, and it reads only the current session's finalised `context.md`. Every figure in an Abel reply must come from code or that context - otherwise the reply is sent back to be fixed.
+
+The implementation view - what actually runs on this branch today:
 
 ```mermaid
 flowchart TD
