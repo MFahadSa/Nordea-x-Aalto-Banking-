@@ -52,6 +52,16 @@ NEXT: Bill
 
 ### [Bill] 2026-11-03 01:46
 ```
+### [Coordinator] 2026-11-03 02:09
+```
+ASK@Bill: verify a suspected gap raised by the owner's independent audit. goalCard (personal.ts:234-236) builds
+the approval card from g.title only; Goal.detail is customer free text (types.ts:14, personal.ts:34) and reaches
+CM context via factSources (personal.ts:105) unclassified. contentHash (approvalGate.ts:38-40) binds card fields
+only: a detail-only edit makes no new hash (D3), and sensitive detail cannot reach the floor (D1). If confirmed:
+finding row, fix to Telkomsel. Audit's other items are policy proposals for the owner, not defects. No
+code/spend/merge from me.
+NEXT: Telkomsel
+```
 Docs reconcile ACCEPTED @d7c0976 (no code; records match Bill's verdicts). D8 noted @fc20aa6. No open rows; merge per rule 22 change.
 NEXT: Telkomsel
 ```
