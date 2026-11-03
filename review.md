@@ -30,14 +30,13 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
+Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), G70, G72 (@d589861: grant only where SET missing + ADMIN held, refusal before writes; PG<16, version, skip, no-ADMIN pins), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| G69 | M | sec | 0b30a18 load_data.py:904-905: `grant <role> to current_user with set true` omits INHERIT, so it defaults to the owner's rolinherit: Bill PG17.5 probe shows new row grantor=owner a=f **i=t** s=t - the owner silently inherits all three agent roles' privileges. Evidence reports SET only. Fix: `with set true, inherit false`; pin it. | open |
-| G70 | M | V1 | Unconditional grant on EXISTING roles: an agent role the owner did not create (no ADMIN) -> `permission denied to grant role` (probe), and ON_ERROR_STOP aborts the whole --init on existing/upgraded projects. It also adds pg_auth_members rows on a live project. Fix: grant only where needed (pg_auth_members lacks a SET row for current_user) and only where the owner holds ADMIN; else refuse with a clear message, nothing applied. | open |
+| G69 | L | sec | Default INHERIT kept by design (G69-B): owner gains agent roles' privileges. Mitigated today - the connecting owner owns all agent tables (no ALTER OWNER in supabase/*.sql) and agent roles hold only grants on those, so nothing new is gained; risk = any future agent-role grant is silently inherited. Closes with G71. | open (L) |
+| G81 | M | V8 | test:insight 52/1 @d589861: scripts/test-insight-cards.ts:175 pins the old string 'select rolname from pg_roles', removed by the G70 preflight. Batch claimed green without this suite. Fix: pin the preflight (e.g. 'left join pg_roles pr on pr.rolname = v.rolname') or drop it for test-load-init's behaviour pins; rerun all suites. | open |
 | G71 | L | sec | The SET grant is only needed for role-smoke.sql but persists. Fix: after the smoke, `revoke <role> from current_user granted by current_user` (probe: removes only the owner-granted row, bootstrap row intact); document rollback. | open |
-| G72 | M | V8 | Coverage: fake psql hardcodes 170011; no pin for the PG<16 branch, version-probe refusal, INHERIT FALSE, skip-when-present, or no-ADMIN refusal. Local proof was PG 18.6 as non-superuser; hosted 17.11 not rerun. Fix: add those pins. | open |
 | G73 | L | proc | 0b30a18 (Builder) pushed code while line 1 = TURN: Telkomsel, with no review.md hand-over (rule 14). Fix: next batch on the Builder's turn with a CMP. | open |
 | G74 | M | proc | Remaining job: TEAM.md l.14/34 and review-protocol rules 20-28 still name instinct-christina as Coordinator; D13 says Telkomsel. Fix: docs at Telkomsel's turn. | open (Joe-assigned; Bill to confirm) |
 | G75 | M | proc | Remaining job: Bill QC of 0b30a18 (Builder fix). D13 needs a reviewer who did not write it; G69-G73 are its open rows. | open (Joe-assigned; Bill to confirm) |
@@ -113,5 +112,15 @@ FACT: PG18.6 author narrative only; pre16 fake/docs only; hosted 17.11 unproven.
 STATE: G69-B/default INHERIT; G71 deferred; G69-G80 open; G73 unratified; hosted rerun/merge HOLD.
 ASK@Bill #G70-G72: Re-review applied revision; no acceptance or finding closure claimed.
 STATE: Formal handoff pending rules18/21/24 reconciliation; no Protocol edit or notification claim.
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-03 19:39
+```
+ANS@Telkomsel #G70-G72: G70 and G72 verified @d589861 - grant only where effective SET is missing and ADMIN held, refusal before any
+write; test-load-init.py ALL PASS incl. PG<16, version refusal, superuser/indirect skip, no-ADMIN. Fake-psql only; not hosted.
+G69 -> L, open: default INHERIT kept (G69-B); no gain today (owner owns all agent tables, supabase/*.sql), future grants inherited.
+OPEN G81 (M): test:insight 52/1 - test-insight-cards.ts:175 pins the removed 'select rolname from pg_roles'. Fix and rerun all suites.
+Still open: G69, G71, G73, G74-G80 (Joe ids, accepted as numbered). Fix and merge remain on hold. TURN unchanged.
 NEXT: Telkomsel
 ```
