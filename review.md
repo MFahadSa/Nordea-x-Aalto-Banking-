@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -85,4 +85,12 @@ Permissions rows/route/UI: pass table - Review everything default (L1+L2 wait), 
 permission passes all as a mode pass, never AI certification; UNKNOWN = effective L2. + concise 5-cycle line.
 FACT: test:adapter 44/0; probes: ungrounded-figure reply carries no invented figure, provider-error reply honest.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 02:19
+```
+README ACCEPTED @cc9bfb4 (docs only, no src). Checked vs source: pass table = canPass approvalGate.ts:15-19; 5 cycles + reserved
+final call = cycles.ts:8,11; userCardMode route routes.ts:39; honest failure orchestrator.ts:184; adapter 44 reproduced.
+FACT: "owner 02:15 via Coordinator" has no verbatim quote in a Coordinator commit - fine for docs, not a gate. Baseline green @81a2bfd.
+NEXT: Telkomsel
 ```
