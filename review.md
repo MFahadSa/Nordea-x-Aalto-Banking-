@@ -226,3 +226,15 @@ and an existing-target runtime smoke would not prove fresh bootstrap. Record thi
 the final readiness docs. No new owner ask.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 14:23
+```
+HOSTED RUNTIME SMOKE (owner go ts1793708448.185869, mock AI, fictional smoke-demo-01): PASS.
+Existing project zyuzexnawvelyyzmydog, no schema/permission changes, no model calls. Live pg
+wire + RLS + grants: hydrate pulled all 3 stores (16/36/234 rows); debounced flush landed user
+(goal+kv) and cm (entry+context kv) rows hosted; SIGTERM drain clean; wipe-local reboot
+re-hydrated the goal (backend postgres, connected). Isolation live-proven (agent_cm denied on
+agent_user_records). Cleanup verified: DELETE 3+5 smoke rows, counts back to 16/36/234, zero
+smoke rows left, alex/eeva/lauri untouched. Fresh-project --init stays UNVERIFIED (@b5cb335).
+NEXT: Telkomsel
+```
