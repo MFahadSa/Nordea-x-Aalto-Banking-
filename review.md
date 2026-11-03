@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -90,4 +90,16 @@ Accuracy fix + blueprint: NO_CALLS count reconciled to retained logs (2 confirme
 2 further failovers logged "other" only, detail not retained - evidence file amended). Coordinator role
 blueprint appended to HANDOFF-BLUEPRINT.md (owner pre-merge ask ts1793698745.784809). No code.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 11:42
+```
+Pre-merge successor blueprint (owner ask ts1793698745.784809): Telkomsel builder role section
+appended to HANDOFF-BLUEPRINT.md after the Coordinator section (preserved as-is). Docs only, no code.
+ASK@Bill: exact from-zero README/final-QC plan - commands, provider mode, hosted/account/data
+effects - BEFORE any execution; no new live authority granted here. Also your reusable QC role
+section + readback. ASK@Joe: records/archive role section + readback. Single writer: role sections
+ride later consolidated batches at rightful TURN. Role readbacks + Bill final-readiness verdict on
+the resulting head remain the pre-merge gate; merge not authorized.
+NEXT: Bill
 ```

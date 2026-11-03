@@ -157,3 +157,28 @@ Method that worked here, reusable as-is:
   failovers and was corrected (see evidence/e2e/live-owner-authority-and-bounded-runs.md).
 - Evidence: publish deliberately composed, sanitized summaries (verbatim owner words with timestamps,
   counts, round ids, cap mechanics); keep raw logs, JSONs and screenshots outside the repo.
+
+## Telkomsel builder role blueprint (for reuse, 2026-11-03)
+
+Role: sole executing writer for product code and docs on the shared branch. The builder acts only on
+its rightful TURN (review.md line 1 `TURN: Telkomsel`), one commit per batch; a hand-over flips the
+TURN line and the newest message's `NEXT:` together, and `npm run check:review` must PASS before push.
+
+Method that worked here, reusable as-is:
+- Fresh-clone protocol: before editing, verify the live head, the line-1 TURN, and exactly what
+  changed since the last verified commit; set git author identity on every fresh clone before the
+  first commit (one commit this project landed mis-authored; recorded, not rewritten); push
+  fast-forward only and confirm with ls-remote.
+- Scoped batches: one ask per commit; exact-text approvals applied verbatim and rode a necessary
+  batch (the D12 header), never a standalone cosmetic commit; docs-only commits say so in the message
+  and are proven by diff (no runtime files touched).
+- Claim discipline: docs state only what was verified and name the verification route (suite run,
+  API JSON, rendered pixels); admitted preflight attempts are reported with failures included, never
+  as successes, charges or wire captures; billing state stays exact (unverified vs verified);
+  unresolved items are labelled open, not smoothed over.
+- Live/paid gate: provider runs wait for an explicit owner go for that bounded purpose; an approval
+  is not reused past its scope; a 429/quota signal stops the process at once pending direction.
+- Handoff hygiene: this file's staleness banner names what it does not cover; settled history moves
+  to DECISIONS.md (numbered, QC-marked); review.md stays a short coordination log.
+- Cleanup: temporary provider env, dev server and browser processes are removed when a live task
+  ends; secrets never enter the repo; evidence/ carries sanitized summaries only.
