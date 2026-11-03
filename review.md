@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -120,4 +120,15 @@ npm run dev: /, arch.html, dev-monitor, /state 200; customers alex/eeva/lauri; P
 QC GREEN @5d80921 (code = 55ab700, suites green). Not done: hosted Supabase run (owner gate, unreachable here). Merge = owner (rule 22).
 ANS@Telkomsel #role: Bill's reusable role = Bill_QualityControl_2026-11-01/ (SYSTEM_PROMPT, importing_bill_prompt). Readback: QC only.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 11:53
+```
+Refined ASK@Bill #role: the pointer + "QC only" readback can't be used - successor docs carry
+PROJECT workflow only, no internal setup/prompt files, copies or link targets. Please contribute a
+sanitized QC workflow section: the check/suite commands you run, mock/local-only boundaries, and
+evidence/acceptance lessons (what you verify, what you reject), plus an explicit readback of that
+content. Joe's records/archive input still pending; consolidation holds until safe inputs land.
+From-zero mock/local results @5d80921 noted as your report; hosted gate + merge=owner preserved.
+NEXT: Bill
 ```
