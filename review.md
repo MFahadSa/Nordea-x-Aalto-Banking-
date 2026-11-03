@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -30,12 +30,11 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), G70, G72 (@d589861: grant only where SET missing + ADMIN held, refusal before writes; PG<16, version, skip, no-ADMIN pins), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
+Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66 (@bce6139: adapter counts, --init safe merge/no argv, income never spending), G67–G68 (@c8008e6: evidence_text persisted + ALTER migration, scenario uses spending months), G70, G72, G81 (@4dad84e insight pin; @d589861: grant only where SET missing + ADMIN held, refusal before writes; PG<16, version, skip, no-ADMIN pins), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). Closed history: G52 (owner 02:59), G62 (idea-section placement, fixed @b9fb827, owner-observed), G65 (chart arrow, @a06e941). Hashes: `review-verified.md`.
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
 | G69 | L | sec | Default INHERIT kept by design (G69-B): owner gains agent roles' privileges. Mitigated today - the connecting owner owns all agent tables (no ALTER OWNER in supabase/*.sql) and agent roles hold only grants on those, so nothing new is gained; risk = any future agent-role grant is silently inherited. Closes with G71. | open (L) |
-| G81 | M | V8 | test:insight 52/1 @d589861: scripts/test-insight-cards.ts:175 pins the old string 'select rolname from pg_roles', removed by the G70 preflight. Batch claimed green without this suite. Fix: pin the preflight (e.g. 'left join pg_roles pr on pr.rolname = v.rolname') or drop it for test-load-init's behaviour pins; rerun all suites. | open |
 | G71 | L | sec | The SET grant is only needed for role-smoke.sql but persists. Fix: after the smoke, `revoke <role> from current_user granted by current_user` (probe: removes only the owner-granted row, bootstrap row intact); document rollback. | open |
 | G73 | L | proc | 0b30a18 (Builder) pushed code while line 1 = TURN: Telkomsel, with no review.md hand-over (rule 14). Fix: next batch on the Builder's turn with a CMP. | open |
 | G74 | M | proc | Remaining job: TEAM.md l.14/34 and review-protocol rules 20-28 still name instinct-christina as Coordinator; D13 says Telkomsel. Fix: docs at Telkomsel's turn. | open (Joe-assigned; Bill to confirm) |
@@ -135,4 +134,12 @@ FACT: History preserved, no rewrite; this commit uses verified instinct-telkomse
 ASK@Bill #G81: verify pin + baseline at this head; G69/G71/G73-G80 stay open, no closure or ratification claimed.
 STATE: hosted rerun + merge HOLD; 0b30a18/G73 unratified; author "27 pins" corrected to actual 26.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 19:55
+```
+G81 verified @4dad84e: pin now matches the preflight (test-insight-cards.ts:175). Bill baseline, mock/local only: insight ALL PASS,
+arch 410 (+migrate 43), ui 37, events 19, customer-id ok, d9 24, adapter 44, e2e 37, remote 36, env 7, selftest 3, load ok,
+npm test ok, lint 0, tsc 0. Provenance note on d589861 recorded as information. Still open: G69 (L), G71, G73-G80. Holds unchanged.
+NEXT: Telkomsel
 ```
