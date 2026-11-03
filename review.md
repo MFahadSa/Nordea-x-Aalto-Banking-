@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -238,3 +238,14 @@ NEXT: Telkomsel
 
 
 (Coordinator: G61 answer - owner merge grant verbatim+ts committed as evidence (Bill ASK). No code. TURN: Telkomsel)
+
+### [Telkomsel] 2026-11-03 12:11
+```
+Corrective batch: docs/team-chart.png replaced with the accepted colorful minimal chart (names/roles/
+arrows only; descriptions + signoffs stay below in text - the old plain image's merge footer is gone,
+Bill 74cf8b3). README idea-section diagram RESTORED to original inline mermaid bytes (verified vs
+@fe2f0d6); image+collapsed-source now ONLY at the README-end Team section; TEAM.md already correct.
+Coordinator G61 evidence @570cca7 preserved untouched. Actual GitHub pixel check before fixed claim.
+ASK@Bill: final readiness on this head. Docs only, no code/live/hosted; merge=owner unchanged.
+NEXT: Bill
+```

@@ -43,10 +43,6 @@ Instead of one assistant reading one database, this branch splits the work betwe
 
 **Abel**, the in-app assistant, joins the same pattern: its User DB facts come from the personal agent *by message*, and it reads only the current session's finalised `context.md`. Every figure in an Abel reply must come from code or that context - otherwise the reply is sent back to be fixed.
 
-![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart.png)
-
-<details><summary>Mermaid source (GitHub cannot render it; image above is canonical)</summary>
-
 ```mermaid
 flowchart TD
     CHAT["💬 Customer chat"] --> APP["⚙️ App layer<br/><code>orchestrator.ts</code>"]
@@ -60,8 +56,6 @@ flowchart TD
     NOR -->|"Nordea section"| CTX
     APP --> ABEL["💬 Abel chat<br/><code>orchestrator.ts</code> - answers from context.md"]
 ```
-
-</details>
 
 ## 🚀 Quick start
 
@@ -323,6 +317,10 @@ Abel's chat on this branch lives in the three-agent code (`src/server/arch/orche
 
 Five roles ran this project. The chart shows who decided, who built, who checked, and who kept the record; the signatures below are each role's confirmed acknowledgment.
 
+![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart.png)
+
+<details><summary>Mermaid source (GitHub cannot render it; image above is canonical)</summary>
+
 ```mermaid
 flowchart TD
     Owner["Project owner (the approving user)<br/>Decides scope, spend, hosted/live,<br/>security, and the merge to main"]
@@ -340,6 +338,8 @@ flowchart TD
     Bill -->|verdicts| Joe
     Owner -.->|"final QC / readiness gate"| Bill
 ```
+
+</details>
 
 ### Signatures
 
