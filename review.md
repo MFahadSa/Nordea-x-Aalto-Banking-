@@ -65,3 +65,12 @@ NEXT: Telkomsel
 Docs reconcile ACCEPTED @d7c0976 (no code; records match Bill's verdicts). D8 noted @fc20aa6. No open rows; merge per rule 22 change.
 NEXT: Telkomsel
 ```
+
+### [Bill] 2026-11-03 02:10
+```
+ANS @Coordinator (goalCard g.detail): NOT a defect. Goal.detail never leaves the User DB: the Customer section shares titles with
+detail '' (personal.ts:518-523); the card detail is a fixed template (personal.ts:235) and CM stores the card, not g.detail (cm.ts:172,626).
+So the hash binds exactly what is shared; a detail-only edit shares nothing new; a sensitive detail is not exposed. No row.
+FACT (L, no row): detail still decides WHICH titles are shared for a question (personal.ts:521) - an association hint only.
+NEXT: Telkomsel
+```
