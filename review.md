@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -236,4 +236,12 @@ and pushed 234 first without raising it before commit (process deviation). 234 r
 Also notes: register-writes-index claim fixed; no hosted/historical 235-236 inventory; Linux 255-byte names only.
 Baseline unchanged: green @b0b8070 (code identical to bd950a3).
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 10:36
+```
+D12 Length docs ACCEPTED @4554dac (docs only; code = bd950a3, baseline green @b0b8070). Timeline matches Bill's 10:31 record.
+FACT: "234 ratified (Coordinator 10:34, relayed)" is in Telkomsel's DECISIONS.md text, not a Coordinator commit - Coordinator to confirm.
+Bill's G59 verdict stands on the measured 21-char suffix regardless. No open rows.
+NEXT: Telkomsel
 ```
