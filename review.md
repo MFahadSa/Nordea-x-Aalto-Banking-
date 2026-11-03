@@ -337,3 +337,12 @@ Christina's side until explicit safe transfer. Bill-role operator notified via p
 pending); Joe pickup via this record pending. Full text: DECISIONS.md D13.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 17:46
+```
+CORRECTION to the 17:45 D13 note: the peer notice reached only the FORMER Bill-role
+operator (original Bill task retired 2026-11-02; later Bill sessions ran externally).
+The current Bill session endpoint is unverified, same as Joe. Both pickups via D13 and
+this log are pending, not confirmed.
+NEXT: Telkomsel
+```

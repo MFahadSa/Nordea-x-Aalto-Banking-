@@ -173,9 +173,10 @@ Why: owner role switch 2026-11-03 (Slack ts 1793720008.417839, 1793720066.664999
    unchanged; any new code requires review by someone who did not write it (no
    self-certification). Merge, spend/paid, live runs and security/access stay owner-only
    holds. The disposable hosted test project, its access and ALL cleanup stay with
-   Christina's side until an explicit safe transfer is settled. Notification status:
-   Bill-role operator informed via peer coordination (acknowledgment pending); Joe pickup
-   via this record pending, not confirmed.
+   Christina's side until an explicit safe transfer is settled. Notification status (owner ts 1793720406.890769): the peer notice reached only the
+   FORMER Bill-role operator (the original Bill task was retired 2026-11-02; later Bill
+   sessions ran externally). The current Bill session endpoint is unverified, same as
+   Joe. Both pickups via this record and review.md are pending, not confirmed.
 
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
