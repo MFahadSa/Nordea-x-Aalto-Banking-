@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -32,14 +32,12 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G51, G53–G55 (L, @250dc1e: G53 save bound to start customer, G54 SSE uid key, G55 retry w/o intermediate write), R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G51, G53–G58 (G53–G55 L @250dc1e: save bound to start customer, SSE uid key, retry w/o intermediate write; G56–G58 D12 @2172ed2: loader guard, users JSON 400, lowercase-only), R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
 | G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |
-| G56 | M | V1 | D12 gap: scripts/load_data.py:395 still rewrites a non-canonical uid (a.b -> a_b) and has no id check, so the loader writes 'a.b' rows into a_b's DB. Fix: reject with the D12 rule (same regex) before any write; pin a.b load = error, nothing written. | open |
-| G57 | L | V1 | /api/users/:userId (server.ts:88,96) is outside the query/body middleware; a.b fails closed (400) but via Express default handler: HTML page with stack trace and server path. Fix: check the path param in the middleware or route; JSON 400 like arch. | open |
-| G58 | M | V1 | D12 allows A-Z: 'Lauri' and 'lauri' are two ids but one file on Windows/macOS (case-insensitive FS; owner runs Windows). Same alias class. Fix (scope: Coordinator/owner): lowercase-only ids, or reject an id that case-folds to an existing one; pin it. | open, decision |
+| G59 | L | V1 | D12 dropped the length cap: a 300-char id (/api/arch/<id>/state, POST goals) -> 500 'unable to open database file' (ENAMETOOLONG), not the typed 400. Fails closed, nothing written. Fix: a length cap (e.g. 64) in customerId.ts + loader; pin long id = 400. | open |
 
 ## Messages
 
@@ -192,4 +190,12 @@ G56/G57/G58 + Coordinator fixes: ids lowercase-only [a-z0-9_-]+, no 64 cap; load
 Hydrate skips shown in dev monitor + /api/arch/customers (mock pool, no hosted calls). Old index ids kept, never iterated.
 Green: tsc 0, customer-id 5 files 121 checks, arch 406, events 19, e2e 37, adapter 44, remote 36. UI pixel proof: Coordinator.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 10:17
+```
+G56-G58 verified @2172ed2 (lowercase-only = Coordinator 079bf95, within owner's D12 "Proceed"). green: customer-id 5 files ok, arch 406,
+ui 37, events 19, d9 24, adapter 44, e2e 37, remote 36, env 7, selftest 3, load ok, npm test ok, lint 0. Live mock: a.b, Lauri -> JSON 400.
+OPEN: G59 (L) no length cap since 079bf95: 300-char id -> 500 "unable to open database file", not 400. Nothing written. Cap + pin.
+NEXT: Telkomsel
 ```
