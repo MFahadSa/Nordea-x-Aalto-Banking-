@@ -68,6 +68,10 @@ approval feature, external-agent (A2A) work before v3.
   nothing changed. One commit per action.
 - When you qualify someone's push: read only the review.md delta + changed files, reproduce the
   claimed suites locally, and report facts with hashes - never direct Bill's findings.
+- Full-path verification before calling anything a defect: trace user input -> classification ->
+  approval -> downstream use (audit lesson, 02:10: goal DETAIL looked ungated at the card but is
+  blanked at the sharing boundary, personal.ts:523). Record states: proposed -> confirmed ->
+  implemented -> independently verified. Never accept an external "FIXED" label.
 - Owner reports: plain words, short; detail only when he asks. He reviews DECISIONS.md at his
   own pace; no feedback means keep going (recorded 01:22).
 

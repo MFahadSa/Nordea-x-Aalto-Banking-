@@ -1,4 +1,4 @@
-# STATE_HANDOFF.md: Coordinator, 3 Nov 2026, 01:45 Helsinki (rev 3)
+# STATE_HANDOFF.md: Coordinator, 3 Nov 2026, 02:12 Helsinki (rev 4)
 
 **Live state = the 🧠 Context memory section of `review.md`.** This adds only what is not there.
 Provenance rule from SYSTEM_PROMPT.md applies: times like 01:18 / 01:22 refer to messages in the
@@ -6,7 +6,7 @@ owner's channel as recorded by the Coordinator - unverified from the repo alone.
 
 ## At hand-off
 - Runtime baseline: 616f869 (Telkomsel's cycles push, Bill-accepted @97d6cb1). Actual doc HEAD:
-  this commit (docs-only on 207f384). TURN: Telkomsel.
+  this commit (docs-only on 68ee22c). TURN: Telkomsel.
 - Chain: `G1–G51 ✓ + R1–R9 ✓ (R2 @385bb2a) > cycles ✓ @616f869 (Bill @97d6cb1) > ⏸ live test (owner) > ⏸ merge (owner) > 🏁`
 - R2 fully closed: pushed @385bb2a, Bill-accepted @660b317, policy questions decided @a71a17b
   (DECISIONS.md D1-D7), accepted @2bcddad. No open finding rows.
@@ -17,9 +17,14 @@ owner's channel as recorded by the Coordinator - unverified from the repo alone.
   mutation fails exactly 1 pin (trajectory), restored. Not rerun by the Coordinator: 2 of 3
   mutations, e2e 37, migrate 43, env 7, selftest 3. Gap (builder-disclosed): "initial review
   before any gather" pinned by counts only; fixtures synthetic, NOT live proof.
-- Prep-r2 dataset landed @d23eb10, Bill-accepted @207f384 (3 new files scripts/prep-r2/, byte-identical to
-  christina-prep-r2-cases @4002ac7; validator 74/0; runtime untouched). Known gaps stand: no
-  stale-assignment case, no conservative over-assignment pin, static table only.
+- Prep-r2 dataset landed @d23eb10, Bill-accepted @207f384 (3 new files scripts/prep-r2/,
+  byte-identical to christina-prep-r2-cases @4002ac7; validator 74/0; runtime untouched). Known
+  gaps stand: no stale-assignment case, no conservative over-assignment pin, static table only.
+- Owner-provided independent audit (02:07-02:11): handled. Its one technical claim (goal detail
+  bypasses the approval card/hash) was checked through the full path with Bill @68ee22c = NOT a
+  defect: detail is blanked at the sharing boundary (personal.ts:523), the card detail is a fixed
+  template (personal.ts:235), and the hash binds exactly what is shared. Its policy items (mode
+  semantics, call cap, merge route) were not adopted - owner-gated, decisions unchanged.
 
 ## Owner context worth keeping
 - Plain words, one short message beats three. No feedback = keep going (recorded 01:22).

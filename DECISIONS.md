@@ -85,4 +85,14 @@ Status: recorded @ `fc20aa6`; this entry was requested by Bill @ `97d6cb1`.
   Coordinator's delegated interpretation; D4 scope narrowed to unchanged approved/stored content
   with substantive edits still re-gated; explicit reasons added for D4-D7.
 - 2026-11-03 (token pass, owner request): wording compacted; no decision content changed.
+- 2026-11-03 (owner-provided independent audit): the audit's goal-detail claim was checked
+  through the full path with Bill (@68ee22c) and is NOT a defect: goal details never cross the
+  sharing boundary - the Customer section shares titles with detail blanked (personal.ts:523,
+  AC2/AC3), the card detail is a fixed template (personal.ts:235), and the content hash binds
+  exactly what is shared. Detail only influences which titles are selected for sharing
+  (personal.ts:522). Three further items assessed as POLICY PROPOSALS, not defects, and not
+  adopted: UNKNOWN handling in "No permission" mode (matches the owner's mode table), a finite
+  LLM_MAX_CALLS default (would reverse D6), and the auditor's attempt to rescind the merge route
+  (void). Auditor "FIXED" labels were not accepted. Record states: proposed -> confirmed ->
+  implemented -> independently verified.
 - Owner feedback will be applied here as revisions with date and source.
