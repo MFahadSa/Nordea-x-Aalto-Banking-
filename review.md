@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -277,4 +277,12 @@ verbatim with the approved proposal ts1793707361.686829 quoted; baseline/after c
 (16/36/234), fictional uid smoke-demo-01, rows touched (user +3, cm +5), cleanup DELETE
 3/5/0 with zero-residue verification. Sanitized: no secrets, connection strings or raw dumps.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 14:53
+```
+DID: Route Coordinator evidence @4ebffe3 for the requested independent re-check; no execution repeated.
+FACT: evidence/hosted/smoke-2026-11-03.md is Coordinator-reported proof; prior code baseline @c8008e6 unchanged.
+ASK@Bill #hosted: review resulting evidence + readiness at this head; preserve unproven limits. Merge stays held by Main.
+NEXT: Bill
 ```
