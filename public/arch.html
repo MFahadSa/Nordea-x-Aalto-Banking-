@@ -106,7 +106,7 @@
       <div class="controls">
         Standing permissions: <select id="perm"><option value="all">review everything</option><option value="high">only high risk waits</option></select>
         User card approval: <select id="ucmode"><option>No permission</option><option>Review everything</option><option>High risk mode</option></select>
-        <button id="btn-perm" class="primary">Save</button>
+        <button id="btn-perm" class="primary">Save</button><span id="perm-status" style="font-size:12px;color:#8b949e;margin-left:8px;"></span>
       </div>
       <div class="controls"><button id="btn-off-cm">Turn off</button><button id="btn-park-cm">Park cabinet</button><button id="btn-del-cm" class="danger">Delete DB</button></div>
     </div>
@@ -212,9 +212,16 @@ const aiChain = (ai) => {
   }).join('');
   return `${head}${rows}<div class="aiknown">A key being set only means configured. The per-agent lines show what each agent's last run really did (this server process, memory only). Nothing here calls a model.</div>`;
 };
+let stateReq = 0; // every state read gets a sequence number; only the newest response may paint
 async function refresh() {
   uid = $('uid').value || 'lauri';
+  const seq = ++stateReq;
   const s = await api(`/api/arch/${uid}/state`);
+  if (seq !== stateReq) return null; // a newer read (tick or action) superseded this one - discard the stale response
+  applyState(s);
+  return s;
+}
+function applyState(s) {
   sessionId = s.sessionId;
   $('a-personal').innerHTML = `<b>Personal agent: ${esc(s.agents.personal.name)}</b> ${s.agents.personal.off ? '<span class="pill off">off</span>' : '<span class="pill">on</span>'}<br>Owns the User DB - profile, goals, personal facts. Abel, in the app. You talk to it here.`;
   $('conn-user').innerHTML = conn(s.stores.user);
@@ -228,8 +235,13 @@ async function refresh() {
      <div class="gm"><span>in Abel's knowledge (User DB)</span><span class="sp"></span><button onclick="editGoal('${g.id}','${esc(g.title).replace(/'/g, '')}')">Edit</button><button class="danger" onclick="deleteGoal('${g.id}','${esc(g.title).replace(/'/g, '')}')">Delete</button></div></div>`).join('')
     : '<div class="empty">No goals yet - tell Abel in the chat, for example "my goal is to visit Japan".</div>';
   $('cm-summary').innerHTML = `Cabinet entries: <b>${s.databases.contextMemory.entries}</b>${s.databases.contextMemory.disputed ? ` · <span style="color:#a4352c">${s.databases.contextMemory.disputed} disputed</span>` : ''}`;
-  $('perm').value = s.databases.contextMemory.permissions?.reviewLevel ?? 'all';
-  $('ucmode').value = s.databases.contextMemory.permissions?.userCardMode ?? 'Review everything';
+  // Permission controls: a background refresh never overwrites an unsaved (dirty) or focused
+  // choice. Dirty clears only here, when the server's persisted values match the selects.
+  const srvLevel = s.databases.contextMemory.permissions?.reviewLevel ?? 'all';
+  const srvMode = s.databases.contextMemory.permissions?.userCardMode ?? 'Review everything';
+  if (perm.dirty && !perm.saving && $('perm').value === srvLevel && $('ucmode').value === srvMode) { perm.dirty = false; permStatus(''); }
+  if (!perm.dirty && document.activeElement !== $('perm')) $('perm').value = srvLevel;
+  if (!perm.dirty && document.activeElement !== $('ucmode')) $('ucmode').value = srvMode;
   $('nordea-summary').innerHTML = s.databases.nordea ? `Accounts: <b>${s.databases.nordea.accounts}</b> · Transactions: <b>${s.databases.nordea.transactions}</b>` : 'Empty until bank data is loaded (scripts/load_data.py).';
   $('btn-off-personal').textContent = s.agents.personal.off ? 'Turn on' : 'Turn off';
   $('btn-off-cm').textContent = s.agents.cm.off ? 'Turn on' : 'Turn off';
@@ -287,7 +299,40 @@ if (location.hash === '#autotest-chat') { $('chat-in').value = 'how much did I s
 $('chat-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-chat').click(); });
 window.editGoal = async (id, old) => { const t = prompt('Edit the goal - Abel remembers the new version.', old); if (!t || !t.trim() || t.trim() === old) return; await api(`/api/arch/${uid}/goals/${id}`, { body: { title: t.trim() } }); refresh(); };
 window.deleteGoal = async (id, title) => { if (!confirm(`Delete goal "${title}"? It is removed from Abel's knowledge (the User DB).`)) return; await api(`/api/arch/${uid}/goals/${id}/delete`, {}); refresh(); };
-$('btn-perm').onclick = async () => { await api(`/api/arch/${uid}/permissions`, { body: { reviewLevel: $('perm').value, userCardMode: $('ucmode').value } }); refresh(); };
+// Standing permissions: Save is the only write path (no on-change save). dirty = the selects
+// hold a choice not yet confirmed persisted; saving = a POST is in flight. The dirty flag
+// clears ONLY on persisted confirmation (a fresh state read, here or in applyState).
+const perm = { dirty: false, saving: false };
+function permStatus(text, isError) { const el = $('perm-status'); el.textContent = text; el.style.color = isError ? '#a4352c' : '#8b949e'; }
+function markPermDirty() { if (!perm.saving) { perm.dirty = true; permStatus('Unsaved changes - click Save to apply.'); } }
+$('perm').addEventListener('change', markPermDirty);
+$('ucmode').addEventListener('change', markPermDirty);
+$('btn-perm').onclick = async () => {
+  if (perm.saving) return;
+  const want = { reviewLevel: $('perm').value, userCardMode: $('ucmode').value };
+  perm.saving = true;
+  const btn = $('btn-perm'); btn.disabled = true; btn.textContent = 'Saving...'; permStatus('Saving...');
+  let posted = false;
+  try { await api(`/api/arch/${uid}/permissions`, { body: want }); posted = true; }
+  catch { /* api() already surfaces the error in the chat log */ }
+  if (posted) {
+    let s = null;
+    try { s = await refresh(); } catch { /* keep dirty; the next successful read confirms */ }
+    if (s) {
+      const p = s.databases?.contextMemory?.permissions ?? {};
+      if ((p.reviewLevel ?? 'all') === want.reviewLevel && (p.userCardMode ?? 'Review everything') === want.userCardMode) {
+        perm.dirty = false; permStatus('Saved.');
+      } else {
+        permStatus('The server still shows the old setting - your choice is kept here; click Save again.', true);
+      }
+    } else {
+      permStatus('Sent - confirming against the server...');
+    }
+  } else {
+    permStatus('Save failed - your choice is kept here; click Save again.', true);
+  }
+  perm.saving = false; btn.disabled = false; btn.textContent = 'Save';
+};
 $('btn-upload').onclick = () => $('bank-file').click();
 $('bank-file').onchange = async () => {
   const f = $('bank-file').files[0]; if (!f) return;
@@ -301,7 +346,7 @@ $('btn-park-cm').onclick = async () => { const parked = $('btn-park-cm').textCon
 $('btn-newsession').onclick = async () => { const j = await api(`/api/arch/${uid}/session/new`, {}); sessionId = j.sessionId; say('agent', 'New session started - the next question opens a fresh context.md.'); refresh(); };
 for (const a of ['personal', 'cm', 'nordea']) $(`btn-off-${a}`).onclick = async () => { const off = $(`btn-off-${a}`).textContent === 'Turn off'; await api(`/api/arch/${uid}/agents/${a}/${off ? 'off' : 'on'}`, {}); refresh(); };
 for (const w of ['user', 'cm', 'nordea']) $(`btn-del-${w}`).onclick = async () => { if (confirm(`Really delete the ${w === 'cm' ? 'Context Memory' : w === 'user' ? 'User' : 'Nordea'} DB? Other databases are not touched.`)) { await api(`/api/arch/${uid}/db/${w}`, { method: 'DELETE' }); refresh(); } };
-$('uid').addEventListener('change', refresh);
+$('uid').addEventListener('change', () => { perm.dirty = false; perm.saving = false; permStatus(''); refresh(); });
 let refreshing = false;
 async function tick() {
   // G31: follow agent activity without a manual reload. Skip overlapping passes.

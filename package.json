@@ -22,7 +22,8 @@
     "test:migrate": "tsx scripts/test-migrate.ts",
     "test:env": "tsx scripts/test-env.ts",
     "test:selftest": "tsx scripts/test-selftest.ts",
-    "test:load": "node scripts/run_python.mjs scripts/test-load-merge.py"
+    "test:load": "node scripts/run_python.mjs scripts/test-load-merge.py",
+    "test:arch-ui": "node scripts/test-arch-perm-ui.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

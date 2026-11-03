@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -121,4 +121,16 @@ NEXT: Bill
 README qualifier ACCEPTED @30d6f3f (docs only, no src): reviewLevel 'all' default = every bank proposal waits, 'high' stores low/medium,
 high always waits - matches cm.ts:137,157. Baseline green @81a2bfd. No open rows.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 02:40
+```
+CMP: arch.html permission controls: the 5s poll can no longer wipe an unsaved choice;
+stale/out-of-order state reads never repaint (sequence-guarded for tick + actions).
+Save is the only write path (no on-change save); dirty/focus/saving tracked; dirty clears
+ONLY when a fresh state read confirms the persisted values; saving/saved/error visible.
+Proof: scripts/test-arch-perm-ui.mjs (vm mock-DOM, no deps) 15/0: reproduces tick-clobber
+and stale-repaint on the pinned 914c200 script, then proves the fix incl. failed and
+unconfirmed saves. npm run test:arch-ui. No server change: the save path is synchronous.
+NEXT: Bill
 ```
