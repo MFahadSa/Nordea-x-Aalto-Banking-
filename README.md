@@ -160,7 +160,7 @@ provider, as on `main`.
 
 Local files are the default and need nothing. To host the data on [Supabase](https://supabase.com) instead:
 
-1. Create a project and run three SQL files in the *SQL Editor*, in order: **supabase/three-agents.sql** (the three agent tables and one Postgres role per agent - give each role a letters-and-digits password: `alter role agent_user password '...';`, same for `agent_cm`, `agent_nordea`), then **supabase/nordea-feed.sql** (the new-data feed; run it again if you ran an older copy), then **supabase/role-smoke.sql** (prints one PASS/FAIL table - every line should say PASS).
+1. Create a project and apply the schema - either paste three SQL files in the *SQL Editor* in order, or run the one-time privileged setup `python3 scripts/load_data.py --init` for the first one (applies **supabase/three-agents.sql** via psql with `SUPABASE_DB_URL` from the environment or `.env.local`; idempotent, the URL is never printed, no existing role credentials are changed), then the remaining two by hand: **supabase/three-agents.sql** (the three agent tables and one Postgres role per agent - give each role a letters-and-digits password: `alter role agent_user password '...';`, same for `agent_cm`, `agent_nordea`), then **supabase/nordea-feed.sql** (the new-data feed; run it again if you ran an older copy), then **supabase/role-smoke.sql** (prints one PASS/FAIL table - every line should say PASS).
 2. Everything the app stores lives in the three agent databases - there is no plumbing file or
    fourth store. If you have an old `data/cabinet-db.json`, run `npm run migrate:legacy` once: it
    moves every record into the right agent database, verifies the move field-by-field, and only
@@ -316,11 +316,12 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 
 | Check | Command | Covers |
 |---|---|---|
-| Architecture tests | `npm run test:arch` | 409 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
+| Architecture tests | `npm run test:arch` | 410 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
 | End-to-end | `npm run test:e2e` | 37 checks over a real booted server (incl. requestId dedup + late pickup): a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
 | Data-layer adapter | `npm run test:adapter` | 44 checks: the old app store as an adapter over the three agent databases, legacy migration, and plumbing separation |
 | Hosted sync | `npm run test:remote` | 36 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
 | Live hosted three-agent run | manual, evidence in `evidence/e2e/` | A real server booted against the hosted Supabase stores with a real model: session round with model plans, a model-composed chat answer grounded in context.md, goal add, contribution round, review accepts into Context Memory - then scoped cleanup restored the hosted tables to their pre-test hashes |
+| Insight cards | `npm run test:insight` | Goal card figures tied out from the matched rows, honest sparse/scenario/projection wording, the model figure guard, and the `--init` setup SQL |
 | review.md guard | `npm run check:review` | Keeps every review.md message inside the collaboration format |
 | Type check | `npm run lint` | `tsc --noEmit` across the app |
 | Bank records | `npm test` | Feed loading and bank-record maths |
@@ -379,7 +380,7 @@ Abel's chat on this branch lives in the three-agent code (`src/server/arch/orche
 
 Five roles ran this project. The chart shows who decided, who built, who checked, and who kept the record; the signatures below are each role's confirmed acknowledgment.
 
-![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-avatars.png)
+![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-legend.png)
 
 *Chart labels: names are project roles. @coolkowkank is shown as the repository owner account only - no binding to the approving user's identity is implied. Bill and Joe have no verified GitHub account.*
 

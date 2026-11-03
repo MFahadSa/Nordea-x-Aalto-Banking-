@@ -2,7 +2,7 @@
 
 Five roles run this project. The chart shows who decides, who builds, who checks, and who keeps the record. Every block links to the written rules it follows.
 
-![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-avatars.png)
+![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-legend.png)
 
 *Chart labels: names are project roles. @coolkowkank is shown as the repository owner account only - no binding to the approving user's identity is implied. Bill and Joe have no verified GitHub account.*
 

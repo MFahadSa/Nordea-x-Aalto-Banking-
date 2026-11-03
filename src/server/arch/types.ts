@@ -92,6 +92,9 @@ export interface BuildRound {
   llm?: {
     goalTitles?: string[];
     terms?: Record<string, string[]>;
+    /** Insight cards: model-polished card text per goal title, admitted by the figure guard
+     *  in the planning pre-step and re-checked by the Nordea handler before use. */
+    insightTexts?: Record<string, string>;
     /** Truthful per-agent path: 'model' = the model's validated proposal was used,
      *  'scripted' = clean scripted fallback, 'error' = provider failed and code fell back. */
     status?: { cm: 'model' | 'scripted' | 'error'; nordea: 'model' | 'scripted' | 'error'; provider?: string; error?: string };

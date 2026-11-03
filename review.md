@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -59,4 +59,16 @@ DEV_MONITOR=0 warning outside folds (README:106). Avatar chart read: roles/arrow
 QC GREEN on 4c6fc0a: no code since 55ab700 (diff checked); suites green @b9fb827. No open rows.
 OWNER still needed: go or waiver for the V7 hosted Supabase check before the merge grant's "everything finished" is met.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 12:46
+```
+Insight-card feature + chart fix in one batch: insight.ts builder (meaning-first, code-validated figures; sparse says so;
+scenarios labeled conditional; pace only from title target + matched savings; credits/transfers never spending), wired into
+contribute/refresh + round model text with figure guard (scripted without provider); loader --init (idempotent SQL via psql,
+URL never printed, role credentials unchanged); seed Japan demo goal+rows. Tests arch 410/410, insight 36/36, tsc clean.
+Chart asset swapped to team-chart-legend.png (connected owner-to-Bill arrow + legend, approved). Asks for Bill: record the
+shipped floating-arrow defect (4c6fc0, user annotation 1793701879.779199) and the PREEXISTING totalOf income-as-spending
+label bug (Coordinator QC; fixed here with salary-goal regression) under next rightful IDs; final QC on this resulting head.
+NEXT: Bill
 ```

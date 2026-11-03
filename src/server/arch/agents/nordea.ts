@@ -16,6 +16,7 @@ import { nordeaRiskReceipt, validateNordeaRiskClaim, nordeaRiskRunner } from '..
 import type { NordeaRiskItem, NordeaRiskRun } from '../risk.js';
 import { registerHandler } from '../dispatcher.js';
 import { recordProposals, loadRound, roundDone } from '../rounds.js';
+import { analyseMatches, buildGoalCard, textFiguresGrounded } from '../insight.js';
 
 /** F26: evidence carries a hash of the FULL sorted id set, so churn checks compare like
  * with like. The 25-id sample stays for display/risk only - never for comparison.
@@ -70,16 +71,31 @@ function handleMessage(uid: string, msg: AgentMessage) {
       const hinted = new Set(questionWords.flatMap((w) => CATEGORY_HINTS[w] ?? []));
       const qm = nordea.transactions.filter((t) =>
         overlaps(questionWords, words(`${t.description ?? ''} ${t.counterparty ?? ''}`)) || hinted.has(t.category));
-      if (qm.length) sectionRows.push({ id: `nq-${payload.roundId as string}`, title: 'Relevant to your question', detail: `${qm.length} transaction${qm.length === 1 ? '' : 's'} totalling ${totalOf(qm)} EUR of related spending`, source: 'nordea', observed: 'observed', evidence: { total: totalOf(qm), matched: qm.length, transactionIds: qm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(qm.map((t) => t.id)) }, at: now() });
+      // Spending means debits that are not income or transfers between the customer's own
+      // accounts; credits (salary, refunds) are reported separately, never as spending.
+      const qa = analyseMatches(qm);
+      const creditTotal = Math.round((qa.total - qa.spendingTotal) * 100) / 100;
+      const qdetail = qa.spendingTotal > 0
+        ? `${qm.length} transaction${qm.length === 1 ? '' : 's'} totalling ${qa.spendingTotal} EUR of related spending${creditTotal > 0 ? ` (a further ${creditTotal} EUR of credits or transfers between your own accounts is not spending)` : ''}`
+        : `${qm.length} transaction${qm.length === 1 ? '' : 's'} matched, ${creditTotal} EUR of credits or transfers between your own accounts - none of it spending`;
+      if (qm.length) sectionRows.push({ id: `nq-${payload.roundId as string}`, title: 'Relevant to your question', detail: qdetail, source: 'nordea', observed: 'observed', evidence: { total: totalOf(qm), matched: qm.length, transactionIds: qm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(qm.map((t) => t.id)) }, at: now() });
     }
     for (const goal of goals) {
       const matches = matchForTitles(nordea, [goal.title, ...(llmTerms[goal.title] ?? [])]);
       if (!matches.length) continue;
       const total = totalOf(matches);
-      sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: `${matches.length} transaction${matches.length === 1 ? '' : 's'} totalling ${total} EUR of related spending`, source: 'nordea', evidence: { total, matched: matches.length, transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)) }, at: now() });
+      // Insight cards: the row's main text is the code-computed meaning for the goal (a
+      // model-polished variant only when the round carries one that passes the figure
+      // guard); the aggregate numbers stay as evidence, unchanged.
+      const analysis = analyseMatches(matches);
+      const card = buildGoalCard(goal.title, analysis);
+      const polished = round?.llm?.insightTexts?.[goal.title];
+      const insightText = polished && textFiguresGrounded(polished, analysis.figures) ? polished : card.text;
+      const evidence = { total, matched: matches.length, transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)), monthlyAvg: analysis.monthlyAvg, coverageMonths: analysis.coverageMonths, changePct: analysis.changePct, topCategories: analysis.topCategories, sparse: card.sparse };
+      sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: insightText, source: 'nordea', evidence, at: now() });
       const title = `Activity related to goal "${goal.title}"`;
       if (alreadyPending.has(title)) continue; // no duplicate pending proposals
-      const detail = `${matches.length} transaction${matches.length === 1 ? '' : 's'} totalling ${total} EUR of related spending relate to this goal (matched on category and description keywords). Proposed by the Nordea agent from the Nordea DB only - the raw transactions stay there.`;
+      const detail = `${insightText} (Matched on category and description keywords; proposed by the Nordea agent from the Nordea DB only - the raw transactions stay there. Evidence: ${matches.length} matched, ${total} EUR total.)`;
       const posted = appendMessage(uid, {
         from: 'nordea', to: 'cm', type: 'propose', status: 'pending',
         summary: title,
@@ -158,7 +174,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
           payload: {
             roundId: payload.roundId,
             goalIds: item.goalIds ?? [],
-            detail: `${matches.length} transactions totalling ${nowTotal} EUR of related spending relate to this goal (${item.was == null ? 'the stored entry had no evidence to check' : 'refreshed after the earlier values went stale'}). Proposed by the Nordea agent from the Nordea DB only.`,
+            detail: `${buildGoalCard(item.title, analyseMatches(matches)).text} (${item.was == null ? 'The stored entry had no evidence to check' : 'Refreshed after the earlier values went stale'}; proposed by the Nordea agent from the Nordea DB only. Evidence: ${matches.length} matched, ${nowTotal} EUR total.)`,
             transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: currentHash, total: nowTotal, refreshOf: item.entryId,
           },
         });
@@ -171,7 +187,10 @@ function handleMessage(uid: string, msg: AgentMessage) {
       const rows: ContextRow[] = [];
       for (const g of docGoals) {
         const gm = matchForTitles(nordea, [g.title]);
-        if (gm.length) rows.push({ id: `nagg-${g.id}`, title: g.title, detail: `${gm.length} transaction${gm.length === 1 ? '' : 's'} totalling ${totalOf(gm)} EUR of related spending (refreshed against current bank data)`, source: 'nordea', evidence: { total: totalOf(gm), matched: gm.length, transactionIds: gm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(gm.map((t) => t.id)) }, at: now() });
+        if (gm.length) {
+        const ra = analyseMatches(gm);
+        rows.push({ id: `nagg-${g.id}`, title: g.title, detail: `${buildGoalCard(g.title, ra).text} (Refreshed against current bank data.)`, source: 'nordea', evidence: { total: totalOf(gm), matched: gm.length, transactionIds: gm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(gm.map((t) => t.id)), monthlyAvg: ra.monthlyAvg, coverageMonths: ra.coverageMonths, changePct: ra.changePct, topCategories: ra.topCategories }, at: now() });
+      }
       }
       // F18: maintenance merges - refreshed figures update matching rows, no row is dropped.
       const merged = [...readSectionRows(uid, 'nordea').filter((r) => !rows.some((n) => n.id === r.id)), ...rows];
@@ -442,4 +461,61 @@ async function llmAssignProposalRisk(uid: string, items: NordeaRiskItem[]): Prom
   return Object.keys(claims).length
     ? { claims, status: 'model', ...(answeredBy ? { answeredBy } : {}) }
     : { claims: null, status: 'error', error: 'finishProposalRisk gave no usable risk level for any proposal' };
+}
+
+/** A goal's code-computed card draft for the model path: the deterministic text plus every
+ *  figure the model may cite. Computed by the Nordea agent from its OWN DB. */
+export interface InsightDraft { title: string; text: string; figures: number[]; }
+
+/**
+ * Insight cards, code half of the model path: match each goal (title + validated model terms)
+ * against the Nordea DB and build the deterministic card. Returns only goals with matches.
+ */
+export function prepareInsightDrafts(uid: string, goalTitles: string[], terms: Record<string, string[]>): InsightDraft[] {
+  const nordea = nordeaDbOrEmpty(uid);
+  const drafts: InsightDraft[] = [];
+  for (const title of goalTitles) {
+    const matches = matchForTitles(nordea, [title, ...(terms[title] ?? [])]);
+    if (!matches.length) continue;
+    const analysis = analyseMatches(matches);
+    const card = buildGoalCard(title, analysis);
+    drafts.push({ title, text: card.text, figures: analysis.figures });
+  }
+  return drafts;
+}
+
+/**
+ * Insight cards, model half (brief path 2): with a provider configured the Nordea model writes
+ * 1-2 sentences of meaning + recommendation per goal FROM the code-computed breakdown. The
+ * guard mirrors the Abel reply path: any figure that is not among the code-computed values
+ * drops that goal's text back to the deterministic card. No provider = no drafts (scripted).
+ */
+export async function llmDraftInsightTexts(uid: string, drafts: InsightDraft[]): Promise<{ texts: Record<string, string>; status: 'model' | 'scripted' | 'error'; error?: string }> {
+  const { archLlmEnabled, runAgentReasoning } = await import('../llm.js');
+  if (!archLlmEnabled() || !drafts.length) return { texts: {}, status: 'scripted' };
+  const { result: out, error } = await runAgentReasoning({
+    uid,
+    agent: 'nordea',
+    system: [
+      'You are the Nordea agent of a banking assistant, writing for the customer in plain language.',
+      'For each goal you are given a code-computed card: rewrite it as 1-2 short sentences of meaning and, only if the card offers one, a next step.',
+      'You may use ONLY the numbers given in the card text itself - any other figure, percentage or date makes the text unusable. Keep "Scenario:" and projection labels exactly as given. Never add advice the card does not contain.',
+      'End with finishInsightTexts.',
+    ].join(' '),
+    prompt: `Goal cards:\n${drafts.map((d) => `- goal "${d.title}": ${d.text}`).join('\n')}`,
+    tools: [
+      { name: 'finishInsightTexts', description: 'Finish with the rewritten card text per goal title.', parameters: { type: 'object', properties: { texts: { type: 'object' } }, required: ['texts'] } },
+    ],
+    runTool: () => ({ error: 'unknown tool' }),
+    finishTool: 'finishInsightTexts',
+  });
+  if (error) return { texts: {}, status: 'error', error };
+  const raw = (out && typeof out.texts === 'object' && out.texts ? out.texts : {}) as Record<string, unknown>;
+  const texts: Record<string, string> = {};
+  for (const d of drafts) {
+    const v = raw[d.title] ?? raw[d.title.toLowerCase()];
+    // The figure guard: an ungrounded model figure drops this goal back to the deterministic card.
+    if (typeof v === 'string' && v.trim().length >= 20 && textFiguresGrounded(v, d.figures)) texts[d.title] = v.trim();
+  }
+  return Object.keys(texts).length ? { texts, status: 'model' } : { texts: {}, status: 'scripted' };
 }

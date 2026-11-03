@@ -808,7 +808,35 @@ def main() -> None:
     ap.add_argument("--app-url", default="http://localhost:3000", help="running app to tell about the new data")
     ap.add_argument("--no-reload", action="store_true", help="don't tell the running app")
     ap.add_argument("--dry-run", action="store_true", help="read and check the files, show what would happen, change nothing")
+    ap.add_argument("--init", action="store_true",
+                    help="one-time privileged setup: apply supabase/three-agents.sql via psql using "
+                         "SUPABASE_DB_URL (environment, .env or .env.local). Idempotent; the URL is never "
+                         "printed; no existing role credentials are changed")
+    ap.add_argument("--print-sql", action="store_true", help="with --init: print the setup SQL instead of running it")
     args = ap.parse_args()
+
+    if args.init:
+        sql = (ROOT / "supabase" / "three-agents.sql").read_text()
+        if args.print_sql:
+            sys.stdout.write(sql)
+            return
+        load_env()
+        db_url = os.environ.get("SUPABASE_DB_URL", "")
+        if not db_url:
+            sys.exit("SUPABASE_DB_URL is not set (environment, .env or .env.local). --init needs the project "
+                     "owner's connection string for this one-time setup; the app itself never uses it.")
+        env_local = ROOT / ".env.local"
+        if env_local.exists() and "SUPABASE_DB_URL" in env_local.read_text():
+            env_local.chmod(0o600)  # a file holding the privileged URL stays readable by the owner only
+        res = subprocess.run(["psql", db_url, "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],
+                             input=sql, text=True, capture_output=True)
+        if res.returncode != 0:
+            err = (res.stderr or "").replace(db_url, "***").strip().splitlines()
+            sys.exit("psql failed: " + (err[-1] if err else "unknown error"))
+        print("Setup applied (idempotent; no existing role credentials changed): agent_user_records, "
+              "agent_cm_records, agent_nordea_records, one Postgres role per agent. "
+              "Verify with supabase/role-smoke.sql - every line should say PASS.")
+        return
 
     if not args.paths and not args.clear:
         ap.error("give a file or folder to load, or --clear")

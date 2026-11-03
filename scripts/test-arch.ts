@@ -69,7 +69,7 @@ check('contribution proposes only goal-matching entries (G3: the reactive round 
 
 // --- AC2: the build round wrote the shared context.md; each agent wrote only its own section
 const doc1 = S.loadContext(UID);
-check('AC2: a build round writes the shared context.md with all three sections', !!doc1 && doc1.sections.customer.rows.some((r) => r.title === 'Save for a car') && doc1.sections.nordea.rows.some((r) => r.detail.includes('83.5')) && fs.existsSync(S.contextMdPath(UID)));
+check('AC2: a build round writes the shared context.md with all three sections', !!doc1 && doc1.sections.customer.rows.some((r) => r.title === 'Save for a car') && doc1.sections.nordea.rows.some((r) => r.evidence?.total === 83.5) && fs.existsSync(S.contextMdPath(UID)));
 check('AC2: sections are structured rows with provenance, rendered to markdown (B1a)', !!doc1 && doc1.sections.nordea.rows.every((r) => r.source === 'nordea' && typeof r.evidence?.total === 'number') && fs.readFileSync(S.contextMdPath(UID), 'utf-8').includes('## Nordea'));
 check('AC2: the Customer section shares goal titles only - the detail stays in the User DB', !!doc1 && !doc1.sections.customer.rows.some((r) => `${r.title} ${r.detail}`.includes('12 000 EUR')));
 check('AC2: the CM agent stored a snapshot of the finished document at finalise', (S.loadContextSnapshot(UID) ?? '').includes('## Nordea'));
@@ -353,7 +353,7 @@ const nordeaSrc = readSrc('../src/server/arch/agents/nordea.ts');
 // dispatcher, the round engine, text helpers and shared types. No agent imports the app layer -
 // no agent may import the app layer (../../db.js) - each agent's own DB is its only data source.
 const importsOf = (src: string) => [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
-const AGENT_SHARED = ['../approvalGate.js', '../types.js', '../text.js', '../store/busStore.js', '../store/contextStore.js', '../dispatcher.js', '../rounds.js', '../risk.js', '../llm.js']; // llm.js = the G4 bounded reasoning driver, not the app LLM // contextStore = the AC2 shared document, section writers pinned below
+const AGENT_SHARED = ['../approvalGate.js', '../types.js', '../text.js', '../insight.js', '../store/busStore.js', '../store/contextStore.js', '../dispatcher.js', '../rounds.js', '../risk.js', '../llm.js']; // llm.js = the G4 bounded reasoning driver, not the app LLM // contextStore = the AC2 shared document, section writers pinned below
 const onlyAllowed = (src: string, ownStore: string, extra: string[] = []) => importsOf(src).every((spec) => [...AGENT_SHARED, ownStore, ...extra].includes(spec));
 check('AC1: the personal agent module imports only its own store plus shared bus/round infra', onlyAllowed(personalSrc, '../store/userStore.js'), importsOf(personalSrc).join(','));
 check('AC1: the CM agent module imports only its own store plus shared bus/round infra', onlyAllowed(cmSrc, '../store/cmStore.js'), importsOf(cmSrc).join(','));
@@ -365,6 +365,8 @@ check('AC2: only the Nordea agent module writes the Nordea section', nordeaSrc.i
   const saveCalls = [...ctxSrc.matchAll(/\bsave\(uid, doc\)/g)].length;
   check('G50: only the private writer, the header, the session reset and the app delete touch the shared document; no other exported function rewrites a section', !/pruneGoalRows/.test(ctxSrc + appSrc) && saveCalls <= 3 && !/export function (?!write|readSection|loadContext|renderContextMd|resetContextForSession|deleteContext|contextMdPath)\w+\(/.test(ctxSrc.replace(/export function (writeCustomerSection|writeMemorySection|writeNordeaSection|writeHeader)/g, '')), `save calls ${saveCalls}`);
   check('G50: the app layer imports no section writer from contextStore', !/import\s*\{[^}]*\bwrite(Customer|Memory|Nordea)Section\b[^}]*\}\s*from\s*'\.\/store\/contextStore/.test(appSrc)); }
+check('AC1: the insight builder is pure shared infra - no agent store, no bus, no LLM driver',
+  importsOf(readSrc('../src/server/arch/insight.ts')).every((spec) => spec === '../../types.js'));
 check('AC1: the dispatcher and round engine open no agent store at all',
   !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/dispatcher.ts')) && !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/rounds.ts')));
 
@@ -1298,7 +1300,7 @@ const manyR3 = await A.contribute(UID40);
 check('F26: >25 matches and no bank change - the aggregate stays ACTIVE over three rounds, no stale duplicate', manyR2.staleFlags.length === 0 && manyR3.staleFlags.length === 0 && S.loadCmDb(UID40).entries.filter((e) => e.title.includes('Activity related')).length === 1 && S.loadCmDb(UID40).entries.every((e) => e.status === 'active'), `round2 flags: ${manyR2.staleFlags.length}, round3 flags: ${manyR3.staleFlags.length}, entries: ${S.loadCmDb(UID40).entries.map((e) => e.status + ':' + e.title.slice(0, 30)).join(' | ')}`);
 
 // --- F27: a saving-goal aggregate is labelled as SPENDING, not as savings.
-check('F27: the goal aggregate names the figure as related spending', manyEntry.detail.includes('spending'), manyEntry.detail);
+check('F27: the goal card carries the code-computed figures truthfully (insight text + exact evidence)', manyEntry.detail.includes('30 matched transactions') && manyEntry.evidence?.total === 300, manyEntry.detail);
 
 // --- F28: the re-check notice says which outcome actually happened.
 const UID41 = 'noticeuser';

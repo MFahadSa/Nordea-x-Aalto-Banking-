@@ -227,3 +227,22 @@ tx-pension-2026-10,eeva,2026-10-04,pension,1850,current,Keva Retirement Pension
 tx-eeva-house-2026-10,eeva,2026-10-02,housing,-520,current,Maintenance fee (Vastike)
 tx-eeva-pharm-2026-10,eeva,2026-10-12,pharmacy,-45,current,Yliopiston Apteekki
 tx-eeva-groc-2026-10,eeva,2026-10-15,groceries,-310,current,Alepa & Market
+
+tx-lauri-japan-01,lauri,2026-05-15,restaurants,-60,current,Japan travel dinner club
+tx-lauri-japan-02,lauri,2026-06-15,restaurants,-60,current,Japan travel dinner club
+tx-lauri-japan-03,lauri,2026-07-15,restaurants,-60,current,Japan travel dinner club
+tx-lauri-japan-04,lauri,2026-08-15,restaurants,-90,current,Japan travel dinner club
+tx-lauri-japan-05,lauri,2026-09-15,restaurants,-90,current,Japan travel dinner club
+tx-lauri-japan-06,lauri,2026-10-15,restaurants,-90,current,Japan travel dinner club
+tx-lauri-japan-07,lauri,2026-05-15,shopping,-40,current,Japan phrasebook and gear
+tx-lauri-japan-08,lauri,2026-06-15,shopping,-40,current,Japan phrasebook and gear
+tx-lauri-japan-09,lauri,2026-07-15,shopping,-40,current,Japan phrasebook and gear
+tx-lauri-japan-10,lauri,2026-08-15,shopping,-40,current,Japan phrasebook and gear
+tx-lauri-japan-11,lauri,2026-09-15,shopping,-40,current,Japan phrasebook and gear
+tx-lauri-japan-12,lauri,2026-10-15,shopping,-40,current,Japan phrasebook and gear
+tx-lauri-japan-13,lauri,2026-05-15,savings_transfer,-200,current,Japan trip fund
+tx-lauri-japan-14,lauri,2026-06-15,savings_transfer,-200,current,Japan trip fund
+tx-lauri-japan-15,lauri,2026-07-15,savings_transfer,-200,current,Japan trip fund
+tx-lauri-japan-16,lauri,2026-08-15,savings_transfer,-200,current,Japan trip fund
+tx-lauri-japan-17,lauri,2026-09-15,savings_transfer,-200,current,Japan trip fund
+tx-lauri-japan-18,lauri,2026-10-15,savings_transfer,-200,current,Japan trip fund
