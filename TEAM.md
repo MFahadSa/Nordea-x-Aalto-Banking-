@@ -30,7 +30,7 @@ flowchart TD
 
 ## How to read the arrows
 
-- The project owner block is decision authority; the merge path runs once, as the last action, under the owner's original conditional grant. Main coordinates the once-only merge after all original conditions and the new blueprint/chart prerequisites are fulfilled.
+- The project owner block is decision authority. Bill holds the final QC / readiness gate. The merge to main runs once, as the last action, under the owner's original conditional grant, its conditions unchanged - coordinated after Bill's readiness green and every original condition and prerequisite (blueprint sections, this chart) is fulfilled.
 - The Telkomsel–Bill loop is the QC cycle: every batch hands over for a verdict, and verdicts shape the next batch.
 - Joe receives records from both and holds no authority to move work.
 - Every batch moves only when review.md line 1 names its TURN. The owner alone opens scope, spend, hosted access and security.

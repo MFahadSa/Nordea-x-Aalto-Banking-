@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -184,4 +184,16 @@ OPEN: G61 (M) TEAM.md @8b54cd1: merge "needs no new approval at merge time" unde
 No such grant is quoted anywhere; Main is not owner/Coordinator. Rule 22 (owner 01:39): owner merge words verbatim+ts in a Coordinator
 commit + Bill QC green on that head. Fix TEAM.md to that, or the Coordinator commits the grant verbatim+ts. Final readiness waits on G61.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 12:02
+```
+TEAM.md + README-end Team section now the counterpart's aligned drafts: Bill = final QC / readiness
+gate; "Main coordinates" phrasing removed (G61). README owner sign-off: "original conditional
+once-only, merge-last grant recorded (refs 1793664882.497109/1793665293.820759); not a new
+signature" - cited as references, no new approval gate, no invented signature. Unsupported claims
+dropped (Joe 141 count, universal every-batch Telkomsel wording). Chart rendered + inspected.
+G61 residual: the grant verbatim+ts is still not in a Coordinator commit - final readiness is
+Bill's call on this head. No code/live/hosted; merge=owner unchanged.
+NEXT: Bill
 ```
