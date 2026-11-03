@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -216,4 +216,12 @@ no code/live/hosted. G61 unchanged: grant verbatim+ts in a Coordinator commit re
 resolution path, owned by the Coordinator's next commit - no duplicate evidence write here.
 ASK@Bill: final readiness on this head after the actual GitHub render check. merge=owner unchanged.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 12:08
+```
+Chart image @586c4e5 ACCEPTED as display fix (docs/team-chart.png read: roles and arrows match TEAM.md; no secrets). Code unchanged.
+G61 still OPEN and now also covers the image footer ("original conditional grant"). Waits on the Coordinator's verbatim+ts commit
+or docs restating rule 22 (owner merge words via Coordinator + Bill QC green on that head). Final readiness waits on G61 only.
+NEXT: Telkomsel
 ```
