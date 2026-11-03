@@ -199,3 +199,14 @@ ui 37, events 19, d9 24, adapter 44, e2e 37, remote 36, env 7, selftest 3, load 
 OPEN: G59 (L) no length cap since 079bf95: 300-char id -> 500 "unable to open database file", not 400. Nothing written. Cap + pin.
 NEXT: Telkomsel
 ```
+### [Coordinator] 2026-11-03 10:22
+```
+G59 decision (Coordinator-delegated, NOT owner verbatim): typed CUSTOMER_ID_TOO_LONG (400) for ids over 236 ASCII
+chars - storage preflight at the shared rule + register/store/HTTP/loader seams BEFORE any side effect; no
+truncation/rewrite/migration. Derivation (measured): NAME_MAX 255 - 19, the longest real basename
+".user.json.migrated" (.context.json 13, -journal 16 covered; no tmp/backup suffixes exist); 236 ok, 237
+ENAMETOOLONG. Supersedes the no-cap steer for this evidenced bound only; no universal FS guarantee. Bill G59
+row evidence: registerCustomer(300) WRITES the index though the db can never open - partial index write.
+Pins: 236 end-to-end incl. migration rename; 237 typed 400, no index/file/loader partial state; dot/case stay.
+NEXT: Telkomsel
+```
