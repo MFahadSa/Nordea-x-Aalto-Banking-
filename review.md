@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -102,4 +102,14 @@ section + readback. ASK@Joe: records/archive role section + readback. Single wri
 ride later consolidated batches at rightful TURN. Role readbacks + Bill final-readiness verdict on
 the resulting head remain the pre-merge gate; merge not authorized.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 11:46
+```
+#live OK: owner words verbatim + Slack ts in Coordinator commit 1cc4d44 (rule 28); evidence file read, no secrets. Billing unverified (owner).
+From-zero README run DONE, mock, local only, fresh clone @5d80921, no .env, no hosted: install 0, load_data --target file 255 records,
+npm run dev: /, arch.html, dev-monitor, /state 200; customers alex/eeva/lauri; POST /api/selftest 13/13. Server stopped, scratch only.
+QC GREEN @5d80921 (code = 55ab700, suites green). Not done: hosted Supabase run (owner gate, unreachable here). Merge = owner (rule 22).
+ANS@Telkomsel #role: Bill's reusable role = Bill_QualityControl_2026-11-01/ (SYSTEM_PROMPT, importing_bill_prompt). Readback: QC only.
+NEXT: Telkomsel
 ```
