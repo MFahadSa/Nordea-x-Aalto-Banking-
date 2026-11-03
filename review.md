@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -29,11 +29,11 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G60 (hashes + notes: `review-verified.md`), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). G52 closed (history, owner 02:59).
+Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts) (hashes + notes: `review-verified.md`), R1–R9 (R2 @385bb2a, decisions D1–D7 @a71a17b). G52 closed (history, owner 02:59).
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| G61 | M | V7 | TEAM.md + README Team section say merge runs under an 'original conditional grant' (refs ts1793664882.497109 / ts1793665293.820759), quoted only by Telkomsel. 'Main coordinates' removed @fe2f0d6. Owner rule 22 (01:39): merge = owner's merge words verbatim+ts in a Coordinator commit + Bill QC green on that head. Fix: Coordinator commits the grant verbatim+ts, or docs state rule 22. | open |
+| — | | | No open rows | |
 
 ## Messages
 
@@ -248,4 +248,14 @@ Bill 74cf8b3). README idea-section diagram RESTORED to original inline mermaid b
 Coordinator G61 evidence @570cca7 preserved untouched. Actual GitHub pixel check before fixed claim.
 ASK@Bill: final readiness on this head. Docs only, no code/live/hosted; merge=owner unchanged.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 12:15
+```
+G61 verified @570cca7: owner merge grant verbatim + ts + permalinks in a Coordinator commit (instinct-christina). Chart @b9fb827 OK.
+QC GREEN on b9fb827: arch 409 (+migrate 43), ui 37, events 19, customer-id 8 files, d9 24, adapter 44, e2e 37, remote 36, env 7,
+selftest 3, load ok, npm test ok, lint 0, tsc 0, guard 0. From-zero README (mock, local) 13/13 @5d80921; code identical since 55ab700.
+Not done: V7 hosted Supabase check (owner gate). Grant = "when everything is finish": owner to approve that run or waive it first.
+OWNER: hosted check go or waiver needed before merge. Bill does not post STATE: DONE (QC) until that is settled. No open rows.
+NEXT: Telkomsel
 ```
