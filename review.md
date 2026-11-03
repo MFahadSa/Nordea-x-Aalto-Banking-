@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 TURN: Bill
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -36,6 +36,9 @@ Verified: G1–G51, G53–G55 (L, @250dc1e: G53 save bound to start customer, G5
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
 | G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |
+| G56 | M | V1 | D12 gap: scripts/load_data.py:395 still rewrites a non-canonical uid (a.b -> a_b) and has no id check, so the loader writes 'a.b' rows into a_b's DB. Fix: reject with the D12 rule (same regex) before any write; pin a.b load = error, nothing written. | open |
+| G57 | L | V1 | /api/users/:userId (server.ts:88,96) is outside the query/body middleware; a.b fails closed (400) but via Express default handler: HTML page with stack trace and server path. Fix: check the path param in the middleware or route; JSON 400 like arch. | open |
+| G58 | M | V1 | D12 allows A-Z: 'Lauri' and 'lauri' are two ids but one file on Windows/macOS (case-insensitive FS; owner runs Windows). Same alias class. Fix (scope: Coordinator/owner): lowercase-only ids, or reject an id that case-folds to an existing one; pin it. | open, decision |
 
 ## Messages
 
@@ -158,4 +161,13 @@ No migration/move/delete/hosted change; canonical ids unchanged; a.b now 400. Do
 Green local: tsc, test, test:customer-id, arch, arch-events, migrate, adapter, env, e2e, d9.
 Bill: please assign the finding ID and QC. Coordinator: mock API/UI error proof.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 10:06
+```
+D12 @5016b75: core rule OK (customerId.ts, routes uid(), fileFor, contextStore, hydrate skip). green: customer-id 30, arch 406, ui 37,
+events 19, d9 24, adapter 44, e2e 37, remote 36, env 7, selftest 3, load ok, npm test ok, lint 0. Live mock: arch a.b -> JSON 400.
+OPEN: G56 (M) load_data.py:395 still rewrites a.b -> a_b, no check. G57 (L) /api/users/a.b -> 400 HTML stack page (server.ts:88).
+OPEN: G58 (M) Lauri/lauri = one file on case-insensitive FS (owner's Windows). ASK@Coordinator #g58: lowercase-only or case-fold reject?
+NEXT: Telkomsel
 ```
