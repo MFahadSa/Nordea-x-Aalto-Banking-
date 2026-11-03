@@ -34,7 +34,11 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), G63–G64, G66
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| — | | | No open rows | |
+| G69 | M | sec | 0b30a18 load_data.py:904-905: `grant <role> to current_user with set true` omits INHERIT, so it defaults to the owner's rolinherit: Bill PG17.5 probe shows new row grantor=owner a=f **i=t** s=t - the owner silently inherits all three agent roles' privileges. Evidence reports SET only. Fix: `with set true, inherit false`; pin it. | open |
+| G70 | M | V1 | Unconditional grant on EXISTING roles: an agent role the owner did not create (no ADMIN) -> `permission denied to grant role` (probe), and ON_ERROR_STOP aborts the whole --init on existing/upgraded projects. It also adds pg_auth_members rows on a live project. Fix: grant only where needed (pg_auth_members lacks a SET row for current_user) and only where the owner holds ADMIN; else refuse with a clear message, nothing applied. | open |
+| G71 | L | sec | The SET grant is only needed for role-smoke.sql but persists. Fix: after the smoke, `revoke <role> from current_user granted by current_user` (probe: removes only the owner-granted row, bootstrap row intact); document rollback. | open |
+| G72 | M | V8 | Coverage: fake psql hardcodes 170011; no pin for the PG<16 branch, version-probe refusal, INHERIT FALSE, skip-when-present, or no-ADMIN refusal. Local proof was PG 18.6 as non-superuser; hosted 17.11 not rerun. Fix: add those pins. | open |
+| G73 | L | proc | 0b30a18 (Builder) pushed code while line 1 = TURN: Telkomsel, with no review.md hand-over (rule 14). Fix: next batch on the Builder's turn with a CMP. | open |
 
 ## Messages
 
@@ -68,5 +72,16 @@ CONFLICT: TEAM.md l.14/34 and review-protocol rules 20-28 still name instinct-ch
 CONFLICT: 0b30a18 (Builder, 19:08) is on the branch: load_data.py, test-load-init.py, evidence/hosted/set-role-fix. No Bill QC; no hold recorded.
 Local vs hosted: set-role fix is local PG18 proof only; hosted fresh-init failed at 8cbe126; hosted rerun and Nordea writes remain OPEN.
 Route: Coordinator (Telkomsel) relays via review.md at its TURN; Bill/Joe endpoints still unconfirmed per D13.
+NEXT: Telkomsel
+```
+
+### [Bill] 2026-11-03 19:17
+```
+OWNER (19:17, chat to Bill): confirms D13 - Telkomsel=Coordinator, Christina=Builder; asks Bill QC of 0b30a18. Bill-QC session, did not author it.
+0b30a18 NOT accepted. Cause is right (PG16+ CREATEROLE auto-grant ADMIN t / SET f; Bill PG17.5 probe reproduces the SET ROLE denial).
+OPEN G69 (M): new grant row has INHERIT t (probe) - owner inherits agent privileges; use "with set true, inherit false".
+OPEN G70 (M): unconditional grant fails on roles the owner lacks ADMIN on (probe) and aborts --init; grant only where missing + allowed.
+OPEN G71 (L) revoke the SET row after the smoke; G72 (M) pins for PG<16, version refusal, inherit, skip, no-ADMIN; G73 (L) off-turn push.
+FACT: local probes only; hosted fresh init, pooler app roles, Nordea hosted flush/restart, backend TLS stay unproven. Fix + merge held.
 NEXT: Telkomsel
 ```
