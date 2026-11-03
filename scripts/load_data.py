@@ -894,11 +894,16 @@ def main() -> None:
         # SET ROLE grant for the smoke check (hosted failure 2026-11-03): on PG >= 16 a
         # non-superuser with CREATEROLE - hosted Supabase `postgres` - gets each role it creates
         # back only WITH ADMIN TRUE, SET FALSE, INHERIT FALSE, so role-smoke.sql's `set role`
-        # is denied even though pg_has_role(..., 'MEMBER') is true. Granting each agent role
-        # back to the connecting owner WITH SET TRUE adds a grant row the owner may create via
-        # its ADMIN OPTION (the documented mechanism); it changes no agent-role grants or RLS
-        # and gives the owner no rights it cannot already take. PG < 16 has no SET option
-        # (plain membership permits SET ROLE) and cannot parse WITH SET, so plain GRANT there.
+        # is denied even though pg_has_role(..., 'MEMBER') is true. The grant below either adds a
+        # PERSISTENT, cluster-level membership row for the connecting owner (grantor = owner;
+        # SET TRUE; INHERIT left unspecified, so it takes the member role's default) or, when a
+        # same-grantor membership already exists, raises only SET to TRUE and leaves that row's
+        # other options untouched (PG16 GRANT: omitted options retain existing values). The
+        # membership survives this session and setup run until explicitly revoked; the owner may
+        # grant it because it holds ADMIN OPTION on these roles (the documented mechanism). It
+        # changes no agent-role table grants or RLS. PG < 16 has no per-grant SET/INHERIT
+        # options (plain membership permits SET ROLE) and cannot parse WITH SET, so a plain
+        # GRANT is emitted there.
         set_clause = " with set true" if server_num >= 160000 else ""
         setrole_sql = "".join(
             "grant " + role + " to current_user" + set_clause + ";\n"

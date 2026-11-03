@@ -19,13 +19,13 @@ def check(name, cond, extra=""):
 
 PSQL_TEMPLATE = """#!/bin/sh
 case "$*" in *secretpw* ) echo 'password in argv' >&2; exit 9;; esac
-case "$*" in *server_version_num* ) echo '170011'; exit 0;; esac
+case "$*" in *server_version_num* ) echo 'VERSION_NUM'; exit 0;; esac
 case "$*" in *'select rolname'* ) PROBE exit PROBE_RC;; esac
 cat >"$PSQL_STDIN_CAPTURE"; echo 'smoke ok'
 exit 0
 """
 
-def make_root(probe_out="agent_user\nagent_cm\n", probe_rc=0):
+def make_root(probe_out="agent_user\nagent_cm\n", probe_rc=0, version="170011"):
     tmp = pathlib.Path(tempfile.mkdtemp())
     (tmp / "scripts").mkdir()
     shutil.copy(REPO / "scripts" / "load_data.py", tmp / "scripts" / "load_data.py")
@@ -34,7 +34,7 @@ def make_root(probe_out="agent_user\nagent_cm\n", probe_rc=0):
     bin_dir.mkdir()
     probe = ("printf '%s\\n' " + " ".join("'" + line + "'" for line in probe_out.splitlines())) if probe_rc == 0 else "echo 'pg_roles denied' >&2;"
     psql = bin_dir / "psql"
-    psql.write_text(PSQL_TEMPLATE.replace("PROBE", probe).replace("PROBE_RC", str(probe_rc)))
+    psql.write_text(PSQL_TEMPLATE.replace("PROBE", probe).replace("PROBE_RC", str(probe_rc)).replace("VERSION_NUM", version))
     psql.chmod(0o755)
     env = dict(os.environ)
     env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
@@ -75,6 +75,14 @@ tmp3, env3 = make_root(probe_rc=1)
 r3 = run(tmp3, env3)
 content3 = (tmp3 / ".env.local").read_text()
 check("pg_roles check failure refuses to provision (no blind credential writes)", r3.returncode != 0 and 'GEMINI_API_KEY="keep-me"' in content3 and "NORDEA_DB_URL" not in content3 and "secretpw" not in (r3.stdout + r3.stderr))
+
+tmp5, env5 = make_root(version="150006")
+r5 = run(tmp5, env5)
+stdin5 = (tmp5 / "stdin.sql").read_text()
+check("PG<16 branch: plain GRANT without WITH options (server cannot parse WITH SET; membership alone permits SET ROLE)",
+      r5.returncode == 0
+      and all(("grant " + r + " to current_user;") in stdin5 for r in ("agent_user", "agent_cm", "agent_nordea"))
+      and " with " not in stdin5.split("grant agent_user to current_user")[1].split(";")[0], stdin5[:400])
 
 print("FAILURES: " + ", ".join(fails) if fails else "ALL PASS")
 sys.exit(1 if fails else 0)

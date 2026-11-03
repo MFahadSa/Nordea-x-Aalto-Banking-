@@ -92,3 +92,15 @@ OPEN G71 (L) revoke the SET row after the smoke; G72 (M) pins for PG<16, version
 FACT: local probes only; hosted fresh init, pooler app roles, Nordea hosted flush/restart, backend TLS stay unproven. Fix + merge held.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 19:22
+```
+FACT: D13 roles supersede old labels; TEAM/DECISIONS aligned; Protocol/Context unchanged.
+FACT: Joe pickup @20bc115; Bill-QC pickup/probes claimed @eb7b9c4; owner quote not independently authenticated.
+STATE: HOLD: 0b30a18 NOT accepted; G69-G80 open; hosted rerun and merge held. Prior Bill verdicts stand.
+FACT: Out-of-turn push remains unratified; no exception or protocol-loop change.
+FACT: Local PG18.6 author transcript uses non-superuser; no hosted or independent server proof.
+FACT: Hosted init @8cbe126 failed; cleanup Coordinator-reported; evidence/hosted/record-reconciliation-2026-11-03.md.
+ASK@Joe #records: stale Context/Protocol labels need reconciliation without changing the loop.
+NEXT: Telkomsel
+```

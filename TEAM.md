@@ -1,5 +1,21 @@
 # Team
 
+## Current assignment (supersedes the historical chart and role labels below)
+
+The owner's 2026-11-03 takeover message (Slack `1793720929.858649`) assigns:
+
+- Telkomsel (`instinct-telkomsel`): Coordinator, including hosted testing, assignments, decisions and project updates.
+- Christina's Instinct (`instinct-christina`): Builder.
+- Joe: context memory.
+- Bill: independent QC. New code needs a reviewer who did not write it.
+
+Names do not swap with roles. Prior Bill verdicts stand. Merge remains on hold.
+The older Coordinator identity and writer labels below are historical, not the current assignment.
+The TURN/NEXT loop and handoff checks are unchanged; conflicts in `review-protocol.md` still need explicit reconciliation.
+Current holds and evidence limits: `evidence/hosted/record-reconciliation-2026-11-03.md`.
+
+## Historical chart and role description
+
 Five roles run this project. The chart shows who decides, who builds, who checks, and who keeps the record. Every block links to the written rules it follows.
 
 ![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-legend.png)

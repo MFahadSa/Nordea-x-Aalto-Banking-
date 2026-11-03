@@ -178,6 +178,32 @@ Why: owner role switch 2026-11-03 (Slack ts 1793720008.417839, 1793720066.664999
    sessions ran externally). The current Bill session endpoint is unverified, same as
    Joe. Both pickups via this record and review.md are pending, not confirmed.
 
+### D13 current-state addendum (2026-11-03)
+
+The owner's formal takeover message `1793720929.858649` supersedes older role mappings:
+Telkomsel is Coordinator, Christina is Builder, Joe retains context memory and Bill retains
+independent QC. Existing handoff checks and prior Bill verdicts remain in force. This addendum
+does not change the TURN/NEXT loop, grant a Builder turn or ratify an out-of-turn push.
+
+Joe's pickup is now recorded in `20bc115`. A Bill-QC session claims pickup and
+independent PG17.5 probes in `eb7b9c4`; that repository claim
+needs trusted-route confirmation before attributing owner instructions to that session.
+G69-G80 remain open and `0b30a18` is NOT accepted. Earlier pending-pickup text is historical.
+
+Coordinator reports that fresh hosted init at `8cbe126` failed on `SET ROLE agent_user`;
+its disposable project was deleted and cleanup verified. This supersedes the earlier temporary
+project handoff state above, not the historical record. The existing project was untouched.
+`0b30a18` is a proposed fix, not accepted: technical review, protocol reconciliation and
+permission checks remain separate. Proposed fix acceptance, hosted rerun and merge are HOLD.
+The out-of-turn push has no established exception and remains unratified.
+
+Local evidence includes an author-provided transcript of the current PG18.6 reproduction:
+`is_superuser=f`, `CREATEROLE=t`, pre-fix stdin141 failure and post-fix 26 PASS.
+This is local mechanism evidence, not an independently reproduced server run; the older
+PG16.2 run's identity is not recorded. Neither proves hosted fresh init,
+app-role pooler access, Nordea flush/restart or end-to-end TLS. Details and source limits:
+`evidence/hosted/record-reconciliation-2026-11-03.md`.
+
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the
   Coordinator's delegated interpretation; D4 scope narrowed to unchanged approved/stored content
