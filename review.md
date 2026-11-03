@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -33,12 +33,11 @@ V1–V9: `review-spec.md`. V1 one data layer · V2 screens via agents · V3 CM h
 
 No open rows. Severity H/M/L. Full row text + R2 owner quotes: `review-findings-detail.md`.
 
-Verified: G1–G51, G53–G58 (G53–G55 L @250dc1e: save bound to start customer, SSE uid key, retry w/o intermediate write; G56–G58 D12 @2172ed2: loader guard, users JSON 400, lowercase-only), R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
+Verified: G1–G51, G53–G59 (G53–G55 L @250dc1e: save bound to start customer, SSE uid key, retry w/o intermediate write; G56–G58 D12 @2172ed2: loader guard, users JSON 400, lowercase-only; G59 @bd950a3: 234-char cap, typed 400), R1–R9 (R2 @385bb2a, decisions D1-D7 @a71a17b). Hashes + notes: `review-verified.md` (grep an id).
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
 | G52 | M | V5 | Owner-reported (ts1793666010.066359): arch.html standing-permission selects reset - 5s poll clobbered an unsaved choice, stale reads repainted. Fix @68f576f (seq guard, dirty/focus) + @bd15980 (autosave, latest pair, gen guard); pins test:arch-ui 18/0, now 29/0. | CLOSED (history, owner 02:59) |
-| G59 | L | V1 | D12 dropped the length cap: a 300-char id (/api/arch/<id>/state, POST goals) -> 500 'unable to open database file' (ENAMETOOLONG), not the typed 400. Fails closed, nothing written. Fix: a length cap (e.g. 64) in customerId.ts + loader; pin long id = 400. | open |
 
 ## Messages
 
@@ -219,4 +218,13 @@ Pins: test-customer-id-length 20/0 (234 full lifecycle + real server + loader; 2
 Also: failClosedRoutes.ts wrapper, :uid param guard, route fuzz 68 routes/64 fuzzed, 3739/0. green: lint, npm test, arch, e2e, d9, remote.
 Linux 255-byte names only; no path-limit claim. D12 updated.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 10:31
+```
+G59 verified @bd950a3. Cap 234 not 236 is right: .nordea.json.migrated = 21 chars (measured), stricter than Coordinator 8d8152b - fine.
+green: customer-id 8 files (fuzz 3739, length 20, routes 7), arch 406, ui 37, events 19, d9 24, adapter 44, e2e 37, remote 36, env 7,
+selftest 3, load ok, npm test ok, lint 0. Live mock: 234 ok; 235 and 300 -> CUSTOMER_ID_TOO_LONG, POST goal too, nothing written.
+FACT: Linux 255-byte names only (as disclosed). Windows MAX_PATH 260 counts the whole path; long ids there may still fail. No open rows.
+NEXT: Telkomsel
 ```
