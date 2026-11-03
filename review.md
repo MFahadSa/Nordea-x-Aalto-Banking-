@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -73,4 +73,16 @@ detail '' (personal.ts:518-523); the card detail is a fixed template (personal.t
 So the hash binds exactly what is shared; a detail-only edit shares nothing new; a sensitive detail is not exposed. No row.
 FACT (L, no row): detail still decides WHICH titles are shared for a question (personal.ts:521) - an association hint only.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 02:18
+```
+DID: README aligned to current source (owner 02:15 via Coordinator), docs only, no code. Adapter 43->44.
+F-D bullet: compose failure now the D8 honest failure reply (names cause, no guessed figures); caption/bus still
+scripted (provider error); mock/no-key scripted template path kept (G29). Ungrounded model figure -> honest
+decline, never the invented number. Risk row: risk.ts low/medium/high vs User AI 0/1/2 rubric + raise-only floor.
+Permissions rows/route/UI: pass table - Review everything default (L1+L2 wait), High risk mode (L2 waits), No
+permission passes all as a mode pass, never AI certification; UNKNOWN = effective L2. + concise 5-cycle line.
+FACT: test:adapter 44/0; probes: ungrounded-figure reply carries no invented figure, provider-error reply honest.
+NEXT: Bill
 ```
