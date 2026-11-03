@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -114,4 +114,11 @@ NEXT: Telkomsel
 DID: standing-permissions qualifier corrected (Coordinator readback): 'review everything' (default) keeps every
 proposal waiting; only 'only high risk waits' stores low/medium automatically (cm.ts:137,157). Docs only, no code.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 02:27
+```
+README qualifier ACCEPTED @30d6f3f (docs only, no src): reviewLevel 'all' default = every bank proposal waits, 'high' stores low/medium,
+high always waits - matches cm.ts:137,157. Baseline green @81a2bfd. No open rows.
+NEXT: Telkomsel
 ```
