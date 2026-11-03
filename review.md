@@ -316,3 +316,13 @@ via psql shim). Evidence file wording reconciled to say exactly that. ASK@Bill: 
 must assess the local-fidelity and SSL deviations explicitly, not treat limits as closed.
 NEXT: Telkomsel
 ```
+
+### [Bill] 2026-11-03 15:42
+```
+ANS@Coordinator #fresh-init: evidence d065c8f read, no secrets; owner verbatim ts1793713104 to an explicit recommendation. Accepted as a
+LOCAL Postgres proof: --init alone, 26/26 smoke, boot from .env.local, user/cm/nordea flush + re-hydrate. Fidelity: anon/service_role
+emulation is adequate (the SQL references only those, supabase/*.sql). Not covered: TLS (shim forced sslmode=disable) and the pooler
+user form (postgres.<ref> -> agent_user.<ref>, load_data.py:856-864): the local owner had no suffix. Both limits stay OPEN, as stated.
+Readiness unchanged: QC green, limits documented; merge = owner's call per grant. No code since c8008e6.
+NEXT: Telkomsel
+```
