@@ -32,11 +32,46 @@ export const mockProvider: LlmProvider = {
     if (tools.some((t) => t.name === 'proposeEntries')) {
       return { calls: [call('proposeEntries', { kind: 'notes', summary: 'Your travel notes.', items: [{ type: 'goal', title: 'Trip to Japan', quote: 'Japan next spring, about 4000', sensitive: false, targetAmount: 4000, targetDate: '2027-04-30' }] })] };
     }
+    // G4/V4: the arch agents' planning tools get deterministic mock plans, so tests drive
+    // the LLM path end to end (real providers answer the same tools live).
+    if (tools.some((t) => t.name === 'finishRiskLevels')) {
+      // R2: the User AI level call. Read the own goals first (the tool loop a real model runs), then answer every
+      // card by the plain rubric reading for a typed goal: level 0, evidence = the goal row. The code floor raises
+      // sensitive ones; tests that need other answers swap in their own step.
+      if (!turns.some((x) => x.role === 'tool_results')) return { calls: [call('listMyGoals', {})] };
+      const cards = [...lastUserText(turns).matchAll(/^- card (\S+) \|/gm)].map((m) => m[1]);
+      return { calls: [call('finishRiskLevels', { levels: cards.map((id) => ({ card: id, level: 0, reason: 'mock: a goal the customer typed, restated without new claims (rubric L0)', evidence: [`goal:${id}`] })) })] };
+    }
+    if (/personal banking assistant agent/.test(system ?? '')) {
+      // The personal agent's reply composer: first read its own User DB (the tool loop a
+      // real model runs), then echo the most figure-bearing fact line. Figures stay
+      // byte-identical so the grounded-figure guard passes exactly as it must live.
+      if (tools.some((t) => t.name === 'listMyGoals') && !turns.some((x) => x.role === 'tool_results')) {
+        return { calls: [call('listMyGoals', {})] };
+      }
+      const facts = [...lastUserText(turns).matchAll(/^- (.+)$/gm)].map((m) => m[1]);
+      const withNum = facts.find((f) => /\d/.test(f)) ?? facts[0] ?? '';
+      return { calls: [call('finishReply', { reply: withNum ? `based on your records: ${withNum}.` : 'i do not have enough in your records to answer that yet.' })] };
+    }
+    if (tools.some((t) => t.name === 'finishRetrievalPlan')) {
+      const titles = (lastUserText(turns).match(/goal titles: (.+)$/mi)?.[1] ?? '').split(';').map((s) => s.trim()).filter(Boolean);
+      const firstTurn = turns.find((x) => x.role === 'user');
+      if (turns.some((x) => x.role === 'tool_results')) {
+        return { calls: [call('finishRetrievalPlan', { goalTitles: titles, reason: 'mock: every goal needs fresh evidence' })] };
+      }
+      void firstTurn;
+      return { calls: [call('listMyEntries', {})] };
+    }
+    if (tools.some((t) => t.name === 'finishMatchTerms')) {
+      const titles = (lastUserText(turns).match(/goal titles: (.+)$/mi)?.[1] ?? '').split(';').map((s) => s.trim()).filter(Boolean);
+      if (turns.some((x) => x.role === 'tool_results')) {
+        return { calls: [call('finishMatchTerms', { terms: Object.fromEntries(titles.map((g) => [g, ['wash']])) })] };
+      }
+      return { calls: [call('listMyCategories', {})] };
+    }
     const u = lastUserText(turns);
     if (last.role === 'user') {
       if (/make up a number/.test(u)) return { calls: [call('finishReply', { text: 'You have 99 999 € hidden somewhere.', suggestions: [], usedEntryIds: [], topic: 'other', couldHelp: true })] };
-      if (/(look|search|find).*(flat|house|apartment)|for sale/.test(u)) return { calls: [call('suggestPartnerOffer', { partnerId: 'homes' })] };
-      if (/financial advice/.test(u)) return { calls: [call('suggestPartnerOffer', { partnerId: 'planner' })] };
       if (/on track/.test(u)) return { calls: [call('getGoalStatus')] };
       if (/yes, move|move 300/.test(u)) return { calls: [call('offerTransfer', { amountPerMonth: 300 })] };
       if (/yes, show me|payday|plan my/.test(u)) return { calls: [call('getPayPlan')] };
@@ -61,8 +96,6 @@ export const mockProvider: LlmProvider = {
       } else if (r.call.name === 'getPayPlan') {
         text = `Your next salary is ${res.income.toLocaleString('fi-FI')} €. About ${res.spendingAveragePerMonth.toLocaleString('fi-FI')} € goes on spending. I’d suggest moving ${res.suggestedExtraMove} € more each payday.`;
         used = homeId ? [homeId] : [];
-      } else if (r.call.name === 'suggestPartnerOffer') {
-        text = res.shown ? 'Since you’re saving for a home, this might help.' : 'Okay.';
       } else if (r.call.name === 'offerTransfer') {
         text = 'Here you go, just confirm below 👇';
       } else if (r.call.name === 'proposeCabinetChange') {

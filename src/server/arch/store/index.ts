@@ -8,7 +8,7 @@ export * from './cmStore.js';
 export * from './nordeaStore.js';
 export * from './busStore.js';
 export * from './contextStore.js';
-export { fileFor, deleteDbFile } from './common.js';
+export { fileFor, deleteDbFile, listCustomers, listStoredIds, registerCustomer, unregisterCustomer } from './common.js';
 import { deleteUserDb } from './userStore.js';
 import { deleteCmDb } from './cmStore.js';
 import { deleteNordeaDb } from './nordeaStore.js';

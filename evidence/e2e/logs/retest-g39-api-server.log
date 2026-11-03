@@ -1,0 +1,21 @@
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+◇ injected env (0) from .env.local // tip: ⌘ enable debugging { debug: true }
+AI provider: https://api.groq.com/openai/v1 (openai/gpt-oss-120b)
+(node:1118) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Database: agent stores hydrated from hosted tables: user (16 rows), cm (53 rows), nordea (471 rows)
+Database: Supabase (5 customers in the three databases)
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:11:27). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+Server listening on http://0.0.0.0:3000 (Node: v22.23.4)
+[llm] paid call 1/20: Groq openai/gpt-oss-120b
+[llm] paid call 2/20: Groq openai/gpt-oss-120b
+[llm] paid call 3/20: Groq openai/gpt-oss-120b
+[llm] paid call 4/20: Groq openai/gpt-oss-120b
+[llm] paid call 5/20: Groq openai/gpt-oss-120b
+[llm] paid call 6/20: Groq openai/gpt-oss-120b
+[llm] paid call 7/20: Groq openai/gpt-oss-120b
+AI chain: Groq openai/gpt-oss-120b failed (other); trying the next one.
+[llm] paid call 8/20: Groq qwen/qwen3.8-27b
+SIGTERM received: draining hosted flushes before exit.

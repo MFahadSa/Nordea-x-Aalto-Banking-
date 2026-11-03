@@ -29,7 +29,9 @@ export function dispatchPending(uid: string, opts?: { maxDeliver?: number; onDel
     const bus = loadBus(uid);
     const off = getAgentsOff(uid) ?? [];
     const deliverable = bus.messages.filter((m) =>
-      m.status === 'pending' && m.to !== 'user' && m.type !== 'propose' && !off.includes(m.to as AgentId));
+      // The off-switch gates an agent's REASONING (queries, rounds), never storage or
+      // operations: control messages (app writes, park, status) are always delivered (G2).
+      m.status === 'pending' && m.to !== 'user' && m.type !== 'propose' && (m.type === 'control' || !off.includes(m.to as AgentId)));
     const leftPending = deliverable.filter((m) => !handlers.has(m.to as AgentId)).length;
     const next = deliverable.find((m) => handlers.has(m.to as AgentId));
     if (!next) return { delivered, leftPending };

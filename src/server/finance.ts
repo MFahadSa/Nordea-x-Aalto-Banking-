@@ -182,9 +182,3 @@ export function affordability(userId: string, amount: number) {
   };
 }
 
-/** Partner fee, computed in code from the partner manifest. */
-export function partnerFee(fee: { type: string; value: number }, price: number): number {
-  if (fee.type === 'percent') return Math.round(price * fee.value);
-  if (fee.type === 'percentOfYear') return Math.round(price * 12 * fee.value);
-  return Math.round(fee.value);
-}
