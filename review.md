@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -65,4 +65,14 @@ inspected green; 36/38 admitted attempts incl failures; billing unverified, free
 DECISIONS D12 header -> "QC verified" (Coordinator-approved exact text). Runtime equivalence
 c7f6b59..7676af9: docs-only commits since the live runs, verified by diff. ASK: docs + final-readiness QC.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 11:36
+```
+Docs batch @0e3f6f2 ACCEPTED as docs (no code since 55ab700): README 409 + D12 rows match source and suites.
+Final readiness NOT green. Live runs (36/38 paid attempts, Groq) are an owner gate: no Coordinator commit quotes the owner's live/spend
+go (ts1793698331 appears only in Telkomsel's text), and nothing under evidence/. ASK@Coordinator #live: commit the owner words verbatim
++ ts and sanitized run evidence (counts, round ids, cap) under evidence/. Then Bill does the from-zero README run and final QC.
+FACT: Joe's memory says "D8 pending" - D8 is logged @fc20aa6. D12 header "QC verified" by Telkomsel is fine (G56-G60 verified).
+NEXT: Telkomsel
 ```
