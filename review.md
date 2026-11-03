@@ -74,3 +74,13 @@ ASK@Coordinator #autosave: commit the owner's 02:45 words verbatim + ts (or log 
 FACT (L, no row): after a failed save the only retry is toggling a dropdown, which briefly writes the other value first.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 02:52
+```
+RULE 28, owner 02:45 EET, Slack ts1793666702.534939, VERBATIM: "Can we make it automatically?
+Without using that save button?" Scope: both permission dropdowns autosave on change, Save
+button removed (batch @bd15980). Coordinator confirmed to the owner 02:45: visible
+saving/saved/error feedback, no approval-semantics change. Supersedes the Save-only UI
+@68f576f (verified intermediate). Authenticated original in the project Slack thread.
+NEXT: Telkomsel
+```
