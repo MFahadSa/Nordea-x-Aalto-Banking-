@@ -19,8 +19,9 @@ def check(name, cond, extra=""):
 
 PSQL_TEMPLATE = """#!/bin/sh
 case "$*" in *secretpw* ) echo 'password in argv' >&2; exit 9;; esac
+case "$*" in *server_version_num* ) echo '170011'; exit 0;; esac
 case "$*" in *'select rolname'* ) PROBE exit PROBE_RC;; esac
-cat >/dev/null; echo 'smoke ok'
+cat >"$PSQL_STDIN_CAPTURE"; echo 'smoke ok'
 exit 0
 """
 
@@ -38,6 +39,7 @@ def make_root(probe_out="agent_user\nagent_cm\n", probe_rc=0):
     env = dict(os.environ)
     env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
     env["SUPABASE_DB_URL"] = "postgresql://owner:secretpw@db.example:5432/postgres"
+    env["PSQL_STDIN_CAPTURE"] = str(tmp / "stdin.sql")
     return tmp, env
 
 def run(tmp, env, **extra):
@@ -57,6 +59,13 @@ content = (tmp / ".env.local").read_text()
 check(".env.local merge: unrelated keys preserved", 'GEMINI_API_KEY="keep-me"' in content and "SUPABASE_DB_URL" in content, content)
 check("existing managed URLs preserved when no validated replacement (G64d: rerun never deletes working config)", 'USER_DB_URL="postgresql://stale:oldpw@db.example:5432/postgres"' in content and "CM_DB_URL" not in content, content)
 check("new role URL written under the app key name NORDEA_DB_URL", 'NORDEA_DB_URL="postgresql://agent_nordea' in content, content)
+stdin_sql = (tmp / "stdin.sql").read_text()
+check("every agent role is granted back to the owner WITH SET TRUE (PG16+ hosted SET ROLE fix), including pre-existing roles",
+      all(("grant " + r + " to current_user with set true;") in stdin_sql for r in ("agent_user", "agent_cm", "agent_nordea")), stdin_sql[:400])
+check("only the missing role gets a generated password (existing roles never rotated)",
+      "create role agent_nordea login password" in stdin_sql
+      and "create role agent_user login password" not in stdin_sql
+      and "create role agent_cm login password" not in stdin_sql, stdin_sql[:400])
 r2 = run(tmp, env, AGENT_USER_PASSWORD="knownpw2")
 content2 = (tmp / ".env.local").read_text()
 check("rerun with the matching env password writes that role URL", r2.returncode == 0 and 'USER_DB_URL="postgresql://agent_user:knownpw2@' in content2, (r2.stdout + r2.stderr)[-200:] + " || " + content2)

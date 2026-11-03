@@ -881,6 +881,28 @@ def main() -> None:
                      + (scrub(probe.stderr).strip().splitlines() or ["unknown error"])[-1]
                      + ". Refusing to provision credentials blindly; no changes were made.")
         existing = set(probe.stdout.split())
+        ver = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-tA", "-c", "show server_version_num"],
+                             text=True, capture_output=True, env=env)
+        try:
+            server_num = int((ver.stdout or "").strip())
+        except ValueError:
+            server_num = 0
+        if ver.returncode != 0 or server_num <= 0:
+            sys.exit("could not determine the PostgreSQL server version via server_version_num: "
+                     + (scrub(ver.stderr).strip().splitlines() or ["unknown error"])[-1]
+                     + ". Refusing to provision roles without the right SET ROLE grant form; no changes were made.")
+        # SET ROLE grant for the smoke check (hosted failure 2026-11-03): on PG >= 16 a
+        # non-superuser with CREATEROLE - hosted Supabase `postgres` - gets each role it creates
+        # back only WITH ADMIN TRUE, SET FALSE, INHERIT FALSE, so role-smoke.sql's `set role`
+        # is denied even though pg_has_role(..., 'MEMBER') is true. Granting each agent role
+        # back to the connecting owner WITH SET TRUE adds a grant row the owner may create via
+        # its ADMIN OPTION (the documented mechanism); it changes no agent-role grants or RLS
+        # and gives the owner no rights it cannot already take. PG < 16 has no SET option
+        # (plain membership permits SET ROLE) and cannot parse WITH SET, so plain GRANT there.
+        set_clause = " with set true" if server_num >= 160000 else ""
+        setrole_sql = "".join(
+            "grant " + role + " to current_user" + set_clause + ";\n"
+            for role in ("agent_user", "agent_cm", "agent_nordea"))
         role_sql = ""
         role_urls = {}
         kept_existing = []
@@ -901,7 +923,7 @@ def main() -> None:
                          "then create role " + role + " login password '" + pw.replace("'", "''") + "'; end if; end $$;\n")
             role_urls[role_key[role]] = role_url(role, pw)
         res = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],
-                             input=role_sql + sql + "\n" + smoke, text=True, capture_output=True, env=env)
+                             input=role_sql + setrole_sql + sql + "\n" + smoke, text=True, capture_output=True, env=env)
         if res.returncode != 0:
             sys.exit("psql failed: " + (scrub(res.stderr).strip().splitlines() or ["unknown error"])[-1])
         # Merge the role URLs into .env.local (0600): unrelated keys (SUPABASE_DB_URL,
