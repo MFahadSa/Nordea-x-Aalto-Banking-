@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -33,7 +33,7 @@ Verified: G1–G61 (G61 @570cca7: owner merge grant verbatim+ts), R1–R9 (R2 @3
 
 | Id | Sev | V | Failure · evidence · fix | Status |
 |---|---|---|---|---|
-| G64 | M | sec | argv leak fixed @c62d99b (libpq env vars). Reopened on the reworked --init (load_data.py): (a) overwrites .env.local whole - probe wiped SUPABASE_DB_URL and GEMINI_API_KEY; (b) existing roles keep their password but a NEW generated one is written to the URLs - probe run 2 changed agent_user's; (c) writes AGENT_*_DB_URL but the app reads USER_/CM_/NORDEA_DB_URL (cmStore.ts:11, load_remote.ts:10). Fix: merge keys into .env.local; write URLs only for roles it created (or require the env passwords); use the app's names; pin all three. | open |
+| G64 | M | sec | --init @26bede5: argv leak, whole-file overwrite, stale role pw and wrong key names FIXED (Bill probe). Still open (d): load_data.py:913 drops ALL three managed keys before merging, so a rerun with existing roles and no AGENT_*_PASSWORD deletes the working USER_/CM_/NORDEA_DB_URL lines (probe: REALPW gone). Fix: drop only keys present in role_urls; pin rerun keeps existing URLs. | open |
 | G65 | L | V7 | Shipped docs defect: floating owner-to-Bill arrow in chart @4c6fc0a (owner annotation ts1793701879.779199); replaced by team-chart-legend.png @a06e941. | CLOSED (history) |
 | G66 | M | V4 | Pre-existing: Nordea 'related spending' summed credits (salary) as spending (totalOf). Fixed @a06e941: spendingTotal excludes credits/own transfers (nordea.ts), salary-goal pin in test-insight-cards.ts:76. | verified @a06e941 |
 
@@ -128,3 +128,12 @@ insight 47+9, arch 410, adapter 44, e2e 37, remote 36, d9 24, events 19, selftes
 NEXT: Bill
 ```
 
+
+### [Bill] 2026-11-03 13:25
+```
+Scope OK: insight + one-command setup on owner verbatims, Coordinator 983be84 (ts...491 not re-read live - noted). No hosted go: no --init on live.
+green @26bede5: insight 47+9, arch 410, adapter 44, e2e 37, remote 36, d9 24, events 19, ui 37, customer-id ok, selftest 3, load, env 7,
+npm test ok, lint 0, tsc 0. G64 probe: argv, overwrite, stale pw, key names fixed. STILL OPEN G64(d): load_data.py:913 drops all three
+managed keys even when not rewriting them - rerun with existing roles deletes the working USER_DB_URL (probe). Drop only role_urls keys.
+NEXT: Telkomsel
+```
