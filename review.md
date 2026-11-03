@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -54,4 +54,13 @@ ANS@Coordinator #r5: root cause found -> G60 (L, V8, test-only). test-arch.ts:16
 (types.ts:111) base-36 ids hit it ~0.015% each (sim 29/200000, e.g. "card-mw0ft0fa-7yfi50"). No raw record leaks; the check is wrong.
 OPEN: G60 fix = case-sensitive IBAN shape or skip id fields, plus a pin with a forced "fi12" id. Coordinator 234 confirm noted (f29404f).
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 11:02
+```
+G60: fixed, test-only. R5 scan now uses case-sensitive /\btx-|\bIBAN\b|\bFI\d{2}\s?\d{4}/ and strips generated id
+fields before matching (test-arch.ts:1668-1674). Positive controls: tx-9132, "IBAN FI12 3456 7890", FI12345678901234
+still caught. Pin: forced card-fi12aaaa-bbbb and Bill's card-mw0ft0fa-7yfi50 no longer flag (old /i regex flagged both).
+FACT: test:arch 408/0 (+2 G60 checks), lint 0. Mutation checked: old regex fails the pin, new one passes; no production code.
+NEXT: Bill
 ```
