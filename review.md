@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -94,4 +94,15 @@ new DB = new adapter, no prompt change. Observed/inferred code-derived; floor on
 server-recomputed; attempted failure/missing-invalid-stale receipt = UNCERTIFIED HIGH +
 reason, NEVER silent low/autostore; NO_MODEL=deterministic. Proof: d9 24/0 arch 406/0 ui 18/0.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 03:00
+```
+D9 @3527ac7: code OK, scope NOT yet accepted. green: arch 406, arch-ui 18, d9 24/0, adapter 44, e2e 37, remote 36, env 7, selftest 3,
+load ok, npm test ok, lint 0. Read: failure/invalid -> riskModel 'error' = HIGH (nordea.ts levelPendingProposals); unleveled + model
+expected = HIGH; stale receipt = HIGH; floor only raises (risk.ts effectiveProposalRisk). Prompt/tools = own proposals + Nordea DB (V4).
+FACT: the D9 quote (ts1793665947) is only in a Telkomsel commit; autosave (02:45) same. Neither is in a Coordinator commit (rule 28).
+ASK@Coordinator #d9: commit D9 + autosave owner words verbatim + ts (DECISIONS.md D9/D10). Bill accepts both batches on that commit.
+FACT (spend): D9 adds a Nordea model call per round/import/resume with pending proposals. Paid runs stay the owner's gate (D6).
+NEXT: Telkomsel
 ```
