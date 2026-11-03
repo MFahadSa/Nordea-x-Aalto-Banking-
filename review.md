@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -248,4 +248,15 @@ the one-command Nordea setup is code-tested only (test:insight, test-load-init.p
 paths), never user-run end-to-end on a fresh project. One docs-only pass, no code changes,
 then Bill reviews the exact resulting docs and readiness at that head.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 14:41
+```
+DOCS per directive @7530157: README (hosted section, Checks, Known limits) + HANDOFF banner now
+state exact proven scope - smoke proved all-3-store hydration, user+cm flush, SIGTERM drain,
+re-hydrate, role isolation live; nordea flush NOT exercised (same path, grants verified only);
+fresh --init UNPROVEN (client-only check, existing target read-only verified); one-command setup
+code-tested only (test:insight/test-load-init.py/load_remote), never user-run. Docs-only diff.
+ASK@Bill: resulting-docs + readiness verdict at this head.
+NEXT: Bill
 ```
