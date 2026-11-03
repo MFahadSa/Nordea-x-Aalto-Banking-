@@ -121,7 +121,7 @@ Identity disclosure: a customer's identity IS the sanitized store filename (`fil
    (common.ts:344); the 5 existing customers are simple ids, no observed collision. Normalizing
    or rejecting aliases at registration is a behavior change and stays an owner scope decision.
 
-## D12 - Fail-closed customer ids (implemented 2026-11-03; QC in progress)
+## D12 - Fail-closed customer ids (implemented 2026-11-03; QC verified)
 Decision: a customer id is canonical only if it is one or more of `[a-z0-9_-]`: lowercase only, at most 234 characters.
    Anything else (`a.b`, `a b`, `a/b`, email-like ids, `Lauri`) is rejected with a typed error, never
    rewritten, never lowercased for the caller. Lowercase-only was chosen by the Coordinator under the

@@ -1,10 +1,36 @@
 # Successor blueprint: Nordea x Aalto banking prototype, branch instinct-prototype-v3
 
-> STALE as of 2026-11-03 01:45: R2 @385bb2a, cycles @616f869 and the prep-r2 dataset @d23eb10 are pushed and Bill-accepted. Current state: `review.md`, `DECISIONS.md`.
+> STALE as of 2026-11-03 11:30 EET (reported time): sections 0-8 below are the historical 01:45 R2 handback record, kept as evidence. Current state: `review.md`, `DECISIONS.md` (D1-D12). Since this record: cycles landed and Bill-accepted @616f869 (D8, Bill @97d6cb1); D9/D10/D11 accepted (Coordinator f85503f; implemented 3527ac7, bd15980, b8d22d1; G53-G55 closeout 250dc1e); D12 fail-closed customer ids implemented @bd950a3 with docs @4554dac (234-char storage preflight ratified 10:34, superseding the 236 first count); G60 arch-test false positive fixed test-only @55ab700 (top-level-only card-id omission, case-insensitive detection restored; arch 409/0, Bill c7f6b59). The section-0 open items are resolved: R2 and cycles are pushed and Bill-accepted; the default-cap question is answered by D6 (config unchanged, no spend approved); the four R2 policies are settled as D1-D7. Live-provider verification is a pending, separately owned Coordinator run - no live claims here are updated by this note.
 
 Project handoff only. Repo: coolkowkank/Nordea-x-Aalto-Banking-. All fixtures are synthetic and NOT live.
 Refreshed 2026-11-03 by the temporary successor (identity `instinct-telkomsel`) after ONE batch: **R2 model-assigned level**.
 This copy replaces the older repo copy; it is based on the attachment the owner supplied for this session.
+
+## 0a. LIVE VERIFICATION STATUS (2026-11-03, EET reported times) - FINAL bounded retry PASS, caveats kept
+Coordinator-owned bounded live runs on production code c7f6b59 (sole live owner; no other live calls made).
+- Run 3 (bounded retry of max 10 admitted attempts, approved by the originating user ts 1793698331.463079
+  after run 2's real 429): organic goal add "Save for camera"; round-mw0hozqn-qw2i stored 09:32:44Z; CM +
+  Nordea MODEL; all three agents (Personal/CM/Nordea) model-finished SIMULTANEOUSLY, API-verified. BOTH-VIEW
+  verification COMPLETE: the Coordinator's Main inspected BOTH actual run-3 rendered screenshots (arch view
+  and monitor): all three green, model plans, and the actual cabinet entry.
+- Admitted attempts (LOCAL preflight counter; llm.ts logs '[llm] paid call N/cap' BEFORE the HTTP request):
+  TOTAL 36 against the 38 ceiling - run 1: primary 18 + qwen 2; run 2: primary 6 + qwen 2; run 3: primary 7 +
+  qwen 1 (8 of the 10-attempt bound; no 429/cap in run 3). Attempts INCLUDE failures; NOT successes, tokens,
+  credits, verified charges, or an independent wire capture. Over-cap refusals and chain walks are not
+  admitted calls. Seed/mock driver 0; no competing run.
+- Earlier partial history kept honest: 400 output_parse_failed, NO_CALLS and cap errors occurred; run 2
+  contribution stored 09:25:47Z (plan CM model / Nordea cap error); a Groq 429 (output tokens per minute on
+  the qwen fallback) ended run 2 - its 12s retry-after was honored, the local cap then refused, and ZERO
+  post-429 admitted attempts were logged (local-counter evidence, not a wire capture). The manual
+  /api/rounds/contribute 404 was a TEST DRIVER wrong route, NOT a product defect (real triggers - goal add,
+  import - are source-verified).
+- Billing: UNVERIFIED - the free-tier characterization is user-stated only; no free-allowance or dollar
+  claim is made or implied.
+- Code equivalence: the Coordinator verified application/config equivalence live c7f6b59 -> 7676af9 (only
+  review/archive/docs commits between); the live runs ran on the same runtime code as the current head. The
+  temporary Groq env was removed, server and Chrome stopped, evidence sanitized, synthetic stores preserved;
+  NO further calls.
+- Scope unchanged: no hosted writes, no migration, no merge; main remains unmerged.
 
 ## 0. INCOMPLETE WORK (read first)
 - **cycles is NOT pushed and NOT suite-run in full.** It was rebased onto ec6b19c, then paused when the owner chose R2 as the
@@ -79,9 +105,11 @@ the R2 push; expect conflicts in `chat()` (cycles adds the review loop; R2 adds 
 ## 5. Known defects and caveats
 - See section 0 (main-app sync writes level later; extra model call per new card; real model unproven).
 - Auto insights run extra model calls per goal change. Confirm/undo state is in memory only. Cross-provider handover mid-run unproven live.
-- README arch count = 395 on this push; must match the real total when cycles lands.
+- README arch count = 395 on this push; must match the real total when cycles lands. (Resolved: 409 as of @55ab700.)
 - review.md protocol: write only when line 1 is `TURN: Telkomsel`; entry max 8 lines x 150 chars ending `NEXT: Bill`; run
   `npm run check:review` after the final edit; one squashed commit per push; fetch and verify TURN before push; no force-push.
+- Set git user.name/email (instinct-telkomsel) on EVERY fresh clone before committing: @55ab700 was mis-authored
+  "Instinct Agent" (recorded by Bill as information only; no history rewrite - force-push is forbidden).
 
 ## 6. Next steps (recommendation; work stays paused until the owner says otherwise)
 1. Bill: QC this R2 push (rubric decision L0 for typed goals, UNKNOWN handling, re-gate, UI pixels, the four changed test setups).

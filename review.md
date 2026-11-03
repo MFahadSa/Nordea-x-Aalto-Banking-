@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -56,4 +56,13 @@ G60 verified @55ab700 (test-only). Top-level id omit only; /i detection kept; ne
 Cards carry only one random field (id); others are text, counts, ISO time (orchestrator.ts:487-492), so the flake source is closed.
 FACT: commit author is "Instinct Agent", not instinct-telkomsel - information only. No open rows.
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-03 11:36
+```
+Docs batch, no code: README arch 409 + test:customer-id row + D12 canonical-234 fail-closed (no migration);
+HANDOFF-BLUEPRINT staleness refresh + final live status (run3 all-3 model-finished API-verified, both views
+inspected green; 36/38 admitted attempts incl failures; billing unverified, free-tier user-stated);
+DECISIONS D12 header -> "QC verified" (Coordinator-approved exact text). Runtime equivalence
+c7f6b59..7676af9: docs-only commits since the live runs, verified by diff. ASK: docs + final-readiness QC.
+NEXT: Bill
 ```

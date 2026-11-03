@@ -224,6 +224,8 @@ With a provider configured (`GEMINI_API_KEY` or `LLM_PROVIDER=openai`), all thre
 
 Under `/api/arch/` (`src/server/arch/routes.ts`; `:uid` = the customer):
 
+**Customer ids are fail-closed (D12).** A canonical id is one or more of lowercase `a-z`, digits, `_` or `-`, and at most 234 characters - the storage limit: every file the store derives from an id is `<id><suffix>`, the longest suffix is 21 characters and one path component is at most 255 bytes. Anything else (`a.b`, `a b`, `a/b`, email-like ids, `Lauri`) gets a typed `400 INVALID_CUSTOMER_ID` (or `CUSTOMER_ID_TOO_LONG` past 234); the check fails closed before storage effects - no file is opened or written - and the id is never rewritten, truncated or lowercased into a look-alike id. The data loader validates every id in its input first, so one bad id writes nothing. Hosted rows under a non-canonical id are skipped on hydrate (counted and shown in the state response), never written, deleted or renamed. There is no migration of old ids.
+
 | Route | Purpose |
 |---|---|
 | `GET customers` | The customers with agent data (the demo UI's picker) |
@@ -252,7 +254,7 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 
 | Check | Command | Covers |
 |---|---|---|
-| Architecture tests | `npm run test:arch` | 406 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
+| Architecture tests | `npm run test:arch` | 409 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
 | End-to-end | `npm run test:e2e` | 37 checks over a real booted server (incl. requestId dedup + late pickup): a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
 | Data-layer adapter | `npm run test:adapter` | 44 checks: the old app store as an adapter over the three agent databases, legacy migration, and plumbing separation |
 | Hosted sync | `npm run test:remote` | 36 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
@@ -261,6 +263,7 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 | Type check | `npm run lint` | `tsc --noEmit` across the app |
 | Bank records | `npm test` | Feed loading and bank-record maths |
 | Feed CSV | `npm run check:feed` | The Nordea feed CSV applies cleanly |
+| Customer ids (D12) | `npm run test:customer-id` | The canonical-id rule at every seam: loader input validation, hosted hydrate skipping (pool double), real-server HTTP 400s, arch.html customer switching, the 234-character storage preflight, fuzz, and the fail-closed route wrapper |
 
 ## ⚠️ Known limits
 
@@ -270,6 +273,7 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 - **Figures are labelled "of related spending"** - goal matching uses category and description keywords, so a saving goal's figure is the related spending, not a true savings-transfer balance.
 - **Single process.** The round engine, bus and stores run in one Node process; `node:sqlite` files sit under the data dir. No distribution, no queues.
 - **No live bank.** All account data is fictional, loaded with `scripts/load_data.py` (see `seed/README.md`).
+- **Customer ids are canonical-only (D12).** Ids with dots, spaces, slashes, uppercase letters or email shapes are rejected by design - including any historical or hosted ones, which were not inventoried and are not migrated. Email-like ids stay unsupported until a separate storage-encoding change. The 234-character cap is measured on this system's 255-byte file-name limit; other operating systems' file-name or full-path length limits are unverified and not covered.
 - **Demo UI.** `public/arch.html` and `public/dev-monitor.html` are demonstration surfaces, not the polished app from `main`.
 - **Hosted mode is hydrate-then-flush.** With the Supabase role URLs set, the hosted tables replace the local agent databases at startup and writes flush back; if Supabase is unreachable the app keeps working on the local files (the honest fallback copy) and logs the failure.
 - **Flush-back survives a graceful stop, not a hard kill.** The hosted flush is debounced (250 ms) after a store write; SIGTERM/SIGINT drain the pending flushes (10 s cap) before exit, so a normal stop loses nothing. A hard kill inside the debounce window can still lose the last write (found in the live run, evidence/e2e/findings/live-run-findings.md F-C).
