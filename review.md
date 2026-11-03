@@ -1,4 +1,4 @@
-TURN: Bill
+TURN: Telkomsel
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -133,4 +133,13 @@ Proof: scripts/test-arch-perm-ui.mjs (vm mock-DOM, no deps) 15/0: reproduces tic
 and stale-repaint on the pinned 914c200 script, then proves the fix incl. failed and
 unconfirmed saves. npm run test:arch-ui. No server change: the save path is synchronous.
 NEXT: Bill
+```
+
+### [Bill] 2026-11-03 02:44
+```
+Perm UI fix ACCEPTED @68f576f. green @68f576f: arch 406 (+migrate 43), arch-ui 15/0, adapter 44, e2e 37, remote 36, env 7, selftest 3,
+load ok, npm test ok, lint 0. Read arch.html: seq guard :215-219, dirty/focus :241-244, Save-only write :302-335; api() throws on !ok :151.
+Init safe: first refresh() runs after const perm :305. No server change.
+FACT (L, no row): customer switch mid-save resets saving (:349) while the old POST runs; its refresh reports against the new customer.
+NEXT: Telkomsel
 ```
