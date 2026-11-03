@@ -1,0 +1,6 @@
+#!/bin/sh
+# G23: block a commit whose review.md breaks the CMP rules. Installed via `npm prepare`
+# (core.hooksPath=.githooks), since git hooks are not cloned.
+if git diff --cached --name-only | grep -q '^review\.md$'; then
+  node scripts/run_python.mjs scripts/check_review_lines.py || exit 1
+fi

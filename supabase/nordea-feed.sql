@@ -1,8 +1,10 @@
 -- Abel x Nordea concept: new (fictional) Nordea account data for a demo customer.
--- Run this ONCE in Supabase → SQL Editor → New query → paste → Run.
+-- Run AFTER three-agents.sql (it grants the agent_nordea role), in Supabase → SQL Editor →
+-- New query → paste → Run. Ran an older copy of this file already? Run this version again.
 -- Then add a row (Table Editor → nordea_feed → Insert row, or the example insert at the bottom):
--- the app applies it within about 20 seconds, or straight away with
--- More → Nordea account data → Check Supabase now. It writes back applied_at and result.
+-- the app applies it within about 20 seconds, or straight away with **Check feed** on
+-- /arch.html (More → Nordea account data → Check Supabase now in the main app).
+-- It writes back applied_at and result.
 
 create table if not exists public.nordea_feed (
   id          bigint generated always as identity primary key,
@@ -14,10 +16,16 @@ create table if not exists public.nordea_feed (
   result      text                                     -- what the app did, e.g. 'Applied: Updated 104 transactions…'
 );
 
--- Locked like abel_records: only the app's server (secret key) can read or write.
+-- Locked like abel_records: the app's server (secret key) can read or write - and, since G28,
+-- the Nordea agent's own role reads new rows and marks them applied through NORDEA_DB_URL,
+-- so the feed works in hosted mode WITHOUT the service key on an agent path.
 alter table public.nordea_feed enable row level security;
 grant select, insert, update, delete on public.nordea_feed to service_role;
 grant usage, select on sequence public.nordea_feed_id_seq to service_role;
+grant select, update on public.nordea_feed to agent_nordea; -- reads pending rows, writes applied_at/result
+drop policy if exists nordea_feed_service on public.nordea_feed;
+drop policy if exists nordea_feed_agent on public.nordea_feed;
+create policy nordea_feed_agent on public.nordea_feed for all to agent_nordea using (true) with check (true);
 
 -- The "data" column is JSON. The app accepts (all transactions fields optional except date and amount):
 --   mode:          'snapshot' (default; replaces the whole statement) or 'incremental' (merges new rows only;

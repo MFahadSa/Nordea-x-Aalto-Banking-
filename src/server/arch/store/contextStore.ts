@@ -10,6 +10,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { canonicalCustomerId } from '../../customerId.js';
 import { ARCH_DIR } from './common.js';
 import { now } from '../types.js';
 
@@ -25,6 +26,8 @@ export interface ContextRow {
   observed?: 'observed' | 'inferred';
   conflict?: boolean;
   evidence?: Record<string, unknown> | null;
+  /** Supporting numbers for a meaning-first card, shown under the expandable "Evidence". */
+  evidenceText?: string;
   at: string;
 }
 
@@ -39,7 +42,7 @@ export interface ContextDoc {
 
 export interface RoundMeta { roundId: string; trigger: string }
 
-const safeUid = (uid: string) => uid.replace(/[^a-z0-9_-]/gi, '_');
+const safeUid = (uid: string) => canonicalCustomerId(uid);
 const jsonPath = (uid: string) => path.join(ARCH_DIR, `${safeUid(uid)}.context.json`);
 export const contextMdPath = (uid: string) => path.join(ARCH_DIR, `${safeUid(uid)}.context.md`);
 
@@ -49,7 +52,8 @@ const emptyDoc = (): ContextDoc => ({
 });
 
 export function loadContext(uid: string): ContextDoc | null {
-  try { return JSON.parse(fs.readFileSync(jsonPath(uid), 'utf-8')) as ContextDoc; } catch { return null; }
+  const file = jsonPath(uid); // typed reject for a non-canonical id happens outside the missing-file catch
+  try { return JSON.parse(fs.readFileSync(file, 'utf-8')) as ContextDoc; } catch { return null; }
 }
 
 /** Rows of one section - how agents read the shared document (never by parsing markdown). */
@@ -129,4 +133,9 @@ export function writeHeader(uid: string, meta: RoundMeta & { finalise?: boolean 
   if (meta.finalise) doc.finalisedAt = now();
   else { doc.openedAt = now(); doc.finalisedAt = null; }
   save(uid, doc);
+}
+
+/** The section's note, so a writer that rewrites only its rows keeps it. */
+export function readSectionNote(uid: string, section: ContextSection): string | undefined {
+  return loadContext(uid)?.sections[section].note;
 }

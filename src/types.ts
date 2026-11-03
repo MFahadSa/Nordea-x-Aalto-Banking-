@@ -266,8 +266,17 @@ export interface ChatMessage {
   };
   /** Set when no AI answered and the bank's own code did (shown as a small label, so it's never mistaken for the AI). */
   answeredBy?: 'bank_code';
-  /** What Abel was given for this reply (not proof of what it used): approved notes and the demo account data. */
-  supplied?: { notes: number; accountData: boolean };
+  /** What this reply is stamped with (not proof of what it used): the actual answering source
+   *  (model+provider / scripted / scripted-error) and the rows of the session's finalised
+   *  document it was based on. Older messages may lack source/provider. */
+  supplied?: { notes: number; accountData: boolean; source?: 'model' | 'scripted' | 'scripted-error'; provider?: string;
+    /** Exact question category, decided by code: 'General Question' or 'Related Question'. */
+    category?: 'General Question' | 'Related Question';
+    /** The round plan path of THIS reply's round (absent when no round ran for it). */
+    plan?: { cm: string; nordea: string; provider?: string } };
+  /** Correlates a customer message with its reply (late pickup, no duplicate resubmit). */
+  requestId?: string;
+  replyToRequestId?: string;
   /** Technical reason when Abel couldn't answer (shown small, for debugging the demo). */
   errorInfo?: string;
   /** Set when the customer tapped a button on this message, so it can't be tapped twice. */
@@ -299,26 +308,6 @@ export interface PartnerItem {
   per?: string;
 }
 
-export interface PartnerManifest {
-  id: string;
-  name: string;
-  initials: string;
-  color: string;
-  kind: string;
-  /** When Abel may suggest this partner (given to the model as a description). */
-  when: string;
-  cta: string;
-  view: string;
-  buy: string;
-  verb: string;
-  alternative: string;
-  /** How Nordea is paid. Computed in code, never by the model. */
-  fee: { type: 'percent' | 'flat' | 'percentOfYear'; value: number };
-  /** Share of Nordea's fee given back to the customer's savings. */
-  shareBack: number;
-  feeText: string;
-  items: PartnerItem[];
-}
 
 export interface Earning {
   id: string;

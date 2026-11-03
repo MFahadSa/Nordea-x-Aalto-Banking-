@@ -208,18 +208,40 @@ export const createConversation = (userId: string, helperId: string) =>
 export const fetchConversationMessages = (conversationId: string) =>
   fetch(`/api/conversations/${conversationId}/messages`).then((r) => j<{ messages: ChatMessage[] }>(r)).then((d) => d.messages);
 /** A chat request gives up after 3 minutes, so the chat can never stay "typing…" forever (the server stops earlier). */
-export async function sendChat(userId: string, conversationId: string | null, helperId: string, text: string) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 180000);
-  try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, conversationId, helperId, text }), signal: ctl.signal });
-    return await j<{ conversationId: string; messages: ChatMessage[]; error?: string }>(r);
-  } catch (e: any) {
-    if (e?.name === 'AbortError') throw new Error('No answer after 3 minutes (timeout)');
-    throw e;
-  } finally {
-    clearTimeout(t);
+/** Outcome 3: no fixed client deadline (a chain of slow calls can run well past 3 minutes).
+ *  Every send carries a requestId. The POST is never repeated: if the connection drops or hangs,
+ *  the reply is picked up late from GET /api/chat/result by the same requestId. 'unknown' (the
+ *  server never ran it, or restarted mid-turn) is reported as an error - the customer decides to ask again. */
+export type ChatResult = { conversationId: string; messages: ChatMessage[]; error?: string; late?: boolean };
+export const newRequestId = () => 'req-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+async function pollResult(userId: string, requestId: string, onlyDone: boolean, stop: { done: boolean }): Promise<ChatResult | null> {
+  const every = onlyDone ? 20000 : 3000;
+  const until = Date.now() + 60 * 60 * 1000;
+  while (!stop.done && Date.now() < until) {
+    await new Promise((r) => setTimeout(r, every));
+    if (stop.done) return null;
+    try {
+      const r = await fetch(`/api/chat/result?userId=${encodeURIComponent(userId)}&requestId=${encodeURIComponent(requestId)}`);
+      const x = await j<{ status: 'pending' | 'done' | 'unknown'; conversationId?: string; messages?: ChatMessage[] }>(r);
+      if (x.status === 'done') return { conversationId: x.conversationId!, messages: x.messages!, late: true };
+      if (x.status === 'unknown' && !onlyDone) throw new Error('The server has no record of that message (it may have restarted). It was not sent again - ask again if you still want an answer.');
+    } catch (e: any) {
+      if (/no record of that message/.test(e?.message || '')) throw e; // network blip while polling: keep trying
+    }
   }
+  return null;
+}
+export async function sendChat(userId: string, conversationId: string | null, helperId: string, text: string, requestId: string = newRequestId()): Promise<ChatResult> {
+  const stop = { done: false };
+  const post = fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, conversationId, helperId, text, requestId }) })
+    .then((r) => j<{ conversationId: string; messages: ChatMessage[]; error?: string }>(r))
+    .catch(async (e: any) => {
+      if (e instanceof TypeError) { const got = await pollResult(userId, requestId, false, stop); if (got) return got; } // connection dropped: pick the reply up, never resubmit
+      throw e;
+    });
+  // While the POST is still open, a reply that already landed on the server is also picked up.
+  const watcher = pollResult(userId, requestId, true, stop).then((got) => got ?? new Promise<never>(() => undefined));
+  try { return await Promise.race([post, watcher]); } finally { stop.done = true; }
 }
 export interface AiStatus { provider: string; keyPresent: boolean; model: string; candidates: string[]; lastOk: { at: string; model: string } | null; lastError: { at: string; message: string; model?: string } | null; thinking?: string; lastTurn?: { at: string; ms: number; calls: number } | null;
   /** With several AI models in a chain: each one's state. */
@@ -272,3 +294,12 @@ export const fetchDbStatus = () => fetch('/api/db-status').then((r) => j<DbStatu
 export interface CheckResult { name: string; asked: string; ok: boolean; why: string; reply: string; cards: string[]; answeredBy: string; ms: number }
 /** Runs about 12 real questions; can take a few minutes on a free plan. */
 export const runSelfTest = () => post('/api/selftest', {}).then((r) => j<{ results: CheckResult[]; passed: number; total: number }>(r));
+
+/** R2: user cards waiting for approval (same pending list as arch.html; one decision, one result). */
+export interface ApprovalCard { id: string; summary: string; detail: string; approvalId: string; levelName: string; why: string; unknown: boolean }
+/** Every waiting USER card, including one the AI gave no valid level (shown as UNKNOWN, treated as level 2). */
+export const fetchApprovalCards = (userId: string): Promise<ApprovalCard[]> =>
+  fetch(`/api/arch/${encodeURIComponent(userId)}/review`).then((r) => (r.ok ? r.json() : { proposals: [] })).then((d: { proposals?: { id: string; summary: string; payload?: { detail?: string }; effectiveApproval?: { id: string; label: string; why: string; unknown: boolean } }[] }) =>
+    (d.proposals ?? []).filter((m) => m.effectiveApproval).map((m) => ({ id: m.id, summary: m.summary, detail: m.payload?.detail ?? '', approvalId: m.effectiveApproval!.id, levelName: m.effectiveApproval!.label, why: m.effectiveApproval!.why, unknown: m.effectiveApproval!.unknown }))).catch(() => []);
+export const decideApprovalCard = (userId: string, id: string, ok: boolean) =>
+  fetch(`/api/arch/${encodeURIComponent(userId)}/review/${encodeURIComponent(id)}/${ok ? 'accept' : 'reject'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.ok);

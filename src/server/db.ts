@@ -17,8 +17,34 @@ import {
   BalanceSnapshot,
   ImportBatch,
   BankAccount,
+  PersonaId,
+  ViewMode,
 } from '../types.js';
-import { Remote, Row, supabaseConfigured, supabaseRemote, cleanErr } from './store.js';
+// G1: customer data lives in the three agent databases (User / Context Memory / Nordea).
+// The app layer may import the store modules (see the store file headers); agents never
+// import this module, and no agent module imports another agent's store.
+import { listCustomers, unregisterCustomer, deleteDbFile, ARCH_DIR, hydrateAgentStores, remoteConfigured } from './arch/store/common.js';
+import { loadBus } from './arch/store/busStore.js';
+import { appWrites, decideProposal } from './arch/orchestrator.js';
+import {
+  loadUserDb, loadProfile, saveProfile, putGoal, removeGoal,
+  loadDocuments, putDocument, removeStoredDocument, deleteUserDb,
+  loadAppRows, putAppRows, deleteAppRows,
+} from './arch/store/userStore.js';
+import type { UserProfile } from './arch/store/userStore.js';
+import {
+  loadCmDb, putEntry, removeEntry, addHistoryEvent, loadHistory, deleteHistoryFor, listUndoRecords,
+  loadShares, putShare, putUndoRecord, getUndoRecord as cmGetUndo, removeUndoRecord as cmRemoveUndo, deleteCmDb,
+  loadAppAccessLog, putAppAccessLog, deleteAppAccessLogRows,
+} from './arch/store/cmStore.js';
+import {
+  loadNordeaDb, nordeaFileExists, saveNordeaDb, loadBalances, saveBalances,
+  putTransactions, putBankAccount, loadBalanceSnapshots, putBalanceSnapshot,
+  loadImportBatches, putImportBatch, deleteNordeaDb,
+  loadAppBankRows, putAppBankRows, deleteAppBankRows, loadAppRewards, putAppRewards, removeAppRewards,
+} from './arch/store/nordeaStore.js';
+import { deleteContext } from './arch/store/contextStore.js';
+import type { ArchEntry, Goal } from './arch/types.js';
 
 const DATA_DIR = process.env.CABINET_DATA_DIR ? path.resolve(process.env.CABINET_DATA_DIR) : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'cabinet-db.json');
@@ -65,12 +91,10 @@ function historyFor(entries: CabinetEntry[]): EntryEvent[] {
   return out;
 }
 
-/** Each kind of record and how it's keyed. Users are a map, the rest are lists. */
-const LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory', 'dataRewards', 'balanceSnapshots', 'importBatches', 'bankAccounts'] as const;
-type ListKind = (typeof LISTS)[number];
-const keyOf = (kind: ListKind, x: any): string => (kind === 'undoRecords' ? x.undoToken : x.id);
-// Rows come back unordered, so restore the order the app expects.
-const ORDER: Record<ListKind, { field: string; desc?: boolean }> = {
+/** Each kind of record the legacy store knew, and how it's keyed (migration only). */
+const LEGACY_LISTS = ['cabinetEntries', 'transactions', 'messages', 'accessLog', 'topicLog', 'undoRecords', 'conversations', 'earnings', 'shares', 'documents', 'entryHistory', 'dataRewards', 'balanceSnapshots', 'importBatches', 'bankAccounts'] as const;
+type LegacyList = (typeof LEGACY_LISTS)[number];
+const LEGACY_ORDER: Record<LegacyList, { field: string; desc?: boolean }> = {
   cabinetEntries: { field: 'createdAt' },
   transactions: { field: 'date' },
   messages: { field: 'createdAt' },
@@ -88,68 +112,24 @@ const ORDER: Record<ListKind, { field: string; desc?: boolean }> = {
   bankAccounts: { field: 'id' },
 };
 
-function toRows(state: DatabaseState): Row[] {
-  const rows: Row[] = Object.values(state.users).map((u) => ({ kind: 'users', id: u.id, user_id: u.id, data: u }));
-  for (const kind of LISTS) for (const x of state[kind] as any[]) rows.push({ kind, id: keyOf(kind, x), user_id: x.userId ?? null, data: x });
-  return rows;
-}
-
-function fromRows(rows: Row[]): DatabaseState {
-  const st: any = { users: {} };
-  LISTS.forEach((k) => (st[k] = []));
-  for (const r of rows) {
-    if (r.kind === 'users') st.users[r.id] = r.data;
-    else if (st[r.kind]) st[r.kind].push(r.data);
-  }
-  for (const k of LISTS) {
-    const { field, desc } = ORDER[k];
-    st[k].sort((a: any, b: any) => String(a[field] || '').localeCompare(String(b[field] || '')) * (desc ? -1 : 1));
-  }
-  return st as DatabaseState;
-}
-
-export interface DbStatus {
-  mode: 'supabase' | 'file' | 'memory';
-  ok: boolean;
-  message: string;
-  lastSavedAt?: string;
-  lastError?: { at: string; message: string };
-  rows?: number;
-  waiting: number;
-}
-
-function getEmptyState(): DatabaseState {
+export function getEmptyLegacyState(): DatabaseState {
   return {
-    users: {},
-    cabinetEntries: [],
-    transactions: [],
-    messages: [],
-    accessLog: [],
-    topicLog: [],
-    undoRecords: [],
-    conversations: [],
-    earnings: [],
-    shares: [],
-    documents: [],
-    entryHistory: [],
-    dataRewards: [],
-    balanceSnapshots: [],
-    importBatches: [],
-    bankAccounts: [],
+    users: {}, cabinetEntries: [], transactions: [], messages: [], accessLog: [], topicLog: [],
+    undoRecords: [], conversations: [], earnings: [], shares: [], documents: [], entryHistory: [],
+    dataRewards: [], balanceSnapshots: [], importBatches: [], bankAccounts: [],
   };
 }
 
+
 /**
- * Fills in what loaded data may leave out: older saved databases miss the v14 tables, and data loaded
- * from outside (scripts/load_data.py) may come without users' lists or without history for its entries.
+ * Fills in what loaded legacy data may leave out (migration only): history for entries that
+ * predate history, and explicit account records derived from the customer record.
  */
-function migrate(state: DatabaseState): DatabaseState {
-  const empty = getEmptyState();
+export function migrateLegacyState(state: DatabaseState): DatabaseState {
+  const empty = getEmptyLegacyState();
   for (const k of Object.keys(empty) as (keyof DatabaseState)[]) (state as any)[k] = state[k] || empty[k];
   const known = new Set(state.entryHistory.map((h) => h.entryId));
   state.entryHistory.push(...historyFor(state.cabinetEntries.filter((e) => !known.has(e.id))));
-  // Explicit account records, derived from what the customer record already knows. Nothing invented:
-  // iban comes from the existing accounts, currency/type stay unset until a feed supplies them.
   for (const u of Object.values(state.users || {})) {
     for (const key of ['current', 'savings', 'carFund'] as const) {
       const a = (u.accounts as any)?.[key];
@@ -163,214 +143,293 @@ function migrate(state: DatabaseState): DatabaseState {
   return state;
 }
 
-class Database {
-  private state: DatabaseState;
-  private remote: Remote | null = null;
-  /** What Supabase has, as JSON per record, so only changed records are sent. */
-  private synced = new Map<string, string>();
-  private chain: Promise<void> = Promise.resolve();
-  private timer: NodeJS.Timeout | null = null;
-  private st: DbStatus = { mode: 'file', ok: true, message: 'Saved on this server only. It resets when the app restarts.', waiting: 0 };
-  /** Supabase is set up but couldn't be reached: keep changes in memory only, so no stale local copy appears. */
-  private memoryOnly = false;
+// ---------- Mapping between the Abel CabinetEntry record and the arch store rows ----------
+// Each field has ONE authoritative home: arch-owned fields (title, detail, status, evidence,
+// goalIds, proposedBy...) live in the store columns; Abel-owned fields (type, source, private,
+// readableBy, provenance, target, why, reviewed, goalType, confirmedAt, updatedAt) live in the
+// row's `doc` JSON. The two views are merged on read, split on write.
 
-  // Nothing is preloaded: the app starts with no data until init() reads what was loaded on purpose.
-  constructor() {
-    this.state = getEmptyState();
-  }
+const goalToEntry = (userId: string, g: Goal): CabinetEntry =>
+  g.doc
+    ? { ...g.doc, id: g.id, userId, type: 'goal', title: g.title, detail: g.detail, createdAt: g.createdAt }
+    : {
+        id: g.id, userId, type: 'goal', title: g.title, detail: g.detail, source: 'customer',
+        status: 'active', private: false, readableBy: { abel: true, offers: true }, provenance: { channel: 'app' },
+        reviewed: true, createdAt: g.createdAt, updatedAt: g.createdAt,
+      };
+
+export const entryToGoal = (e: CabinetEntry): Goal => ({ id: e.id, title: e.title, detail: e.detail, createdAt: e.createdAt, doc: e });
+
+const cmToEntry = (userId: string, e: ArchEntry): CabinetEntry => {
+  const doc = e.doc;
+  return {
+    id: e.id, userId,
+    type: doc?.type ?? (e.proposedBy === 'nordea' ? 'observation' : 'fact'),
+    title: e.title,
+    detail: e.detail,
+    source: doc?.source ?? (e.proposedBy === 'nordea' ? 'nordea' : 'customer'),
+    status: e.status,
+    private: doc?.private ?? false,
+    readableBy: doc?.readableBy ?? { abel: true, offers: true },
+    provenance: doc?.provenance ?? { channel: 'system' },
+    ...(doc?.target ? { target: doc.target } : {}),
+    ...(doc?.linked ? { linked: doc.linked } : {}),
+    ...(doc?.why ? { why: doc.why } : {}),
+    ...(e.evidence || doc?.evidence
+      ? { evidence: doc?.evidence ?? { transactionIds: e.evidence?.transactionIds, inputsHash: e.evidence?.transactionIdsHash, computedAt: e.createdAt } }
+      : {}),
+    reviewed: doc?.reviewed ?? true,
+    ...(doc?.goalType ? { goalType: doc.goalType } : {}),
+    ...(doc?.confirmedAt ? { confirmedAt: doc.confirmedAt } : {}),
+    createdAt: e.createdAt,
+    updatedAt: doc?.updatedAt ?? e.createdAt,
+  };
+};
+
+export const entryToCm = (e: CabinetEntry, existing?: ArchEntry): ArchEntry => ({
+  id: e.id,
+  title: e.title,
+  detail: e.detail,
+  goalIds: existing?.goalIds ?? [],
+  proposedBy: existing?.proposedBy ?? (e.source === 'nordea' ? 'nordea' : 'user'),
+  ...(existing?.viaMessageId ? { viaMessageId: existing.viaMessageId } : {}),
+  ...(existing?.evidence
+    ? { evidence: existing.evidence }
+    : e.evidence
+      ? { evidence: { transactionIds: e.evidence.transactionIds, transactionIdsHash: e.evidence.inputsHash } }
+      : {}),
+  status: e.status,
+  ...(existing?.disputeReason ? { disputeReason: existing.disputeReason } : {}),
+  ...(existing?.observed ? { observed: existing.observed } : {}),
+  ...(existing?.risk ? { risk: existing.risk } : {}),
+  ...(existing?.autoAccepted ? { autoAccepted: true } : {}),
+  ...(existing?.approval ? { approval: existing.approval } : {}), // R2: kept as-is on app rebuilds (edit/reapproval policy is pending)
+  createdAt: existing?.createdAt ?? e.createdAt,
+  doc: e,
+});
+
+export interface DbStatus {
+  mode: 'supabase' | 'file' | 'memory';
+  ok: boolean;
+  message: string;
+  lastSavedAt?: string;
+  lastError?: { at: string; message: string };
+  rows?: number;
+  waiting: number;
+}
+
+/** Points and reward redemptions: bank-side loyalty plumbing, kept in the customer's Nordea DB. */
+interface RewardState {
+  points: number;
+  pointsSpent?: number;
+  redeemed?: { rewardId: string; title: string; pts: number; at: string }[];
+}
+
+/** Rewards points live in the customer's Nordea DB (bank-side loyalty plumbing). */
+const loadRewards = (uid: string): RewardState | undefined => {
+  const raw = loadAppRewards(uid);
+  return raw ? (JSON.parse(raw) as RewardState) : undefined;
+};
+const saveRewards = (uid: string, r: RewardState) => putAppRewards(uid, JSON.stringify(r));
+
+class Database {
+  private st: DbStatus = { mode: 'file', ok: true, message: 'Saved on this server only. It resets when the app restarts.', waiting: 0 };
+
+  // Nothing is preloaded: the app starts with no data until init() runs.
+  constructor() {}
 
   /**
    * Read the data. Called once before the server starts (and by reload()).
-   * With Supabase set up, only Supabase counts: an empty table means an empty app.
-   * Without it, the local file data/cabinet-db.json (written by this app, never shipped with it).
-   * Load data with scripts/load_data.py.
+   * Everything lives in the three agent databases (owner, 2026-11-01): the app never reads or
+   * writes cabinet-db.json - a leftover file only triggers the migration hint below.
    */
   public async init() {
-    this.synced.clear();
-    if (!supabaseConfigured()) {
-      this.state = this.loadFile();
-      console.log(`Database: local file (${Object.keys(this.state.users).length} customers)`);
-      return;
+    // G6: when the three agent stores have hosted secrets, their tables are the source of
+    // truth - pull them into the local SQLite files before anything reads them.
+    const hydrated = await hydrateAgentStores();
+    if (hydrated.length) console.log(`Database: agent stores hydrated from hosted tables: ${hydrated.join(', ')}`);
+    if (fs.existsSync(DB_FILE)) {
+      console.log('Database: found legacy cabinet-db.json - run `npm run migrate:legacy` to move it into the three agent databases (verified, then the file is deleted).');
     }
-    const remote = supabaseRemote();
-    try {
-      const rows = await remote.loadAll();
-      this.remote = remote;
-      this.memoryOnly = false;
-      this.state = migrate(fromRows(rows));
-      rows.forEach((r) => this.synced.set(`${r.kind}:${r.id}`, JSON.stringify(r.data)));
-      await this.flush();
-      this.st = { ...this.st, mode: 'supabase', ok: !this.st.lastError, message: rows.length ? 'Saved in Supabase' : 'Supabase is empty. Load data with scripts/load_data.py.', rows: this.synced.size };
-      console.log(`Database: Supabase (${this.synced.size} records)`);
-    } catch (err) {
-      this.remote = null;
-      this.memoryOnly = true;
-      this.state = getEmptyState();
-      const message = cleanErr(err);
-      this.st = { mode: 'memory', ok: false, message: `Supabase isn’t working, so the app has no data and changes are kept in memory only. ${message}`, lastError: { at: new Date().toISOString(), message }, waiting: 0 };
-      console.error('Database: Supabase failed, starting with no data.', message);
-    }
+    const hosted = remoteConfigured('user') || remoteConfigured('cm') || remoteConfigured('nordea');
+    this.st = hosted
+      ? { mode: 'supabase', ok: true, message: 'Saved in Supabase', waiting: 0 }
+      : { mode: 'file', ok: true, message: 'Saved on this server only. It resets when the app restarts.', waiting: 0 };
+    console.log(`Database: ${hosted ? 'Supabase' : 'local file'} (${listCustomers().length} customers in the three databases)`);
   }
 
   /** Read the data again, e.g. after scripts/load_data.py added rows while the app was running. */
   public async reload(): Promise<DatabaseState> {
-    await this.chain;
-    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
     await this.init();
-    return this.state;
+    return this.getState();
   }
 
   public hasData() {
-    return Object.keys(this.state.users).length > 0;
+    return listCustomers().length > 0;
   }
 
   public status(): DbStatus {
-    return { ...this.st, waiting: this.remote ? this.pendingCount() : 0 };
+    return { ...this.st, waiting: 0 };
   }
 
-  private pendingCount() {
-    let n = 0;
-    const now = new Map(toRows(this.state).map((r) => [`${r.kind}:${r.id}`, JSON.stringify(r.data)]));
-    for (const [k, v] of now) if (this.synced.get(k) !== v) n++;
-    for (const k of this.synced.keys()) if (!now.has(k)) n++;
-    return n;
-  }
-
-  /** Send every changed record to Supabase. Requests that change data wait for this before answering. */
+  /** Kept for callers that awaited the old Supabase plumbing sync: store writes are synchronous now. */
   public flush(): Promise<void> {
-    if (!this.remote) return Promise.resolve();
-    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
-    this.chain = this.chain.then(() => this.push()).catch(() => {});
-    return this.chain;
+    return Promise.resolve();
   }
 
-  private async push() {
-    const remote = this.remote;
-    if (!remote) return;
-    const now = new Map<string, Row>();
-    toRows(this.state).forEach((r) => now.set(`${r.kind}:${r.id}`, r));
-    const changed: Row[] = [];
-    const json = new Map<string, string>();
-    for (const [k, r] of now) {
-      const j = JSON.stringify(r.data);
-      json.set(k, j);
-      if (this.synced.get(k) !== j) changed.push(r);
-    }
-    const gone = [...this.synced.keys()].filter((k) => !now.has(k)).map((k) => ({ kind: k.slice(0, k.indexOf(':')), id: k.slice(k.indexOf(':') + 1) }));
-    if (!changed.length && !gone.length) return;
-    try {
-      if (changed.length) await remote.upsert(changed.map((r) => ({ ...r, data: JSON.parse(json.get(`${r.kind}:${r.id}`)!) })));
-      if (gone.length) await remote.remove(gone);
-      changed.forEach((r) => this.synced.set(`${r.kind}:${r.id}`, json.get(`${r.kind}:${r.id}`)!));
-      gone.forEach((g) => this.synced.delete(`${g.kind}:${g.id}`));
-      this.st = { ...this.st, ok: true, message: 'Saved in Supabase', lastSavedAt: new Date().toISOString(), rows: this.synced.size };
-    } catch (err) {
-      const message = cleanErr(err);
-      this.st = { ...this.st, ok: false, message: `Last save to Supabase failed. Trying again. ${message}`, lastError: { at: new Date().toISOString(), message } };
-      console.error('Database: save to Supabase failed:', message);
-      this.later(5000); // try again shortly; nothing is lost while the server runs
-    }
-  }
-
-  private later(ms = 300) {
-    if (!this.remote || this.timer) return;
-    this.timer = setTimeout(() => { this.timer = null; this.flush(); }, ms);
-  }
-
-  private ensureDataDir() {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-  }
-
-  private loadFile(): DatabaseState {
-    if (!fs.existsSync(DB_FILE)) return getEmptyState();
-    try {
-      return migrate(JSON.parse(fs.readFileSync(DB_FILE, 'utf-8')));
-    } catch (err) {
-      console.warn('Could not read the local data file. Starting with no data.', err);
-      return getEmptyState();
-    }
-  }
-
-  private writeFile() {
-    try {
-      this.ensureDataDir();
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.state, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to write db state to disk:', err);
-    }
-  }
-
-  /** Every change ends here: queue the Supabase save, or write the local file when there's no Supabase. */
-  private saveState(_state?: DatabaseState) {
-    if (this.remote) this.later();
-    else if (!this.memoryOnly) this.writeFile();
-  }
-
+  /** The full composed view: customer data read back from the three agent databases. */
   public getState(): DatabaseState {
-    return this.state;
+    const uids = listCustomers();
+    const users: Record<string, User> = {};
+    for (const uid of uids) {
+      const u = this.getUser(uid);
+      if (u) users[uid] = u;
+    }
+    return {
+      users,
+      cabinetEntries: uids.flatMap((uid) => this.getCabinetEntries(uid)),
+      transactions: uids.flatMap((uid) => this.getTransactions(uid)),
+      messages: uids.flatMap((uid) => this.getMessages(uid)),
+      accessLog: uids.flatMap((uid) => this.getAccessLog(uid)),
+      topicLog: uids.flatMap((uid) => this.getTopicLog(uid)),
+      undoRecords: uids.flatMap((uid) => listUndoRecords(uid)),
+      conversations: uids.flatMap((uid) => this.getConversations(uid)),
+      earnings: uids.flatMap((uid) => this.getEarnings(uid)),
+      shares: uids.flatMap((uid) => loadShares(uid)),
+      documents: uids.flatMap((uid) => loadDocuments(uid)),
+      entryHistory: uids.flatMap((uid) => loadHistory(uid)),
+      dataRewards: uids.flatMap((uid) => this.getDataRewards(uid)),
+      balanceSnapshots: uids.flatMap((uid) => loadBalanceSnapshots(uid)),
+      importBatches: uids.flatMap((uid) => loadImportBatches(uid)),
+      bankAccounts: uids.flatMap((uid) => this.getBankAccounts(uid)),
+    };
   }
 
   /** Delete all data, including rows loaded into Supabase that this app never read. */
   public async clearAll(): Promise<DatabaseState> {
-    await this.chain;
-    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
-    this.state = getEmptyState();
-    if (this.remote) {
-      await this.remote.removeAll();
-      this.synced.clear();
-      this.st = { ...this.st, ok: true, message: 'Supabase is empty. Load data with scripts/load_data.py.', rows: 0 };
-    } else this.saveState();
-    return this.state;
+    fs.rmSync(ARCH_DIR, { recursive: true, force: true });
+    this.st = { ...this.st, ok: true, message: this.st.mode === 'supabase' ? 'Supabase is empty. Load data with scripts/load_data.py.' : this.st.message, rows: 0 };
+    return this.getState();
   }
 
+  // ---------- Users: profile + settings in the User DB, balances in the Nordea DB, rewards here ----------
+
   public getUser(userId: string): User | undefined {
-    return this.state.users[userId];
+    const profile = loadProfile(userId);
+    const balances = loadBalances(userId);
+    const rewards = loadRewards(userId);
+    if (!profile && !balances && !rewards && !listCustomers().includes(userId)) return undefined;
+    return {
+      id: userId,
+      persona: (profile?.persona ?? 'lauri') as PersonaId,
+      name: profile?.name ?? userId,
+      age: profile?.age ?? 0,
+      roleDescription: profile?.roleDescription ?? '',
+      viewMode: (profile?.viewMode ?? 'full') as ViewMode,
+      layoutPrefs: profile?.layoutPrefs ?? { widgetsOrder: [], hiddenWidgets: [] },
+      accounts: balances ?? { current: { iban: '', balance: 0 }, savings: { iban: '', balance: 0, monthlyDeposit: 0 } },
+      points: rewards?.points ?? 0,
+      ...(rewards?.pointsSpent !== undefined ? { pointsSpent: rewards.pointsSpent } : {}),
+      ...(rewards?.redeemed ? { redeemed: rewards.redeemed } : {}),
+      ...(profile?.offersOff !== undefined ? { offersOff: profile.offersOff } : {}),
+      ...(profile?.extraMonthly !== undefined ? { extraMonthly: profile.extraMonthly } : {}),
+      ...(profile?.nordeaData ? { nordeaData: profile.nordeaData } : {}),
+    };
   }
 
   public updateUser(userId: string, updates: Partial<User>): User | undefined {
-    const user = this.state.users[userId];
+    const user = this.getUser(userId);
     if (!user) return undefined;
-    const updated = { ...user, ...updates };
-    this.state.users[userId] = updated;
-    this.saveState(this.state);
-    return updated;
+    const { points, pointsSpent, redeemed, accounts, ...profileUpdates } = updates;
+    if (points !== undefined || pointsSpent !== undefined || redeemed !== undefined) {
+      const r = loadRewards(userId) ?? { points: 0 };
+      if (points !== undefined) r.points = points;
+      if (pointsSpent !== undefined) r.pointsSpent = pointsSpent;
+      if (redeemed !== undefined) r.redeemed = redeemed;
+      saveRewards(userId, r);
+    }
+    if (accounts !== undefined) appWrites.putBalances(userId, accounts);
+    if (Object.keys(profileUpdates).length) appWrites.putProfile(userId, { ...(loadProfile(userId) ?? {}), ...profileUpdates });
+    return this.getUser(userId);
   }
 
+  // ---------- Cabinet: goals in the User DB, everything else in the Context Memory DB ----------
+
   public getCabinetEntries(userId: string): CabinetEntry[] {
-    return this.state.cabinetEntries.filter((e) => e.userId === userId);
+    const goals = loadUserDb(userId).goals.map((g) => goalToEntry(userId, g));
+    const cm = loadCmDb(userId).entries.map((e) => cmToEntry(userId, e));
+    return [...goals, ...cm].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
   }
 
   public getCabinetEntry(id: string): CabinetEntry | undefined {
-    return this.state.cabinetEntries.find((e) => e.id === id);
+    for (const uid of listCustomers()) {
+      const g = loadUserDb(uid).goals.find((x) => x.id === id);
+      if (g) return goalToEntry(uid, g);
+      const e = loadCmDb(uid).entries.find((x) => x.id === id);
+      if (e) return cmToEntry(uid, e);
+    }
+    return undefined;
   }
 
-  // ---- history of each entry
+  // ---- history of each entry (Context Memory DB)
   private logEvent(e: CabinetEntry, action: EntryEvent['action'], meta: ChangeMeta = {}, changes?: EntryEvent['changes']) {
-    this.state.entryHistory.push({
+    appWrites.logHistory(e.userId, {
       id: eventId(), entryId: e.id, userId: e.userId, at: new Date().toISOString(), action: meta.action || action,
       by: meta.by || (e.source === 'nordea' ? 'nordea' : 'you'), how: meta.how, title: e.title, changes: changes?.length ? changes : undefined,
     });
   }
 
   public getEntryHistory(entryId: string): EntryEvent[] {
-    return this.state.entryHistory.filter((h) => h.entryId === entryId);
+    for (const uid of listCustomers()) {
+      const h = loadHistory(uid, entryId);
+      if (h.length) return h;
+    }
+    return [];
   }
 
   public addCabinetEntry(entry: CabinetEntry, meta: ChangeMeta = {}): CabinetEntry {
-    this.state.cabinetEntries.push(entry);
+    if (entry.type === 'goal') appWrites.putGoal(entry.userId, entryToGoal(entry));
+    else appWrites.putEntry(entry.userId, entryToCm(entry));
     this.logEvent(entry, 'added', meta);
-    this.saveState(this.state);
     return entry;
   }
 
+  /** G10: a write still waiting in the CM review queue, as the CabinetEntry it carries.
+   *  Lets app flows (e.g. observation-confirmed) find it; the actual consent decision
+   *  still goes through decideProposal in updateCabinetEntry. */
+  public getQueuedCabinetEntry(id: string): CabinetEntry | undefined {
+    for (const uid of listCustomers()) {
+      const pending = loadBus(uid).messages.find((m) => m.type === 'propose' && m.status === 'pending'
+        && (m.payload as { appWrite?: boolean; entry?: { id?: string; doc?: CabinetEntry } } | undefined)?.appWrite === true
+        && (m.payload as { entry?: { id?: string } } | undefined)?.entry?.id === id);
+      const doc = (pending?.payload as { entry?: { doc?: CabinetEntry } } | undefined)?.entry?.doc;
+      if (doc) return doc;
+    }
+    return undefined;
+  }
+
   public updateCabinetEntry(id: string, updates: Partial<CabinetEntry>, meta: ChangeMeta = {}): CabinetEntry | undefined {
-    const idx = this.state.cabinetEntries.findIndex((e) => e.id === id);
-    if (idx === -1) return undefined;
-    const before = this.state.cabinetEntries[idx];
+    let before = this.getCabinetEntry(id);
+    if (!before && updates.reviewed === true) {
+      // G10 one consent path: the write may still wait in the CM review queue. The app's
+      // confirm IS the queue decision (Bill 03:09) - accept the pending proposal for this
+      // entry, then apply the rest of the update to the now-stored entry.
+      for (const uid of listCustomers()) {
+        const pending = loadBus(uid).messages.find((m) => m.type === 'propose' && m.status === 'pending'
+          && (m.payload as { appWrite?: boolean; entry?: { id?: string } } | undefined)?.appWrite === true
+          && (m.payload as { entry?: { id?: string } } | undefined)?.entry?.id === id);
+        if (pending) { decideProposal(uid, pending.id, true); break; }
+      }
+      before = this.getCabinetEntry(id);
+    }
+    if (!before) return undefined;
     const after = { ...before, ...updates, updatedAt: new Date().toISOString() };
-    this.state.cabinetEntries[idx] = after;
+    if (before.type === 'goal') {
+      appWrites.putGoal(before.userId, entryToGoal(after));
+    } else {
+      const existing = loadCmDb(before.userId).entries.find((x) => x.id === id);
+      appWrites.putEntry(before.userId, entryToCm(after, existing));
+    }
     const changes = TRACKED.filter((f) => f in updates && !same(before[f], after[f])).map((f) => ({ field: f, from: before[f] ?? null, to: after[f] ?? null }));
     const status = changes.find((c) => c.field === 'status');
     const action: EntryEvent['action'] =
@@ -381,7 +440,6 @@ class Database {
       : 'changed';
     if (changes.length) this.logEvent(after, action, meta, changes.filter((c) => !(action === 'confirmed' && c.field === 'reviewed')));
     else if (updates.confirmedAt || meta.action) this.logEvent(after, 'confirmed', meta);
-    this.saveState(this.state);
     return after;
   }
 
@@ -392,109 +450,116 @@ class Database {
   public deleteCabinetEntry(id: string, meta: ChangeMeta & { purge?: boolean } = {}): boolean {
     const e = this.getCabinetEntry(id);
     if (!e) return false;
-    this.state.cabinetEntries = this.state.cabinetEntries.filter((x) => x.id !== id);
-    if (meta.purge) this.state.entryHistory = this.state.entryHistory.filter((h) => h.entryId !== id);
-    else this.logEvent(e, 'deleted', meta);
-    this.saveState(this.state);
+    if (e.type === 'goal') {
+      appWrites.removeGoal(e.userId, id);
+      if (meta.purge) appWrites.removeEntry(e.userId, id, true); // a goal has no CM row; purge is a no-op there
+      else this.logEvent(e, 'deleted', meta);
+    } else {
+      appWrites.removeEntry(e.userId, id, meta.purge === true);
+      if (!meta.purge) this.logEvent(e, 'deleted', meta);
+    }
     return true;
   }
 
-  // ---- kept documents ("Keep a copy")
+  // ---- kept documents ("Keep a copy"): the customer's own files, in the User DB
   public getDocuments(userId: string): StoredDocument[] {
-    return this.state.documents.filter((d) => d.userId === userId);
+    return loadDocuments(userId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
   public getDocument(id: string): StoredDocument | undefined {
-    return this.state.documents.find((d) => d.id === id);
+    for (const uid of listCustomers()) {
+      const d = loadDocuments(uid).find((x) => x.id === id);
+      if (d) return d;
+    }
+    return undefined;
   }
 
   public addDocument(d: StoredDocument): StoredDocument {
-    this.state.documents.push(d);
-    this.saveState(this.state);
+    appWrites.putDocument(d.userId, d);
     return d;
   }
 
   public updateDocument(id: string, updates: Partial<StoredDocument>) {
     const d = this.getDocument(id);
     if (!d) return undefined;
-    Object.assign(d, updates);
-    this.saveState(this.state);
-    return d;
+    const next = { ...d, ...updates };
+    appWrites.putDocument(d.userId, next);
+    return next;
   }
 
   public removeDocument(id: string) {
     const d = this.getDocument(id);
-    this.state.documents = this.state.documents.filter((x) => x.id !== id);
+    if (!d) return undefined;
+    appWrites.removeDocument(d.userId, id);
     // The chat bubble keeps the file name but loses its preview.
-    for (const m of this.state.messages) if (m.attachment?.documentId === id) m.attachment = { ...m.attachment, thumb: undefined, deleted: true };
-    this.saveState(this.state);
+    for (const m of this.getMessages(d.userId)) {
+      if (m.attachment?.documentId === id) this.updateMessage(m.id, { attachment: { ...m.attachment, thumb: undefined, deleted: true } });
+    }
     return d;
   }
 
   /** A copy of a demo customer (for the answer check), so tests never change the real demo data. */
   public cloneUser(fromId: string, toId: string) {
     this.removeUser(toId);
-    const u = this.state.users[fromId];
+    const u = this.getUser(fromId);
     if (!u) return false;
-    this.state.users[toId] = { ...JSON.parse(JSON.stringify(u)), id: toId, name: u.name };
-    const map = new Map<string, string>();
+    const clone = JSON.parse(JSON.stringify(u)) as User;
+    const { points, pointsSpent, redeemed, accounts, id: _id, ...profile } = clone;
+    saveProfile(toId, profile as UserProfile);
+    if (accounts) saveBalances(toId, accounts);
+    saveRewards(toId, { points: points ?? 0, ...(pointsSpent !== undefined ? { pointsSpent } : {}), ...(redeemed ? { redeemed } : {}) });
     for (const e of this.getCabinetEntries(fromId)) {
-      const id = `${toId}-${e.id}`;
-      map.set(e.id, id);
-      this.state.cabinetEntries.push({ ...JSON.parse(JSON.stringify(e)), id, userId: toId });
+      const copy = JSON.parse(JSON.stringify(e)) as CabinetEntry;
+      copy.id = `${toId}-${e.id}`;
+      copy.userId = toId;
+      if (copy.type === 'goal') putGoal(toId, entryToGoal(copy));
+      else putEntry(toId, entryToCm(copy));
     }
-    for (const t of this.getTransactions(fromId)) this.state.transactions.push({ ...t, id: `${toId}-${t.id}`, userId: toId });
-    this.saveState(this.state);
+    const txs = this.getTransactions(fromId).map((t) => ({ ...t, id: `${toId}-${t.id}`, userId: toId }));
+    if (txs.length) putTransactions(toId, txs);
     return true;
   }
 
   /** Remove a (test) customer and everything about them. */
   public removeUser(id: string) {
-    delete this.state.users[id];
-    const keep = (x: { userId?: string }) => x.userId !== id;
-    this.state.cabinetEntries = this.state.cabinetEntries.filter(keep);
-    this.state.transactions = this.state.transactions.filter(keep);
-    this.state.messages = this.state.messages.filter(keep);
-    this.state.conversations = this.state.conversations.filter(keep);
-    this.state.accessLog = this.state.accessLog.filter(keep);
-    this.state.topicLog = this.state.topicLog.filter(keep);
-    this.state.undoRecords = this.state.undoRecords.filter(keep);
-    this.state.entryHistory = this.state.entryHistory.filter(keep);
-    this.state.earnings = this.state.earnings.filter(keep);
-    this.state.shares = this.state.shares.filter(keep);
-    this.state.dataRewards = this.state.dataRewards.filter(keep);
-    this.saveState(this.state);
+    deleteUserDb(id);
+    deleteCmDb(id);
+    deleteNordeaDb(id);
+    deleteDbFile(id, 'bus');
+    deleteContext(id);
+    unregisterCustomer(id);
+    // The per-customer database files are gone, so their app rows (chats, access log, rewards)
+    // went with them; a leftover legacy file is the migration's business, not deleted here.
   }
 
   /** Delete one chat: its messages and the conversation. Kept documents and what Abel knows stay. */
   public deleteConversation(userId: string, id: string) {
     const c = this.getConversation(id);
     if (!c || c.userId !== userId) return 0;
-    const n = this.state.messages.filter((m) => m.conversationId === id).length;
-    this.state.messages = this.state.messages.filter((m) => m.conversationId !== id);
-    this.state.conversations = this.state.conversations.filter((x) => x.id !== id);
-    this.saveState(this.state);
-    return n;
+    const msgs = this.getMessages(userId).filter((m) => m.conversationId === id);
+    deleteAppRows(userId, 'app_messages', msgs.map((m) => m.id));
+    deleteAppRows(userId, 'app_conversations', [id]);
+    return msgs.length;
   }
 
   /** "Delete my chats": every conversation and message of this customer. What Abel knows stays. */
   public deleteChats(userId: string) {
-    const n = this.state.messages.filter((m) => m.userId === userId).length;
-    this.state.messages = this.state.messages.filter((m) => m.userId !== userId);
-    this.state.conversations = this.state.conversations.filter((c) => c.userId !== userId);
-    this.state.topicLog = this.state.topicLog.filter((t) => t.userId !== userId);
-    this.saveState(this.state);
+    const n = this.getMessages(userId).length;
+    deleteAppRows(userId, 'app_messages', this.getMessages(userId).map((m) => m.id));
+    deleteAppRows(userId, 'app_conversations', this.getConversations(userId).map((c) => c.id));
+    deleteAppRows(userId, 'app_topic_log', this.getTopicLog(userId).map((t) => t.id));
     return n;
   }
 
+  // ---------- Bank data: the Nordea DB is the one home ----------
+
   public getTransactions(userId: string): Transaction[] {
-    return this.state.transactions.filter((t) => t.userId === userId);
+    return (nordeaFileExists(userId) ? loadNordeaDb(userId) : null)?.transactions ?? [];
   }
 
   /** New Nordea account data for a customer, snapshot mode: their transactions are replaced by these. */
   public replaceTransactions(userId: string, list: Transaction[]) {
-    this.state.transactions = [...this.state.transactions.filter((t) => t.userId !== userId), ...list];
-    this.saveState(this.state);
+    appWrites.putTransactions(userId, list, 'replace');
   }
 
   /**
@@ -502,204 +567,181 @@ class Database {
    * Rows whose id the customer already has are skipped (re-imports never duplicate).
    */
   public upsertTransactions(userId: string, list: Transaction[]): { added: Transaction[]; skipped: Transaction[]; updated: Transaction[] } {
-    const mine = this.state.transactions.filter((t) => t.userId === userId);
-    const byId = new Map(mine.map((t) => [t.id, t]));
-    const seen = new Set<string>();
-    const added: Transaction[] = [];
-    const skipped: Transaction[] = [];
-    const updated: Transaction[] = [];
-    // Fields a bank correction may legitimately change between feeds (never the identity fields).
-    const CORRECTABLE: (keyof Transaction)[] = ['date', 'amount', 'category', 'account', 'description', 'valueDate', 'status', 'currency', 'counterparty', 'reference', 'paymentMethod', 'originalCategory', 'categorySource'];
-    for (const t of list) {
-      const existing = byId.get(t.id);
-      if (existing || seen.has(t.id)) {
-        // A row the bank re-sent under its own stable reference with changed content (e.g. a pending
-        // transaction booking) is a correction, not a duplicate: update it in place, keep the id.
-        if (existing && existing.bankId && t.bankId) {
-          const diff = CORRECTABLE.filter((f) => (existing as any)[f] !== (t as any)[f]);
-          if (diff.length) {
-            for (const f of diff) { if ((t as any)[f] === undefined) delete (existing as any)[f]; else (existing as any)[f] = (t as any)[f]; }
-            existing.batchId = t.batchId;
-            updated.push(existing);
-            continue;
-          }
-        }
-        skipped.push(t);
-        continue;
-      }
-      seen.add(t.id);
-      added.push(t);
-    }
-    this.state.transactions.push(...added);
-    this.state.transactions.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-    this.saveState(this.state);
-    return { added, skipped, updated };
+    // The Nordea agent owns the merge semantics (dedupe by stable id, bank corrections) and
+    // performs the write to its own DB; the adapter only relays the result.
+    const reply = appWrites.putTransactions(userId, list, 'upsert') as { added: Transaction[]; skipped: Transaction[]; updated: Transaction[] };
+    return { added: reply.added ?? [], skipped: reply.skipped ?? [], updated: reply.updated ?? [] };
   }
 
   // ---- Explicit account records: one per account, derived from the customer record, extended by feeds ----
   public getBankAccounts(userId: string): BankAccount[] {
-    return this.state.bankAccounts.filter((x) => x.userId === userId);
+    return loadNordeaDb(userId)?.accounts ?? [];
   }
 
   /** Add or enrich an account record. Only the fields supplied are set; nothing is invented. */
   public upsertBankAccount(userId: string, key: string, fields: { type?: string; iban?: string; currency?: string }): BankAccount {
     const id = `acc-${userId}-${key}`;
-    let a = this.state.bankAccounts.find((x) => x.id === id);
-    if (!a) {
-      a = { id, userId, key };
-      this.state.bankAccounts.push(a);
-    }
+    const nd = loadNordeaDb(userId);
+    const existing = nd?.accounts.find((x) => x.id === id);
+    const a: BankAccount = { ...(existing ?? { id, userId, key }) };
     if (fields.type !== undefined) a.type = fields.type;
     if (fields.iban !== undefined) a.iban = fields.iban;
     if (fields.currency !== undefined) a.currency = fields.currency;
-    this.saveState(this.state);
+    appWrites.putBankAccount(userId, a);
     return a;
   }
 
   // ---- Balance snapshots: dated balances per account, kept across imports ----
   public getBalanceSnapshots(userId: string, accountKey?: string): BalanceSnapshot[] {
-    return this.state.balanceSnapshots.filter((x) => x.userId === userId && (!accountKey || x.accountKey === accountKey));
+    return loadBalanceSnapshots(userId, accountKey);
   }
 
   public addBalanceSnapshot(x: BalanceSnapshot) {
-    this.state.balanceSnapshots.push(x);
-    this.saveState(this.state);
+    appWrites.putSnapshot(x.userId, x);
     return x;
   }
 
   // ---- Import batches: what was applied, when, and what it did ----
   public getImportBatches(userId: string): ImportBatch[] {
-    return this.state.importBatches.filter((x) => x.userId === userId);
+    return loadImportBatches(userId);
   }
 
   public addImportBatch(x: ImportBatch) {
-    this.state.importBatches.push(x);
-    this.saveState(this.state);
+    appWrites.putImportBatch(x.userId, x);
     return x;
   }
 
   // ---- Data rewards: points for what the customer shares and for how often it's read ----
   public getDataRewards(userId: string): DataReward[] {
-    return this.state.dataRewards.filter((r) => r.userId === userId);
+    return loadAppBankRows<DataReward>(userId, 'app_data_rewards');
   }
 
   public addDataReward(r: DataReward) {
-    this.state.dataRewards.push(r);
-    this.saveState(this.state);
+    putAppBankRows(r.userId, 'app_data_rewards', [{ id: r.id, at: r.at, json: JSON.stringify(r) }]);
     return r;
   }
 
   public getMessages(userId: string): ChatMessage[] {
-    return this.state.messages.filter((m) => m.userId === userId);
+    return loadAppRows<ChatMessage>(userId, 'app_messages');
   }
 
   public addMessage(msg: ChatMessage): ChatMessage {
-    this.state.messages.push(msg);
-    this.saveState(this.state);
+    putAppRows(msg.userId, 'app_messages', [{ id: msg.id, ts: msg.createdAt, json: JSON.stringify(msg) }]);
     return msg;
   }
 
   public getAccessLog(userId?: string): AccessLogEntry[] {
-    if (!userId) return this.state.accessLog;
-    return this.state.accessLog.filter((log) => log.userId === userId);
+    if (userId) return loadAppAccessLog<AccessLogEntry>(userId);
+    return listCustomers().flatMap((uid) => loadAppAccessLog<AccessLogEntry>(uid));
   }
 
   public addAccessLogEntry(log: AccessLogEntry): AccessLogEntry {
-    this.state.accessLog.unshift(log);
-    if (this.state.accessLog.length > 200) {
-      this.state.accessLog.pop();
-    }
-    this.saveState(this.state);
+    putAppAccessLog(log.userId, [{ id: log.id, at: log.timestamp, json: JSON.stringify(log) }]);
+    // Retention (the old store's policy, now per customer): keep the newest 200. Only NEW entries
+    // trim - the migration writes history verbatim and never truncates it.
+    const all = loadAppAccessLog<AccessLogEntry>(log.userId);
+    if (all.length > 200) deleteAppAccessLogRows(log.userId, all.slice(0, all.length - 200).map((x) => x.id));
     return log;
   }
 
   public getTopicLog(userId?: string): TopicLogEntry[] {
-    if (!userId) return this.state.topicLog;
-    return this.state.topicLog.filter((t) => t.userId === userId);
+    if (userId) return loadAppRows<TopicLogEntry>(userId, 'app_topic_log');
+    return listCustomers().flatMap((uid) => loadAppRows<TopicLogEntry>(uid, 'app_topic_log'));
   }
 
   public addTopicLogEntry(entry: TopicLogEntry): TopicLogEntry {
-    this.state.topicLog.unshift(entry);
-    this.saveState(this.state);
+    putAppRows(entry.userId, 'app_topic_log', [{ id: entry.id, ts: entry.timestamp, json: JSON.stringify(entry) }]);
     return entry;
   }
 
+  // ---- Undo records: cabinet history, in the Context Memory DB ----
   public addUndoRecord(record: UndoRecord): UndoRecord {
-    this.state.undoRecords.push(record);
-    this.saveState(this.state);
+    appWrites.putUndo(record.userId, record);
     return record;
   }
 
   public getUndoRecord(undoToken: string): UndoRecord | undefined {
-    return this.state.undoRecords.find((r) => r.undoToken === undoToken);
+    for (const uid of listCustomers()) {
+      const r = cmGetUndo(uid, undoToken);
+      if (r) return r;
+    }
+    return undefined;
   }
 
   public removeUndoRecord(undoToken: string): boolean {
-    const initLen = this.state.undoRecords.length;
-    this.state.undoRecords = this.state.undoRecords.filter((r) => r.undoToken !== undoToken);
-    if (this.state.undoRecords.length !== initLen) {
-      this.saveState(this.state);
-      return true;
+    for (const uid of listCustomers()) {
+      const reply = appWrites.removeUndo(uid, undoToken) as { removed?: boolean };
+      if (reply.removed) return true;
     }
     return false;
   }
 
   // ---- v14: conversations, partner earnings, one-time shares
   public getConversations(userId: string): Conversation[] {
-    return this.state.conversations.filter((c) => c.userId === userId);
+    return loadAppRows<Conversation>(userId, 'app_conversations');
   }
 
   public getConversation(id: string): Conversation | undefined {
-    return this.state.conversations.find((c) => c.id === id);
+    for (const uid of listCustomers()) {
+      const c = loadAppRows<Conversation>(uid, 'app_conversations').find((x) => x.id === id);
+      if (c) return c;
+    }
+    return undefined;
   }
 
   public addConversation(c: Conversation): Conversation {
-    this.state.conversations.push(c);
-    this.saveState(this.state);
+    putAppRows(c.userId, 'app_conversations', [{ id: c.id, ts: c.createdAt, json: JSON.stringify(c) }]);
     return c;
   }
 
   public touchConversation(id: string, updates: Partial<Conversation> = {}) {
     const c = this.getConversation(id);
     if (!c) return;
-    Object.assign(c, updates, { updatedAt: new Date().toISOString() });
-    this.saveState(this.state);
+    const next = { ...c, ...updates, updatedAt: new Date().toISOString() };
+    putAppRows(c.userId, 'app_conversations', [{ id: c.id, ts: c.createdAt, json: JSON.stringify(next) }]);
   }
 
   public updateMessage(id: string, updates: Partial<ChatMessage>) {
-    const m = this.state.messages.find((x) => x.id === id);
-    if (!m) return undefined;
-    Object.assign(m, updates);
-    this.saveState(this.state);
-    return m;
+    for (const uid of listCustomers()) {
+      const m = loadAppRows<ChatMessage>(uid, 'app_messages').find((x) => x.id === id);
+      if (m) {
+        const next = { ...m, ...updates };
+        putAppRows(uid, 'app_messages', [{ id: m.id, ts: m.createdAt, json: JSON.stringify(next) }]);
+        return next;
+      }
+    }
+    return undefined;
   }
 
   public getEarnings(userId: string): Earning[] {
-    return this.state.earnings.filter((e) => e.userId === userId);
+    return loadAppBankRows<Earning>(userId, 'app_earnings');
   }
 
   public addEarning(e: Earning): Earning {
-    this.state.earnings.push(e);
-    this.saveState(this.state);
+    putAppBankRows(e.userId, 'app_earnings', [{ id: e.id, at: e.createdAt, json: JSON.stringify(e) }]);
     return e;
   }
 
+  // ---- One-time shares: standing permissions live in the Context Memory DB ----
   public getShares(userId: string): Share[] {
-    return this.state.shares.filter((x) => x.userId === userId);
+    return loadShares(userId);
   }
 
   public addShare(x: Share): Share {
-    this.state.shares.push(x);
-    this.saveState(this.state);
+    appWrites.putShare(x.userId, x);
     return x;
   }
 
   public updateShare(id: string, updates: Partial<Share>) {
-    const x = this.state.shares.find((y) => y.id === id);
-    if (!x) return undefined;
-    Object.assign(x, updates);
-    this.saveState(this.state);
-    return x;
+    for (const uid of listCustomers()) {
+      const x = loadShares(uid).find((y) => y.id === id);
+      if (x) {
+        const next = { ...x, ...updates };
+        appWrites.putShare(uid, next);
+        return next;
+      }
+    }
+    return undefined;
   }
 }
 

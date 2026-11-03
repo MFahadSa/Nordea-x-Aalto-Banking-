@@ -62,17 +62,19 @@ A.disconnectPersonalAgent(UID);
 check('disconnect returns Abel as the in-app personal agent', S.loadUserDb(UID).personalAgent.mode === 'abel');
 
 // --- Decision 5: goal-filtered contribution -> merge review -> explain/dispute
-const c1 = A.contribute(UID);
-check('contribution proposes only goal-matching entries', c1.proposals.length === 1 && c1.proposals[0].matched === 2, JSON.stringify(c1.proposals));
+const decideFirstNordea = (uid: string) => A.decideProposal(uid, A.reviewQueue(uid).find((m) => m.from === 'nordea')!.id, true); // G3: the reactive round may already have proposed
+const c1 = await A.contribute(UID);
+const actPending = A.reviewQueue(UID).filter((m) => m.from === 'nordea' && m.summary.includes('Activity related to goal'));
+check('contribution proposes only goal-matching entries (G3: the reactive round may have proposed first)', c1.proposals.length + actPending.length === 1 && (c1.proposals[0]?.matched ?? ((actPending[0]?.payload as { transactionIds?: string[] })?.transactionIds?.length ?? 0)) === 2, JSON.stringify(c1.proposals));
 
 // --- AC2: the build round wrote the shared context.md; each agent wrote only its own section
 const doc1 = S.loadContext(UID);
-check('AC2: a build round writes the shared context.md with all three sections', !!doc1 && doc1.sections.customer.rows.some((r) => r.title === 'Save for a car') && doc1.sections.nordea.rows.some((r) => r.detail.includes('83.5')) && fs.existsSync(S.contextMdPath(UID)));
+check('AC2: a build round writes the shared context.md with all three sections', !!doc1 && doc1.sections.customer.rows.some((r) => r.title === 'Save for a car') && doc1.sections.nordea.rows.some((r) => r.evidence?.total === 83.5) && fs.existsSync(S.contextMdPath(UID)));
 check('AC2: sections are structured rows with provenance, rendered to markdown (B1a)', !!doc1 && doc1.sections.nordea.rows.every((r) => r.source === 'nordea' && typeof r.evidence?.total === 'number') && fs.readFileSync(S.contextMdPath(UID), 'utf-8').includes('## Nordea'));
 check('AC2: the Customer section shares goal titles only - the detail stays in the User DB', !!doc1 && !doc1.sections.customer.rows.some((r) => `${r.title} ${r.detail}`.includes('12 000 EUR')));
 check('AC2: the CM agent stored a snapshot of the finished document at finalise', (S.loadContextSnapshot(UID) ?? '').includes('## Nordea'));
 check('no cabinet entry before review', S.loadCmDb(UID).entries.length === 0);
-const c2 = A.contribute(UID);
+const c2 = await A.contribute(UID);
 check('re-running contribution does not duplicate pending proposals', c2.proposals.length === 0);
 
 const busMsgs = S.loadBus(UID).messages;
@@ -85,7 +87,7 @@ check('accepting writes the cabinet entry to the Context Memory DB', S.loadCmDb(
 check('the entry carries provenance (proposedBy + viaMessageId)', S.loadCmDb(UID).entries[0].proposedBy === 'nordea' && !!S.loadCmDb(UID).entries[0].viaMessageId);
 check('F4: the personal agent proposed the customer goal to the cabinet (pending review)', queue.some((m) => m.from === 'personal' && (m.payload as { observed?: string } | undefined)?.observed === 'observed'));
 
-const docChat = A.chat(UID, 'how much have I saved for the car?');
+const docChat = await A.chat(UID, 'how much have I saved for the car?');
 check('B1c: chat answers from the finished context.md', docChat.reply.includes('83.5') && docChat.used.includes('context-memory-db'), docChat.reply);
 
 const explained = A.explainEntry(UID, entry.id);
@@ -95,24 +97,24 @@ const disputed = A.disputeEntry(UID, entry.id, 'Car wash is not saving for a car
 check('dispute marks the entry and keeps it visible', disputed.status === 'disputed' && (disputed.disputeReason ?? '').includes('Car wash'));
 
 // --- Decision 5: answer guardrails, honest thin-context answers
-const bankAnswer = A.chat(UID, 'what is my account balance?');
+const bankAnswer = await A.chat(UID, 'what is my account balance?');
 check('personal agent never reads the Nordea DB (guardrail)', bankAnswer.reply.includes("don't have your bank data"), bankAnswer.reply);
-const thin = A.chat(UID, 'what should I cook for a village festival?');
-check('unknown topics get an honest thin-context answer', thin.reply.includes("don't have enough context"), thin.reply);
-const chatGoal = A.chat(UID, 'my goal is to visit Japan next summer');
+const thin = await A.chat(UID, 'What should be cooked for a village festival?');
+check('unknown General topics get a neutral answer with no User-DB/cabinet/bank disclaimer (AI off)', thin.category === 'General Question' && /general question/.test(thin.reply) && !/User DB|cabinet|bank|goal/i.test(thin.reply), thin.reply);
+const chatGoal = await A.chat(UID, 'my goal is to visit Japan next summer');
 check('a goal typed in chat is direct input (no airlock)', S.loadUserDb(UID).goals.length === 2 && S.loadBus(UID).airlock.length === 2);
 
 // --- Decision 5: separate off / disconnect / delete
 A.setAgentOff(UID, 'nordea', true);
 threw = '';
-try { A.contribute(UID); } catch (e) { threw = (e as Error).message; }
+try { await A.contribute(UID); } catch (e) { threw = (e as Error).message; }
 check('turning the Nordea agent off stops contributions without deleting data', threw.includes('off'), threw);
 check('the Nordea DB still exists while the agent is off', S.nordeaFileExists(UID));
 A.setAgentOff(UID, 'nordea', false);
 
 A.setAgentOff(UID, 'personal', true);
 threw = '';
-try { A.chat(UID, 'hello'); } catch (e) { threw = (e as Error).message; }
+try { await A.chat(UID, 'hello'); } catch (e) { threw = (e as Error).message; }
 check('turning the personal agent off stops chat', threw.includes('off'), threw);
 A.setAgentOff(UID, 'personal', false);
 
@@ -139,13 +141,16 @@ S.saveNordeaDb({
   transactions: [{ id: 's1', userId: UID2, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }],
 });
 A.addGoalDirect(UID2, 'Save for a car');
-const sc = A.contribute(UID2);
-A.decideProposal(UID2, sc.proposals[0].messageId, true);
+// G3: the reactive user-change round already proposed the goal-relevant activity, so the
+// contribution round dedupes - take whichever proposal the rounds left pending.
+const sc = await A.contribute(UID2);
+const firstId = sc.proposals[0]?.messageId ?? A.reviewQueue(UID2).find((m) => m.summary.includes('Activity related to goal'))!.id;
+A.decideProposal(UID2, firstId, true);
 check('staleness setup: entry active with 100 EUR evidence', S.loadCmDb(UID2).entries[0].status === 'active' && S.loadCmDb(UID2).entries[0].evidence?.total === 100);
 const nd = S.loadNordeaDb(UID2)!;
 nd.transactions.push({ id: 's2', userId: UID2, date: '2026-10-02', category: 'transport', amount: -50, account: 'current', description: 'Car wash' });
 S.saveNordeaDb(nd);
-const sc2 = A.contribute(UID2);
+const sc2 = await A.contribute(UID2);
 check('changed facts flag the accepted entry stale', S.loadCmDb(UID2).entries[0].status === 'stale');
 const staleBus = S.loadBus(UID2).messages;
 check('flag-stale and refresh messages were exchanged', staleBus.some((m) => m.type === 'flag-stale' && m.from === 'cm' && m.to === 'personal') && staleBus.some((m) => m.type === 'refresh' && m.from === 'cm' && m.to === 'nordea'));
@@ -199,14 +204,14 @@ check('the server\'s agent-query reply carries facts only, no composed wording',
 const UID3 = 'disputeuser';
 S.saveNordeaDb({ userId: UID3, accounts: [], transactions: [{ id: 'd1', userId: UID3, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel' }] });
 A.addGoalDirect(UID3, 'Save for a car');
-const dc = A.contribute(UID3);
-const dEntry = A.decideProposal(UID3, dc.proposals[0].messageId, true);
+await A.contribute(UID3);
+const dEntry = A.decideProposal(UID3, A.reviewQueue(UID3).find((m) => m.from === 'nordea')!.id, true);
 A.disputeEntry(UID3, (dEntry as { id: string }).id, 'savings transfers are not car spending');
 const nd3 = S.loadNordeaDb(UID3)!;
 nd3.transactions.push({ id: 'd2', userId: UID3, date: '2026-10-02', category: 'transport', amount: -50, account: 'current', description: 'Car wash' });
 S.saveNordeaDb(nd3);
-A.contribute(UID3);
-A.contribute(UID3);
+await A.contribute(UID3);
+await A.contribute(UID3);
 const dAfter = S.loadCmDb(UID3).entries;
 check('a disputed entry is never silently re-accepted by contribute/refresh cycles',
   dAfter.length === 1 && dAfter[0].status === 'disputed', JSON.stringify(dAfter.map((e) => e.status)));
@@ -223,20 +228,21 @@ check('the guardrail still rejects numbers absent from the retrieved facts', inv
 const UID4 = 'parkuser';
 S.saveNordeaDb({ userId: UID4, accounts: [], transactions: [{ id: 'p1', userId: UID4, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID4, 'Save for a car');
-const pc = A.contribute(UID4);
+await A.contribute(UID4);
+const parkPropId = A.reviewQueue(UID4).find((m) => m.from === 'nordea')!.id;
 A.parkCabinet(UID4, true);
 check('parking keeps every cabinet entry (nothing deleted)', S.loadCmDb(UID4).entries.length === 0 && S.loadCmDb(UID4).parked === true);
 threw = '';
 try { A.agentQuery(UID4, 'cm', 'car'); } catch (e) { threw = (e as Error).message; }
 check('a parked cabinet denies agent reads (no disclosure)', threw.includes('parked'), threw);
 threw = '';
-try { A.contribute(UID4); } catch (e) { threw = (e as Error).message; }
+try { await A.contribute(UID4); } catch (e) { threw = (e as Error).message; }
 check('a parked cabinet denies new contributions', threw.includes('parked'), threw);
 threw = '';
-try { A.decideProposal(UID4, pc.proposals[0].messageId, true); } catch (e) { threw = (e as Error).message; }
+try { A.decideProposal(UID4, parkPropId, true); } catch (e) { threw = (e as Error).message; }
 check('a parked cabinet denies accepting proposals (no supply while parked)', threw.includes('parked'), threw);
-check('the denied acceptance left the proposal pending (no half-mutated review)', A.reviewQueue(UID4).some((m) => m.id === pc.proposals[0].messageId));
-const rejected = A.decideProposal(UID4, pc.proposals[0].messageId, false) as { rejected: boolean };
+check('the denied acceptance left the proposal pending (no half-mutated review)', A.reviewQueue(UID4).some((m) => m.id === parkPropId));
+const rejected = A.decideProposal(UID4, parkPropId, false) as { rejected: boolean };
 check('the user can still REJECT a proposal while parked (review is the user\'s, not agent supply)', rejected.rejected === true);
 A.connectExternalAgent(UID4, 'Meta Muse');
 check('connecting an external personal agent does NOT unpark the cabinet', S.loadCmDb(UID4).parked === true);
@@ -247,7 +253,7 @@ check('only the explicit reconnect resumes the cabinet', S.loadCmDb(UID4).parked
 A.connectExternalAgent(UID4, 'Meta Muse');
 A.disconnectPersonalAgent(UID4);
 check('the connect/disconnect swap never parks the cabinet by itself', !S.loadCmDb(UID4).parked);
-const pc2 = A.contribute(UID4);
+const pc2 = await A.contribute(UID4);
 check('after reconnect, contributions and agent reads work again', pc2.proposals.length === 1 && (A.agentQuery(UID4, 'cm', 'car').reply as { matchedEntries: unknown[] }).matchedEntries.length >= 0);
 
 // --- Bank import triggers the source-owner DB refresh + staleness detection (no manual contribution press)
@@ -255,12 +261,20 @@ const { writeDemoDb } = await import('./demo-data.js');
 writeDemoDb(CABINET_DATA_DIR);
 const { db: legacyDb } = await import('../src/server/db.js');
 await legacyDb.init();
+// Owner 16:35: startup never migrates on its own - the explicit command does (and deletes the file).
+const { runLegacyMigration } = await import('../src/server/arch/legacyMigrate.js');
+const mig0 = runLegacyMigration();
+if (!mig0.ok) throw new Error('demo migration failed: ' + mig0.failures.join('; '));
 const { applyNordeaData } = await import('../src/server/nordeaData.js');
 const UID5 = 'lauri';
+S.deleteDb(UID5, 'cm');
+S.deleteDb(UID5, 'user');
+S.deleteDb(UID5, 'nordea');
+S.saveBus(UID5, { messages: [], airlock: [] }); // clean slate: the legacy demo file now migrates into the three DBs on init
 S.saveNordeaDb({ userId: UID5, accounts: [], transactions: [{ id: 'i1', userId: UID5, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID5, 'Save for a car');
-const ic = A.contribute(UID5);
-const iEntry = A.decideProposal(UID5, ic.proposals[0].messageId, true) as { id: string };
+const ic = await A.contribute(UID5);
+const iEntry = decideFirstNordea(UID5) as { id: string };
 check('import-test setup: entry active with 100 EUR evidence', S.loadCmDb(UID5).entries[0].status === 'active' && S.loadCmDb(UID5).entries[0].evidence?.total === 100);
 const applied = applyNordeaData(UID5, { mode: 'incremental', transactions: [{ date: '2026-10-20', amount: -42, category: 'transport', description: 'Extra fuel for the car', bankId: 'IMP-TEST-1' }] } as Parameters<typeof applyNordeaData>[1], 'test import');
 check('the legacy import applies', applied.ok, applied.message);
@@ -278,10 +292,14 @@ check('the import hook does nothing for a customer without the architecture', A.
 // --- Resume never serves outdated facts as fresh: re-check runs before reuse
 // Scenario A: import while PARKED updates the Nordea DB without detection; reconnect re-checks.
 const UID6 = 'eeva';
+S.deleteDb(UID6, 'cm');
+S.deleteDb(UID6, 'user');
+S.deleteDb(UID6, 'nordea');
+S.saveBus(UID6, { messages: [], airlock: [] }); // clean slate: the legacy demo file now migrates into the three DBs on init
 S.saveNordeaDb({ userId: UID6, accounts: [], transactions: [{ id: 'e1', userId: UID6, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID6, 'Save for a car');
-const ec = A.contribute(UID6);
-A.decideProposal(UID6, ec.proposals[0].messageId, true);
+const ec = await A.contribute(UID6);
+decideFirstNordea(UID6);
 A.parkCabinet(UID6, true);
 applyNordeaData(UID6, { mode: 'incremental', transactions: [{ date: '2026-10-21', amount: -55, category: 'transport', description: 'Extra fuel for the car', bankId: 'IMP-TEST-2' }] } as Parameters<typeof applyNordeaData>[1], 'test import while parked');
 const hookParked = A.applyBankImportToArch(UID6);
@@ -292,16 +310,20 @@ check('the reconnect re-check posted flag-stale + refresh messages', S.loadBus(U
 
 // Scenario B: import while the NORDEA agent is OFF does not touch its DB; turn-on refreshes + re-checks.
 const UID7 = 'alex';
+S.deleteDb(UID7, 'cm');
+S.deleteDb(UID7, 'user');
+S.deleteDb(UID7, 'nordea');
+S.saveBus(UID7, { messages: [], airlock: [] }); // clean slate: the legacy demo file now migrates into the three DBs on init
 S.saveNordeaDb({ userId: UID7, accounts: [], transactions: [{ id: 'x1', userId: UID7, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID7, 'Save for a car');
-const xc = A.contribute(UID7);
-A.decideProposal(UID7, xc.proposals[0].messageId, true);
+const xc = await A.contribute(UID7);
+decideFirstNordea(UID7);
 A.setAgentOff(UID7, 'nordea', true);
 applyNordeaData(UID7, { mode: 'incremental', transactions: [{ date: '2026-10-22', amount: -77, category: 'transport', description: 'More fuel for the car', bankId: 'IMP-TEST-3' }] } as Parameters<typeof applyNordeaData>[1], 'test import while off');
 const hookOff = A.applyBankImportToArch(UID7);
-check('while the Nordea agent is off, the import hook does not touch its DB', hookOff.updated === false && !S.loadNordeaDb(UID7)!.transactions.some((t) => t.description === 'More fuel for the car'));
+check('while the Nordea agent is off, the import still lands in the Nordea DB but the hook runs no update/detection', hookOff.updated === false && S.loadNordeaDb(UID7)!.transactions.some((t) => t.description === 'More fuel for the car') && S.loadCmDb(UID7).entries[0].status === 'active');
 A.setAgentOff(UID7, 'nordea', false);
-check('turning the Nordea agent back on refreshes its DB from current bank data', S.loadNordeaDb(UID7)!.transactions.some((t) => t.description === 'More fuel for the car'));
+check('turning the Nordea agent back on finds its DB already current (imports write it directly)', S.loadNordeaDb(UID7)!.transactions.some((t) => t.description === 'More fuel for the car'));
 check('turn-on re-checks BEFORE the agent serves again: the entry is flagged stale', S.loadCmDb(UID7).entries[0].status === 'stale');
 
 // Scenario C: import while the CM agent is OFF updates the DB without detection; turn-on re-checks.
@@ -312,8 +334,8 @@ S.deleteDb(UID8, 'nordea');
 S.saveBus(UID8, { messages: [], airlock: [] }); // clean slate for this customer (earlier scenarios left a pending proposal)
 S.saveNordeaDb({ userId: UID8, accounts: [], transactions: [{ id: 'l1', userId: UID8, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID8, 'Save for a car');
-const lc = A.contribute(UID8);
-A.decideProposal(UID8, lc.proposals[0].messageId, true);
+const lc = await A.contribute(UID8);
+decideFirstNordea(UID8);
 A.setAgentOff(UID8, 'cm', true);
 applyNordeaData(UID8, { mode: 'incremental', transactions: [{ date: '2026-10-23', amount: -33, category: 'transport', description: 'Even more fuel for the car', bankId: 'IMP-TEST-4' }] } as Parameters<typeof applyNordeaData>[1], 'test import while cm off');
 A.applyBankImportToArch(UID8);
@@ -328,34 +350,41 @@ const personalSrc = readSrc('../src/server/arch/agents/personal.ts');
 const cmSrc = readSrc('../src/server/arch/agents/cm.ts');
 const nordeaSrc = readSrc('../src/server/arch/agents/nordea.ts');
 // Allowlist (F14): each agent module may import only its own store, the bus store, the
-// dispatcher, the round engine, text helpers and shared types - plus, for the Nordea agent,
-// the bank's core data source (../../db.js). Any other import fails, however it is named.
+// dispatcher, the round engine, text helpers and shared types. No agent imports the app layer -
+// no agent may import the app layer (../../db.js) - each agent's own DB is its only data source.
 const importsOf = (src: string) => [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
-const AGENT_SHARED = ['../types.js', '../text.js', '../store/busStore.js', '../store/contextStore.js', '../dispatcher.js', '../rounds.js', '../risk.js']; // contextStore = the AC2 shared document, section writers pinned below
+const AGENT_SHARED = ['../approvalGate.js', '../types.js', '../text.js', '../insight.js', '../store/busStore.js', '../store/contextStore.js', '../dispatcher.js', '../rounds.js', '../risk.js', '../llm.js']; // llm.js = the G4 bounded reasoning driver, not the app LLM // contextStore = the AC2 shared document, section writers pinned below
 const onlyAllowed = (src: string, ownStore: string, extra: string[] = []) => importsOf(src).every((spec) => [...AGENT_SHARED, ownStore, ...extra].includes(spec));
 check('AC1: the personal agent module imports only its own store plus shared bus/round infra', onlyAllowed(personalSrc, '../store/userStore.js'), importsOf(personalSrc).join(','));
 check('AC1: the CM agent module imports only its own store plus shared bus/round infra', onlyAllowed(cmSrc, '../store/cmStore.js'), importsOf(cmSrc).join(','));
-check('AC1: the Nordea agent module imports only its own store plus shared infra and the core bank source', onlyAllowed(nordeaSrc, '../store/nordeaStore.js', ['../../db.js']), importsOf(nordeaSrc).join(','));
+check('AC1: the Nordea agent module imports only its own store plus shared infra (its own DB is the bank source, no ../../db.js)', onlyAllowed(nordeaSrc, '../store/nordeaStore.js') && !importsOf(nordeaSrc).includes('../../db.js'), importsOf(nordeaSrc).join(','));
 check('AC2: only the personal agent module writes the Customer section', personalSrc.includes('writeCustomerSection') && !personalSrc.includes('writeMemorySection') && !personalSrc.includes('writeNordeaSection'));
 check('AC2: only the CM agent module writes the Context memory section and the header', cmSrc.includes('writeMemorySection') && cmSrc.includes('writeHeader') && !cmSrc.includes('writeCustomerSection') && !cmSrc.includes('writeNordeaSection'));
 check('AC2: only the Nordea agent module writes the Nordea section', nordeaSrc.includes('writeNordeaSection') && !nordeaSrc.includes('writeCustomerSection') && !nordeaSrc.includes('writeMemorySection'));
+{ const ctxSrc = readSrc('../src/server/arch/store/contextStore.ts'), appSrc = readSrc('../src/server/arch/orchestrator.ts') + readSrc('../src/server/arch/routes.ts');
+  const saveCalls = [...ctxSrc.matchAll(/\bsave\(uid, doc\)/g)].length;
+  check('G50: only the private writer, the header, the session reset and the app delete touch the shared document; no other exported function rewrites a section', !/pruneGoalRows/.test(ctxSrc + appSrc) && saveCalls <= 3 && !/export function (?!write|readSection|loadContext|renderContextMd|resetContextForSession|deleteContext|contextMdPath)\w+\(/.test(ctxSrc.replace(/export function (writeCustomerSection|writeMemorySection|writeNordeaSection|writeHeader)/g, '')), `save calls ${saveCalls}`);
+  check('G50: the app layer imports no section writer from contextStore', !/import\s*\{[^}]*\bwrite(Customer|Memory|Nordea)Section\b[^}]*\}\s*from\s*'\.\/store\/contextStore/.test(appSrc)); }
+check('AC1: the insight builder is pure shared infra - no agent store, no bus, no LLM driver',
+  importsOf(readSrc('../src/server/arch/insight.ts')).every((spec) => spec === '../../types.js' || spec === './text.js'));
 check('AC1: the dispatcher and round engine open no agent store at all',
   !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/dispatcher.ts')) && !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/rounds.ts')));
 
-// --- AC11/F10: the in-app Abel (the LLM) never opens user.db or any architecture store -
-// its facts come through the access gateway. "Abel" as the architecture's personal agent is
-// the Abel mode of the personal agent (personalLabel), not the LLM module.
-const abelSrc = readSrc('../src/server/abel.ts');
-check('AC11: the in-app Abel module imports no architecture store and no user.db access',
-  !/(arch\/store|userStore|cmStore|nordeaStore|contextStore|loadUserDb)/.test(abelSrc), (abelSrc.match(/from\s+['"][^'"]+['"]/g) ?? []).join(','));
-check('AC11: Abel reads its cabinet through the access gateway, and only there',
-  abelSrc.includes('readCabinetThroughGateway') && !/abel_records/.test(abelSrc.replace(/readCabinetThroughGateway|previewCabinetForAgent/g, '')), '');
+// --- AC11: the legacy Abel modules are gone - the app chats only through the arch pipeline.
+// The old boundary property (no app module opens an agent store) is pinned by AC1/AC2 and
+// G30 slice 3; these checks pin the removal itself so the old path cannot creep back.
+const abelGone = (f: string) => !fs.existsSync(new URL(f, import.meta.url));
+const tsIn = (dir: string): string[] => fs.readdirSync(new URL(dir, import.meta.url)).filter((f) => f.endsWith('.ts')).map((f) => `${dir}/${f}`);
+const appLayerFiles = [...tsIn('../src/server'), ...tsIn('../src/server/arch'), ...tsIn('../src/server/arch/agents'), ...tsIn('../src/server/arch/store')];
+const legacyAbelRefs = appLayerFiles.filter((f) => /from\s+['"][^'"]*abel(?:Offline)?\.js['"]/.test(readSrc(f)));
+check('AC11: abel.ts and abelOffline.ts are removed and no module imports them',
+  abelGone('../src/server/abel.ts') && abelGone('../src/server/abelOffline.ts') && legacyAbelRefs.length === 0, legacyAbelRefs.join(','));
 
 // --- AC6: a contribution runs as a real build round: open -> contributions -> done -> finalise -> stored
 const UID9 = 'rounduser';
 S.saveNordeaDb({ userId: UID9, accounts: [], transactions: [{ id: 'r1', userId: UID9, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID9, 'Save for a car');
-const rc = A.contribute(UID9) as { round: { id: string; state: string; steps: number; maxSteps: number } };
+const rc = await A.contribute(UID9) as { round: { id: string; state: string; steps: number; maxSteps: number } };
 check('AC6: the build round finalised and stored within its step limit', rc.round.state === 'stored' && rc.round.steps > 0 && rc.round.steps <= rc.round.maxSteps, JSON.stringify(rc.round));
 check("AC6: the round is 'stored' only on the CM agent's own finalise confirmation (F13)",
   S.loadBus(UID9).messages.some((m) => m.from === 'cm' && m.to === 'app' && (m.payload as { roundId?: string; stored?: boolean } | undefined)?.roundId === rc.round.id && (m.payload as { stored?: boolean }).stored === true));
@@ -371,8 +400,8 @@ check('AC6: the CM agent stores the round record in its own DB at finalise', cmD
 const UID10 = 'limituser';
 S.saveNordeaDb({ userId: UID10, accounts: [], transactions: [{ id: 'l1', userId: UID10, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel' }] });
 A.addGoalDirect(UID10, 'Save for a car');
-const lc10 = A.contribute(UID10);
-A.decideProposal(UID10, lc10.proposals[0].messageId, true);
+const lc10 = await A.contribute(UID10);
+decideFirstNordea(UID10);
 const limited = R.runRound(UID10, 'decay', { maxSteps: 1 });
 check('AC6: a round that cannot finish ends at its step limit', limited.state === 'step-limit', limited.state);
 
@@ -382,7 +411,7 @@ check('AC6: a round that cannot finish ends at its step limit', limited.state ==
 const accepted = A.decideProposal(UID9, A.reviewQueue(UID9).find((m) => m.from === 'nordea')!.id, true) as { id: string };
 const docBefore = S.loadContext(UID9)!;
 check('F15-8: accepting a proposal does NOT patch the finished document between rounds', !docBefore.sections.memory.rows.some((r) => r.id === accepted.id));
-const chatAns = A.chat(UID9, 'what do you know about my car saving?');
+const chatAns = await A.chat(UID9, 'what do you know about my car saving?');
 const doc9 = S.loadContext(UID9)!;
 check('F15: the first chat question opened a session round (new document)', doc9.roundId !== docBefore.roundId && !!chatAns.sessionId, doc9.roundId + ' vs ' + docBefore.roundId);
 check('F15: the session round is visible on the bus with the question', S.loadBus(UID9).messages.some((m) => m.type === 'round-start' && (m.payload as { trigger?: string; question?: string } | undefined)?.trigger === 'session' && (m.payload as { question?: string } | undefined)?.question === 'what do you know about my car saving?'));
@@ -390,19 +419,19 @@ check('the chat answer draws on the CM-written memory section of the finished co
 check('the memory section carries the accepted entry with provenance', doc9.sections.memory.rows.some((r) => r.id === accepted.id && r.source === 'cm' && typeof r.evidence?.total === 'number'));
 
 // --- F15: a follow-up question in the same session is answered from the SAME document.
-const follow = A.chat(UID9, 'tell me about the car saving again');
+const follow = await A.chat(UID9, 'tell me about the car saving again');
 const docFollow = S.loadContext(UID9)!;
 check('F15: a same-session follow-up keeps the same document (no new round)', docFollow.roundId === doc9.roundId && follow.sessionId === chatAns.sessionId, docFollow.roundId + ' vs ' + doc9.roundId);
 
 // --- F15-7: a follow-up the document has no memory row for triggers a top-up round on the
 // SAME document (a new round id, never a fresh document).
-const topupAns = A.chat(UID9, 'any grocery insights?');
+const topupAns = await A.chat(UID9, 'any grocery insights?');
 const docTop = S.loadContext(UID9)!;
 check('F15-7: an unanswered follow-up runs a top-up round on the same document', docTop.roundId !== doc9.roundId && docTop.trigger === 'topup' && S.loadBus(UID9).messages.some((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'topup'), docTop.roundId + ' trigger ' + docTop.trigger);
 void topupAns;
 
 // --- F15: a different client session id ends the session and rebuilds the document.
-const other = A.chat(UID9, 'what do you know about my car saving?', 'client-session-2');
+const other = await A.chat(UID9, 'what do you know about my car saving?', 'client-session-2');
 const docNew = S.loadContext(UID9)!;
 check('F15: a new client session id starts a new session document', other.sessionId === 'client-session-2' && docNew.roundId !== docTop.roundId && docNew.trigger === 'session');
 
@@ -410,7 +439,7 @@ check('F15: a new client session id starts a new session document', other.sessio
 const UID12 = 'cmretrieve';
 A.addGoalDirect(UID12, 'Save for a car');
 S.saveNordeaDb({ userId: UID12, accounts: [], transactions: [{ id: 'c1', userId: UID12, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
-const c12 = A.contribute(UID12);
+const c12 = await A.contribute(UID12);
 A.decideProposal(UID12, c12.proposals[0].messageId, true); // Nordea insight: 100 EUR
 const q12 = A.reviewQueue(UID12);
 const pEntryRes = A.decideProposal(UID12, q12.find((m) => m.from === 'personal')!.id, true) as { id: string };
@@ -445,19 +474,19 @@ check('F5: retrieval ranks the best question match first', hits5.length >= 3 && 
 const UID13 = 'sessionleak';
 A.addGoalDirect(UID13, 'Save for a car');
 S.saveNordeaDb({ userId: UID13, accounts: [], transactions: [{ id: 'x1', userId: UID13, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
-const c13 = A.contribute(UID13);
+const c13 = await A.contribute(UID13);
 A.decideProposal(UID13, c13.proposals[0].messageId, true);
-const s13a = A.chat(UID13, 'what do you know about my car saving?');
+const s13a = await A.chat(UID13, 'what do you know about my car saving?');
 check('F16 setup: the first session answers from its document', s13a.reply.includes('Shared context'), s13a.reply.slice(0, 100));
 A.setAgentOff(UID13, 'cm', true);
-const s13b = A.chat(UID13, 'what do you know about my car saving?', 'fresh-session');
+const s13b = await A.chat(UID13, 'what do you know about my car saving?', 'fresh-session');
 check('F16: an agent off at session start gives NO rows from the old session', !s13b.reply.includes('Shared context (via') && s13b.reply.toLowerCase().includes('shared context is unavailable this session'), s13b.reply.slice(0, 140));
 check('F16: the new session document is empty and stamped with the new session id', S.loadContext(UID13)!.sessionId === 'fresh-session' && S.loadContext(UID13)!.sections.memory.rows.length === 0);
 A.setAgentOff(UID13, 'cm', false);
 
 // --- F17: "my goal is ..." as a session's first message is saved BEFORE the round opens.
 const UID14 = 'goalfirst';
-const g14 = A.chat(UID14, 'my goal is to visit Japan next summer');
+const g14 = await A.chat(UID14, 'my goal is to visit Japan next summer');
 check('F17: the goal reply still comes back', g14.reply.includes('Saved "to visit Japan next summer"'), g14.reply.slice(0, 80));
 const doc14 = S.loadContext(UID14)!;
 check('F17: the session round already contains the just-typed goal', doc14.sections.customer.rows.some((r) => r.title.toLowerCase().includes('japan')), JSON.stringify(doc14.sections.customer.rows.map((r) => r.title)));
@@ -467,9 +496,12 @@ check('F17: the session round already contains the just-typed goal', doc14.secti
 const UID15 = 'riskuser';
 S.saveNordeaDb({ userId: UID15, accounts: [], transactions: [{ id: 'k1', userId: UID15, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID15, 'Save for a car');
-A.contribute(UID15);
+await A.contribute(UID15);
 check('F7: first start defaults to review-everything (no standing permissions set yet)', A.reviewQueue(UID15).length === 2 && S.loadCmDb(UID15).entries.length === 0, `queue ${A.reviewQueue(UID15).length}`);
-A.setStandingPermissions(UID15, 'high');
+A.setStandingPermissions(UID15, 'high', 'High risk mode');
+// R2: no model ran, so the User AI gave the own-goal card NO level: UNKNOWN = effective level 2, which waits even in "High risk mode".
+check('R2/F7: without a model the own-goal card has no level and waits as UNKNOWN in "High risk mode" (never auto-certified by code)', S.loadCmDb(UID15).entries.every((e) => e.proposedBy !== 'personal') && (A.reviewQueue(UID15) as any[]).some((m) => m.from === 'personal' && m.effectiveApproval?.unknown === true && m.effectiveApproval.level === 2), JSON.stringify((A.reviewQueue(UID15) as any[]).map((m) => m.effectiveApproval)));
+A.setStandingPermissions(UID15, undefined, 'No permission'); // the owner's table: every level passes, UNKNOWN included (stored as level 2, not as an AI certification)
 const cm15 = S.loadCmDb(UID15);
 const autoLow = cm15.entries.find((e) => e.proposedBy === 'personal');
 const autoMed = cm15.entries.find((e) => e.proposedBy === 'nordea');
@@ -484,35 +516,700 @@ check('F7: explain shows the automatic store and its risk level', autoExplain.ex
 const UID16 = 'riskhigh';
 S.saveNordeaDb({ userId: UID16, accounts: [], transactions: [{ id: 'h1', userId: UID16, date: '2026-10-01', category: 'groceries', amount: -20, account: 'current', description: 'Weekly groceries' }] });
 A.addGoalDirect(UID16, 'therapy fund');
-A.setStandingPermissions(UID16, 'high');
-A.contribute(UID16);
+A.setStandingPermissions(UID16, 'high', 'High risk mode');
+await A.contribute(UID16);
 check('F7: a sensitive-topic proposal is HIGH risk and waits for the customer', S.loadCmDb(UID16).entries.length === 0 && A.reviewQueue(UID16).length === 1, `entries ${S.loadCmDb(UID16).entries.length} queue ${A.reviewQueue(UID16).length}`);
 
+
+// --- G3/V3-A: a User DB change reactively runs a full round (personal -> cm -> nordea)
+const UID50 = 'reactiveuser';
+S.saveNordeaDb({ userId: UID50, accounts: [], transactions: [
+  { id: 'ru1', userId: UID50, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' },
+  { id: 'ru2', userId: UID50, date: '2026-10-02', category: 'transport', amount: -83.5, account: 'current', description: 'Car wash' },
+] });
+A.addGoalDirect(UID50, 'Save for a car');
+const reactRound = R.loadLatestRound(UID50)!;
+check('G3: a User DB change starts a user-change round that runs to completion', reactRound.trigger === 'user-change' && reactRound.state === 'stored', `${reactRound.trigger} ${reactRound.state}`);
+check('G3: the reactive round is personal-first and all three agents signalled done', reactRound.doneSignals[0] === 'personal' && ['personal', 'cm', 'nordea'].every((a) => reactRound.doneSignals.includes(a as 'personal' | 'cm' | 'nordea')), reactRound.doneSignals.join(','));
+const reactBus = S.loadBus(UID50).messages;
+check('G3: the round-start on the bus carries the user-change trigger', reactBus.some((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'user-change'));
+check('G3: personal informs cm and cm queries nordea inside the reactive round', reactBus.some((m) => m.from === 'personal' && m.to === 'cm') && reactBus.some((m) => m.from === 'cm' && m.to === 'nordea' && m.type === 'query'));
+const reactDoc = S.loadContext(UID50)!;
+check('G3: the reactive round wrote the customer + nordea sections with evidence', reactDoc.sections.customer.rows.some((r) => r.title === 'Save for a car') && reactDoc.sections.nordea.rows.some((r) => typeof r.evidence?.total === 'number'));
+check('G3: the reactive round leaves the goal-matching proposal pending review (consent path unchanged)', A.reviewQueue(UID50).some((m) => m.from === 'nordea' && ((m.payload as { transactionIds?: string[] }).transactionIds ?? []).length === 2));
+
+// --- G7/V2: goal edit + delete on /arch.html go through the personal agent and update Abel's knowledge
+const UID51 = 'goaledit';
+S.saveNordeaDb({ userId: UID51, accounts: [], transactions: [{ id: 'g1', userId: UID51, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
+const g51 = A.addGoalDirect(UID51, 'Save for a car');
+A.appWrites.updateGoal(UID51, g51.id, { title: 'Save for a boat' });
+check('G7: editing a goal on /arch.html updates the User DB through the personal agent', S.loadUserDb(UID51).goals[0]?.title === 'Save for a boat');
+check('G7: the edit is reactive - a user-change round runs', R.loadLatestRound(UID51)?.trigger === 'user-change', R.loadLatestRound(UID51)?.trigger);
+check('G7: Abel\'s shared context carries the edited goal', ((await A.abelSharedContext(UID51, 'conv-g51', 'boat')).userDbFacts ?? '').includes('Save for a boat'), (await A.abelSharedContext(UID51, 'conv-g51', 'boat')).userDbFacts);
+A.appWrites.removeGoal(UID51, g51.id);
+check('G7: deleting a goal removes it from the User DB', S.loadUserDb(UID51).goals.length === 0);
+check('G7: the delete is reactive too', R.loadLatestRound(UID51)?.trigger === 'user-change', R.loadLatestRound(UID51)?.trigger);
+check('G7: the deleted goal leaves Abel\'s knowledge', !((await A.abelSharedContext(UID51, 'conv-g51b', 'boat')).userDbFacts ?? '').includes('Save for a boat'));
+check('G12: deleting a goal withdraws its pending proposals (any agent)', !S.loadBus(UID51).messages.some((m) => m.type === 'propose' && m.status === 'pending' && ((m.payload as { goalIds?: string[] } | undefined)?.goalIds ?? []).includes(g51.id)), JSON.stringify(S.loadBus(UID51).messages.filter((m) => m.type === 'propose' && m.status === 'pending').map((m) => [m.from, m.summary, (m.payload as { goalIds?: string[] } | undefined)?.goalIds])) + ' gid=' + g51.id);
+
+// --- G4/V4: LLM-driven planning (mock provider) - the model proposes, code checks and writes
+const LL = await import('../src/server/llm.js');
+const LM = await import('../src/server/llmMock.js');
+const UID53 = 'llmuser';
+S.saveNordeaDb({ userId: UID53, accounts: [], transactions: [{ id: 'lt1', userId: UID53, date: '2026-10-01', category: 'other', amount: -30, account: 'current', description: 'wash and wax service' }] });
+A.addGoalDirect(UID53, 'Save for a car');
+const scripted53 = await A.contribute(UID53);
+check('G4: the scripted fallback misses what only a synonym would catch', scripted53.proposals.length === 0, JSON.stringify(scripted53.proposals));
+// R2: this block pins top-up WIRING, so the goal card must stay waiting (not served from memory). Its level answer is 1
+// (waits in the default "Review everything"); the R2 pins below cover the real rubric answer for a typed goal (level 0).
+const mockL1 = { ...LM.mockProvider, step: async (a: any) => a.tools.some((t: any) => t.name === 'finishRiskLevels')
+  ? { calls: [{ id: 'l1', name: 'finishRiskLevels', args: { levels: [...String(a.turns[0]?.text ?? '').matchAll(/^- card (\S+) \|/gm)].map((m) => ({ card: m[1], level: 1, reason: 'fixture: keep the card waiting for this top-up pin', evidence: [`goal:${m[1]}`] })) } }] }
+  : LM.mockProvider.step(a) } as never;
+LL.setProviderForTests(mockL1);
+const llm53 = await A.contribute(UID53);
+const round53 = R.loadRound(UID53, llm53.round.id)!;
+check('G4: the CM model\'s retrieval plan rides the round (validated subset of shared titles)', (round53.llm?.goalTitles ?? []).includes('Save for a car'), JSON.stringify(round53.llm));
+check('G4: the Nordea model\'s match terms are validated and recorded', (round53.llm?.terms?.['Save for a car'] ?? []).includes('wash'), JSON.stringify(round53.llm?.terms));
+check('G4: the LLM term catches the transaction - code still owns matching, totals and evidence', llm53.proposals.length === 1 && llm53.proposals[0].total === 30 && llm53.proposals[0].matched === 1, JSON.stringify(llm53.proposals));
+check('G4: the plan is auditable on the bus', S.loadBus(UID53).messages.some((m) => m.type === 'inform' && (m.payload as { llm?: boolean } | undefined)?.llm === true));
+LL.setProviderForTests(mockL1);
+const chat53 = await A.chat(UID53, 'how much did I spend on my car?', 'llm-sess-1');
+const doc53 = S.loadContext(UID53)!;
+const sessRound53 = R.loadRound(UID53, doc53.roundId ?? '')!;
+check('G4: a session round carries the LLM plan too', sessRound53.trigger === 'session' && (sessRound53.llm?.goalTitles ?? []).length >= 1, JSON.stringify(sessRound53.llm));
+check('G4: the round records which path each agent took', sessRound53.llm?.status?.cm === 'model' && sessRound53.llm?.status?.nordea === 'model', JSON.stringify(sessRound53.llm?.status));
+check('G4: the personal agent model composes the chat reply (truthful source)', chat53.source === 'model', chat53.source + ': ' + chat53.reply.slice(0, 80));
+check('G4: the provider is named so mock is never mistaken for a live model', chat53.provider === 'mock (tests only)' && sessRound53.llm?.status?.provider === 'mock (tests only)', String(chat53.provider));
+await A.chat(UID53, 'tell me more about the car', 'llm-sess-1');
+const docTop53 = S.loadContext(UID53)!;
+check('G4: an unanswered follow-up tops up with an LLM-planned round', docTop53.roundId !== doc53.roundId && docTop53.trigger === 'topup' && R.loadRound(UID53, docTop53.roundId ?? '')?.llm?.status?.cm === 'model', docTop53.roundId + ' ' + docTop53.trigger);
+LL.setProviderForTests(null);
+
+LL.setProviderForTests({ ...LM.mockProvider, step: async () => { throw new Error('provider down'); } });
+const down53 = await A.contribute(UID53);
+const downRound53 = R.loadRound(UID53, down53.round.id);
+check('G4: a failing provider falls back to the scripted path (round still runs)', down53.proposals.length === 0 && downRound53?.llm?.goalTitles === undefined, JSON.stringify(downRound53?.llm));
+check('G4: the failure is recorded truthfully, not claimed as model output', downRound53?.llm?.status?.cm === 'error' && downRound53?.llm?.status?.nordea === 'error', JSON.stringify(downRound53?.llm?.status));
+const downChat53 = await A.chat(UID53, 'how much did I spend on my car?', 'llm-sess-2');
+check('G4: the chat reply says scripted when the provider failed', downChat53.source === 'scripted-error' && downChat53.plan?.cm === 'error', downChat53.source);
+LL.setProviderForTests(null);
+
+// G16 safety: LLM_MAX_CALLS caps real provider HTTP calls in this process and stops retries at once.
+process.env.LLM_MAX_CALLS = '2';
+LL.resetModelForTests();
+LL.countLlmCall('test one');
+LL.countLlmCall('test two');
+let capThrew = false;
+try { LL.countLlmCall('test three'); } catch { capThrew = true; }
+check('G16: the paid-call cap refuses calls past LLM_MAX_CALLS', capThrew && LL.llmCallCount() === 2, String(LL.llmCallCount()));
+let capCalls = 0;
+let capErr = '';
+try {
+  await LL.generateWith(async () => { capCalls += 1; LL.countLlmCall('generateWith'); throw new Error('boom'); }, { system: 's', contents: [], temperature: 0 }, 1);
+} catch (e) { capErr = String(e); }
+check('G16: a budget stop ends the retry loop immediately (no model-hopping)', capCalls === 1 && /LLM_MAX_CALLS budget exhausted/.test(capErr), capCalls + ' ' + capErr.slice(0, 60));
+delete process.env.LLM_MAX_CALLS;
+LL.resetModelForTests();
+check('G16: the counter resets and the cap lifts when unset', LL.llmCallCount() === 0, String(LL.llmCallCount()));
+
+// G16 pin (Bill): step 2 of the agent reasoning loop must receive step 1's raw parts
+// verbatim - Gemini 3.x rejects multi-step tool loops without the thought_signature echo.
+{
+  const AL = await import('../src/server/arch/llm.js');
+  const seenTurns: { role: string; raw?: unknown }[][] = [];
+  const rawParts = [{ thought_signature: 'sig-1', text: 'thinking' }];
+  LL.setProviderForTests({
+    name: 'mock (tests only)', isConfigured: () => true,
+    step: async (args: { turns: { role: string; raw?: unknown }[] }) => {
+      seenTurns.push(args.turns);
+      if (seenTurns.length === 1) return { calls: [{ id: 'r1', name: 'readOwn', args: {} }], raw: rawParts };
+      return { calls: [{ id: 'f1', name: 'finishPlan', args: { ok: true } }] };
+    },
+  } as never);
+  const pinned = await AL.runAgentReasoning({
+    agent: 'cm', system: 's', prompt: 'p',
+    tools: [{ name: 'readOwn', description: 'd', parameters: {} }, { name: 'finishPlan', description: 'd', parameters: {} }],
+    runTool: () => ({}), finishTool: 'finishPlan',
+  });
+  const echoed = seenTurns[1]?.find((t) => t.role === 'model_calls')?.raw;
+  check('G16 pin: step 2 receives step 1 raw parts verbatim (thought_signature passthrough)', pinned.result !== null && JSON.stringify(echoed) === JSON.stringify(rawParts), JSON.stringify(echoed));
+  LL.setProviderForTests(null);
+}
+
+// G16 Groq pin (real 12:43 response): gpt-oss writes the finish call as text
+// {"name":"json","arguments":{…}}; with exactly one finish* tool and args holding its
+// required keys, run it as that finish call instead of falling back to scripted.
+{
+  const RP = await import('../src/server/replyParse.js');
+  const tools = [
+    { name: 'listMyEntries', description: 'd', parameters: { type: 'object', properties: {} } },
+    { name: 'finishRetrievalPlan', description: 'd', parameters: { type: 'object', properties: { goalTitles: { type: 'array', items: { type: 'string' } }, reason: { type: 'string' } }, required: ['goalTitles'] } },
+  ];
+  const realText = '{"name": "json", "arguments": {\n  "goalTitles": [\n    "Save for a car"\n  ],\n  "reason": "No existing cabinet entries add new information."\n}}';
+  const finishes = tools.filter((t) => t.name.startsWith('finish'));
+  const finish = finishes.length === 1 ? { name: finishes[0].name, required: (finishes[0].parameters as any)?.required || [] } : undefined;
+  const parsed = RP.callsInText(realText, tools.map((t) => t.name), undefined, finish);
+  const c0 = parsed.calls[0];
+  check('G16 Groq pin: {"name":"json",…} aliases to the finish tool when args match its required keys',
+    parsed.calls.length === 1 && c0?.name === 'finishRetrievalPlan' && JSON.stringify((c0?.args as any)?.goalTitles) === '["Save for a car"]',
+    JSON.stringify(parsed.calls).slice(0, 120));
+  const notArgs = RP.callsInText('{"name": "json", "arguments": {"foo": 1}}', tools.map((t) => t.name), undefined, finish);
+  check('G16 Groq pin: a {"name":"json"} block without the required keys is NOT a call', notArgs.calls.length === 0, JSON.stringify(notArgs.calls));
+}
+
+// Groq-as-Gemini-backup (owner 12:39): LLM_GEMINI_FIRST=true puts Gemini first and the
+// OpenAI-compatible free models after it; the default keeps them first. Offline wiring pin only.
+{
+  const O = await import('../src/server/llmOpenAI.js');
+  process.env.GEMINI_API_KEY = 'offline-pin-key';
+  process.env.LLM_BASE_URL = 'https://api.groq.com/openai/v1';
+  delete process.env.LLM_GEMINI_FIRST;
+  const dflt = O.providerChainMembersFromEnv();
+  process.env.LLM_GEMINI_FIRST = 'true';
+  const flipped = O.providerChainMembersFromEnv();
+  delete process.env.GEMINI_API_KEY; delete process.env.LLM_GEMINI_FIRST; delete process.env.LLM_BASE_URL;
+  check('chain order: default is Groq-first, LLM_GEMINI_FIRST=true is Gemini-first with Groq backup',
+    dflt.length === flipped.length && dflt.length >= 2 &&
+    (dflt[0] as any).label === 'Groq' && (dflt.at(-1) as any).name === 'gemini' &&
+    (flipped[0] as any).name === 'gemini' && (flipped[1] as any).label === 'Groq',
+    `default=${dflt.map((m: any) => m.label || m.name)} flipped=${flipped.map((m: any) => m.label || m.name)}`);
+}
+
+// G17: the agent step budget and step timeout are configurable via env; defaults unchanged.
+{
+  const AL = await import('../src/server/arch/llm.js');
+  const dflt = AL.archLlmConfig();
+  process.env.LLM_AGENT_MAX_STEPS = '7'; process.env.LLM_STEP_TIMEOUT_MS = '45000';
+  const custom = AL.archLlmConfig();
+  delete process.env.LLM_AGENT_MAX_STEPS; delete process.env.LLM_STEP_TIMEOUT_MS;
+  check('G17: step budget/timeout configurable via env (defaults 20 steps per model / 120s)', dflt.maxSteps === 20 && dflt.stepTimeoutMs === 120000 && custom.maxSteps === 7 && custom.stepTimeoutMs === 45000, JSON.stringify({ dflt: { maxSteps: dflt.maxSteps, stepTimeoutMs: dflt.stepTimeoutMs }, custom: { maxSteps: custom.maxSteps, stepTimeoutMs: custom.stepTimeoutMs } }));
+}
+
+// G4 (Bill 03:45): the figure guard must match whole numbers - '120' must not pass against '1200'.
+const goal53 = S.loadUserDb(UID53).goals[0];
+A.appWrites.updateGoal(UID53, goal53.id, { detail: 'budget 1200 EUR' });
+LL.setProviderForTests({ name: 'mock (tests only)', isConfigured: () => true, step: async () => ({ calls: [{ id: 'bad1', name: 'finishReply', args: { reply: 'You spent 120 on the car.' } }] }) });
+const badChat53 = await A.chat(UID53, 'how much did I spend on my car?', 'llm-sess-4');
+check('G4: a substring figure (120 vs fact 1200) is dropped back to the scripted reply', badChat53.source === 'scripted' && !badChat53.reply.includes('You spent 120'), badChat53.source + ': ' + badChat53.reply.slice(0, 70));
+LL.setProviderForTests({ name: 'mock (tests only)', isConfigured: () => true, step: async () => ({ calls: [{ id: 'bad2', name: 'finishReply', args: { reply: 'You spent 12.50 EUR on the car.' } }] }) });
+const decChat53 = await A.chat(UID53, 'how much did I spend on my car?', 'llm-sess-5');
+check('G14: a decimal-shifted figure (12.50 vs fact 1200) is dropped too', decChat53.source === 'scripted' && !decChat53.reply.includes('12.50'), decChat53.source + ': ' + decChat53.reply.slice(0, 70));
+LL.setProviderForTests(null);
+
+// --- G29: no User-DB/context hit must NOT bypass the model (Bill 16:05: no parts -> still a model reply).
+{
+  LL.setProviderForTests({ name: 'mock (tests only)', isConfigured: () => true, step: async () => ({ calls: [{ id: 'g29a', name: 'finishReply', args: { reply: 'I am here and listening - ask me anything about your money.' } }] }) });
+  const small = await A.chat(UID53, 'are you listening?', 'llm-sess-6');
+  check('G29: a conversational no-hit message still gets a model-composed reply', small.source === 'model' && small.reply.includes('listening'), small.source + ': ' + small.reply.slice(0, 80));
+  check('G29: the composed reply honestly reports no store rows were used', small.used.length === 0, JSON.stringify(small.used));
+  LL.setProviderForTests({ name: 'mock (tests only)', isConfigured: () => true, step: async () => ({ calls: [{ id: 'g29b', name: 'finishReply', args: { reply: 'You spent 999 EUR on snacks.' } }] }) });
+  const invented = await A.chat(UID53, 'what is up?', 'llm-sess-7');
+  check('G29: figure guard unchanged - an unsourced figure drops to the scripted reply (no number without a source)', invented.source === 'scripted' && !invented.reply.includes('999'), invented.source + ': ' + invented.reply.slice(0, 70));
+  LL.setProviderForTests(null);
+  const noModel = await A.chat(UID53, 'anyone there?', 'llm-sess-8');
+  check('G29: with no provider the honest scripted fallback still answers', noModel.source === 'scripted' && noModel.reply.length > 0, noModel.source);
+}
+
+// --- V4 provider stamp (Bill's Groq smoke lead): a chain must stamp the member that
+// ANSWERED each call - never the word 'chain', never a stale last-used model. The answerer
+// rides on each step result (answeredBy), so concurrent requests cannot cross-stamp.
+{
+  const { makeChain } = await import('../src/server/llmChain.js');
+  type FakeTools = { tools: { name: string }[] };
+  const smart = (label: string, model: string) => ({
+    name: label.toLowerCase(), label, model, isConfigured: () => true,
+    step: async (args: FakeTools) => {
+      const t = args.tools.map((x) => x.name);
+      if (t.includes('finishRetrievalPlan')) return { calls: [{ id: `${label}-cm`, name: 'finishRetrievalPlan', args: { goalTitles: ['save for a car'], reason: 'test' } }] };
+      if (t.includes('finishMatchTerms')) return { calls: [{ id: `${label}-no`, name: 'finishMatchTerms', args: { terms: { 'save for a car': ['wash'] } } }] };
+      return { calls: [{ id: `${label}-fin`, name: 'finishReply', args: { reply: 'Here is your answer, grounded and plain.' } }] };
+    },
+  });
+  const down = (label: string, model: string) => ({
+    name: label.toLowerCase(), label, model, isConfigured: () => true,
+    step: async (): Promise<never> => { throw new Error('provider exploded'); }, // unclassified kind: rests 0ms, no chain wait
+  });
+  const groq = () => smart('Groq', 'openai/gpt-oss-120b') as never;
+  const gem = () => smart('Gemini', 'gemini-3.8-flash') as never;
+
+  LL.setProviderForTests(makeChain([groq(), gem()]) as never);
+  const c1 = await A.chat(UID53, 'are you there?', 'chain-sess-1');
+  check('V4: a chain answer stamps the answering member, not "chain"', c1.source === 'model' && c1.provider === 'Groq openai/gpt-oss-120b', `${c1.source} / ${c1.provider}`);
+
+  LL.setProviderForTests(makeChain([down('Groq', 'openai/gpt-oss-120b') as never, gem()]) as never);
+  const c2 = await A.chat(UID53, 'are you there?', 'chain-sess-2');
+  check('V4: on failover the stamp names the member that actually answered', c2.source === 'model' && c2.provider === 'Gemini gemini-3.8-flash', `${c2.source} / ${c2.provider}`);
+
+  LL.setProviderForTests(makeChain([groq(), gem()]) as never);
+  const c3 = await A.chat(UID53, 'are you there?', 'chain-sess-3');
+  check("V4: the stamp follows each call's own answerer (no stale last-used model)", c3.source === 'model' && c3.provider === 'Groq openai/gpt-oss-120b', `${c3.source} / ${c3.provider}`);
+
+  const c5 = await A.chat(UID53, 'how is my car saving going?', 'chain-sess-5');
+  check('V4: the round plan status names the model that served the plan calls', !!c5.plan && c5.plan.cm === 'model' && c5.plan.provider === 'Groq openai/gpt-oss-120b', JSON.stringify(c5.plan));
+
+  LL.setProviderForTests(makeChain([down('Groq', 'openai/gpt-oss-120b') as never]) as never);
+  const c4 = await A.chat(UID53, 'are you there?', 'chain-sess-4');
+  check('V4: a full outage stamps the configured provider, never a phantom answering model', c4.source === 'scripted-error' && c4.provider === 'chain', `${c4.source} / ${c4.provider}`);
+  LL.setProviderForTests(null);
+}
+
+// --- F-D2: chain fallthrough when a member never produces the finish call (the gpt-oss-120b
+// mode from the 13:47 live retest): zero-call answers are skipped inside the same step, and a
+// member that burns its whole step budget hands the run to a fresh chain member ONCE.
+{
+  const { makeChain } = await import('../src/server/llmChain.js');
+  const AL = await import('../src/server/arch/llm.js');
+  type FakeTools = { tools: { name: string }[] };
+  const planFinish = (label: string, t: string[]) =>
+    t.includes('finishRetrievalPlan') ? { id: `${label}-cm`, name: 'finishRetrievalPlan', args: { goalTitles: ['save for a car'], reason: 'test' } }
+    : t.includes('finishMatchTerms') ? { id: `${label}-no`, name: 'finishMatchTerms', args: { terms: { 'save for a car': ['wash'] } } } : null;
+  const fresh = (count: { n: number }) => ({
+    name: 'fresh', label: 'Fresh', model: 'm-fresh', isConfigured: () => true,
+    step: async (args: FakeTools) => {
+      count.n++;
+      const p = planFinish('fr', args.tools.map((x) => x.name));
+      return { calls: [p || { id: 'fr-fin', name: 'finishReply', args: { reply: 'Grounded answer from the fresh member.' } }] };
+    },
+  });
+  const silent = (count: { n: number }) => ({
+    name: 'silent', label: 'Silent', model: 'm-silent', isConfigured: () => true,
+    step: async () => { count.n++; return { calls: [] }; }, // zero tool calls: the live failure mode
+  });
+  const staller = (count: { plan: number; stall: number }) => ({
+    name: 'staller', label: 'Staller', model: 'm-staller', isConfigured: () => true,
+    step: async (args: FakeTools) => {
+      const p = planFinish('st', args.tools.map((x) => x.name));
+      if (p) { count.plan++; return { calls: [p] }; }
+      count.stall++;
+      return { calls: [{ id: `st-${count.stall}`, name: 'listMyGoals', args: {} }] }; // reads forever, never finishes
+    },
+  });
+
+  const s1 = { n: 0 }, f1 = { n: 0 };
+  LL.setProviderForTests(makeChain([silent(s1) as never, fresh(f1) as never]) as never);
+  const d1 = await A.chat(UID53, 'are you there?', 'chain-sess-6');
+  check('F-D2: a zero-call member is skipped inside the same run; the next member answers',
+    d1.source === 'model' && d1.provider === 'Fresh m-fresh' && s1.n === f1.n && s1.n > 0,
+    `${d1.source} / ${d1.provider} / silent ${s1.n} fresh ${f1.n}`);
+
+  const s2 = { plan: 0, stall: 0 }, f2 = { n: 0 };
+  LL.setProviderForTests(makeChain([staller(s2) as never, fresh(f2) as never]) as never);
+  const d2 = await A.chat(UID53, 'are you there?', 'chain-sess-7');
+  check('F-D2: a member that never finishes hands its run to a fresh chain member ONCE',
+    d2.source === 'model' && d2.provider === 'Fresh m-fresh' && s2.stall === AL.archLlmConfig().maxSteps && f2.n === 1,
+    `${d2.source} / ${d2.provider} / stall ${s2.stall} fresh ${f2.n}`);
+
+  const s3 = { plan: 0, stall: 0 };
+  LL.setProviderForTests(makeChain([staller(s3) as never]) as never);
+  const d3 = await A.chat(UID53, 'are you there?', 'chain-sess-8');
+  check('F-D2: a lone member that never finishes still fails loudly, with no retry doubling',
+    d3.source === 'scripted-error' && s3.stall === AL.archLlmConfig().maxSteps,
+    `${d3.source} / stall ${s3.stall}`);
+  // G42: the step budget is per answering model; the next model keeps the conversation.
+  const reader = (count: { n: number }, readsBeforeFinish: number, seenTurns?: { first: number }) => ({
+    name: 'reader', label: 'Reader', model: 'm-reader', isConfigured: () => true,
+    step: async (args: FakeTools & { turns: unknown[] }) => {
+      count.n++;
+      if (seenTurns && count.n === 1) seenTurns.first = args.turns.length;
+      const p = planFinish('rd', args.tools.map((x) => x.name));
+      if (p) return { calls: [p] };
+      if (count.n > readsBeforeFinish) return { calls: [{ id: 'rd-fin', name: 'finishReply', args: { reply: 'Answer after many reads.' } }] };
+      return { calls: [{ id: `rd-${count.n}`, name: 'listMyGoals', args: {} }] };
+    },
+  });
+  const flaky = (count: { n: number }, readsThenSilent: number) => ({
+    name: 'flaky', label: 'Flaky', model: 'm-flaky', isConfigured: () => true,
+    step: async (args: FakeTools) => {
+      count.n++;
+      const p = planFinish('fk', args.tools.map((x) => x.name));
+      if (p) return { calls: [p] };
+      if (count.n > readsThenSilent) return { calls: [] }; // NO_CALLS handover mid-run
+      return { calls: [{ id: `fk-${count.n}`, name: 'listMyGoals', args: {} }] };
+    },
+  });
+  { // handover regression: a NO_CALLS handover after 3 steps must not leave the new member only the leftover (here 1 of 4)
+    process.env.LLM_AGENT_MAX_STEPS = '4';
+    const fk = { n: 0 }, rd = { n: 0 }, seen = { first: -1 };
+    LL.setProviderForTests(makeChain([flaky(fk, 3) as never, reader(rd, 3, seen) as never]) as never);
+    const d4 = await A.chat(UID53, 'are you there?', 'chain-sess-9');
+    check('G42: a member that took over after 3 steps gets its own fresh budget and still answers (not scripted)', d4.source === 'model' && d4.provider === 'Reader m-reader' && rd.n === 4, `${d4.source} / ${d4.provider} / flaky ${fk.n} reader ${rd.n}`);
+    check('G42: the new member continues the same conversation (it sees the earlier tool turns)', seen.first > 1, `first call saw ${seen.first} turns`);
+    delete process.env.LLM_AGENT_MAX_STEPS;
+  }
+  { // 20 fresh steps per model by default; each model has its own 20
+    const r1 = { n: 0 };
+    LL.setProviderForTests(makeChain([reader(r1, 15) as never]) as never);
+    const d5 = await A.chat(UID53, 'are you there?', 'chain-sess-10');
+    check('G42: the default budget lets a slow model use up to 20 steps (answers after 15 reads)', d5.source === 'model' && r1.n === 16, `${d5.source} / n ${r1.n}`);
+    const s6 = { plan: 0, stall: 0 }, f6 = { n: 0 };
+    LL.setProviderForTests(makeChain([staller(s6) as never, reader(f6, 15) as never]) as never);
+    const d6 = await A.chat(UID53, 'are you there?', 'chain-sess-11');
+    check('G42: a model that spent its 20 steps hands over; the next model gets its OWN budget (36 steps in all) and answers', s6.stall === 20 && d6.source === 'model' && d6.provider === 'Reader m-reader' && f6.n === 16, `${d6.source} / stall ${s6.stall} reader ${f6.n}`);
+    { // G51: a member that answers without a tool call is skipped for the REST of the run (not re-asked, not re-paid, every step)
+      let silentAsked = 0; const rd9 = { n: 0 };
+      const silent = { name: 'silent', label: 'Silent', model: 'm-silent', isConfigured: () => true, step: async (args: FakeTools) => { const p = planFinish('sl', args.tools.map((x) => x.name)); if (p) return { calls: [p] }; silentAsked++; return { calls: [] }; } };
+      LL.setProviderForTests(makeChain([silent as never, reader(rd9, 6) as never]) as never);
+      const d9 = await A.chat(UID53, 'are you there?', 'chain-sess-g51');
+      check('G51: a NO_CALLS member is asked ONCE in a run, not again on every later step (the 7-step answer cost 1 silent call, not 7)', d9.source === 'model' && silentAsked === 1 && rd9.n === 7, `${d9.source} silent ${silentAsked} reader ${rd9.n}`);
+      // hard ceiling: configured members x steps. Two members that both keep reading forever stop at 2 x 20 steps with an honest error.
+      let ca = 0, cb = 0;
+      const looper = (nm: string, c: () => void) => ({ name: nm, label: nm, model: `m-${nm}`, isConfigured: () => true, step: async (args: FakeTools) => { const p = planFinish(nm, args.tools.map((x) => x.name)); if (p) return { calls: [p] }; c(); return { calls: [{ id: `${nm}-${ca + cb}`, name: 'listMyGoals', args: {} }] }; } });
+      LL.setProviderForTests(makeChain([looper('A', () => ca++) as never, looper('B', () => cb++) as never]) as never);
+      const d10 = await A.chat(UID53, 'are you there?', 'chain-sess-g51b');
+      check('G51: two endless models stop at members x 20 steps (40) with an honest error, never loop on', ca === 20 && cb === 20 && d10.source !== 'model', `A ${ca} B ${cb} ${d10.source}`);
+    }
+    const lone = { plan: 0, stall: 0 };
+    LL.setProviderForTests(makeChain([staller(lone) as never]) as never);
+    const d7 = await A.chat(UID53, 'are you there?', 'chain-sess-12');
+    const lone2 = { plan: 0, stall: 0 };
+    LL.setProviderForTests(makeChain([staller(lone2) as never]) as never);
+    const o = await AL.runAgentReasoning({ agent: 'personal', system: 's', prompt: 'p', tools: [{ name: 'listMyGoals' }, { name: 'finishReply' }] as never, runTool: () => ({}), finishTool: 'finishReply' });
+    check('G42: when every model has used its steps the fallback names why (steps per model, models tried)', o.result === null && /within 20 steps per model \(1 model tried: Staller m-staller\)/.test(o.error ?? '') && lone2.stall === 20, o.error);
+  }
+  LL.setProviderForTests(null);
+}
+
+// --- Timestamps on arch.html's agent-to-agent messages, same format as dev-monitor.html
+{
+  const fsx = await import('fs');
+  const arch = fsx.readFileSync('public/arch.html', 'utf8');
+  const dev = fsx.readFileSync('public/dev-monitor.html', 'utf8');
+  const stamp = "esc((m.at ?? '').slice(0, 19).replace('T', ' '))";
+  const row = (h: string) => h.split('\n').find((l) => l.includes('<b>${esc(m.from)} → ${esc(m.to)}</b>')) ?? '';
+  check('arch.html agent-to-agent rows print the message time like dev-monitor.html', row(arch).includes(stamp) && row(dev).includes(stamp), row(arch).slice(0, 160));
+  A.addGoalDirect('stamp1', 'Save for a car');
+  const A2 = A.archState('stamp1') as any;
+  check('stamp fixture produced messages (the next check is not vacuous)', A2.messages.length > 0, String(A2.messages.length));
+  check('message rows carry an ISO `at` the pages format', A2.messages.every((x: any) => typeof x.at === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(x.at)), JSON.stringify(A2.messages[0] ?? {}).slice(0, 120));
+}
+
+// --- Per-call timeout: a real 120 s per model call, cancelled for real, each failover member its own clock
+{
+  const AL = await import('../src/server/arch/llm.js');
+  const { makeChain } = await import('../src/server/llmChain.js');
+  const { makeOpenAiProvider } = await import('../src/server/llmOpenAI.js');
+  const http = await import('http');
+  const LLmod = await import('../src/server/llm.js');
+  check('timeout: default per-call limit is 120 s', AL.archLlmConfig().stepTimeoutMs === 120000, String(AL.archLlmConfig().stepTimeoutMs));
+  const three = { members: [{ isConfigured: () => true }, { isConfigured: () => true }, { isConfigured: () => true }] };
+  check('timeout: the outer guard gives EACH chain member its own full limit plus slack (not the old 15 s + 5 s)',
+    AL.stepGuardMs(three, 120000) === 3 * 120000 + 40000 && AL.stepGuardMs({}, 120000) === 120000 + 40000 && AL.stepGuardMs(three, 120000, 1) === 2 * 120000 + 40000,
+    `${AL.stepGuardMs(three, 120000)} / ${AL.stepGuardMs({}, 120000)}`);
+  // withTimeout cancels: onTimeout runs at the limit
+  let cancelled = false;
+  const wt = await LLmod.withTimeout(new Promise(() => {}), 60, 'x', () => { cancelled = true; }).then(() => 'resolved', (e: Error) => e.message);
+  check('timeout: withTimeout runs the cancel hook when the time is up', cancelled && /timeout/.test(String(wt)), `${cancelled} ${wt}`);
+  // a REAL request is aborted: a local server that never answers sees the connection close
+  let closed = false;
+  const srv = http.createServer((req) => { req.on('close', () => { closed = true; }); /* never respond */ });
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
+  const port = (srv.address() as { port: number }).port;
+  const prov = makeOpenAiProvider({ baseUrl: `http://127.0.0.1:${port}/v1`, apiKey: 'test-key', model: 'm' });
+  const t0 = Date.now();
+  const msg = await prov.step({ system: 's', turns: [{ role: 'user', text: 'hi' }], tools: [{ name: 'finishReply', description: 'd', parameters: { type: 'object', properties: {} } }], timeoutMs: 400, maxWaitMs: 100 }).then(() => 'ok', (e: Error) => e.message);
+  await new Promise((r) => setTimeout(r, 200));
+  check('timeout: the caller limit is honoured as given (no 60 s floor) and the request is really aborted',
+    /timeout/.test(String(msg)) && Date.now() - t0 < 5000 && closed, `${msg} ${Date.now() - t0}ms closed=${closed}`);
+  // the caller's abort signal cancels too
+  closed = false;
+  const ctl = new AbortController();
+  const p2 = prov.step({ system: 's', turns: [{ role: 'user', text: 'hi' }], tools: [{ name: 'finishReply', description: 'd', parameters: { type: 'object', properties: {} } }], timeoutMs: 30000, maxWaitMs: 100, signal: ctl.signal }).then(() => 'ok', (e: Error) => e.message);
+  setTimeout(() => ctl.abort(), 150);
+  const m2 = await p2; await new Promise((r) => setTimeout(r, 200));
+  check('timeout: an abort signal from the caller cancels the in-flight request', closed && m2 !== 'ok', `${m2} closed=${closed}`);
+  srv.close(); srv.closeAllConnections?.();
+  // failover: the second member is called with the FULL per-call limit and a signal
+  const seen: { n: string; t?: number; sig: boolean }[] = [];
+  const fin = (a: { tools: { name: string }[] }) => { const n = a.tools.map((x) => x.name); return n.includes('finishRetrievalPlan') ? { id: 'q1', name: 'finishRetrievalPlan', args: { goalTitles: [], reason: 'x' } } : n.includes('finishMatchTerms') ? { id: 'q2', name: 'finishMatchTerms', args: { terms: {} } } : { id: 'q3', name: 'finishReply', args: { reply: 'Hello after failover.' } }; };
+  const failing = { name: 'f1', label: 'First', model: 'a', isConfigured: () => true, step: async (a: { timeoutMs?: number; signal?: AbortSignal }) => { seen.push({ n: 'first', t: a.timeoutMs, sig: !!a.signal }); throw new Error('timeout: did not answer (timeout)'); } };
+  const second = { name: 'f2', label: 'Second', model: 'b', isConfigured: () => true, step: async (a: { timeoutMs?: number; signal?: AbortSignal; tools: { name: string }[] }) => { seen.push({ n: 'second', t: a.timeoutMs, sig: !!a.signal }); return { calls: [fin(a)] }; } };
+  LL.setProviderForTests(makeChain([failing as never, second as never]) as never);
+  const rr = await A.chat('timeout1', 'hello timeout', 'timeout-sess-1');
+  LL.setProviderForTests(null);
+  const sec = seen.find((x) => x.n === 'second');
+  check('timeout: a failover member gets its own full 120 s limit and the cancel signal', rr.source === 'model' && sec?.t === 120000 && sec?.sig === true && seen.find((x) => x.n === 'first')?.t === 120000, JSON.stringify(seen.slice(0, 3)));
+}
+
+// --- AI visibility: per-agent live-AI view on both monitors. Shared chain as configured +
+// each agent's last OBSERVED run; building the view never calls a model.
+{
+  const { makeChain } = await import('../src/server/llmChain.js');
+  const AV = await import('../src/server/arch/aiActivity.js');
+  const UIDV = 'aivis1';
+  let calls = 0;
+  const member = (label: string, model: string, ok: boolean) => ({
+    name: label.toLowerCase(), label, model, isConfigured: () => true,
+    step: async (args: { tools: { name: string }[] }) => {
+      calls++;
+      if (!ok) throw new Error('429 rate limit Bearer gsk_abcdefghijkl1234 for key=AIzaSyABCDEFGHIJ');
+      const n = args.tools.map((x) => x.name);
+      return { calls: [n.includes('finishRetrievalPlan') ? { id: 'v1', name: 'finishRetrievalPlan', args: { goalTitles: [], reason: 't' } }
+        : n.includes('finishMatchTerms') ? { id: 'v2', name: 'finishMatchTerms', args: { terms: {} } }
+        : { id: 'v3', name: 'finishReply', args: { reply: 'Hello from the visibility test.' } }] };
+    },
+  });
+  AV.resetAiActivityForTests();
+  LL.setProviderForTests(null);
+  const sOff = (A.archState(UIDV) as any).ai;
+  // No override = the Gemini default; without a key that is "not configured" (mock-free env in tests)
+  check('AI view: shared chain reported once, three agents listed', !!sOff.chain && Object.keys(sOff.agents).join() === 'personal,cm,nordea', JSON.stringify(Object.keys(sOff.agents)));
+
+  LL.setProviderForTests(makeChain([member('Good', 'm-good', true) as never]) as never);
+  const v0 = (A.archState(UIDV) as any).ai;
+  check('AI view: configured but never run = no-attempt (key is not proof)', v0.chain.configured && v0.agents.personal.state === 'no-attempt' && v0.agents.cm.state === 'no-attempt' && v0.chain.members[0].lastOk === null, JSON.stringify(v0.agents.personal));
+  const c0 = calls; A.archState(UIDV); A.archState(UIDV); (await import('../src/server/arch/aiActivity.js')).aiVisibility(UIDV, []);
+  check('AI view: building the view makes zero model calls (no probe on load/refresh)', calls === c0 && calls === 0, `calls ${calls}`);
+
+  A.addGoalDirect(UIDV, 'Save for a car');
+  const r = await A.chat(UIDV, 'hello there', 'ai-vis-sess-1');
+  const v1 = (A.archState(UIDV) as any).ai;
+  check('AI view: after a real run the personal agent shows finished + the chain member that answered',
+    v1.agents.personal.state === 'finished' && v1.agents.personal.provider === 'Good m-good' && v1.agents.personal.ageSec !== null && v1.agents.personal.stale === false && r.source === 'model',
+    JSON.stringify(v1.agents.personal));
+  check('AI view: observations are per customer (another customer shows no-attempt)', (A.archState('aivis-other') as any).ai.agents.personal.state === 'no-attempt', '');
+  const realNow = Date.now; Date.now = () => realNow() + (AV.AI_STALE_AFTER_SEC + 60) * 1000;
+  const vs = (A.archState(UIDV) as any).ai; Date.now = realNow;
+  check('AI view: an old observation is flagged stale', vs.agents.personal.state === 'finished' && vs.agents.personal.stale === true, JSON.stringify(vs.agents.personal));
+  A.setAgentOff(UIDV, 'personal', true);
+  const vo = (A.archState(UIDV) as any).ai;
+  A.setAgentOff(UIDV, 'personal', false);
+  check('AI view: an agent that is off reads off, never a model state', vo.agents.personal.state === 'off', vo.agents.personal.state);
+
+  LL.setProviderForTests(makeChain([member('Bad', 'm-bad', false) as never]) as never);
+  await A.chat(UIDV, 'hello again', 'ai-vis-sess-2');
+  const ve = (A.archState(UIDV) as any).ai;
+  const leak = JSON.stringify(ve);
+  check('AI view: a failed run reads error with a sanitized message (no keys)', ve.agents.personal.state === 'error' && !!ve.agents.personal.error && !/gsk_abc|AIzaSy|Bearer gsk/.test(leak), `${ve.agents.personal.state} ${ve.agents.personal.error}`);
+  check('AI view: the chain member shows its last problem and no success', ve.chain.members[0].lastFail?.kind === 'minute' && ve.chain.members[0].lastOk === null, JSON.stringify(ve.chain.members[0]));
+  // G43: a single (non-chain) provider has no answeredBy: the line must still name label + model.
+  const single = (label: string, model: string | undefined, statusModel?: string) => ({
+    name: label.toLowerCase(), label, ...(model ? { model } : {}), isConfigured: () => true,
+    ...(statusModel ? { status: () => ({ model: statusModel }) } : {}),
+    step: async (args: { tools: { name: string }[] }) => {
+      const n = args.tools.map((x) => x.name);
+      return { calls: [n.includes('finishRetrievalPlan') ? { id: 's1', name: 'finishRetrievalPlan', args: { goalTitles: [], reason: 't' } }
+        : n.includes('finishMatchTerms') ? { id: 's2', name: 'finishMatchTerms', args: { terms: {} } }
+        : { id: 's3', name: 'finishReply', args: { reply: 'Single provider answer.' } }] };
+    },
+  });
+  LL.setProviderForTests(single('Gemini', undefined, 'gemini-3.8-flash') as never);
+  await A.chat('aivis-g1', 'hello single', 'ai-vis-sess-3');
+  const g1 = (A.archState('aivis-g1') as any).ai.agents.personal;
+  check('G43: default-style single provider names label + status model (no chain answeredBy)', g1.state === 'finished' && g1.provider === 'Gemini gemini-3.8-flash', JSON.stringify(g1));
+  LL.setProviderForTests(single('Groq', 'qwen/qwen3-32b') as never);
+  await A.chat('aivis-g2', 'hello single', 'ai-vis-sess-4');
+  const g2 = (A.archState('aivis-g2') as any).ai.agents.personal;
+  check('G43: single provider with its own model names it', g2.provider === 'Groq qwen/qwen3-32b', JSON.stringify(g2));
+  LL.setProviderForTests(single('Gemini', undefined) as never);
+  await A.chat('aivis-g3', 'hello single', 'ai-vis-sess-5');
+  check('G43: no model known anywhere falls back to the label, never blank', (A.archState('aivis-g3') as any).ai.agents.personal.provider === 'Gemini', '');
+  check('AI sanitize: bearer, gsk and key= tokens removed, length capped', AV.sanitizeAiError('Bearer abc.def gsk_1234567890abcd ?key=SECRET1 ' + 'x'.repeat(400)).length <= 160 && !/SECRET1|gsk_1234|abc\.def/.test(AV.sanitizeAiError('Bearer abc.def gsk_1234567890abcd ?key=SECRET1')), '');
+  LL.setProviderForTests(null);
+}
 
 // --- F18: maintenance rounds merge into the open session's document - no row is dropped.
 const UID17 = 'mergeround';
 A.addGoalDirect(UID17, 'Save for a car');
 S.saveNordeaDb({ userId: UID17, accounts: [], transactions: [{ id: 'm1', userId: UID17, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
-const c17 = A.contribute(UID17);
+const c17 = await A.contribute(UID17);
 A.decideProposal(UID17, c17.proposals[0].messageId, true);
-A.chat(UID17, 'what do you know about my car saving?'); // opens the session; Nordea adds a question row
+await A.chat(UID17, 'what do you know about my car saving?'); // opens the session; Nordea adds a question row
 const doc17a = S.loadContext(UID17)!;
 const qRow = doc17a.sections.nordea.rows.find((r) => r.id.startsWith('nq-'));
 check('F18 setup: the session document has a question-relevant Nordea row', !!qRow, JSON.stringify(doc17a.sections.nordea.rows.map((r) => r.id)));
 R.runRound(UID17, 'decay'); // maintenance DURING the session
 const doc17b = S.loadContext(UID17)!;
 check('F18: a decay round keeps the session question row and the memory rows', doc17b.sections.nordea.rows.some((r) => r.id === qRow!.id) && doc17b.sections.memory.rows.length >= doc17a.sections.memory.rows.length, JSON.stringify(doc17b.sections.nordea.rows.map((r) => r.id)));
-A.contribute(UID17); // the Contribute button mid-session
+await A.contribute(UID17); // the Contribute button mid-session
 const doc17c = S.loadContext(UID17)!;
 check('F18: a contribution round mid-session merges instead of rewriting', doc17c.sections.nordea.rows.some((r) => r.id === qRow!.id), JSON.stringify(doc17c.sections.nordea.rows.map((r) => r.id)));
 
 // --- F19: the "shared context unavailable" reply is reachable (no goals, agent off at start).
 const UID18 = 'unavail';
 A.setAgentOff(UID18, 'cm', true);
-const unavail = A.chat(UID18, 'any grocery insights?');
+const unavail = await A.chat(UID18, 'any grocery insights?');
 check('F19: with no document and no user-db hit, chat plainly says shared context is unavailable this session', unavail.reply.includes('shared context is unavailable this session'), unavail.reply.slice(0, 120));
 A.setAgentOff(UID18, 'cm', false);
 
+
+// --- F-A/F-B (2026-11-02 live-run findings): /session/new then the first question must open
+// exactly ONE session round and finalise the session document; the follow-up opens none.
+const UID19 = 'sessnew';
+A.addGoalDirect(UID19, 'Save for a car');
+const ns19 = A.newSession(UID19);
+const sessRoundsBefore19 = S.loadBus(UID19).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'session').length;
+const a19 = await A.chat(UID19, 'what do you know about my car saving?', ns19.sessionId);
+const sessRounds19 = S.loadBus(UID19).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'session').length - sessRoundsBefore19;
+check('F-A: the first question after /session/new opens the session round', sessRounds19 === 1, String(sessRounds19));
+check('F-A: the document is finalised and stamped with the pre-created session id', S.loadContext(UID19)?.sessionId === ns19.sessionId && !!S.loadContext(UID19)?.finalisedAt, JSON.stringify({ sid: S.loadContext(UID19)?.sessionId, fin: S.loadContext(UID19)?.finalisedAt }));
+check('F-A: the first answer comes from the session document, not the unavailable fallback', !a19.reply.includes('unavailable this session'), a19.reply.slice(0, 100));
+await A.chat(UID19, 'tell me about the car saving again', ns19.sessionId);
+const sessRoundsAfter19 = S.loadBus(UID19).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string } | undefined)?.trigger === 'session').length - sessRoundsBefore19;
+check('F-A: a same-session follow-up opens NO second session round', sessRoundsAfter19 === 1, String(sessRoundsAfter19));
+
+// --- F-B: one new-session question = one session round = one model plan call set.
+const UID20 = 'onceround';
+A.addGoalDirect(UID20, 'Save for a car');
+let planCalls20 = 0;
+LL.setProviderForTests({
+  name: 'counter (tests only)', isConfigured: () => true,
+  step: async (args: { tools: { name: string }[] }) => {
+    planCalls20++;
+    const finish = args.tools.find((t) => t.name.startsWith('finish'))!;
+    const args2 = finish.name === 'finishMatchTerms' ? { terms: {} } : finish.name === 'finishRetrievalPlan' ? { goalTitles: [] } : { reply: 'a plain answer with no figures at all' };
+    return { calls: [{ id: `c${planCalls20}`, name: finish.name, args: args2 }] };
+  },
+} as never);
+const b20 = await A.chat(UID20, 'how much did I spend on my car?');
+LL.setProviderForTests(null);
+const sessRounds20 = S.loadBus(UID20).messages.filter((m) => m.type === 'round-start' && (m.payload as { trigger?: string; sessionId?: string } | undefined)?.trigger === 'session' && (m.payload as { sessionId?: string } | undefined)?.sessionId === b20.sessionId);
+check('F-B: one new-session question opens exactly ONE session round', sessRounds20.length === 1, String(sessRounds20.length));
+check('F-B: one new-session question costs ONE plan call set (CM plan, Nordea plan, R2 User AI card levels) + one cycle review + one compose (5 calls, not 8)', planCalls20 === 5, String(planCalls20));
+
+// --- F-D: a configured provider that never calls its finish tool is a visible provider
+// error (scripted-error + a bus inform), never a silent scripted fallback.
+{
+  LL.setProviderForTests({ name: 'neverfinish (tests only)', isConfigured: () => true, step: async () => ({ calls: [{ id: 'nf1', name: 'listMyGoals', args: {} }] }) } as never);
+  const UID21 = 'neverfinish';
+  A.addGoalDirect(UID21, 'Save for a car');
+  const nf = await A.chat(UID21, 'how much did I spend on my car?');
+  check('F-D: a no-finish provider surfaces as scripted-error, not silent scripted', nf.source === 'scripted-error', nf.source);
+  check('F-D: the plan error names the missing finish calls', (nf.plan?.error ?? '').includes('did not call'), nf.plan?.error);
+  check('F-D: the fallback is auditable on the bus', S.loadBus(UID21).messages.some((m) => m.type === 'inform' && m.summary.includes('scripted (provider error)')), S.loadBus(UID21).messages.filter((m) => m.type === 'inform').map((m) => m.summary).join(' | ').slice(0, 200));
+  LL.setProviderForTests(null);
+}
+
+// --- V3 cycles: User AI > CM > Nordea > User AI, max 5; early exit; ceiling note; reserve; honest failure.
+{
+  const CY = await import('../src/server/arch/cycles.js');
+  const mk = (gapsAlways: boolean, tally: { review: number; plan: number; compose: number; ceiling: number; levels?: number }) => ({
+    name: 'cycles (tests only)', isConfigured: () => true,
+    step: async (args: { system: string; tools: { name: string }[] }) => {
+      const finish = args.tools.find((t) => t.name.startsWith('finish'))!;
+      if (finish.name === 'finishReview') { tally.review++; return { calls: [{ id: `r${tally.review}`, name: 'finishReview', args: gapsAlways ? { enough: false, gaps: ['insurance'] } : { enough: true } }] }; }
+      if (finish.name === 'finishReply') { tally.compose++; if (/used the last cycle/.test(args.system)) tally.ceiling++; return { calls: [{ id: `f${tally.compose}`, name: 'finishReply', args: { reply: 'a plain answer with no figures at all' } }] }; }
+      if (finish.name === 'finishRiskLevels') { tally.levels = (tally.levels ?? 0) + 1; return { calls: [{ id: `v${tally.levels}`, name: 'finishRiskLevels', args: { levels: [] } }] }; } // R2: one User AI level call for the new cards (no valid level = UNKNOWN)
+      tally.plan++;
+      return { calls: [{ id: `p${tally.plan}`, name: finish.name, args: finish.name === 'finishMatchTerms' ? { terms: {} } : { goalTitles: [] } }] };
+    },
+  });
+  const t1: { review: number; plan: number; compose: number; ceiling: number; levels?: number } = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+  A.addGoalDirect('cyc1', 'Save for a car');
+  LL.setProviderForTests(mk(true, t1) as never);
+  const c1 = await A.chat('cyc1', 'how much did I spend on my car?');
+  LL.setProviderForTests(null);
+  check('V3: a review that keeps naming gaps stops at the 5-cycle ceiling (5 reviews)', t1.review === CY.MAX_CYCLES, JSON.stringify(t1));
+  check('V3: the ceiling is passed to the final answer once', t1.ceiling === 1 && t1.compose >= 1, JSON.stringify(t1));
+  check('V3: gathering is bounded: session cycle + 4 top-up plan sets (2 plan calls each), plus the single R2 level call', t1.plan === 2 * CY.MAX_CYCLES && t1.levels === 1, JSON.stringify(t1));
+  check('V3: the ceiling answer still comes from the model', c1.source === 'model', c1.source);
+  const t2: { review: number; plan: number; compose: number; ceiling: number; levels?: number } = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+  A.addGoalDirect('cyc2', 'Save for a car');
+  LL.setProviderForTests(mk(false, t2) as never);
+  await A.chat('cyc2', 'how much did I spend on my car?');
+  LL.setProviderForTests(null);
+  check('V3: enough=true answers after ONE review, no extra cycle', t2.review === 1 && t2.plan === 2 && t2.levels === 1 && t2.ceiling === 0, JSON.stringify(t2));
+  check('V3 reserve: uncapped (null) never limits; capped needs review+final / plan+review+final', CY.canReview(null) && CY.canStartCycle(null) && !CY.canReview(1) && CY.canReview(2) && !CY.canStartCycle(3) && CY.canStartCycle(4), '');
+  // Follow-up with NO prior round this turn (context already answers): the first review is an initial
+  // review (no boundary completed); each later review closes one gather round. Count boundaries = gather rounds.
+  {
+    const t4 = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+    A.addGoalDirect('cyc4', 'Save for a car');
+    LL.setProviderForTests(mk(false, t4) as never);
+    const f1 = await A.chat('cyc4', 'how much did I spend on my car?');
+    const rounds = () => S.loadBus('cyc4').messages.filter((m) => m.type === 'round-start').length;
+    const r0 = rounds(); const t4b = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+    LL.setProviderForTests(mk(true, t4b) as never);
+    const f2 = await A.chat('cyc4', 'what do you know about my car goal?', f1.sessionId);
+    LL.setProviderForTests(null);
+    const gathered = rounds() - r0;
+    const noRound = t4b.plan === 2 * gathered;
+    check('V3 boundaries: follow-up completes at most 5 gather rounds after its initial review (no sixth boundary)', gathered <= CY.MAX_CYCLES && t4b.review <= CY.MAX_CYCLES + 1 && (t4b.review === gathered + 1 || t4b.review === gathered) && noRound, JSON.stringify({ gathered, ...t4b }));
+    { // trajectory proof: map every model call to the User AI > CM > Nordea > User AI boundary it belongs to
+      const trace: string[] = [];
+      A.addGoalDirect('cyc5', 'Save for a car');
+      const mkTrace = (gaps: boolean) => ({ name: 'trace (tests only)', isConfigured: () => true, step: async (args: { system: string; tools: { name: string }[] }) => {
+        const finish = args.tools.find((t) => t.name.startsWith('finish'))!;
+        if (finish.name === 'finishReview') { trace.push('U'); return { calls: [{ id: `u${trace.length}`, name: 'finishReview', args: gaps ? { enough: false, gaps: ['insurance'] } : { enough: true } }] }; }
+        if (finish.name === 'finishReply') { trace.push('F'); return { calls: [{ id: `f${trace.length}`, name: 'finishReply', args: { reply: 'a plain answer with no figures at all' } }] }; }
+        trace.push(finish.name === 'finishMatchTerms' ? 'C' : 'N');
+        return { calls: [{ id: `p${trace.length}`, name: finish.name, args: finish.name === 'finishMatchTerms' ? { terms: {} } : { goalTitles: [] } }] };
+      } });
+      LL.setProviderForTests(mkTrace(false) as never);
+      const g1 = await A.chat('cyc5', 'how much did I spend on my car?');
+      trace.length = 0;
+      LL.setProviderForTests(mkTrace(true) as never);
+      await A.chat('cyc5', 'what do you know about my car goal?', g1.sessionId);
+      const s2 = trace.join(''); trace.length = 0;
+      trace.length = 0;
+      LL.setProviderForTests(mkTrace(false) as never);
+      await A.chat('cyc5', 'what do you know about my car goal?', g1.sessionId); // the document now holds CM content: no gather round before the first review
+      LL.setProviderForTests(null);
+      const s3 = trace.join('');
+      // a completed boundary = a CM/Nordea gather group closed by a User AI review (a review with no gather before it is NOT one)
+      const count = (t: string) => [...t.matchAll(/[CN]+U/g)].length;
+      check('V3 trajectory: a follow-up that needs a top-up = exactly 5 completed User AI > CM > Nordea > User AI boundaries, then the final answer (no sixth)', count(s2) === 5 && !s2.startsWith('U') && s2.endsWith('UF') && (s2.match(/U/g) ?? []).length === 5, s2);
+      check('V3 trajectory: a follow-up whose first review finds no gaps = exactly 1 completed boundary (CM+Nordea then User AI), then the final answer', s3 === 'NCUF', s3);
+    }
+    check('V3 boundaries: follow-up ceiling note still reaches the final answer once', t4b.ceiling === 1 && f2.source === 'model', JSON.stringify(t4b) + f2.source);
+  }
+  const t3 = { review: 0, plan: 0, compose: 0, ceiling: 0 };
+  A.addGoalDirect('cyc3', 'Save for a car');
+  LL.setProviderForTests(null);
+  const m3 = await A.chat('cyc3', 'how much did I spend on my car?');
+  check('V3: the no-provider path runs no cycle and keeps the scripted answer', t3.review === 0 && m3.source === 'scripted', m3.source);
+}
+
+// --- F-E: the same aggregate row twice in the document prints once in the reply.
+{
+  const UID22 = 'dupeprint';
+  const CS = await import('../src/server/arch/store/contextStore.js');
+  const P = await import('../src/server/arch/agents/personal.js');
+  CS.resetContextForSession(UID22, 'sess-dupe');
+  const row = { title: 'Relevant to your question', detail: '72 transactions totalling 20616 EUR of related spending', source: 'nordea' as const, observed: 'observed' as const, evidence: { total: 20616 }, at: new Date().toISOString() };
+  CS.writeNordeaSection(UID22, [{ id: 'nq-r1', ...row }, { id: 'nq-r2', ...row }]);
+  CS.writeHeader(UID22, { roundId: 'round-dupe', trigger: 'session', finalise: true });
+  const ans = P.finishChat(UID22, P.beginChat(UID22, 'how much did I spend related to my car goal?', 'sess-dupe'));
+  check('F-E: a duplicated document row prints once in the reply', ans.reply.split('Relevant to your question').length - 1 === 1, ans.reply.slice(0, 200));
+}
+
+// --- G40: with an agent off the session round cannot run (roundId stays ''), so EVERY
+// question re-entered the new-session branch and resetContextForSession wiped the document
+// mid-session (Bill's probe: rows 2 -> 0). The reset must only fire when the document
+// belongs to another session.
+{
+  const CS40 = await import('../src/server/arch/store/contextStore.js');
+  const UID40 = 'wipesess';
+  A.setAgentOff(UID40, 'nordea', true);
+  const q1 = await A.chat(UID40, 'hello, anyone home?'); // new session; round blocked by nordea-off
+  A.addGoalDirect(UID40, 'Save for a car');              // user-change round tops up the session doc
+  A.addGoalDirect(UID40, 'Save for a bike');
+  const rowsMid = CS40.readSectionRows(UID40, 'customer').length;
+  await A.chat(UID40, 'what did I just save?', q1.sessionId); // G40: this used to wipe the doc
+  const rowsAfter = CS40.readSectionRows(UID40, 'customer').length;
+  check('G40: a blocked-round session keeps its mid-session rows on follow-up questions', rowsMid === 2 && rowsAfter === 2, `mid ${rowsMid} after ${rowsAfter}`);
+  const q3 = await A.chat(UID40, 'fresh start please', 'sess-other-40'); // genuinely new session: old rows must NOT leak
+  check('G40: a genuinely new session still starts from an empty document', CS40.readSectionRows(UID40, 'customer').length === 0 && CS40.loadContext(UID40)?.sessionId === q3.sessionId, `rows ${CS40.readSectionRows(UID40, 'customer').length}`);
+  A.setAgentOff(UID40, 'nordea', false);
+}
+
+// --- G41: the same aggregate under two TITLES (generic per-question row + goal row with
+// identical figures) still printed twice - title|detail dedupe misses it. The generic row
+// drops when a goal row carries the same matched|total.
+{
+  const UID41 = 'dupeagg';
+  const CS = await import('../src/server/arch/store/contextStore.js');
+  const P = await import('../src/server/arch/agents/personal.js');
+  CS.resetContextForSession(UID41, 'sess-agg');
+  const detail = '72 transactions totalling 20616 EUR of related spending';
+  const ev = { total: 20616, matched: 72 };
+  CS.writeNordeaSection(UID41, [
+    { id: 'nq-r1', title: 'Relevant to your question', detail, source: 'nordea' as const, observed: 'observed' as const, evidence: ev, at: new Date().toISOString() },
+    { id: 'nagg-g1', title: 'Save for a car', detail, source: 'nordea' as const, observed: 'observed' as const, evidence: ev, at: new Date().toISOString() },
+  ]);
+  CS.writeHeader(UID41, { roundId: 'round-agg', trigger: 'session', finalise: true });
+  const ans = P.finishChat(UID41, P.beginChat(UID41, 'how much did I spend related to my car goal?', 'sess-agg'));
+  check('G41: identical figures under two titles print once, keeping the goal-titled row', ans.reply.split('20616').length - 1 === 1 && ans.reply.includes('Save for a car') && !ans.reply.includes('Relevant to your question'), ans.reply.slice(0, 220));
+}
 
 // --- F20: risk derives "observed" from evidence, never from the proposer's own flag.
 const RK = await import('../src/server/arch/risk.js');
@@ -526,7 +1223,7 @@ check('F20: a self-declared "observed" flag cannot downgrade an inference', RK.a
 // --- F21: one shared word-bounded sensitive list; no substring false positives.
 check('F21: "reunion" and "drugstore" are NOT sensitive', RK.assessProposalRisk(fakeMsg('nordea', { transactionIds: ['t1'], total: 10 }, 'Reunion party at the drugstore')) === 'medium');
 check('F21: pregnancy, divorce, gambling and debt collectors ARE sensitive (high)', ['pregnancy costs', 'divorce fund', 'gambling habit', 'debt collector payment'].every((t) => RK.assessProposalRisk(fakeMsg('nordea', { transactionIds: ['t1'], total: 10 }, t)) === 'high'));
-check('F21: abel.ts uses the shared sensitive list (no private copy)', !/const SENSITIVE = /.test(fs.readFileSync(new URL('../src/server/abel.ts', import.meta.url), 'utf-8')) && fs.readFileSync(new URL('../src/server/abel.ts', import.meta.url), 'utf-8').includes("from './sensitive.js'"));
+check('F21: the import helper uses the shared sensitive list (no private copy)', !/const SENSITIVE = /.test(fs.readFileSync(new URL('../src/server/importPropose.ts', import.meta.url), 'utf-8')) && fs.readFileSync(new URL('../src/server/importPropose.ts', import.meta.url), 'utf-8').includes("from './sensitive.js'"));
 
 // --- F22: per-entry undo for automatically stored entries, logged; manual entries refused.
 const undone = A.undoEntry(UID15, autoMed!.id) as { undone?: boolean };
@@ -543,49 +1240,49 @@ check('F22: undo refuses a manually reviewed entry (dispute instead)', refused.i
 const UID21 = 'churnuser';
 S.saveNordeaDb({ userId: UID21, accounts: [], transactions: [{ id: 'c1', userId: UID21, date: '2026-10-01', category: 'transport', amount: -60, account: 'current', description: 'Fuel for the car' }, { id: 'c2', userId: UID21, date: '2026-10-02', category: 'transport', amount: -40, account: 'current', description: 'Car wash' }] });
 A.addGoalDirect(UID21, 'Save for a car');
-A.setStandingPermissions(UID21, 'high');
-A.contribute(UID21);
+A.setStandingPermissions(UID21, 'high', 'High risk mode');
+await A.contribute(UID21);
 const churnEntry = S.loadCmDb(UID21).entries.find((e) => e.proposedBy === 'nordea')!;
 check('F8 setup: Nordea aggregate auto-stored with transaction evidence', !!churnEntry && churnEntry.evidence?.total === 100 && (churnEntry.evidence?.transactionIds?.length ?? 0) > 0, JSON.stringify(churnEntry?.evidence));
 S.saveNordeaDb({ userId: UID21, accounts: [], transactions: [{ id: 'c9', userId: UID21, date: '2026-10-03', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
-const churnRound = A.contribute(UID21);
+const churnRound = await A.contribute(UID21);
 check('F8: churned transactions flag the entry stale even when the total is unchanged', S.loadCmDb(UID21).entries.find((e) => e.id === churnEntry.id)?.status === 'stale' && churnRound.staleFlags.some((f) => f.entryId === churnEntry.id), JSON.stringify(churnRound.staleFlags));
 check('F8: the churn flag says the underlying transactions changed', S.loadBus(UID21).messages.some((m) => m.type === 'flag-stale' && m.summary.includes('underlying transactions changed')));
 
 const UID22 = 'ageduser';
 S.saveNordeaDb({ userId: UID22, accounts: [], transactions: [{ id: 'a1', userId: UID22, date: '2026-10-01', category: 'transport', amount: -50, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID22, 'Save for a car');
-A.setStandingPermissions(UID22, 'high');
-A.contribute(UID22);
+A.setStandingPermissions(UID22, 'high', 'High risk mode');
+await A.contribute(UID22);
 const cm19 = S.loadCmDb(UID22);
 const agedEntry = cm19.entries.find((e) => e.proposedBy === 'nordea')!;
 agedEntry.createdAt = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString();
 agedEntry.evidence = { total: 50 }; // legacy entry: a total but no transaction ids to verify
 S.saveCmDb(cm19);
-const agedRound = A.contribute(UID22);
+const agedRound = await A.contribute(UID22);
 check('F8: an aged entry without verifiable transaction ids is flagged even though the total still matches', S.loadCmDb(UID22).entries.find((e) => e.id === agedEntry.id)?.status === 'stale' && agedRound.staleFlags.some((f) => f.entryId === agedEntry.id && f.reason === 'aged'), JSON.stringify(agedRound.staleFlags));
 
 const UID23 = 'agedokuser';
 S.saveNordeaDb({ userId: UID23, accounts: [], transactions: [{ id: 'b1', userId: UID23, date: '2026-10-01', category: 'transport', amount: -50, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID23, 'Save for a car');
-A.setStandingPermissions(UID23, 'high');
-A.contribute(UID23);
+A.setStandingPermissions(UID23, 'high', 'High risk mode');
+await A.contribute(UID23);
 const cm19b = S.loadCmDb(UID23);
 cm19b.entries.forEach((e) => { e.createdAt = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(); });
 S.saveCmDb(cm19b);
-const agedOkRound = A.contribute(UID23);
+const agedOkRound = await A.contribute(UID23);
 check('F8: an aged entry whose ids and total still match is CONFIRMED, not flagged', agedOkRound.staleFlags.length === 0 && S.loadCmDb(UID23).entries.every((e) => e.status === 'active'), JSON.stringify(agedOkRound.staleFlags));
 
 const UID24 = 'noevuser';
 S.saveNordeaDb({ userId: UID24, accounts: [], transactions: [{ id: 'n1', userId: UID24, date: '2026-10-01', category: 'transport', amount: -75, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID24, 'Save for a car');
-A.setStandingPermissions(UID24, 'high');
-A.contribute(UID24);
+A.setStandingPermissions(UID24, 'high', 'High risk mode');
+await A.contribute(UID24);
 const cm20 = S.loadCmDb(UID24);
 const noevEntry = cm20.entries.find((e) => e.proposedBy === 'nordea')!;
 noevEntry.evidence = undefined; // stored without any evidence
 S.saveCmDb(cm20);
-const noevRound = A.contribute(UID24);
+const noevRound = await A.contribute(UID24);
 check('F8: an entry stored without evidence is flagged when bank data gives a picture', S.loadCmDb(UID24).entries.find((e) => e.id === noevEntry.id)?.status === 'stale' && noevRound.staleFlags.some((f) => f.entryId === noevEntry.id && f.reason === 'missing-evidence'), JSON.stringify(noevRound.staleFlags));
 
 
@@ -594,36 +1291,36 @@ const UID40 = 'manytxuser';
 const manyTx = Array.from({ length: 30 }, (_, i) => ({ id: `m${i + 1}`, userId: UID40, date: '2026-10-01', category: 'transport' as const, amount: -10, account: 'current' as const, description: 'Fuel for the car' }));
 S.saveNordeaDb({ userId: UID40, accounts: [], transactions: manyTx });
 A.addGoalDirect(UID40, 'Save for a car');
-A.setStandingPermissions(UID40, 'high');
-A.contribute(UID40);
+A.setStandingPermissions(UID40, 'high', 'High risk mode');
+await A.contribute(UID40);
 const manyEntry = S.loadCmDb(UID40).entries.find((e) => e.proposedBy === 'nordea')!;
 check('F26 setup: aggregate stores a full-set id hash plus the 25-id display sample', typeof manyEntry.evidence?.transactionIdsHash === 'string' && manyEntry.evidence?.transactionIds?.length === 25, JSON.stringify(manyEntry.evidence).slice(0, 120));
-const manyR2 = A.contribute(UID40);
-const manyR3 = A.contribute(UID40);
+const manyR2 = await A.contribute(UID40);
+const manyR3 = await A.contribute(UID40);
 check('F26: >25 matches and no bank change - the aggregate stays ACTIVE over three rounds, no stale duplicate', manyR2.staleFlags.length === 0 && manyR3.staleFlags.length === 0 && S.loadCmDb(UID40).entries.filter((e) => e.title.includes('Activity related')).length === 1 && S.loadCmDb(UID40).entries.every((e) => e.status === 'active'), `round2 flags: ${manyR2.staleFlags.length}, round3 flags: ${manyR3.staleFlags.length}, entries: ${S.loadCmDb(UID40).entries.map((e) => e.status + ':' + e.title.slice(0, 30)).join(' | ')}`);
 
 // --- F27: a saving-goal aggregate is labelled as SPENDING, not as savings.
-check('F27: the goal aggregate names the figure as related spending', manyEntry.detail.includes('spending'), manyEntry.detail);
+check('F27: the goal card carries the code-computed figures truthfully (insight text + exact evidence)', manyEntry.detail.includes('30 matched transactions') && manyEntry.evidence?.total === 300, manyEntry.detail);
 
 // --- F28: the re-check notice says which outcome actually happened.
 const UID41 = 'noticeuser';
 S.saveNordeaDb({ userId: UID41, accounts: [], transactions: [{ id: 'w1', userId: UID41, date: '2026-10-01', category: 'transport', amount: -60, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID41, 'Save for a car');
-A.setStandingPermissions(UID41, 'high');
-A.contribute(UID41);
+A.setStandingPermissions(UID41, 'high', 'High risk mode');
+await A.contribute(UID41);
 S.saveNordeaDb({ userId: UID41, accounts: [], transactions: [{ id: 'w1', userId: UID41, date: '2026-10-01', category: 'transport', amount: -60, account: 'current', description: 'Fuel for the car' }, { id: 'w2', userId: UID41, date: '2026-10-02', category: 'transport', amount: -40, account: 'current', description: 'Car wash' }] });
-A.contribute(UID41);
+await A.contribute(UID41);
 const noticeAuto = S.loadBus(UID41).messages.filter((m) => m.type === 'inform' && m.summary.startsWith('Re-check before reuse')).pop();
 check('F28: under standing permissions the notice says the refresh was stored automatically', !!noticeAuto && noticeAuto.summary.includes('stored automatically under your standing permissions') && !noticeAuto.summary.includes('wait in merge review'), noticeAuto?.summary ?? 'no notice');
 
 const UID42 = 'noticeuser2';
 S.saveNordeaDb({ userId: UID42, accounts: [], transactions: [{ id: 'v1', userId: UID42, date: '2026-10-01', category: 'transport', amount: -60, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID42, 'Save for a car');
-A.setStandingPermissions(UID42, 'high');
-A.contribute(UID42);
+A.setStandingPermissions(UID42, 'high', 'High risk mode');
+await A.contribute(UID42);
 A.setStandingPermissions(UID42, 'all');
 S.saveNordeaDb({ userId: UID42, accounts: [], transactions: [{ id: 'v1', userId: UID42, date: '2026-10-01', category: 'transport', amount: -60, account: 'current', description: 'Fuel for the car' }, { id: 'v2', userId: UID42, date: '2026-10-02', category: 'transport', amount: -40, account: 'current', description: 'Car wash' }] });
-A.contribute(UID42);
+await A.contribute(UID42);
 const noticeReview = S.loadBus(UID42).messages.filter((m) => m.type === 'inform' && m.summary.startsWith('Re-check before reuse')).pop();
 check('F28: under review-everything the notice still says the refresh waits in merge review', !!noticeReview && noticeReview.summary.includes('wait in merge review'), noticeReview?.summary ?? 'no notice');
 
@@ -634,30 +1331,30 @@ check('F23: plain loan/debt talk is NOT high risk in the AC7 rule', ['pay off my
 check('F23: debt DISTRESS is still high risk', ['debt collector payment', 'arrears piling up', "can't pay my bills", 'bankruptcy filing'].every((t) => RK.assessProposalRisk(fakeMsg('nordea', { transactionIds: ['t1'], total: 10 }, t)) === 'high'));
 check('F23: Abel keeps its narrow guard - a loan goal still saves without the private tap', !SENS.ABEL_PRIVATE_TOPIC.test('pay off my student loan debt') && !SENS.ABEL_PRIVATE_TOPIC.test('monthly mortgage payment'));
 check('F23: Abel still guards the genuinely private topics', ['cancer treatment fund', 'therapy sessions', 'gambling recovery'].every((t) => SENS.ABEL_PRIVATE_TOPIC.test(t)));
-check('F23: abel.ts uses the narrow ABEL_PRIVATE_TOPIC, not the wide risk list', fs.readFileSync(new URL('../src/server/abel.ts', import.meta.url), 'utf-8').includes('ABEL_PRIVATE_TOPIC') && !fs.readFileSync(new URL('../src/server/abel.ts', import.meta.url), 'utf-8').includes('SENSITIVE_TOPIC as SENSITIVE'));
+check('F23: the import helper uses the narrow ABEL_PRIVATE_TOPIC, not the wide risk list', fs.readFileSync(new URL('../src/server/importPropose.ts', import.meta.url), 'utf-8').includes('ABEL_PRIVATE_TOPIC') && !fs.readFileSync(new URL('../src/server/importPropose.ts', import.meta.url), 'utf-8').includes('SENSITIVE_TOPIC as SENSITIVE'));
 
 
 // --- F24: customer-side entries decay too - a goal removed from the User DB flags its entry stale.
 const UID25 = 'goalgoneuser';
 S.saveNordeaDb({ userId: UID25, accounts: [], transactions: [{ id: 'g1', userId: UID25, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID25, 'Save for a car');
-A.setStandingPermissions(UID25, 'high');
-A.contribute(UID25);
+A.setStandingPermissions(UID25, 'high', 'No permission'); // R2: no model = no level (UNKNOWN); "No permission" lets it pass so this decay pin has a stored goal card
+await A.contribute(UID25);
 const goalEntry = S.loadCmDb(UID25).entries.find((e) => e.proposedBy === 'personal')!;
 check('F24 setup: the goal entry is active in the cabinet', !!goalEntry && goalEntry.status === 'active' && goalEntry.goalIds.length === 1);
 const u25 = S.loadUserDb(UID25);
 u25.goals = []; // the customer drops the goal
 S.saveUserDb(u25);
-const goneRound = A.contribute(UID25);
+const goneRound = await A.contribute(UID25);
 check('F24: removing the goal flags the customer-side entry stale in the next decay round', S.loadCmDb(UID25).entries.find((e) => e.id === goalEntry.id)?.status === 'stale' && goneRound.staleFlags.some((f) => f.entryId === goalEntry.id && f.reason === 'goal-removed'), JSON.stringify(goneRound.staleFlags));
 check('F24: the flag and the customer notice name the removed goal', S.loadBus(UID25).messages.some((m) => m.type === 'flag-stale' && m.summary.includes('no longer exists in the User DB')) && S.loadBus(UID25).messages.some((m) => m.type === 'inform' && m.summary.includes('goal behind')));
 
 const UID26 = 'goalkeptuser';
 S.saveNordeaDb({ userId: UID26, accounts: [], transactions: [{ id: 'k1', userId: UID26, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID26, 'Save for a car');
-A.setStandingPermissions(UID26, 'high');
-A.contribute(UID26);
-const keptRound = A.contribute(UID26); // goal still exists
+A.setStandingPermissions(UID26, 'high', 'No permission'); // R2: no model = no level (UNKNOWN); "No permission" lets it pass for this decay pin
+await A.contribute(UID26);
+const keptRound = await A.contribute(UID26); // goal still exists
 check('F24: an existing goal is confirmed - no false stale flag', !keptRound.staleFlags.some((f) => f.reason === 'goal-removed') && S.loadCmDb(UID26).entries.find((e) => e.proposedBy === 'personal')?.status === 'active', JSON.stringify(keptRound.staleFlags));
 
 
@@ -666,17 +1363,17 @@ check('F24: an existing goal is confirmed - no false stale flag', !keptRound.sta
 const UID27 = 'ac3user';
 A.addGoalDirect(UID27, 'Save for a laptop', 'from my summer job savings');
 S.saveNordeaDb({ userId: UID27, accounts: [], transactions: [{ id: 'l1', userId: UID27, date: '2026-10-01', category: 'shopping', amount: -200, account: 'current', description: 'Laptop store' }] });
-A.contribute(UID27);
+await A.contribute(UID27);
 const custRows = S.readSectionRows(UID27, 'customer');
 check('AC3: the Customer section carries every goal by title from the User DB', custRows.some((r) => r.title === 'Save for a laptop'), JSON.stringify(custRows).slice(0, 120));
 const ctxMd27 = S.renderContextMd(UID27, S.loadContext(UID27)!);
 check('AC3: goal details and personal facts stay in the User DB until the customer allows sharing', custRows.every((r) => !r.detail) && !ctxMd27.includes('summer job'), ctxMd27.slice(0, 80));
-const ac3Chat = A.chat(UID27, 'what do you know about my laptop goal?');
+const ac3Chat = await A.chat(UID27, 'what do you know about my laptop goal?');
 check('AC3: the personal agent answers from its own DB and the session document', ac3Chat.reply.length > 0 && ac3Chat.used.includes('user-db'), ac3Chat.used.join(','));
 
 // AC4: stored cabinet entries are structured: source agent, evidence, observed|inferred, timestamp.
-A.setStandingPermissions(UID27, 'high');
-A.contribute(UID27);
+A.setStandingPermissions(UID27, 'high', 'High risk mode');
+await A.contribute(UID27);
 const ac4Entry = S.loadCmDb(UID27).entries.find((e) => e.proposedBy === 'nordea')!;
 check('AC4: a stored entry records source agent, evidence, observed|inferred and a timestamp', !!ac4Entry && ac4Entry.evidence?.total != null && (ac4Entry.observed === 'observed' || ac4Entry.observed === 'inferred') && !!ac4Entry.createdAt, JSON.stringify(ac4Entry).slice(0, 160));
 
@@ -700,28 +1397,30 @@ check('AC9: an automatic store is explainable', (A.explainEntry(UID27, ac9Entry.
 A.disputeEntry(UID27, ac9Entry.id, 'not mine');
 check('AC9: an automatic store is disputable', S.loadCmDb(UID27).entries.find((e) => e.id === ac9Entry.id)?.status === 'disputed');
 
-// AC10: the architecture runs without an AI key - no arch module imports the LLM layer.
+// AC10+V4: the scripted path still runs without an AI key; the ONLY LLM touchpoint is the
+// bounded G4 driver arch/llm.ts (agents/orchestrator reach it, never the app LLM layer).
 const archSrcs = ['orchestrator.ts', 'rounds.ts', 'dispatcher.ts', 'agents/personal.ts', 'agents/cm.ts', 'agents/nordea.ts'].map((f) => readSrc(`../src/server/arch/${f}`));
-check('AC10: no architecture module imports the LLM layer - the whole flow is deterministic', archSrcs.every((src) => !/llm\.js|getProvider|openai|anthropic/i.test(src)));
+check('AC10+V4: no architecture module touches the app LLM layer directly (only the bounded G4 driver)', archSrcs.every((src) => !/\.\.\/\.\.\/llm\.js|getProvider|openai|anthropic/i.test(src)));
+check('AC10+V4: arch/llm.ts is the single sanctioned bridge to the app LLM provider', /from '\.\.\/llm\.js'/.test(readSrc('../src/server/arch/llm.ts')));
 
 
 // --- F25: a removed goal also flags the NORDEA-side entries on that goal, not just the customer's own.
 const UID28 = 'goalgone2';
 S.saveNordeaDb({ userId: UID28, accounts: [], transactions: [{ id: 'x1', userId: UID28, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID28, 'Save for a car');
-A.setStandingPermissions(UID28, 'high');
-A.contribute(UID28);
+A.setStandingPermissions(UID28, 'high', 'High risk mode');
+await A.contribute(UID28);
 const nordeaOnGoal = S.loadCmDb(UID28).entries.find((e) => e.proposedBy === 'nordea' && e.goalIds.length > 0)!;
 check('F25 setup: a Nordea entry tied to the goal is active', !!nordeaOnGoal && nordeaOnGoal.status === 'active');
 const u28 = S.loadUserDb(UID28);
 u28.goals = [];
 S.saveUserDb(u28);
-const goneRound2 = A.contribute(UID28);
+const goneRound2 = await A.contribute(UID28);
 check('F25: removing the goal flags the Nordea-side entry on it stale too', S.loadCmDb(UID28).entries.find((e) => e.id === nordeaOnGoal.id)?.status === 'stale' && goneRound2.staleFlags.some((f) => f.entryId === nordeaOnGoal.id && f.reason === 'goal-removed'), JSON.stringify(goneRound2.staleFlags));
 
 
 // --- F10 phase 2 / AC11: the in-app Abel reads user.db VIA the personal agent and context.md by session rules.
-const shared27 = A.abelSharedContext(UID27, 'conv-abel-1', 'laptop');
+const shared27 = await A.abelSharedContext(UID27, 'conv-abel-1', 'laptop');
 check('F10p2: User DB facts come from the personal agent by message, with provenance', !!shared27.userDbFacts && shared27.userDbFacts.includes('Save for a laptop') && shared27.provenance.some((p) => p.includes('user-db via the personal agent')), JSON.stringify(shared27).slice(0, 140));
 check('F10p2: a fresh session gets its own FINALISED document, stamped with its exact session id', !!shared27.sharedContext && S.loadContext(UID27)?.sessionId === 'conv-abel-1' && !!S.loadContext(UID27)?.finalisedAt, (shared27.sharedContext ?? '').slice(0, 80));
 check('F10p2: the document was built by a session round for this exact session', S.loadBus(UID27).messages.some((m) => m.type === 'round-start' && (m.payload as { sessionId?: string }).sessionId === 'conv-abel-1'));
@@ -730,10 +1429,10 @@ check('F10p2: the document was built by a session round for this exact session',
 const UID29 = 'sessuser';
 A.addGoalDirect(UID29, 'Save for a van');
 S.saveNordeaDb({ userId: UID29, accounts: [], transactions: [{ id: 'v1', userId: UID29, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Van parts' }] });
-A.chat(UID29, 'van', 'session-A');
+await A.chat(UID29, 'van', 'session-A');
 check('F10p2 setup: session A has a finalised document', S.loadContext(UID29)?.sessionId === 'session-A' && !!S.loadContext(UID29)?.finalisedAt);
 A.setAgentOff(UID29, 'cm', true);
-const wrongSess = A.abelSharedContext(UID29, 'session-B', 'anything');
+const wrongSess = await A.abelSharedContext(UID29, 'session-B', 'anything');
 check('F10p2: finalised != current - another session\'s document is NOT served', !wrongSess.sharedContext, (wrongSess.sharedContext ?? '').slice(0, 60));
 check('F10p2: and the other session\'s document is NOT wiped when no round can run', S.loadContext(UID29)?.sessionId === 'session-A' && !!S.loadContext(UID29)?.finalisedAt);
 check('F10p2: facts are always the requesting customer\'s own (no cross-customer assembly)', !(wrongSess.userDbFacts ?? '').includes('laptop') && (wrongSess.userDbFacts ?? '').includes('van'), (wrongSess.userDbFacts ?? '').slice(0, 80));
@@ -743,57 +1442,461 @@ const UID30 = 'nodocuser';
 A.addGoalDirect(UID30, 'Save for a boat');
 S.saveNordeaDb({ userId: UID30, accounts: [], transactions: [{ id: 'bt1', userId: UID30, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Boat parts' }] });
 A.setAgentOff(UID30, 'cm', true);
-const noDoc = A.abelSharedContext(UID30, 'conv-x', 'boat');
+const noDoc = await A.abelSharedContext(UID30, 'conv-x', 'boat');
 check('F10p2: no document and no way to build one -> no shared context, User DB facts still served', !noDoc.sharedContext && (noDoc.userDbFacts ?? '').includes('boat'), JSON.stringify(noDoc).slice(0, 100));
 S.resetContextForSession(UID30, 'conv-y');
-const unfinalised = A.abelSharedContext(UID30, 'conv-y', 'boat');
+const unfinalised = await A.abelSharedContext(UID30, 'conv-y', 'boat');
 check('F10p2: an UNFINALISED document is never served, even for the matching session', !unfinalised.sharedContext);
 
 // Parked negative: parking the cabinet silences the document half only.
 A.parkCabinet(UID27, true);
-const parkedShared = A.abelSharedContext(UID27, 'conv-abel-2', 'laptop');
+const parkedShared = await A.abelSharedContext(UID27, 'conv-abel-2', 'laptop');
 check('F10p2: a parked cabinet serves no document; the customer\'s own User DB facts still reach Abel', !parkedShared.sharedContext && !!parkedShared.userDbFacts);
 
 // --- F30: stale and disputed rows never reach Abel as facts (only Abel's copy is filtered).
 const UID33 = 'abeldisp';
 S.saveNordeaDb({ userId: UID33, accounts: [], transactions: [{ id: 'dd1', userId: UID33, date: '2026-10-01', category: 'transport', amount: -1234, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID33, 'Save for a car');
-A.setStandingPermissions(UID33, 'high');
-A.contribute(UID33);
-check('F30 setup: the active aggregate reaches Abel', (A.abelSharedContext(UID33, 'f30-s1', 'car').sharedContext ?? '').includes('1234 EUR'));
+A.setStandingPermissions(UID33, 'high', 'High risk mode');
+await A.contribute(UID33);
+check('F30 setup: the active aggregate reaches Abel', ((await A.abelSharedContext(UID33, 'f30-s1', 'car')).sharedContext ?? '').includes('1234 EUR'));
 S.saveNordeaDb({ userId: UID33, accounts: [], transactions: [{ id: 'dd2', userId: UID33, date: '2026-10-02', category: 'transport', amount: -999, account: 'current', description: 'Car wash' }] });
-A.contribute(UID33); // churn: the 1234 entry goes stale, the refreshed 999 is stored automatically
+await A.contribute(UID33); // churn: the 1234 entry goes stale, the refreshed 999 is stored automatically
 const f30Active = S.loadCmDb(UID33).entries.find((e) => e.status === 'active' && e.proposedBy === 'nordea')!;
 A.disputeEntry(UID33, f30Active.id, 'not mine');
 S.saveNordeaDb({ userId: UID33, accounts: [], transactions: [{ id: 'dd3', userId: UID33, date: '2026-10-03', category: 'transport', amount: -50, account: 'current', description: 'Parking' }] });
-const f30 = A.abelSharedContext(UID33, 'f30-s2', 'car');
+const f30 = await A.abelSharedContext(UID33, 'f30-s2', 'car');
 check('F30: the stale figure and the disputed figure are both absent from the context Abel receives', !(f30.sharedContext ?? '').includes('1234 EUR') && !(f30.sharedContext ?? '').includes('999 EUR'), (f30.sharedContext ?? '').slice(0, 200));
 check('F30: the fresh bank figure still reaches Abel (filtering drops marks, not data)', (f30.sharedContext ?? '').includes('50 EUR'));
 const f30Doc = S.loadContext(UID33)!;
 check("F30: the STORED document still records the marks - only Abel's copy is filtered", f30Doc.sections.memory.rows.some((r) => r.status === 'stale' && r.detail.includes('1234')) && f30Doc.sections.memory.rows.some((r) => r.status === 'disputed' && r.detail.includes('999')), f30Doc.sections.memory.rows.map((r) => `${r.status}:${r.detail.slice(0, 40)}`).join(' | '));
 
 
-// The main-chat path itself: Abel's real turn carries the shared context into the system prompt (mock provider, no AI spend).
-applyNordeaData('lauri', { accounts: [{ key: 'current', currency: 'EUR' }, { key: 'savings' }], transactions: [{ date: '2026-10-25', amount: 3000, description: 'SALARY', category: 'SALARY' }] }, 'test seed');
-const { setProviderForTests } = await import('../src/server/llm.js');
-let capturedSystem = '';
-setProviderForTests({ name: 'capture', isConfigured: () => true, step: async (args: { system: string }) => { capturedSystem = args.system; return { calls: [{ id: 'c1', name: 'finishReply', args: { text: 'ok', suggestions: [], usedEntryIds: [], topic: 'other', couldHelp: true } }] }; } } as never);
-const ABEL = await import('../src/server/abel.js');
-await ABEL.abelTurn('lauri', 'conv-main-test', 'abel', 'hello', { userDbFacts: 'Goals: Save for a laptop', sharedContext: '- Goal: Save for a laptop (goal-1)', provenance: ['user-db via the personal agent'] });
-check('F10p2: the main Abel chat carries the shared context into its real prompt, with provenance', capturedSystem.includes('SHARED CONTEXT') && capturedSystem.includes('Save for a laptop') && capturedSystem.includes('user-db via the personal agent'));
+// The main-chat path itself (F10p2, arch form): the personal agent's model composes the
+// reply from the code-selected shared-context rows, each labelled with its provenance -
+// capture the real compose call (no AI spend).
+{
+  const UID40 = 'chatprompt';
+  S.saveNordeaDb({ userId: UID40, accounts: [], transactions: [{ id: 'cp1', userId: UID40, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
+  A.addGoalDirect(UID40, 'Save for a car');
+  await A.contribute(UID40);
+  decideFirstNordea(UID40);
+  const captured: { system: string; prompt: string }[] = [];
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  setProviderForTests({ name: 'capture', isConfigured: () => true, step: async (args: { system?: string; turns?: { text?: string }[] }) => { captured.push({ system: args.system ?? '', prompt: (args.turns ?? []).map((t) => t.text ?? '').join('\n') }); return { calls: [{ id: 'c1', name: 'finishReply', args: { reply: 'ok, recorded' } }] }; } } as never);
+  await A.chat(UID40, 'what do you know about my car saving?');
+  setProviderForTests(null);
+  const compose = captured.find((c) => /personal banking assistant agent/.test(c.system));
+  check('F10p2: the main chat composes its reply from code-selected shared context, with provenance (arch path)',
+    !!compose && compose.prompt.includes('Shared context (via the Context Memory agent)') && /car/i.test(compose.prompt), (compose?.prompt ?? '(no compose call)').slice(0, 160));
+}
 const routesSrc2 = readSrc('../src/server/routes.ts');
-check('F10p2: the chat route assembles shared context for the SAME customer and session it serves', /abelSharedContext\(userId, conv\.id, u\.text\)/.test(routesSrc2) && /abelTurn\(userId, conv\.id, conv\.helperId, u\.text, shared\)/.test(routesSrc2));
+check('G30 slice 3: /api/chat answers through the arch pipeline, conversation id IS the session id', /archChat\(userId, u\.text, conv\.id\)/.test(routesSrc2) && !/abelTurn|abelSharedContext/.test(routesSrc2));
 
 
 // --- F10 phase 2, Bill's condition: the Abel shared-context path reads context.md only -
 // user.db facts arrive BY MESSAGE from the personal agent; cm.db/nordea.db/user.db are never opened for Abel.
 const orchSrc = readSrc('../src/server/arch/orchestrator.ts');
-const fnStart = orchSrc.indexOf('export function abelSharedContext');
+const fnStart = orchSrc.indexOf('export async function abelSharedContext');
 const fnBody = orchSrc.slice(fnStart, orchSrc.indexOf('\n}\n', fnStart) + 3);
 check('F10p2: the Abel path opens no agent store at all - only the shared context.md and bus messages',
   !/loadUserDb|loadCmDb|loadNordeaDb|userStore|cmStore|nordeaStore/.test(fnBody) && fnBody.includes('loadContext') && fnBody.includes("controlRoundTrip(uid, 'personal'"), '');
 check('F10p2: the personal agent answers abel-facts from its own User DB (the owning agent reads, not the app)',
   personalSrc.includes("control === 'abel-facts'") && /u\.goals\.map/.test(personalSrc));
+
+// --- Outcome 4: General vs Related question category (exact, code-decided) ---
+{
+  const { classifyQuestion } = await import('../src/server/arch/orchestrator.js');
+  check('Q4: banking/account/goal questions are "Related Question"', classifyQuestion('what is my account balance?', []) === 'Related Question' && classifyQuestion('how is my car saving going', []) === 'Related Question' && classifyQuestion('a plain note', ['row']) === 'Related Question', '');
+  check('Q4: other questions are exactly "General Question" (no provider/example hardcode)', classifyQuestion('When was Aalto University founded?', []) === 'General Question' && classifyQuestion('How tall is Mount Everest?', []) === 'General Question', '');
+  const UIDQ = 'catq';
+  const seen: { system: string }[] = [];
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  setProviderForTests({ name: 'capture', isConfigured: () => true, step: async (args: { system?: string }) => { seen.push({ system: args.system ?? '' }); return { calls: [{ id: 'c1', name: 'finishReply', args: { reply: 'Aalto University was founded in 2010 in Espoo.' } }] }; } } as never);
+  const g = await A.chat(UIDQ, 'When was Aalto University founded?');
+  check('Q4: a General Question gets the model answer, category General, and a no-disclaimer instruction', g.category === 'General Question' && g.source === 'model' && /no disclaimer/.test(seen.at(-1)?.system ?? '') && !/bank data|Nordea DB|don't have your bank/i.test(g.reply), g.reply);
+  check('Q4: a General Question keeps its general figure (no customer record needed)', /2010/.test(g.reply), g.reply);
+  const r = await A.chat(UIDQ, 'how much money did I spend on groceries?');
+  check('Q4: a Related Question keeps the figure guard (invented 2010 would drop to the scripted reply)', r.category === 'Related Question' && r.source !== 'model', `${r.category} ${r.source}`);
+  setProviderForTests(null);
+  setProviderForTests({ name: 'down', isConfigured: () => true, step: async () => { throw new Error('provider down'); } } as never);
+  const gd = await A.chat(UIDQ, 'How tall is Mount Everest?');
+  check('Q4: a General Question with no model answer gets no bank disclaimer', gd.category === 'General Question' && !/bank|Nordea|User DB|account/i.test(gd.reply), gd.reply);
+  setProviderForTests(null);
+}
+const appSrcQ = readSrc('../src/App.tsx'), apiSrcQ = readSrc('../src/services/api.ts'), routesSrcQ = readSrc('../src/server/routes.ts'), chatSrcQ = readSrc('../src/components/Chat.tsx'), archHtmlQ = readSrc('../public/arch.html');
+check('Q3: no fixed 180 s client abort; requestId sent; late pickup by requestId, never an automatic resubmit', !/180000/.test(apiSrcQ) && /requestId/.test(apiSrcQ) && /api\/chat\/result/.test(apiSrcQ) && (apiSrcQ.match(/fetch\('\/api\/chat'/g) ?? []).length === 1, '');
+check('Q3: server runs a requestId once (join in-flight / stored reply) and serialises a user\'s turns', /storedReply\(userId, requestId\)/.test(routesSrcQ) && /runOnce\(/.test(routesSrcQ) && /enqueue/.test(readSrc('../src/server/chatRequests.ts')) && /runOnce/.test(readSrc('../src/server/arch/routes.ts')) && /chat\/result/.test(archHtmlQ) && /chatOnce/.test(archHtmlQ), '');
+check('Q2: mobile caption = category, client-measured elapsed, actual answerer, round plan; arch.html shows category + client-measured elapsed', /performance\.now\(\) - sentAt/.test(appSrcQ) && /sup\?\.plan/.test(chatSrcQ) && /sup\?\.category/.test(chatSrcQ) && /client-measured/.test(archHtmlQ), '');
+
+// --- Q4 conservative grounding: a General classification never lets a customer-looking figure through
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const UIDG = 'catq2';
+  const say = (reply: string, readGoals = false) => setProviderForTests({ name: 'cap2', isConfigured: () => true, step: async (args: { turns?: unknown[] }) => ({ calls: readGoals && !(JSON.stringify(args.turns ?? []).includes('listMyGoals result')) && !JSON.stringify(args.turns ?? []).includes('"name":"listMyGoals"') ? [{ id: 'g1', name: 'listMyGoals', args: {} }] : [{ id: 'c1', name: 'finishReply', args: { reply } }] }) } as never);
+  say('The median salary there is 4 100 per month.');
+  const a = await A.chat(UIDG, 'What is the typical pay for a nurse in Finland?');
+  check('Q4: a reply mentioning salary/money terms and an ungrounded figure drops to the scripted reply', a.source !== 'model', `${a.source}: ${a.reply}`);
+  say('Helsinki has about 660 000 residents.');
+  const b = await A.chat(UIDG, 'How many people live in Helsinki?');
+  check('Q4: a plain General reply with a general figure is kept', b.category === 'General Question' && b.source === 'model' && /660/.test(b.reply), `${b.source}: ${b.reply}`);
+  setProviderForTests(null);
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  let n = 0;
+  setProviderForTests({ name: 'cap3', isConfigured: () => true, step: async () => ({ calls: [n++ === 0 ? { id: 'g1', name: 'listMyGoals', args: {} } : { id: 'c1', name: 'finishReply', args: { reply: 'That would be about 777 units.' } }] }) } as never);
+  const m = await A.chat('catq3', 'How many units are in a standard crate?');
+  check('Q4: a General question where the model also read the customer User DB (mixed) keeps the figure guard', m.category === 'General Question' && m.source !== 'model' && !m.reply.includes('777'), `${m.source}: ${m.reply}`);
+  setProviderForTests(null);
+}
+check('timeout: Gemini and OpenAI-compatible adapters both default to 120 s (no 15/30/60 s floor left)', /LLM_TIMEOUT_MS\) \|\| 120000/.test(readSrc('../src/server/llm.ts')) && /LLM_TIMEOUT_MS\) \|\| 120000/.test(readSrc('../src/server/llmOpenAI.ts')) && !/Math\.max\(60000/.test(readSrc('../src/server/llmOpenAI.ts')), '');
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const reply = (r: string) => setProviderForTests({ name: 'neg', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: r } }] }) } as never);
+  reply('You can visit the Otaniemi campus; Aalto University was founded in 2010.');
+  const fp = await A.chat('negq1', 'What is Aalto University like?');
+  check('Q4 negative (false positive): "you" next to a general figure is NOT dropped', fp.category === 'General Question' && fp.source === 'model' && /2010/.test(fp.reply), `${fp.source}: ${fp.reply}`);
+  reply('The salary went from 3400 to 3900 recently.');
+  const fn = await A.chat('negq2', 'How did wages develop in Finland recently?');
+  check('Q4 negative (false negative): an ungrounded salary figure with no you/currency is dropped, neutral reply, no bank text', fn.source !== 'model' && !/3900/.test(fn.reply) && !/User DB|cabinet|bank/i.test(fn.reply), `${fn.category}/${fn.source}: ${fn.reply}`);
+  reply('You spent 480 last month on that.');
+  const fn2 = await A.chat('negq3', 'What is Helsinki known for?');
+  check('Q4 negative: "you spent 480" is dropped even when the question looked general', fn2.source !== 'model' && !/480/.test(fn2.reply), `${fn2.source}: ${fn2.reply}`);
+  setProviderForTests(null);
+  const off = await A.chat('negq4', 'What is Aalto University like?');
+  check('Q4: General with the AI off gets a neutral reply (no User DB/cabinet/bank disclaimer)', off.category === 'General Question' && !/User DB|cabinet|bank|goal/i.test(off.reply), off.reply);
+}
+{
+  const CR = await import('../src/server/chatRequests.js');
+  let runs = 0, active = 0, maxActive = 0;
+  const slow = (v: string) => async () => { runs++; active++; maxActive = Math.max(maxActive, active); await new Promise((r) => setTimeout(r, 40)); active--; return { status: 200, body: { v } }; };
+  const [r1, r2] = await Promise.all([CR.runOnce('u-q3', 'same-id', slow('a')), CR.runOnce('u-q3', 'same-id', slow('b'))]);
+  const r3 = await CR.runOnce('u-q3', 'same-id', slow('c'));
+  check('Q3: a requestId runs exactly ONCE (concurrent repeat joins, later repeat gets the kept result)', runs === 1 && JSON.stringify(r1) === JSON.stringify(r2) && JSON.stringify(r3.body) === JSON.stringify(r1.body), `runs=${runs}`);
+  check('Q3: requestState reports done / unknown', CR.requestState('u-q3', 'same-id').status === 'done' && CR.requestState('u-q3', 'never').status === 'unknown', '');
+  runs = 0;
+  await Promise.all([CR.runOnce('u-q3b', 'x1', slow('a')), CR.runOnce('u-q3b', 'x2', slow('b')), CR.runOnce('u-q3b', 'x3', slow('c'))]);
+  check('Q3: one user\'s different requests run serially (never overlapping), none lost', runs === 3 && maxActive === 1, `runs=${runs} maxActive=${maxActive}`);
+  const pend = CR.runOnce('u-q3c', 'slowid', slow('p'));
+  check('Q3: an in-flight requestId reads pending', CR.requestState('u-q3c', 'slowid').status === 'pending', '');
+  await pend;
+}
+{
+  const CR = await import('../src/server/chatRequests.js');
+  const ok = async () => ({ status: 200, body: { v: 1 } });
+  await CR.runOnce('u-fp', 'id1', ok, 'hello');
+  const clash = await CR.runOnce('u-fp', 'id1', ok, 'something else');
+  check('Q3: a requestId reused for DIFFERENT text is refused (409), never answered with the old reply', clash.status === 409, JSON.stringify(clash));
+  const { classifyQuestion } = await import('../src/server/arch/orchestrator.js');
+  check('Q4: private-looking questions in Finnish/first-person/short form are still Related', ['Paljonko maksoin ruokakaupassa viime kuussa?', 'How much did I pay at the cafe?', 'Mikä on saldoni?'].every((q) => classifyQuestion(q, []) === 'Related Question'), '');
+  check('Q4: ordinary first-person, short and non-English general questions are labelled General (not blanket Related)', ['What should I cook for a village festival?', 'Wages?', 'Milloin Aalto-yliopisto perustettiin?', 'Can I visit the Aalto campus?', 'How do I get to Otaniemi?', 'Mikä on Suomen pääkaupunki?', 'Vad är Finlands huvudstad?'].every((q) => classifyQuestion(q, []) === 'General Question'), '');
+  check('Q4: grocery spending is Related', classifyQuestion('What did I pay for groceries last month?', []) === 'Related Question', '');
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const reply = (r: string) => setProviderForTests({ name: 'neg2', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: r } }] }) } as never);
+  reply('Try a big pot of soup and fresh bread for everyone.');
+  const a = await A.chat('negq5', 'What should I cook for a village festival?');
+  check('Q4: first-person General question with a no-figure answer is answered (label General, no disclaimer)', a.category === 'General Question' && a.source === 'model', `${a.source}: ${a.reply}`);
+  reply('Plan about 312.40 euros of food.');
+  const b = await A.chat('negq6', 'What should I cook for a village festival?');
+  check('Q4: first-person General question with an ungrounded figure keeps the guard (neutral fallback)', b.category === 'General Question' && b.source !== 'model' && !/User DB|cabinet|bank/i.test(b.reply), `${b.source}: ${b.reply}`);
+  reply('Aalto-yliopisto perustettiin vuonna 2010.');
+  const c = await A.chat('negq7', 'Milloin Aalto-yliopisto perustettiin?');
+  check('Q4: non-English General figure is guarded (cannot verify it is non-private)', c.category === 'General Question' && c.source !== 'model', `${c.source}: ${c.reply}`);
+  reply('Aalto-yliopisto sijaitsee Espoossa.');
+  const d = await A.chat('negq8', 'Missä Aalto-yliopisto sijaitsee?');
+  check('Q4: non-English General answer without figures is answered', d.category === 'General Question' && d.source === 'model', `${d.source}: ${d.reply}`);
+  setProviderForTests(null);
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  const reply = (r: string) => setProviderForTests({ name: 'g45', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: r } }] }) } as never);
+  reply('The last electricity invoice was 84.20.');
+  const a = await A.chat('g45a', 'What was the total of the last electricity invoice?');
+  check('G45: an impersonal question about a bill-like item never ships an invented figure', a.source !== 'model' && !/84\.20/.test(a.reply), `${a.category}/${a.source}: ${a.reply}`);
+  reply('The last concert tickets cost 95.');
+  const b = await A.chat('g45b', 'What was the amount on the previous ticket purchase?');
+  check('G45: specific-item wording ("previous", "amount") without a listed bill word still keeps the guard', b.source !== 'model' && !/95/.test(b.reply), `${b.category}/${b.source}: ${b.reply}`);
+  reply('Paris has about 2 100 000 residents.');
+  const c = await A.chat('g45c', 'How many people live in Paris?');
+  check('G45: a plain general figure ships, marked as a general answer not from the customer\'s records', c.source === 'model' && /General answer - not from your records/.test(c.reply), `${c.source}: ${c.reply}`);
+  reply('Helsinki is the capital of Finland.');
+  const d = await A.chat('g45d', 'What is the capital of Finland?');
+  check('G45: a no-figure general answer carries no extra note', d.source === 'model' && !/not from your records/.test(d.reply), d.reply);
+  setProviderForTests(null);
+}
+{
+  const { setProviderForTests } = await import('../src/server/llm.js');
+  setProviderForTests({ name: 'g45b', isConfigured: () => true, step: async () => ({ calls: [{ id: 'c1', name: 'finishReply', args: { reply: 'An electricity invoice is often 84.20.' } }] }) } as never);
+  const w = await A.chat('g45w', 'What does an electricity invoice usually show?');
+  check('G45: a bill-like word alone (no last/total/amount wording) is Related and keeps the figure guard', w.category === 'Related Question' && w.source !== 'model' && !/84\.20/.test(w.reply), `${w.category}/${w.source}: ${w.reply}`);
+  setProviderForTests(null);
+}
+const chatSrcQ2 = readSrc('../src/components/Chat.tsx'), archHtmlQ2 = readSrc('../public/arch.html');
+check('Q2: caption order is elapsed (client-measured) first, then the exact category, on mobile and arch.html', /\[el, sup\?\.category\]/.test(chatSrcQ2) && /client-measured' \+ \(late[^\n]*\n  if \(j\.category\)/.test(archHtmlQ2) && /s client-measured/.test(chatSrcQ2), '');
+
+// ---------- R6/R7/R8/R9: goal intents in chat; no Add-goal field; goals below the chat; automatic insights ----------
+{
+  const U = 'intentuser';
+  const goalsOf = () => (S.loadUserDb(U).goals ?? []).map((g: any) => g.title);
+  const say = async (t: string) => A.chat(U, t, 'sess-r6');
+  const g1 = await say('add goal Learn Finnish');
+  check('R6: "add goal ..." in chat adds the goal and the intent is goal_add', goalsOf().includes('Learn Finnish') && (g1 as any).intent === 'goal_add', JSON.stringify(g1));
+  const g2 = await say('change goal Learn Finnish to Learn Swedish');
+  check('R6: "change goal X to Y" modifies it (goal_modify)', goalsOf().includes('Learn Swedish') && !goalsOf().includes('Learn Finnish') && (g2 as any).intent === 'goal_modify', JSON.stringify(g2));
+  await say('add goal Save for a trip to Japan');
+  const gT = await say('change goal Save for a trip to Japan to Save for a trip to Tokyo');
+  check('R6: a goal title that itself contains "to" is split at the right place', goalsOf().includes('Save for a trip to Tokyo') && !goalsOf().includes('Save for a trip to Japan'), gT.reply);
+  await say('remove goal Save for a trip to Tokyo');
+  const g3 = await say('remove goal Learn Norwegian');
+  check('R6: an unknown goal target changes nothing and says so', goalsOf().includes('Learn Swedish') && /couldn't find/.test(g3.reply), g3.reply);
+  const g4 = await say('remove goal Learn Swedish');
+  check('R6: "remove goal X" removes it (goal_remove)', !goalsOf().includes('Learn Swedish') && (g4 as any).intent === 'goal_remove', JSON.stringify(g4));
+  await say('add goal Save for a bike'); await say('add goal Save for a boat');
+  const g5 = await say('delete goal Save for a');
+  check('R6: an ambiguous target asks which one and changes nothing', goalsOf().length === 2 && /More than one/.test(g5.reply), g5.reply);
+  const q = await say('hello');
+  check('R6: a plain greeting is intent "other", not an invented action', (q as any).intent === 'other' && goalsOf().length === 2, JSON.stringify(q));
+  {
+    const T = 'cardsuser';
+    S.saveNordeaDb({ ...(S.loadNordeaDb(UID) as any), userId: T });
+    await A.chat(T, 'add goal Save for a car');
+    const st = A.archState(T) as any;
+    const all = [...st.contextCards.memory, ...st.contextCards.nordea];
+    const nord = st.contextCards.nordea;
+    check('R4/R5: the Nordea window gets processed cards that combine several bank records', nord.length > 0 && nord.some((c: any) => c.combines > 1 && c.unit === 'bank records'), JSON.stringify(nord).slice(0, 300));
+    // G60: omit ONLY the known opaque top-level generated card id from the scan (a shallow copy,
+    // never a recursive key omit) and keep the original case-insensitive content detection, so
+    // prior leak coverage (including lowercase content) is preserved and base-36 ids cannot flag.
+    const RAW_RECORD_RE = /\btx-|IBAN|FI\d{2}/i;
+    const cardContent = (cards: any[]) => JSON.stringify(cards.map((c: any) => ({ ...c, id: undefined })));
+    check('G60: the raw-record pattern still catches real leaks (positive controls)', ['payment ref tx-9132', 'IBAN FI12 3456 7890', 'till FI12345678901234', 'lowercase iban fi12 3456 7890'].every((s) => RAW_RECORD_RE.test(cardContent([{ id: 'x1', text: s }]))));
+    check('G60: a nested id-named key is NOT omitted (no recursive blind spot)', RAW_RECORD_RE.test(cardContent([{ id: 'card-ok1', detail: 'summary', nested: { id: 'ref tx-9132' } }])));
+    check('G60 pin: forced base-36 ids containing "fi12" are not flagged as raw records', !RAW_RECORD_RE.test(cardContent([{ id: 'card-fi12aaaa-bbbb', unit: 'bank records', combines: 2, text: 'Groceries and fuel grouped for your car goal' }])) && !RAW_RECORD_RE.test(cardContent([{ id: 'card-mw0ft0fa-7yfi50', unit: 'bank records', combines: 2, text: 'Fuel and car wash grouped for your car goal' }])));
+    check('R5: no card carries a raw record (no transaction ids, no evidence, no account fields)', all.every((c: any) => !('evidence' in c) && !('transactionIds' in c)) && !RAW_RECORD_RE.test(cardContent(all)), JSON.stringify(all).slice(0, 300));
+    check('R3/R5: the CM window cards come from context.md, not from the whole cabinet', !/entries\.entries|\/entries`\)/.test(readSrc('../public/arch.html').split('const cards =')[1] ?? ''));
+  }
+  {
+    const V = 'nluuser'; const gl = () => (S.loadUserDb(V).goals ?? []).map((g: any) => g.title);
+    const sv = (t: string) => A.chat(V, t, 'sess-nlu') as Promise<any>;
+    check('R6 NL: "I want to save for a house" adds a goal', (await sv('I want to save for a house')).intent === 'goal_add' && gl().includes('Save for a house'), gl().join('|'));
+    check('R6 NL: "could you please add Visit Lapland as a goal" adds a goal', (await sv('could you please add Visit Lapland as a goal')).intent === 'goal_add' && gl().includes('Visit Lapland'), gl().join('|'));
+    const ask = await sv('rename my Lapland goal to Visit Norway'); const done = await sv('yes');
+    check('R6 NL: "rename my Lapland goal to Visit Norway" finds the goal by plain words, asks, and changes it on yes', ask.intent === 'goal_modify' && /Do you mean/.test(ask.reply) && done.intent === 'goal_modify' && gl().includes('Visit Norway') && !gl().includes('Visit Lapland'), gl().join('|') + ask.reply);
+    await sv('can you forget about the house goal?'); const rr = await sv('yes');
+    check('R6 NL: "forget about the house goal" removes it', rr.intent === 'goal_remove' && !gl().includes('Save for a house'), JSON.stringify(rr) + gl().join('|'));
+    const n1 = await sv('update my address to Mannerheimintie 5'); const n2 = await sv('I want to know my balance'); const n3 = await sv('how can I save for a car?');
+    check('R6 NL: non-goal talk is not turned into a goal action (address update, "I want to know", questions)', ![n1, n2, n3].some((x: any) => String(x.intent).startsWith('goal_')) && gl().length === 1, JSON.stringify([n1.intent, n2.intent, n3.intent]) + gl().join('|'));
+  }
+  {
+    const W = 'g47user';
+    S.saveUserDb({ ...(S.loadUserDb(W) as any), userId: W });
+    const udb = S.loadUserDb(W); udb.goals.push({ id: 'goal-g47', title: 'Save for a car', detail: '12 000 EUR by Dec 2027', createdAt: new Date().toISOString() } as any); S.saveUserDb(udb);
+    const gl = () => (S.loadUserDb(W).goals ?? []).map((g: any) => g.title);
+    const p1: any = await A.chat(W, 'remove goal car', 'sess-g47');
+    check('G47: a partial-match removal asks first and deletes nothing', gl().includes('Save for a car') && /Do you mean/.test(p1.reply), p1.reply);
+    check('G47: the confirmation question says it is short-lived and forgotten on restart (no durable claim)', /5 minutes/.test(p1.reply) && /restarts/.test(p1.reply), p1.reply);
+    const p2: any = await A.chat(W, 'no', 'sess-g47');
+    check('G47: "no" cancels the pending removal', gl().includes('Save for a car') && /nothing changed/i.test(p2.reply), p2.reply);
+    await A.chat(W, 'forget about the car goal', 'sess-g47');
+    const p3: any = await A.chat(W, 'yes', 'sess-g47');
+    check('G47: an explicit yes completes the removal', !gl().includes('Save for a car') && p3.intent === 'goal_remove', p3.reply);
+    const p4: any = await A.chat(W, 'undo', 'sess-g47');
+    const back = (S.loadUserDb(W).goals ?? []).find((g: any) => g.title === 'Save for a car') as any;
+    check('G47: undo restores the goal WITH its details', !!back && back.detail === '12 000 EUR by Dec 2027' && /12 000 EUR/.test(p4.reply), p4.reply);
+    const p5: any = await A.chat(W, 'remove goal Save for a car', 'sess-g47');
+    check('G47: an exact-title removal acts at once and offers undo', !gl().includes('Save for a car') && /undo/i.test(p5.reply), p5.reply);
+    check('G47: the removal reply says the undo is in-memory, 30 minutes, cleared on restart', /30 minutes/.test(p5.reply) && /memory only/.test(p5.reply) && /restarts/.test(p5.reply), p5.reply);
+    const p6: any = await A.chat(W, 'undo', 'sess-g47'); const p7: any = await A.chat(W, 'undo', 'sess-g47');
+    check('G47: a second undo with nothing to undo does not invent a goal', gl().filter((t) => t === 'Save for a car').length === 1 && p7.intent !== 'goal_add', p6.reply + ' || ' + p7.reply);
+    const r2 = readSrc('../README.md');
+    check('G46: README names no removed file (abel.ts, abelOffline.ts) and no offers risk line', !/abel\.ts|abelOffline|High risk always waits for the customer: offers/.test(r2));
+  }
+  {
+    const X = 'fiuser'; const gl = () => (S.loadUserDb(X).goals ?? []).map((g: any) => g.title);
+    const sv = (t: string) => A.chat(X, t, 'sess-fi') as Promise<any>;
+    const f1 = await sv('Haluan säästää autoon');
+    check('R6 FI: "Haluan säästää autoon" adds a goal', f1.intent === 'goal_add' && gl().includes('Säästää autoon'), JSON.stringify(f1).slice(0, 200) + gl().join('|'));
+    const f2 = await sv('lisää tavoite Matka Japaniin');
+    check('R6 FI: "lisää tavoite X" adds a goal', f2.intent === 'goal_add' && gl().includes('Matka Japaniin'), gl().join('|'));
+    const f3 = await sv('muuta tavoite Matka Japaniin muotoon Matka Lappiin');
+    check('R6 FI: "muuta tavoite X muotoon Y" changes the exact goal', f3.intent === 'goal_modify' && gl().includes('Matka Lappiin') && !gl().includes('Matka Japaniin'), f3.reply);
+    const f4 = await sv('poista tavoite Matka Lappiin');
+    check('R6 FI: "poista tavoite X" removes it and offers undo', f4.intent === 'goal_remove' && !gl().includes('Matka Lappiin'), f4.reply);
+    const f5 = await sv('Mikä on pääkaupunki?');
+    check('R6 FI: a Finnish general question is not a goal action', !String(f5.intent).startsWith('goal_') && gl().length === 1, String(f5.intent));
+  }
+  {
+    const Y = 'insuser'; S.saveNordeaDb({ ...(S.loadNordeaDb(UID) as any), userId: Y });
+    await A.chat(Y, 'add goal Save for a car', 's-ins');
+    const rounds = () => (A.archState(Y) as any).messages.filter((m: any) => m.type === 'round-start' && m.payload?.trigger === 'contribution').length;
+    const c1 = rounds(); await A.chat(Y, 'remove goal Save for a car', 's-ins'); const c2 = rounds();
+    check('R9: removing a goal refreshes the goal-relevant insights (chat)', c2 > c1, `${c1} -> ${c2}`);
+    await A.chat(Y, 'remove goal Nothing here', 's-ins'); const c3 = rounds();
+    check('R9: a request that changes no goal does not trigger a refresh', c3 === c2, `${c2} -> ${c3}`);
+  }
+  {
+    const L = 'lifeuser'; S.saveNordeaDb({ ...(S.loadNordeaDb(UID) as any), userId: L });
+    const sv = (t: string) => A.chat(L, t, 'sess-life') as Promise<any>;
+    await sv('add goal Save for a car');
+    for (const m of A.reviewQueue(L)) A.decideProposal(L, m.id, true);
+    const goal0 = (S.loadUserDb(L).goals as any[]).find((g) => g.title === 'Save for a car');
+    const ctxRows = (sec: 'customer' | 'nordea') => ((A.archState(L) as any).contextCards[sec === 'nordea' ? 'nordea' : 'memory'] as any[]);
+    check('lifecycle: before removal the goal has an active Nordea row on context.md', ctxRows('nordea').some((c) => c.id === `nagg-${goal0.id}`), JSON.stringify(ctxRows('nordea').map((c) => c.id)));
+    await sv('remove goal Save for a car');
+    const md1 = (A.archState(L) as any).contextMd as string;
+    check('lifecycle: after removal the goal leaves the Customer and Nordea sections (no stale ACTIVE row)', !md1.includes(goal0.id) && !ctxRows('nordea').some((c) => c.id === `nagg-${goal0.id}`) && !/Save for a car/.test(md1.split('## Context memory')[0]) && !/Save for a car/.test(md1.split('## Nordea')[1] ?? ''), md1);
+    await sv('undo'); for (const m of A.reviewQueue(L)) A.decideProposal(L, m.id, true); await A.chat(L, 'how much did I spend on my car?', 'sess-life');
+    const md2 = (A.archState(L) as any).contextMd as string;
+    const cust = md2.split('## Customer')[1].split('## Context memory')[0], nord = md2.split('## Nordea')[1];
+    check('lifecycle: after undo (new id) the goal appears once in Customer and once in Nordea, no duplicate', (cust.match(/Save for a car/g) ?? []).length === 1 && (nord.match(/Save for a car/g) ?? []).length === 1, cust + nord);
+    const memTitles = ((A.archState(L) as any).contextCards.memory as any[]).map((c) => `${c.status}|${c.title}`);
+    check('lifecycle: the Context memory section does not print a stale entry next to its active replacement', memTitles.some((t) => t.startsWith('active|')) && new Set(memTitles.map((t) => t.split('|')[1])).size === memTitles.length, memTitles.join(' ; '));
+    const dup = await sv('add goal Save for a car');
+    check('lifecycle: an identical add does not create a duplicate goal', /already have/.test(dup.reply) && (S.loadUserDb(L).goals as any[]).filter((g) => g.title === 'Save for a car').length === 1, dup.reply);
+    await sv('remove goal car'); await sv('what is the capital of Finland?'); await sv('yes');
+    check('G48: a pending confirmation is dropped by an unrelated turn (a later "yes" removes nothing)', (S.loadUserDb(L).goals as any[]).some((g) => g.title === 'Save for a car'), 'goal gone');
+  }
+  const html = readSrc('../public/arch.html');
+  check('R7: the Add-goal field and button are gone from arch.html', !/id="goal-in"|id="btn-goal"|Add goal/.test(html));
+  check('R8: the goal cards sit below the chat box', html.indexOf('id="chat-in"') > 0 && html.indexOf('id="user-goals"') > html.indexOf('id="chat-in"'));
+  { const gc = html.slice(html.indexOf("$('user-goals').innerHTML"), html.indexOf("$('cm-summary')")); check('R8: each goal is its own distinct card (own class, border, title, detail, Edit/Delete buttons), not a text line', /\.goalcard \{[^}]*border:/.test(html) && ['class="goalcard"', 'class="gt"', 'class="gd"', '>Edit</button>', '>Delete</button>'].every((x) => gc.includes(x))); }
+  check('R9: no manual "Propose insight" button and no contribute route remain', !/btn-contribute|Propose goal-relevant/.test(html) && !/nordea\/contribute/.test(readSrc('../src/server/arch/routes.ts')));
+}
+
+// --- R2 (owner table + delegated policies): user cards only, approval id = level + consent version, pass table, UNKNOWN = level 2.
+{
+  const G = await import('../src/server/arch/approvalGate.js');
+  const CM = await import('../src/server/arch/agents/cm.js');
+  const L3 = [0, 1, 2] as const;
+  const pass = (m: any) => L3.map((l) => G.canPass(m, l)).join(',');
+  check('R2 table: "No permission" lets every level pass', pass('No permission') === 'true,true,true');
+  check('R2 table: "Review everything" blocks levels 1 and 2 (level 0 passes)', pass('Review everything') === 'true,false,false');
+  check('R2 table: "High risk mode" blocks only level 2', pass('High risk mode') === 'true,true,false');
+  check('R2 names kept exact', G.LEVEL_NAMES[0] === 'No-risk certified (level 0)' && G.LEVEL_NAMES[1] === 'Review everything pass certified (level 1)' && G.LEVEL_NAMES[2] === 'High-risk pass certified (level 2)');
+  check('R2: the default mode is "Review everything" and the rubric text is written down', G.DEFAULT_MODE === 'Review everything' && /Highest applicable level wins/.test(G.RUBRIC));
+  const U = 'r2user'; S.deleteDb(U, 'cm'); S.deleteDb(U, 'user');
+  const id = (t: string, d: string, level: 0 | 1 | 2) => G.makeApprovalId(level, G.contentHash({ title: t, detail: d, level, source: 'personal' }));
+  const card = (t: string, level: 0 | 1 | 2, d = t, claim: unknown = undefined) => S.appendMessage(U, { from: 'personal', to: 'cm', type: 'propose', status: 'pending', summary: t, payload: { detail: d, goalIds: ['g-r2'], observed: 'observed', ...(claim === null ? {} : { approval: claim ?? { id: id(t, d, level), level } }) } });
+  const titles = (u = U) => (S.loadCmDb(u).entries as any[]).filter((e) => e.status === 'active').map((e) => e.title).sort().join('|');
+  const waiting = (u = U) => (A.reviewQueue(u) as any[]).map((m) => m.summary).sort().join('|');
+  const informs = (u = U) => S.loadBus(u).messages.filter((m) => m.type === 'inform').map((m) => m.summary).join(' || ');
+  card('Card zero', 0); card('Card one', 1); card('Card two', 2);
+  A.setStandingPermissions(U, undefined, 'Review everything'); CM.autoStoreRoundProposals(U);
+  check('R2: "Review everything" stores level 0 only; levels 1 and 2 wait in the list', titles() === 'Card zero' && waiting() === 'Card one|Card two', `${titles()} / ${waiting()}`);
+  check('R2: a stored card keeps its approval id (level + consent version) durably, reloaded from the file', (S.loadCmDb(U).entries as any[]).find((x) => x.title === 'Card zero')?.approval?.id === id('Card zero', 'Card zero', 0));
+  A.setStandingPermissions(U, undefined, 'High risk mode');
+  check('R2 mode change: a LESS restrictive mode releases newly allowed pending cards (level 1), level 2 keeps waiting', titles() === 'Card one|Card zero' && waiting() === 'Card two', `${titles()} / ${waiting()}`);
+  check('R2 mode change: the release is audited as a mode pass, not the customer\'s approval', /Stored automatically by your "High risk mode" setting \(not your approval\): "Card one".*released because you changed the mode/.test(informs()), informs().slice(0, 300));
+  A.setStandingPermissions(U, undefined, 'Review everything');
+  check('R2 mode change: a stricter mode does not pull stored cards back', titles() === 'Card one|Card zero' && waiting() === 'Card two');
+  card('Card three', 1);
+  CM.autoStoreRoundProposals(U);
+  check('R2 mode change: a stricter mode applies to new cards (level 1 now waits)', waiting() === 'Card three|Card two');
+  const rej = (A.reviewQueue(U) as any[]).find((m) => m.summary === 'Card three');
+  A.decideProposal(U, rej.id, false);
+  A.setStandingPermissions(U, undefined, 'No permission');
+  check('R2 mode change: "No permission" releases the waiting level 2; an explicitly REJECTED card is never resurrected', titles() === 'Card one|Card two|Card zero' && waiting() === '', `${titles()} / ${waiting()}`);
+  const before = S.loadCmDb(U).entries.length;
+  card('Card zero', 0); card('Card two', 2); CM.autoStoreRoundProposals(U); A.setStandingPermissions(U, undefined, 'Review everything'); card('Card two', 2); CM.autoStoreRoundProposals(U);
+  check('R2: an unchanged approved/stored card is never requeued or duplicated, in any mode', S.loadCmDb(U).entries.length === before && waiting() === '', `${S.loadCmDb(U).entries.length} vs ${before} / ${waiting()}`);
+  card('Card one', 1, 'Card one with a new claim about the car');
+  CM.autoStoreRoundProposals(U);
+  check('R2 consent: a substantively changed card is a NEW version and waits (the old stored version stays until approved)', waiting() === 'Card one' && titles().includes('Card one'), `${titles()} / ${waiting()}`);
+  A.decideProposal(U, (A.reviewQueue(U) as any[])[0].id, true);
+  check('R2 consent: approving the new version replaces the old one (one active card, new detail and id)', (S.loadCmDb(U).entries as any[]).filter((e) => e.status === 'active' && e.title === 'Card one').length === 1 && (S.loadCmDb(U).entries as any[]).find((e) => e.status === 'active' && e.title === 'Card one').approval.id === id('Card one', 'Card one with a new claim about the car', 1));
+  // UNKNOWN / invalid / stale claims count as level 2 and are disclosed
+  const U2 = 'r2user2'; S.deleteDb(U2, 'cm');
+  const c2 = (t: string, claim: unknown) => S.appendMessage(U2, { from: 'personal', to: 'cm', type: 'propose', status: 'pending', summary: t, payload: { detail: 'x', goalIds: ['g'], observed: 'observed', ...(claim ? { approval: claim } : {}) } });
+  c2('No level', undefined); c2('Level 7', { id: 'apv-L0-x', level: 7 }); c2('Wrong id', { id: 'apv-L2-x', level: 0 }); c2('Stale claim', { id: id('Stale claim', 'old content', 0), level: 0 });
+  A.setStandingPermissions(U2, undefined, 'Review everything'); CM.autoStoreRoundProposals(U2);
+  const w1 = waiting(U2);
+  A.setStandingPermissions(U2, undefined, 'High risk mode');
+  check('R2 unknown: a missing, invalid, unparseable or stale level is effective level 2 and waits in Review everything AND High risk mode', (S.loadCmDb(U2).entries as any[]).length === 0 && w1.split('|').length === 4 && waiting(U2).split('|').length === 4, `${w1} / ${waiting(U2)}`);
+  check('R2 unknown: waiting cards stay out of context.md', !/No level|Stale claim/.test(JSON.stringify(S.loadContext(U2) ?? '')));
+  A.setStandingPermissions(U2, undefined, 'No permission');
+  const e2 = (S.loadCmDb(U2).entries as any[]);
+  check('R2 unknown: "No permission" passes them per the exact table, stored as level 2 with an UNKNOWN id, never as AI certification', e2.length === 4 && e2.every((e) => e.approval?.level === 2 && /^apv-L2-x[0-9a-f]+$/.test(e.approval.id)), JSON.stringify(e2.map((e) => e.approval)));
+  check('R2 unknown: the audit message says the AI gave no valid level', /the AI gave no valid level|no longer matches/.test(informs(U2)), informs(U2).slice(0, 300));
+  // sensitivity floor and authoritative level
+  const U3 = 'r2user3'; S.deleteDb(U3, 'cm');
+  S.appendMessage(U3, { from: 'personal', to: 'cm', type: 'propose', status: 'pending', summary: 'My health treatment', payload: { detail: 'health treatment plan', goalIds: ['g'], observed: 'observed', approval: { id: G.makeApprovalId(0, G.contentHash({ title: 'My health treatment', detail: 'health treatment plan', level: 0, source: 'personal' })), level: 0 } } });
+  A.setStandingPermissions(U3, undefined, 'Review everything'); CM.autoStoreRoundProposals(U3);
+  A.setStandingPermissions(U3, undefined, 'High risk mode');
+  check('R2: a sensitive topic claimed as level 0 is floored to level 2 and waits, even in High risk mode (direct input never overrides sensitivity)', waiting(U3) === 'My health treatment' && (S.loadCmDb(U3).entries as any[]).length === 0, `${waiting(U3)}`);
+  // bank side untouched
+  const U4 = 'r2user4'; S.deleteDb(U4, 'cm');
+  S.appendMessage(U4, { from: 'nordea', to: 'cm', type: 'propose', status: 'pending', summary: 'Bank card', payload: { detail: 'agg', transactionIds: ['t1'], total: 5, approval: { id: G.makeApprovalId(0, 'b'), level: 0 } } });
+  A.setStandingPermissions(U4, undefined, 'No permission'); CM.autoStoreRoundProposals(U4);
+  check('R2: bank-side proposals never use the new gate (a forged approval on a Nordea card is ignored)', (A.reviewQueue(U4) as any[]).length === 1 && (S.loadCmDb(U4).entries as any[]).length === 0);
+  // --- R2 model-assigned level: the User AI's MODEL assigns each card's level (rubric, reason, evidence); code validates and floors.
+  const LLr = await import('../src/server/llm.js');
+  const LMr = await import('../src/server/llmMock.js');
+  const P = await import('../src/server/arch/agents/personal.js');
+  const goalIdOf = (u: string, t: string) => S.loadUserDb(u).goals.find((g) => g.title === t)!.id;
+  // validator (pure)
+  const vc = { goalIds: ['g1'], texts: ['Customer goal: Save for a car', 'The customer is saving toward "Save for a car".'] };
+  check('R2 model level: a valid answer (level, 8+ char reason, checkable evidence) is accepted', JSON.stringify(G.validateModelLevel({ level: 1, reason: 'evidenced personal context', evidence: ['goal:g1', 'saving toward'] }, vc)) === JSON.stringify({ level: 1, reason: 'evidenced personal context', evidence: ['goal:g1', 'saving toward'] }));
+  check('R2 model level: level 3, a string level, a missing level or a short reason are rejected (UNKNOWN)', [{ level: 3, reason: 'too high level', evidence: ['goal:g1'] }, { level: '0', reason: 'string level here', evidence: ['goal:g1'] }, { reason: 'no level given at all', evidence: ['goal:g1'] }, { level: 0, reason: 'short', evidence: ['goal:g1'] }, null].every((r) => G.validateModelLevel(r, vc) === null));
+  check('R2 model level: evidence must be checkable provenance - another card\'s goal id or a phrase not in the card is dropped, none left = UNKNOWN', G.validateModelLevel({ level: 0, reason: 'customer typed it', evidence: ['goal:g2', 'a yacht in Monaco'] }, vc) === null && JSON.stringify(G.validateModelLevel({ level: 0, reason: 'customer typed it', evidence: ['goal:g2', 'Save for a car'] }, vc)?.evidence) === '["Save for a car"]');
+  check('R2 code floor: only raises (sensitive or inferred = 2, else 0), and highest applicable level wins', G.codeFloor({ risk: 'high', observed: 'observed' }).level === 2 && G.codeFloor({ risk: 'low', observed: 'inferred' }).level === 2 && G.codeFloor({ risk: 'low', observed: 'observed' }).level === 0 && G.withFloor(0, 2) === 2 && G.withFloor(1, 0) === 1);
+  check('R2 rubric: a goal the customer typed, restated without new claims, is written down as L0 (decided from the rubric, not from old tests)', /L0: non-sensitive facts or intent stated directly by the customer \(for example a goal they typed themselves/.test(G.RUBRIC));
+
+  // A real round on the mock model: the model levels both cards; the floor raises the sensitive one.
+  const U5 = 'r2user5'; S.deleteDb(U5, 'cm'); S.deleteDb(U5, 'user');
+  A.addGoalDirect(U5, 'Save for a car'); A.addGoalDirect(U5, 'Pay for my health treatment');
+  LLr.setProviderForTests(LMr.mockProvider);
+  const rr = await A.chat(U5, 'what do you know about my goals?');
+  LLr.setProviderForTests(null);
+  const props = S.loadBus(U5).messages.filter((m) => m.type === 'propose' && m.from === 'personal');
+  const pl = (t: string) => (props.find((m) => m.summary.includes(t))?.payload ?? {}) as any;
+  const lvInform = (u: string) => S.loadBus(u).messages.filter((m) => (m.payload as any)?.r2Levels).map((m) => m.payload as any);
+  check('R2 model level: after the round the User AI model leveled both waiting cards and said so on the bus (status model)', lvInform(U5).length === 1 && lvInform(U5)[0].status === 'model' && /assessed 2 user cards: 2 got a level from the AI/.test(S.loadBus(U5).messages.find((m) => (m.payload as any)?.r2Levels)?.summary ?? ''), JSON.stringify(lvInform(U5)));
+  check('R2 model level: the plain goal card carries the MODEL\'s level 0 with its reason, goal-row evidence and the model name, and a matching id', pl('car').approval?.level === 0 && /rubric L0/.test(pl('car').approvalReason) && pl('car').approvalEvidence?.[0] === `goal:${goalIdOf(U5, 'Save for a car')}` && pl('car').approvalBy === 'mock (tests only)' && !!G.readApproval(pl('car')), JSON.stringify(pl('car')));
+  check('R2 model level: the model said 0 for the health card; the code floor raised it to 2 and says so in the reason', pl('health').approval?.level === 2 && /raised to level 2: code floor/.test(pl('health').approvalReason), JSON.stringify(pl('health')));
+  check('R2 model level: in the default "Review everything" the level-0 card is stored, the level-2 card waits', rr.reply !== undefined && waiting(U5) === 'Customer goal: Pay for my health treatment' && (S.loadCmDb(U5).entries as any[]).some((e) => e.title === 'Customer goal: Save for a car' && e.approval?.level === 0), waiting(U5));
+  // The same content next round is not re-asked: the earlier decision stands, nothing is requeued or duplicated.
+  let levelCalls = 0;
+  LLr.setProviderForTests({ ...LMr.mockProvider, step: async (a: any) => { if (a.tools.some((t: any) => t.name === 'finishRiskLevels')) levelCalls++; return LMr.mockProvider.step(a); } } as never);
+  await A.chat(U5, 'what about my car goal?', 'r2-sess-2');
+  LLr.setProviderForTests(null);
+  check('R2 model level: an unchanged card is not re-asked (no level call) and keeps its id; no duplicate, no requeue', levelCalls === 0 && (S.loadCmDb(U5).entries as any[]).filter((e) => e.status === 'active' && e.title === 'Customer goal: Save for a car').length === 1 && waiting(U5) === 'Customer goal: Pay for my health treatment', `${levelCalls} / ${waiting(U5)}`);
+
+  // An invalid model answer for one card leaves only that card UNKNOWN; a provider error leaves all UNKNOWN.
+  const U6 = 'r2user6'; S.deleteDb(U6, 'cm'); S.deleteDb(U6, 'user');
+  A.addGoalDirect(U6, 'Save for a bike'); A.addGoalDirect(U6, 'Save for a boat');
+  const bike = goalIdOf(U6, 'Save for a bike'), boat = goalIdOf(U6, 'Save for a boat');
+  LLr.setProviderForTests({ ...LMr.mockProvider, step: async (a: any) => a.tools.some((t: any) => t.name === 'finishRiskLevels')
+    ? { calls: [{ id: 'x', name: 'finishRiskLevels', args: { levels: [{ card: bike, level: 1, reason: 'personal saving context', evidence: [`goal:${bike}`] }, { card: boat, level: 0, reason: 'invented evidence', evidence: ['a yacht in Monaco'] }] } }] }
+    : LMr.mockProvider.step(a) } as never);
+  await A.chat(U6, 'what do you know about my goals?');
+  LLr.setProviderForTests(null);
+  const q6 = (A.reviewQueue(U6) as any[]).filter((m) => m.from === 'personal');
+  const ea = (t: string) => q6.find((m) => m.summary.includes(t))?.effectiveApproval;
+  check('R2 model level: a valid level 1 waits in "Review everything" as an AI certification (not unknown)', ea('bike')?.level === 1 && ea('bike')?.unknown === false && /level 1/.test(ea('bike')?.label), JSON.stringify(ea('bike')));
+  check('R2 model level: an answer with unverifiable evidence is UNKNOWN = effective level 2, shown as UNKNOWN (not an AI certification), with the why', ea('boat')?.level === 2 && ea('boat')?.unknown === true && /^UNKNOWN/.test(ea('boat')?.label) && /no valid level/.test(ea('boat')?.why) && !(q6.find((m) => m.summary.includes('boat'))?.payload as any).approval, JSON.stringify(ea('boat')));
+  A.setStandingPermissions(U6, undefined, 'High risk mode');
+  check('R2 model level: "High risk mode" releases the model\'s level 1, the UNKNOWN card keeps waiting', waiting(U6) === 'Customer goal: Save for a boat', waiting(U6));
+  const U7 = 'r2user7'; S.deleteDb(U7, 'cm'); S.deleteDb(U7, 'user');
+  A.addGoalDirect(U7, 'Save for a car');
+  LLr.setProviderForTests({ ...LMr.mockProvider, step: async (a: any) => { if (a.tools.some((t: any) => t.name === 'finishRiskLevels')) throw new Error('provider down'); return LMr.mockProvider.step(a); } } as never);
+  await A.chat(U7, 'what do you know about my goals?');
+  LLr.setProviderForTests(null);
+  check('R2 model level: a failed level call is recorded (status error) and the card waits as UNKNOWN (no code fallback level)', lvInform(U7)[0]?.status === 'error' && (A.reviewQueue(U7) as any[]).some((m) => m.from === 'personal' && m.effectiveApproval?.unknown === true && (m.payload as any).approvalAsked === true) && (S.loadCmDb(U7).entries as any[]).length === 0, JSON.stringify(lvInform(U7)));
+  let retry7 = 0;
+  LLr.setProviderForTests({ ...LMr.mockProvider, step: async (a: any) => { if (a.tools.some((t: any) => t.name === 'finishRiskLevels')) retry7++; return LMr.mockProvider.step(a); } } as never);
+  await A.chat(U7, 'and my car goal?', 'r2-sess-7b');
+  LLr.setProviderForTests(null);
+  check('R2 model level: a card whose level call failed is not re-asked (and re-paid) on every later turn', retry7 === 0 && (A.reviewQueue(U7) as any[]).some((m) => m.from === 'personal' && m.effectiveApproval?.unknown === true), String(retry7));
+  // No model at all: no level is invented by code.
+  const U8 = 'r2user8'; S.deleteDb(U8, 'cm'); S.deleteDb(U8, 'user');
+  A.addGoalDirect(U8, 'Save for a car');
+  await A.chat(U8, 'what do you know about my goals?');
+  check('R2 model level: with no model configured the card carries no level (code never assigns one) and shows as UNKNOWN', (A.reviewQueue(U8) as any[]).some((m) => m.from === 'personal' && !(m.payload as any).approval && m.effectiveApproval?.unknown === true));
+  check('R2 model level: the card text the level call sees is exactly the proposed card', P.goalCard({ id: 'g', title: 'X', detail: '', createdAt: '' }).title === 'Customer goal: X');
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

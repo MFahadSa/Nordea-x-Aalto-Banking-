@@ -1,5 +1,5 @@
 // Reads .env and .env.local when the app runs on a laptop. In AI Studio the secrets come from Settings -> Secrets.
-import dotenv from 'dotenv';
+import './src/server/loadEnv.js';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,36 +7,61 @@ import { db } from './src/server/db.js';
 import { readCabinetThroughGateway } from './src/server/accessGateway.js';
 import { getAllAgents, getAgentManifest } from './src/server/agentRegistry.js';
 import { CabinetEntry, UndoRecord } from './src/types.js';
+import { failClosedRoutes } from './src/server/failClosedRoutes.js';
+import { customerIdRejection } from './src/server/customerId.js';
 import { registerV14Routes } from './src/server/routes.js';
 import { registerDevMonitor } from './src/server/devMonitor.js';
 import { registerArchRoutes } from './src/server/arch/routes.js';
 import { startFeedWatcher } from './src/server/nordeaFeed.js';
 import { setProvider } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
-import { openAiProvidersFromEnv } from './src/server/llmOpenAI.js';
+import { providerChainMembersFromEnv } from './src/server/llmOpenAI.js';
 import { makeChain } from './src/server/llmChain.js';
-import { gemini, geminiConfigured } from './src/server/llm.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
+import { drainRemoteFlushes } from './src/server/arch/store/common.js';
 
-dotenv.config({ path: '.env' });
-dotenv.config({ path: '.env.local', override: true });
+// F-C: the arch stores' hosted write-back is a 250 ms-debounced, fire-and-forget push. Drain
+// it on a graceful stop, or the last write(s) never reach the hosted tables and the next
+// startup hydrate replaces the local copies without them (a hard kill can still lose them).
+let drainingFlushes = false;
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(sig, () => {
+    if (drainingFlushes) return;
+    drainingFlushes = true;
+    console.log(`${sig} received: draining hosted flushes before exit.`);
+    Promise.race([drainRemoteFlushes(), new Promise((r) => setTimeout(r, 10000))])
+      .catch(() => {})
+      .finally(() => process.exit(0));
+  });
+}
+
 
 // Tests only: LLM_PROVIDER=mock swaps Gemini for a scripted stand-in. Never set this in AI Studio.
 if (process.env.LLM_PROVIDER === 'mock') setProvider(mockProvider);
 // LLM_PROVIDER=openai: an OpenAI-compatible API, e.g. Groq's free tier or the Aalto LLM gateway (VPN only).
 // With LLM_PROVIDER=openai the app uses a chain: the configured model, the other free models on the same service,
 // then Gemini (if a Gemini key exists). The first one that's available answers.
-if (process.env.LLM_PROVIDER === 'openai') setProvider(makeChain([...openAiProvidersFromEnv(), ...(geminiConfigured() ? [gemini] : [])]));
+if (process.env.LLM_PROVIDER === 'openai') setProvider(makeChain(providerChainMembersFromEnv()));
 console.log(`AI provider: ${process.env.LLM_PROVIDER === 'openai' ? `${process.env.LLM_BASE_URL || 'Aalto LLM'} (${process.env.LLM_MODEL || 'Qwen/Qwen3.8-27B-FP8'})` : process.env.LLM_PROVIDER === 'mock' ? 'scripted test stand-in' : 'Gemini'}`);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+failClosedRoutes(app); // D12: a bad customer id that reaches a store seam is a typed JSON 400 on every route, never an HTML page or a dead process
+const PORT = Number(process.env.PORT || 3000);
 
 // Photos and PDFs are sent as base64, so allow bigger bodies (the client shrinks photos first).
 app.use(express.json({ limit: '12mb' }));
+
+// D12: a customer id that is not canonical is a plain 400 before any storage is touched.
+app.use('/api', (req, res, next) => {
+  const sent = [req.query?.userId, (req.body as Record<string, unknown> | undefined)?.userId].filter((v) => v !== undefined);
+  for (const v of sent) { const bad = customerIdRejection(v); if (bad) return res.status(400).json({ error: bad.message, code: bad.code }); }
+  next();
+});
+// Same rule for a customer id carried in the path (/api/users/:userId, /api/arch/:uid/...), checked before the handler reads its body.
+for (const name of ['userId', 'uid']) app.param(name, (_req, res, next, v) => { const bad = customerIdRejection(v); if (bad) return res.status(400).json({ error: bad.message, code: bad.code }); next(); });
 
 // Anything that changes data answers only after the change is saved in Supabase (when it's set up),
 // so a restart of the hosting can't lose what the customer just did.

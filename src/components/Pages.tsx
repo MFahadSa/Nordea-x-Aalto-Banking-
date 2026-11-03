@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus } from '../services/api.js';
+import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus, ApprovalCard, fetchApprovalCards, decideApprovalCard } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
@@ -139,6 +139,31 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
 };
 
 /** Files the customer chose to keep. Shown in What Abel knows, with delete. */
+const ApprovalWaiting: React.FC<{ cards: ApprovalCard[]; onDecide: (id: string, ok: boolean) => void }> = ({ cards, onDecide: decide }) => {
+  if (!cards.length) return null;
+  return (
+    <>
+      <Band left="Waiting for your approval" right={<span className="band-note">Not used until you approve</span>} />
+      <div className="ncard flat">
+        {cards.map((c) => (
+          <div className="nrow2 static wait" key={c.id}>
+            <span className="n-l">
+              <span className="n-name">{c.summary}</span>
+              {c.detail && <span className="n-sub">{c.detail}</span>}
+              <span className="n-sub">{c.levelName} · approval {c.approvalId}</span>
+              {c.why && <span className="n-sub">Why: {c.why}</span>}
+              <span className="wait-act">
+                <button className="btn small primary" onClick={() => decide(c.id, true)}>Approve</button>
+                <button className="btn small" onClick={() => decide(c.id, false)}>Reject</button>
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+};
+
 const DocsSection: React.FC<{ userId: string; docs: DocInfo[]; onDelete: (id: string) => void }> = ({ userId, docs, onDelete }) => (
   <>
     <div className="sec-title" id="your-docs"><h2>Your documents</h2><span className="kicker">{docs.length ? `${docs.length} kept` : 'none kept'}</span></div>
@@ -187,6 +212,10 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   // still reads counts as in use and as waiting: it is both.)
   const notShared = Math.max(0, active.length - inUse - waiting.length);
   const [allWaiting, setAllWaiting] = useState(false);
+  const [approvals, setApprovals] = React.useState<ApprovalCard[]>([]);
+  const loadApprovals = () => fetchApprovalCards(state.user.id).then(setApprovals);
+  React.useEffect(() => { loadApprovals(); }, [state.user.id]);
+  const decideApproval = async (id: string, ok: boolean) => { await decideApprovalCard(state.user.id, id, ok); await loadApprovals(); };
   const shownWaiting = allWaiting ? waiting : waiting.slice(0, 2);
   const listedRest = listed.filter((e) => !waiting.includes(e) && !staleGoals.includes(e));
   return (
@@ -199,7 +228,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         </div>
         <div className="kn-sum">
           <div><b>{inUse}</b><span>In use</span></div>
-          <div className={waiting.length + staleGoals.length ? 'hl' : ''}><b>{waiting.length + staleGoals.length}</b><span>Waiting for you</span></div>
+          <div className={waiting.length + staleGoals.length + approvals.length ? 'hl' : ''}><b>{waiting.length + staleGoals.length + approvals.length}</b><span>Waiting for you</span></div>
           <div><b>{notShared}</b><span>Not shared</span></div>
         </div>
         <RoundActions actions={[
@@ -231,6 +260,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
             </div>
           </>
         )}
+        <ApprovalWaiting cards={approvals} onDecide={decideApproval} />
         <Band left="Goals" right={state.goals.length + staleGoals.length} />
         {state.goals.length || staleGoals.length ? (
           <div className="ncard flat">
