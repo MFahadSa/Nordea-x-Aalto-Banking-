@@ -12,7 +12,7 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - Owner gates: scope, spend, live, security, merge. Coordinator relay = owner's word with ts + verbatim quote; merge = his word to Bill.
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-03 10:05 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
+*Joe, updated 2026-11-03 10:16 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner D9 (02:32, ts1793665947):** Nordea AI decides risk like User AI, DB-type agnostic. Bill ACCEPTED @3527ac7 (scope in 998fd0f).
@@ -20,7 +20,8 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - **Owner (02:45, ts1793666702):** autosave permission dropdowns, no Save button (@bd15980). ACCEPTED @bd15980 (Bill 03:19, D10, scope in f85503f).
 - **Owner (02:59):** G52 closed as history; "Joe: optimize turn". Turn line is Joe; Joe cannot change it.
 - **Now (Coordinator 03:35):** turn Telkomsel. Closeout @250dc1e ACCEPTED, G53–G55 verified; D11 docs @2010bca confirmed. No open rows.
-- **Owner 09:31 (ts1793691081, Coordinator 5a37147): "Proceed"** - reject non-canonical raw ids (e.g. "a.b") with HTTP 400 + store guard. Scope = this fix only; no live/paid/hosted/auth/merge. Telkomsel built D12 @5016b75 (HTTP 400 + store guards, local green); Bill to QC and assign the finding id.
+- **Owner 09:31 (ts1793691081, Coordinator 5a37147): "Proceed"** - reject non-canonical raw ids (e.g. "a.b") with HTTP 400 + store guard. Scope = this fix only; no live/paid/hosted/auth/merge. Telkomsel built D12 @5016b75 (HTTP 400 + store guards, local green); Bill QC (10:06): G56 loader rewrite, G57 HTML error, G58 case clash open. Telkomsel fixed all three (10:14), turn Bill.
+- **Coordinator decision (10:10, delegated, not owner verbatim):** ids lowercase-only [a-z0-9_-]+; uppercase ids now error (Lauri/lauri).
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words to Christina + Bill QC green; only one Bill reviews.
 - **Coordinator:** D8 noted @fc20aa6. goalCard detail question: Bill 02:10, not a defect.
 
