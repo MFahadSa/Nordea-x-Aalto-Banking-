@@ -128,102 +128,127 @@ if (oldScript) {
 
 // ---------- FIX on the working-tree script ----------
 const newScript = extractScript(fs.readFileSync('public/arch.html', 'utf-8'));
+const htmlNow = fs.readFileSync('public/arch.html', 'utf-8');
+
+check('FIX: the Save button is gone (autosave on change)', !/btn-perm/.test(htmlNow));
 
 {
   const page = makePage(newScript);
   await boot(page);
-  await change(page, 'perm', 'high'); // unsaved choice
-  page.tick();
-  page.respond(await page.waitReq('/state'), baseState('all')); // server still has the old value
-  await flush();
-  check('FIX: poll keeps the unsaved "high" choice', page.el('perm').value === 'high', page.el('perm').value);
-  check('FIX: unsaved state is visible', /Unsaved/.test(page.el('perm-status').textContent), page.el('perm-status').textContent);
-}
-
-{
-  const page = makePage(newScript);
-  await boot(page);
-  await change(page, 'perm', 'high');
-  const save = page.el('btn-perm').click(); // do not await yet; drive the requests
-  await flush();
+  await change(page, 'perm', 'high'); // autosave fires immediately
   const post = await page.waitReq('/permissions', 'POST');
   const sent = JSON.parse(post.opts.body);
-  check('FIX: Save POSTs the chosen values', sent.reviewLevel === 'high' && sent.userCardMode === 'Review everything', sent);
-  check('FIX: saving state is visible and the button is disabled', page.el('btn-perm').disabled && /Saving/.test(page.el('perm-status').textContent));
+  check('FIX: change autosaves BOTH settings', sent.reviewLevel === 'high' && sent.userCardMode === 'Review everything', sent);
+  check('FIX: Saving... is visible while in flight', /Saving/.test(page.el('perm-status').textContent), page.el('perm-status').textContent);
   page.respond(post, { reviewLevel: 'high', userCardMode: 'Review everything' });
   await flush();
   page.respond(await page.waitReq('/state'), baseState('high')); // fresh read confirms persistence
-  await save; await flush();
-  check('FIX: dirty clears and "Saved." shows after persisted confirmation', page.el('perm-status').textContent === 'Saved.', page.el('perm-status').textContent);
-  check('FIX: select shows the persisted value', page.el('perm').value === 'high');
+  await flush();
+  check('FIX: Saved. shows after persisted confirmation', page.el('perm-status').textContent === 'Saved.', page.el('perm-status').textContent);
   page.tick(); // later polls keep the confirmed value
   page.respond(await page.waitReq('/state'), baseState('high'));
   await flush();
-  check('FIX: later poll does not disturb the saved selection', page.el('perm').value === 'high');
+  check('FIX: later poll does not disturb the saved selection', page.el('perm').value === 'high' && page.el('perm-status').textContent === 'Saved.');
 }
 
 {
-  // Save while an earlier read is still in flight: the late stale response must not repaint.
+  // Rapid second change while the first save is in flight: the LATEST pair must persist.
   const page = makePage(newScript);
   await boot(page);
-  page.tick(); // an in-flight tick read (pre-save data)
-  const staleTick = await page.waitReq('/state');
   await change(page, 'perm', 'high');
-  const save = page.el('btn-perm').click();
+  const postA = await page.waitReq('/permissions', 'POST');
+  await change(page, 'ucmode', 'High risk mode'); // mid-flight: queued, no second POST yet
+  check('FIX: mid-flight change does not start a parallel save', page.pending.filter((r) => r.url.includes('/permissions')).length === 1);
+  page.respond(postA, { reviewLevel: 'high', userCardMode: 'Review everything' });
   await flush();
-  page.respond(await page.waitReq('/permissions', 'POST'), { reviewLevel: 'high', userCardMode: 'Review everything' });
+  const postB = await page.waitReq('/permissions', 'POST'); // the follow-up save with the latest pair
+  const sentB = JSON.parse(postB.opts.body);
+  check('FIX: the follow-up save persists the LATEST pair', sentB.reviewLevel === 'high' && sentB.userCardMode === 'High risk mode', sentB);
+  page.respond(postB, sentB);
   await flush();
-  page.respond(await page.waitReq('/state', 'GET', 1), baseState('high')); // the post-save read confirms (2nd state read)
-  await save; await flush();
-  page.respond(staleTick, baseState('all')); // NOW the stale tick response lands
+  page.respond(await page.waitReq('/state'), baseState('high', 'High risk mode'));
   await flush();
-  check('FIX: stale pre-save response cannot repaint the old value', page.el('perm').value === 'high', page.el('perm').value);
-  check('FIX: saved state survives the stale response', page.el('perm-status').textContent === 'Saved.', page.el('perm-status').textContent);
+  check('FIX: latest pair confirmed Saved.', page.el('perm-status').textContent === 'Saved.' && page.el('perm').value === 'high' && page.el('ucmode').value === 'High risk mode', page.el('perm-status').textContent);
 }
 
 {
-  // POST succeeds but the fresh read still shows old values: dirty must NOT clear.
+  // A stale confirmation from an older save must not overwrite a newer pending save's status/value.
   const page = makePage(newScript);
   await boot(page);
   await change(page, 'perm', 'high');
-  const save = page.el('btn-perm').click();
+  const postA = await page.waitReq('/permissions', 'POST');
+  page.respond(postA, { reviewLevel: 'high', userCardMode: 'Review everything' });
   await flush();
+  const confirmA = await page.waitReq('/state'); // save A's confirmation read, still in flight
+  await change(page, 'perm', 'all'); // newer choice -> save B starts
+  const postB = await page.waitReq('/permissions', 'POST');
+  page.respond(confirmA, baseState('high')); // the stale confirmation lands now
+  await flush();
+  check('FIX: stale confirmation cannot overwrite the newer pending save', /Saving/.test(page.el('perm-status').textContent) && page.el('perm').value === 'all', page.el('perm-status').textContent);
+  page.respond(postB, { reviewLevel: 'all', userCardMode: 'Review everything' });
+  await flush();
+  page.respond(await page.waitReq('/state'), baseState('all'));
+  await flush();
+  check('FIX: the newer save confirms Saved.', page.el('perm-status').textContent === 'Saved.' && page.el('perm').value === 'all', page.el('perm-status').textContent);
+}
+
+{
+  // Failed save: choice kept, truthful recoverable error; the next change retries.
+  const page = makePage(newScript);
+  await boot(page);
+  await change(page, 'perm', 'high');
+  page.respond(await page.waitReq('/permissions', 'POST'), { error: 'boom' }, false);
+  await flush();
+  check('FIX: failed save keeps the choice and shows a recoverable error', page.el('perm').value === 'high' && /Save failed/.test(page.el('perm-status').textContent), page.el('perm-status').textContent);
+  await change(page, 'ucmode', 'High risk mode'); // retry via another change
+  const post = await page.waitReq('/permissions', 'POST');
+  page.respond(post, JSON.parse(post.opts.body));
+  await flush();
+  page.respond(await page.waitReq('/state'), baseState('high', 'High risk mode'));
+  await flush();
+  check('FIX: retry after failure saves the latest pair', page.el('perm-status').textContent === 'Saved.' && page.el('ucmode').value === 'High risk mode');
+}
+
+{
+  // An older save failing mid-flight must NOT revert a newer pending selection.
+  const page = makePage(newScript);
+  await boot(page);
+  await change(page, 'perm', 'high');
+  const postA = await page.waitReq('/permissions', 'POST');
+  await change(page, 'ucmode', 'High risk mode'); // newer pending choice
+  page.respond(postA, { error: 'boom' }, false); // the OLD save fails
+  await flush();
+  const postB = await page.waitReq('/permissions', 'POST');
+  const sentB = JSON.parse(postB.opts.body);
+  check('FIX: older failure never reverts the newer pending selection', page.el('perm').value === 'high' && page.el('ucmode').value === 'High risk mode' && sentB.userCardMode === 'High risk mode', { perm: page.el('perm').value, sentB });
+}
+
+{
+  // POST ok but the fresh read still shows old values: dirty stays, truthful status, no revert.
+  const page = makePage(newScript);
+  await boot(page);
+  await change(page, 'perm', 'high');
   page.respond(await page.waitReq('/permissions', 'POST'), { reviewLevel: 'high', userCardMode: 'Review everything' });
   await flush();
   page.respond(await page.waitReq('/state'), baseState('all')); // not yet persisted
-  await save; await flush();
-  check('FIX: no persisted confirmation -> choice kept, dirty stays', page.el('perm').value === 'high' && /still shows the old setting/.test(page.el('perm-status').textContent), page.el('perm-status').textContent);
+  await flush();
+  check('FIX: unconfirmed save keeps the choice and says so', page.el('perm').value === 'high' && /still shows the old setting/.test(page.el('perm-status').textContent), page.el('perm-status').textContent);
   page.tick(); // once the server catches up, a poll confirms and clears dirty
   page.respond(await page.waitReq('/state'), baseState('high'));
   await flush();
-  check('FIX: later matching read clears dirty silently', page.el('perm-status').textContent === '' && page.el('perm').value === 'high', page.el('perm-status').textContent);
+  check('FIX: later matching read confirms Saved.', page.el('perm-status').textContent === 'Saved.' && page.el('perm').value === 'high', page.el('perm-status').textContent);
 }
 
 {
-  // POST fails: choice kept, visible error.
+  // While a save is in flight (dirty), polls never overwrite the selects.
   const page = makePage(newScript);
   await boot(page);
   await change(page, 'perm', 'high');
-  const save = page.el('btn-perm').click();
+  await page.waitReq('/permissions', 'POST'); // in flight
+  page.tick();
+  page.respond(await page.waitReq('/state'), baseState('all')); // poll with the old server value
   await flush();
-  page.respond(await page.waitReq('/permissions', 'POST'), { error: 'boom' }, false);
-  await save; await flush();
-  check('FIX: failed save keeps the choice and shows an error', page.el('perm').value === 'high' && /Save failed/.test(page.el('perm-status').textContent), page.el('perm-status').textContent);
-}
-
-{
-  // Out-of-order guard without any dirty state: the newest read wins.
-  const page = makePage(newScript);
-  await boot(page);
-  page.context.refresh();
-  const older = await page.waitReq('/state');
-  page.context.refresh();
-  const newer = await page.waitReq('/state', 'GET', 1);
-  page.respond(newer, baseState('all'));
-  await flush();
-  page.respond(older, baseState('high')); // older response arrives last
-  await flush();
-  check('FIX: newest response wins when reads race', page.el('perm').value === 'all', page.el('perm').value);
+  check('FIX: in-flight save keeps the selects under poll refreshes', page.el('perm').value === 'high', page.el('perm').value);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

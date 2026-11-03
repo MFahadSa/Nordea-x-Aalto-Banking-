@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -142,4 +142,15 @@ load ok, npm test ok, lint 0. Read arch.html: seq guard :215-219, dirty/focus :2
 Init safe: first refresh() runs after const perm :305. No server change.
 FACT (L, no row): customer switch mid-save resets saving (:349) while the old POST runs; its refresh reports against the new customer.
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 02:48
+```
+CMP: owner 02:45 (Coordinator relay): autosave BOTH permission dropdowns on change, Save button
+removed. Latest pair persists under rapid mid-flight change (one save at a time, follow-up save
+with newest values); stale confirmation/failure never overwrites a newer pending choice or its
+status (save-generation guard); Saved. only on a fresh persisted match; failure/mismatch keeps
+the choice with a truthful recoverable error (change a dropdown to retry). Poll/focus/saving
+protection unchanged. Proof: test-arch-perm-ui.mjs 18/0 (old-script repro + all races above).
+NEXT: Bill
 ```

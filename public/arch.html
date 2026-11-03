@@ -106,7 +106,7 @@
       <div class="controls">
         Standing permissions: <select id="perm"><option value="all">review everything</option><option value="high">only high risk waits</option></select>
         User card approval: <select id="ucmode"><option>No permission</option><option>Review everything</option><option>High risk mode</option></select>
-        <button id="btn-perm" class="primary">Save</button><span id="perm-status" style="font-size:12px;color:#8b949e;margin-left:8px;"></span>
+        <span id="perm-status" style="font-size:12px;color:#8b949e;margin-left:8px;"></span>
       </div>
       <div class="controls"><button id="btn-off-cm">Turn off</button><button id="btn-park-cm">Park cabinet</button><button id="btn-del-cm" class="danger">Delete DB</button></div>
     </div>
@@ -239,7 +239,7 @@ function applyState(s) {
   // choice. Dirty clears only here, when the server's persisted values match the selects.
   const srvLevel = s.databases.contextMemory.permissions?.reviewLevel ?? 'all';
   const srvMode = s.databases.contextMemory.permissions?.userCardMode ?? 'Review everything';
-  if (perm.dirty && !perm.saving && $('perm').value === srvLevel && $('ucmode').value === srvMode) { perm.dirty = false; permStatus(''); }
+  if (perm.dirty && !perm.saving && $('perm').value === srvLevel && $('ucmode').value === srvMode) { perm.dirty = false; permStatus('Saved.'); }
   if (!perm.dirty && document.activeElement !== $('perm')) $('perm').value = srvLevel;
   if (!perm.dirty && document.activeElement !== $('ucmode')) $('ucmode').value = srvMode;
   $('nordea-summary').innerHTML = s.databases.nordea ? `Accounts: <b>${s.databases.nordea.accounts}</b> · Transactions: <b>${s.databases.nordea.transactions}</b>` : 'Empty until bank data is loaded (scripts/load_data.py).';
@@ -299,40 +299,42 @@ if (location.hash === '#autotest-chat') { $('chat-in').value = 'how much did I s
 $('chat-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-chat').click(); });
 window.editGoal = async (id, old) => { const t = prompt('Edit the goal - Abel remembers the new version.', old); if (!t || !t.trim() || t.trim() === old) return; await api(`/api/arch/${uid}/goals/${id}`, { body: { title: t.trim() } }); refresh(); };
 window.deleteGoal = async (id, title) => { if (!confirm(`Delete goal "${title}"? It is removed from Abel's knowledge (the User DB).`)) return; await api(`/api/arch/${uid}/goals/${id}/delete`, {}); refresh(); };
-// Standing permissions: Save is the only write path (no on-change save). dirty = the selects
-// hold a choice not yet confirmed persisted; saving = a POST is in flight. The dirty flag
-// clears ONLY on persisted confirmation (a fresh state read, here or in applyState).
+// Standing permissions: changing a dropdown saves immediately (owner: "make it automatically,
+// without using that save button"). dirty = the selects hold a choice not yet confirmed
+// persisted; saving = a POST is in flight. Dirty clears ONLY on persisted confirmation (a fresh
+// state read, here or in applyState). A change during an in-flight save persists the LATEST pair
+// afterwards; a stale confirmation or failure never overwrites a newer pending choice.
 const perm = { dirty: false, saving: false };
+let permSaveGen = 0;
 function permStatus(text, isError) { const el = $('perm-status'); el.textContent = text; el.style.color = isError ? '#a4352c' : '#8b949e'; }
-function markPermDirty() { if (!perm.saving) { perm.dirty = true; permStatus('Unsaved changes - click Save to apply.'); } }
-$('perm').addEventListener('change', markPermDirty);
-$('ucmode').addEventListener('change', markPermDirty);
-$('btn-perm').onclick = async () => {
-  if (perm.saving) return;
+async function savePermissions() {
+  if (perm.saving) return; // the in-flight save re-checks the selects when it finishes
+  const gen = ++permSaveGen;
+  perm.saving = true; perm.dirty = true; permStatus('Saving...');
   const want = { reviewLevel: $('perm').value, userCardMode: $('ucmode').value };
-  perm.saving = true;
-  const btn = $('btn-perm'); btn.disabled = true; btn.textContent = 'Saving...'; permStatus('Saving...');
   let posted = false;
   try { await api(`/api/arch/${uid}/permissions`, { body: want }); posted = true; }
   catch { /* api() already surfaces the error in the chat log */ }
-  if (posted) {
-    let s = null;
-    try { s = await refresh(); } catch { /* keep dirty; the next successful read confirms */ }
-    if (s) {
-      const p = s.databases?.contextMemory?.permissions ?? {};
-      if ((p.reviewLevel ?? 'all') === want.reviewLevel && (p.userCardMode ?? 'Review everything') === want.userCardMode) {
-        perm.dirty = false; permStatus('Saved.');
-      } else {
-        permStatus('The server still shows the old setting - your choice is kept here; click Save again.', true);
-      }
+  perm.saving = false;
+  const now = { reviewLevel: $('perm').value, userCardMode: $('ucmode').value };
+  if (now.reviewLevel !== want.reviewLevel || now.userCardMode !== want.userCardMode) { savePermissions(); return; } // persist the LATEST pair
+  if (!posted) { permStatus('Save failed - your choice is kept here; change a dropdown to retry.', true); return; }
+  let s = null;
+  try { s = await refresh(); } catch { /* keep dirty; the next successful read confirms */ }
+  if (gen !== permSaveGen) return; // a newer save started while confirming - it owns the status
+  if (s) {
+    const p = s.databases?.contextMemory?.permissions ?? {};
+    if ((p.reviewLevel ?? 'all') === now.reviewLevel && (p.userCardMode ?? 'Review everything') === now.userCardMode) {
+      perm.dirty = false; permStatus('Saved.');
     } else {
-      permStatus('Sent - confirming against the server...');
+      permStatus('Not saved yet - the server still shows the old setting; change a dropdown to retry.', true);
     }
   } else {
-    permStatus('Save failed - your choice is kept here; click Save again.', true);
+    permStatus('Sent - confirming against the server...');
   }
-  perm.saving = false; btn.disabled = false; btn.textContent = 'Save';
-};
+}
+$('perm').addEventListener('change', () => { perm.dirty = true; savePermissions(); });
+$('ucmode').addEventListener('change', () => { perm.dirty = true; savePermissions(); });
 $('btn-upload').onclick = () => $('bank-file').click();
 $('bank-file').onchange = async () => {
   const f = $('bank-file').files[0]; if (!f) return;
