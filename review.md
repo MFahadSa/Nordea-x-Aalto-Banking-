@@ -12,14 +12,14 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - Owner gates: scope, spend, live, security, merge. Coordinator relay = owner's word with ts + verbatim quote; merge = his word to Bill.
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-03 03:21 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
+*Joe, updated 2026-11-03 03:30 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner D9 (02:32, ts1793665947):** Nordea AI decides risk like User AI, DB-type agnostic. Bill ACCEPTED @3527ac7 (scope in 998fd0f).
 - **Owner (02:37, ts1793666107):** realtime arch via SSE. ACCEPTED @b8d22d1 (Bill 03:19), scope in Coordinator commit f85503f (D11).
 - **Owner (02:45, ts1793666702):** autosave permission dropdowns, no Save button (@bd15980). ACCEPTED @bd15980 (Bill 03:19, D10, scope in f85503f).
 - **Owner (02:59):** G52 closed as history; "Joe: optimize turn". Turn line is Joe; Joe cannot change it.
-- **Now (Bill 03:19):** turn Telkomsel. No open rows. Open facts (no rows): mid-save customer switch; retry toggle; SSE raw-uid vs dotted uids (routes.ts:32).
+- **Now (Bill 03:27):** turn Telkomsel. Closeout batch @250dc1e ACCEPTED: G53–G55 verified (mid-save switch, SSE uid key, retry toggle). No open rows.
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words to Christina + Bill QC green; only one Bill reviews.
 - **Coordinator:** D8 noted @fc20aa6. goalCard detail question: Bill 02:10, not a defect.
 
