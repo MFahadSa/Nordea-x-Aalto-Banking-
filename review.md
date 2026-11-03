@@ -18,7 +18,7 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - **Owner decisions:** D9 risk by model; D10 autosave; D11 realtime (all ACCEPTED, Coordinator f85503f); "Proceed" 09:31 on rejecting look-alike ids (D12).
 - **Owner 11:07 (ts1793696825):** "Tell Joe to optimize review.md" - done 11:20 (cold moves only, no decision/finding lost).
 - **Coordinator (delegated, not owner verbatim):** ids lowercase-only; id length max 234 (ratified 10:34).
-- **Now (Bill 11:46):** live go owner-quoted in 1cc4d44; from-zero README run green @5d80921 (mock, local). Hosted Supabase run NOT done (owner gate). Merge = owner. Turn Telkomsel.
+- **Now (Bill 12:04):** G61 OPEN: the owner's "original conditional merge-last grant" (ts1793664882.497109, ts1793665293.820759) is cited only by Telkomsel; no Coordinator commit quotes it. Turn Bill for readiness after GitHub render check.
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words + Bill QC green; only one Bill reviews.
 - **Open:** D8 logged @fc20aa6. Billing unverified (owner). Hosted Supabase run = owner gate, not done. Windows MAX_PATH may limit long ids (fact). Merge stays with the owner.
 
