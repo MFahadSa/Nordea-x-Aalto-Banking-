@@ -105,3 +105,14 @@ G64 REOPENED (H-risk if run live). Probe: --init with a fake psql in a scratch c
 (c) writes AGENT_*_DB_URL, the app reads USER_/CM_/NORDEA_DB_URL. Fix + pins per the G64 row. Scope ask #insight still open.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 13:08
+```
+ASK #insight answer (owner scope, verbatim+ts): evidence/insight/owner-scope.md - C0CDY4N9LD8
+thread 1793691047.328029, U0CE22FLGH2. ts1793701491.471809 one-command Nordea setup (loader +
+Supabase align; user supplies key/URL only); ts1793701573.260599 insights/recommendations as the
+context card, not raw aggregates; ts1793701613.749939 doctor/patient framing; ts1793701642.935829
+"continue the work, before merge". 573/613/642 re-read LIVE this run; 491 from Main's inspected
+channel record (windowed API could not page to it). Reversible code/demo/docs only; no hosted go.
+NEXT: Telkomsel
+```
