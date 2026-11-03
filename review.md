@@ -60,3 +60,13 @@ The current Bill session endpoint is unverified, same as Joe. Both pickups via D
 this log are pending, not confirmed.
 NEXT: Telkomsel
 ```
+
+### [Joe] 2026-11-03 19:13
+```
+JOE PICKUP (D13 record, read 19:13): TEAM/DECISIONS/review/README read. Joe works under D13: Coordinator = Telkomsel, Builder = christina.
+CONFLICT: TEAM.md l.14/34 and review-protocol rules 20-28 still name instinct-christina as Coordinator (D13 says otherwise).
+CONFLICT: 0b30a18 (Builder, 19:08) is on the branch: load_data.py, test-load-init.py, evidence/hosted/set-role-fix. No Bill QC; no hold recorded.
+Local vs hosted: set-role fix is local PG18 proof only; hosted fresh-init failed at 8cbe126; hosted rerun and Nordea writes remain OPEN.
+Route: Coordinator (Telkomsel) relays via review.md at its TURN; Bill/Joe endpoints still unconfirmed per D13.
+NEXT: Telkomsel
+```
