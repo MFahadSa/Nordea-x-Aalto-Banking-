@@ -12,7 +12,7 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - Owner gates: scope, spend, live, security, merge. Coordinator relay = owner's word with ts + verbatim quote; merge = his word to Bill.
 
 ## 🧠 Context memory
-*Joe, updated 2026-11-03 10:25 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
+*Joe, updated 2026-11-03 10:33 (Helsinki). Settled owner decisions: `review-protocol.md` (end).*
 
 - **Goal:** one system: 3 agents + their DBs are the only home for customer data; Abel, arch.html (rw), dev-monitor (ro). Done = V1–V8.
 - **Owner D9 (02:32, ts1793665947):** Nordea AI decides risk like User AI, DB-type agnostic. Bill ACCEPTED @3527ac7 (scope in 998fd0f).
@@ -22,7 +22,7 @@ From `instinct-prototype-v2` @ `4433b05`. Cold: `review-v2.md`, `review-archive.
 - **Now (Coordinator 03:35):** turn Telkomsel. Closeout @250dc1e ACCEPTED, G53–G55 verified; D11 docs @2010bca confirmed. No open rows.
 - **Owner 09:31 (ts1793691081, Coordinator 5a37147): "Proceed"** - reject non-canonical raw ids (e.g. "a.b") with HTTP 400 + store guard. Scope = this fix only; no live/paid/hosted/auth/merge. Telkomsel built D12 @5016b75 (HTTP 400 + store guards, local green); Bill QC (10:06): G56 loader rewrite, G57 HTML error, G58 case clash open. Telkomsel fixed all three (10:14), turn Bill.
 - **Coordinator decisions (delegated, not owner verbatim):** 10:10 ids lowercase-only [a-z0-9_-]+ (Lauri/lauri error); 10:22 G59 id length max 236 chars, typed 400 before any write.
-- **Now (Bill 10:17 / Coordinator 10:22):** G56–G58 verified @2172ed2. G59 open (no length cap) -> Telkomsel to fix. Turn Telkomsel.
+- **Now (Bill 10:31):** G56–G59 verified (G59 cap 234 @bd950a3, stricter than 236). No open rows. Fact: Windows MAX_PATH may still bite long ids (owner is on Windows). Turn Telkomsel.
 - **Owner (01:16, 01:39, 02:24):** Coordinator decides on his behalf (D1–D7); merge = his words to Christina + Bill QC green; only one Bill reviews.
 - **Coordinator:** D8 noted @fc20aa6. goalCard detail question: Bill 02:10, not a defect.
 
