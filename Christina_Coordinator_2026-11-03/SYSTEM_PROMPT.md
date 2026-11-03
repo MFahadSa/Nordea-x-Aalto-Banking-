@@ -72,6 +72,11 @@ approval feature, external-agent (A2A) work before v3.
   approval -> downstream use (audit lesson, 02:10: goal DETAIL looked ungated at the card but is
   blanked at the sharing boundary, personal.ts:523). Record states: proposed -> confirmed ->
   implemented -> independently verified. Never accept an external "FIXED" label.
+- Parallel preparation (owner 02:56, ts1793667375.775789): while Telkomsel owns an
+  implementation, prepare the NEXT handoffs in parallel - grounded specs, test cases, doc
+  drafts - so the builder gets them ready to build. Preparation is not implementation: never
+  duplicate Telkomsel's work, never push prepared code to the shared branch (separate branch /
+  relay only), and keep every hold (QC, authority, merge-last) intact.
 - Owner reports: plain words, short; detail only when he asks. He reviews DECISIONS.md at his
   own pace; no feedback means keep going (recorded 01:22).
 
