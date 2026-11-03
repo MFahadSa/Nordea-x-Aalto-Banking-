@@ -348,15 +348,46 @@ $('btn-park-cm').onclick = async () => { const parked = $('btn-park-cm').textCon
 $('btn-newsession').onclick = async () => { const j = await api(`/api/arch/${uid}/session/new`, {}); sessionId = j.sessionId; say('agent', 'New session started - the next question opens a fresh context.md.'); refresh(); };
 for (const a of ['personal', 'cm', 'nordea']) $(`btn-off-${a}`).onclick = async () => { const off = $(`btn-off-${a}`).textContent === 'Turn off'; await api(`/api/arch/${uid}/agents/${a}/${off ? 'off' : 'on'}`, {}); refresh(); };
 for (const w of ['user', 'cm', 'nordea']) $(`btn-del-${w}`).onclick = async () => { if (confirm(`Really delete the ${w === 'cm' ? 'Context Memory' : w === 'user' ? 'User' : 'Nordea'} DB? Other databases are not touched.`)) { await api(`/api/arch/${uid}/db/${w}`, { method: 'DELETE' }); refresh(); } };
-$('uid').addEventListener('change', () => { perm.dirty = false; perm.saving = false; permStatus(''); refresh(); });
-let refreshing = false;
+$('uid').addEventListener('change', () => { perm.dirty = false; perm.saving = false; permStatus(''); uid = $('uid').value || 'lauri'; evtLastSeq = 0; startStream(); refresh(); });
+let refreshing = false, lastFallbackPoll = 0;
 async function tick() {
-  // G31: follow agent activity without a manual reload. Skip overlapping passes.
+  // Bounded fallback only: while the SSE stream is open or reconnecting (EventSource retries
+  // natively and resyncs with Last-Event-ID), change events drive refreshes. If the stream is
+  // broken (CLOSED), poll slowly (30s); without EventSource support, keep the legacy 5s poll.
   if (refreshing || document.hidden) return;
+  if (typeof EventSource !== 'undefined') {
+    if (evtSource && evtSource.readyState === 1) return; // OPEN: change events drive refreshes
+    // CONNECTING gets a 30s grace window (EventSource retries natively); a stream that has
+    // been unhealthy longer - sustained reconnect loop or CLOSED - falls back to slow polls.
+    if (evtSource && evtSource.readyState !== 2 && Date.now() - evtLastHealthy < 30000) return;
+    if (Date.now() - lastFallbackPoll < 30000) return;
+    lastFallbackPoll = Date.now();
+  }
   refreshing = true;
   try { await refresh(); } catch { /* an action handler already surfaces errors in the chat log */ } finally { refreshing = false; }
 }
 setInterval(tick, 5000);
+
+// Realtime: one SSE stream per customer (owner: "realtime arch"). Events carry no data - each
+// one triggers the same sequence-guarded state read, and a reconnect resumes after the last
+// seq (the server replays a bounded buffer), so nothing is missed and nothing is applied twice.
+let evtSource = null, evtLastSeq = 0, evtRefreshTimer = null, evtLastHealthy = 0;
+function startStream() {
+  if (evtSource) { evtSource.close(); evtSource = null; }
+  if (typeof EventSource === 'undefined') return; // no SSE support: the bounded poll covers it
+  evtLastHealthy = Date.now(); // grace window for the initial connect
+  evtSource = new EventSource(`/api/arch/${uid}/events?after=${evtLastSeq}`);
+  evtSource.onopen = () => { evtLastHealthy = Date.now(); };
+  evtSource.onmessage = (e) => {
+    evtLastHealthy = Date.now();
+    try { const ev = JSON.parse(e.data); if (ev && typeof ev.seq === 'number') evtLastSeq = Math.max(evtLastSeq, ev.seq); } catch { /* ignore */ }
+    // Coalesce bursts (a replay after reconnect, or a busy round) into ONE guarded state read;
+    // a reconnect is thereby a full resync, and the dirty/save guards apply as to any refresh.
+    if (evtRefreshTimer) clearTimeout(evtRefreshTimer);
+    evtRefreshTimer = setTimeout(() => { evtRefreshTimer = null; refresh().catch(() => { /* retried on next event or fallback poll */ }); }, 300);
+  };
+}
+startStream();
 async function boot() {
   try {
     const j = await api('/api/arch/customers');

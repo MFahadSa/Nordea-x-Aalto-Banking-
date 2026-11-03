@@ -110,21 +110,30 @@ export const remoteUrl = (kind: DbKind) => REMOTE_SECRETS.get(kind);
 /** Write verbs mark a handle dirty; a dirty remote-backed handle flushes on close. */
 const WRITE_VERB = /^\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER)/i;
 
+/** One app-layer hook notified of EVERY write statement (local and hosted alike), so the
+ *  realtime layer invalidates on actual writes, not on assumed call sites. The store layer
+ *  never imports the app; transactions still pass through prepare/exec, so their statements
+ *  are seen too. Reads never fire it. */
+let writeHook: ((file: string, kind: DbKind) => void) | null = null;
+export function setStoreWriteHook(fn: ((file: string, kind: DbKind) => void) | null) { writeHook = fn; }
+
 export function openDb(file: string, kind: DbKind): DatabaseSync {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec(SCHEMAS[kind]);
-  if (!REMOTE_SECRETS.has(kind)) return db;
-  // Remote-backed: watch for writes and flush this customer's database on close.
+  const remote = REMOTE_SECRETS.has(kind);
   let dirty = false;
   const wrap = <A extends unknown[], R>(fn: (...args: A) => R) => (...args: A) => {
-    if (typeof args[0] === 'string' && WRITE_VERB.test(args[0])) dirty = true;
+    if (typeof args[0] === 'string' && WRITE_VERB.test(args[0])) {
+      dirty = true;
+      try { writeHook?.(file, kind); } catch { /* a broken listener must never break a write */ }
+    }
     return fn.apply(db, args);
   };
   const wrapped = {
     prepare: wrap(db.prepare.bind(db) as (...a: unknown[]) => unknown),
     exec: wrap(db.exec.bind(db) as (...a: unknown[]) => unknown),
-    close: () => { db.close(); if (dirty) scheduleFlush(file, kind); },
+    close: () => { db.close(); if (remote && dirty) scheduleFlush(file, kind); },
   };
   return wrapped as unknown as DatabaseSync;
 }

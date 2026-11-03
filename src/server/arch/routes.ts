@@ -6,6 +6,13 @@ import {
   appWrites,
 } from './orchestrator.js';
 import { hostedClearOutcome } from './store/common.js';
+import { setStoreWriteHook } from './store/common.js';
+import { noteArchChange, subscribeArch, archUidFromFile } from './events.js';
+
+// Realtime: EVERY store write (local or hosted, any agent DB or the bus) becomes one
+// coalesced per-customer change event for the SSE stream - coverage at the write layer,
+// not per call site.
+setStoreWriteHook((file, kind) => { const uid = archUidFromFile(file, kind); if (uid) noteArchChange(uid); });
 import type { AgentId } from './types.js';
 import { runOnce, requestState } from '../chatRequests.js';
 
@@ -28,8 +35,22 @@ export function registerArchRoutes(app: Express) {
 
   app.get('/api/arch/:uid/state', h((req, res) => res.json(archState(uid(req)))));
 
+  // Realtime (owner: "realtime arch"): one SSE stream per customer. Events carry only a
+  // sequence number (no data): the client re-reads /state, so reconnects simply resync.
+  // ?after=<seq> or the Last-Event-ID header replays the bounded buffer of missed events.
+  // Isolation: a connection only ever receives its own uid's events; keepalive every 25s.
+  app.get('/api/arch/:uid/events', h((req, res) => {
+    const user = uid(req);
+    const after = Math.max(0, Number(req.query.after) || Number(req.headers['last-event-id']) || 0);
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    res.write(': connected\n\n');
+    const { unsubscribe } = subscribeArch(user, after, (ev) => res.write(`id: ${ev.seq}\ndata: ${JSON.stringify(ev)}\n\n`));
+    const keepalive = setInterval(() => { try { res.write(': ka\n\n'); } catch { /* closed */ } }, 25000);
+    req.on('close', () => { clearInterval(keepalive); unsubscribe(); });
+  }));
+
   // V5: start a fresh customer session (new empty context.md stamped with its session id).
-  app.post('/api/arch/:uid/session/new', h((req, res) => res.json(newSession(uid(req)))));
+  app.post('/api/arch/:uid/session/new', h((req, res) => { const r = newSession(uid(req)); noteArchChange(uid(req)); res.json(r); }));
 
   app.post('/api/arch/:uid/entries/:entryId/undo', h((req, res) => res.json(undoEntry(uid(req), String(req.params.entryId)))));
 
@@ -122,6 +143,7 @@ export function registerArchRoutes(app: Express) {
     const which = String(req.params.which);
     if (!['user', 'cm', 'nordea'].includes(which)) { res.status(400).json({ error: 'Which database: user, cm or nordea.' }); return; }
     deleteDatabase(uid(req), which as 'user' | 'cm' | 'nordea');
+    noteArchChange(uid(req));
     // G25: never claim success while the hosted half failed - surface partial state + safe retry.
     const hosted = await hostedClearOutcome(uid(req), which as 'user' | 'cm' | 'nordea');
     if (typeof hosted === 'object') {

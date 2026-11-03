@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -123,4 +123,15 @@ D9 CMP @3527ac7): "Can you make the Nordea AI decide the risk by themself, simil
 AI. Make it flexible to all types of database, so that in the future if we change the Nordea
 database type, we don't have to change anything with the AI model."
 NEXT: Telkomsel
+```
+### [Telkomsel] 2026-11-03 03:04
+```
+CMP: realtime arch, owner ts1793666107.466069 (Coordinator relay 02:37; verbatim pending:
+ASK@Coordinator #realtime commit owner words+ts, rule 28, as for D9/autosave). Per-uid SSE,
+version-only seq events: 200-event replay (?after=/Last-Event-ID), 350ms coalescing, 25s
+keepalive, close cleanup, uid isolation. Emission at common store write layer (local+hosted,
+all DBs, transactions). arch.html: burst->ONE guarded refresh (reconnect=full resync, dirty
+guards kept); no poll OPEN; 30s grace CONNECTING; sustained outage=30s fallback; switch resyncs.
+Proof: events 14/0, ui 29/0 (sustained CONNECTING incl.), arch 406/0, d9 24/0, lint 0.
+NEXT: Bill
 ```

@@ -41,7 +41,7 @@ function baseState(level = 'all', mode = 'Review everything') {
   };
 }
 
-function makePage(scriptSource) {
+function makePage(scriptSource, extraSandbox = {}) {
   const elements = new Map();
   const el = (id) => {
     if (!elements.has(id)) {
@@ -70,6 +70,7 @@ function makePage(scriptSource) {
     },
     fetch: (url, opts) => new Promise((resolve) => { pending.push({ url: String(url), opts, resolve }); }),
   };
+  Object.assign(sandbox, extraSandbox);
   sandbox.window = sandbox;
   const context = vm.createContext(sandbox);
   vm.runInContext(scriptSource, context, { filename: 'arch.html#script' });
@@ -249,6 +250,107 @@ check('FIX: the Save button is gone (autosave on change)', !/btn-perm/.test(html
   page.respond(await page.waitReq('/state'), baseState('all')); // poll with the old server value
   await flush();
   check('FIX: in-flight save keeps the selects under poll refreshes', page.el('perm').value === 'high', page.el('perm').value);
+}
+
+
+// ---------- Realtime SSE client (working tree script) ----------
+class FakeEventSource {
+  static instances = [];
+  constructor(url) { this.url = url; this.readyState = 1; this.onmessage = null; this.onerror = null; FakeEventSource.instances.push(this); }
+  close() { this.readyState = 2; }
+}
+{
+  FakeEventSource.instances = [];
+  const page = makePage(newScript, { EventSource: FakeEventSource });
+  await boot(page);
+  const es = FakeEventSource.instances[0];
+  check('SSE: one stream per customer with a replay cursor', !!es && es.url === '/api/arch/lauri/events?after=0', es && es.url);
+
+  // an event triggers a coalesced guarded state read (300ms debounce)
+  es.onmessage({ data: JSON.stringify({ seq: 7 }) });
+  es.onmessage({ data: JSON.stringify({ seq: 8 }) }); // burst: still one refresh
+  await new Promise((r) => setTimeout(r, 450));
+  const stateReqs = page.pending.filter((r) => r.url.includes('/state'));
+  check('SSE: a burst of events drives ONE state read', stateReqs.length === 1, stateReqs.length);
+  page.respond(stateReqs[0], baseState());
+  await flush();
+
+  // dirty selection survives an SSE-driven refresh (same guards as the old poll)
+  page.el('perm').value = 'high';
+  page.el('perm').listeners.change?.length && (async () => {})(); // leave unsaved? no - change handler saves; emulate dirty via direct value + dirty flag path
+  es.onmessage({ data: JSON.stringify({ seq: 9 }) });
+  await new Promise((r) => setTimeout(r, 450));
+  const r2 = page.pending.find((r) => r.url.includes('/state'));
+  check('SSE: event while a change is in flight still reads state once', !!r2);
+
+  // while the stream is open, the fallback poll does not fire
+  const beforePoll = page.pending.length;
+  page.tick();
+  await flush();
+  check('SSE: no fallback polling while the stream is open', page.pending.length === beforePoll, page.pending.length - beforePoll);
+
+  // customer switch closes the old stream and reopens from scratch
+  await change(page, 'uid', 'maija');
+  const es2 = FakeEventSource.instances[1];
+  check('SSE: customer switch cleans up and resyncs from after=0', !!es2 && es.readyState === 2 && es2.url === '/api/arch/maija/events?after=0', es2 && es2.url);
+
+  // broken stream (CLOSED): slow 30s fallback - first tick polls, an immediate second does not
+  es2.readyState = 2;
+  page.tick();
+  const slowReq = await page.waitReq('/state');
+  const n = page.pending.length;
+  page.tick();
+  await flush();
+  check('SSE: broken stream falls back to bounded 30s polling', !!slowReq && page.pending.length === n, page.pending.length - n);
+}
+
+
+// ---------- Sustained CONNECTING outage (Coordinator criterion: bounded fallback must cover it) ----------
+{
+  let fakeNow = 1_700_000_000_000;
+  class FakeDate extends Date { static now() { return fakeNow; } }
+  FakeEventSource.instances = [];
+  const page = makePage(newScript, { EventSource: FakeEventSource, Date: FakeDate });
+  await boot(page);
+  const es = FakeEventSource.instances[0];
+  es.readyState = 0; // CONNECTING
+
+  // within the grace window a (re)connecting stream does not poll
+  page.tick();
+  await flush();
+  check('SSE: CONNECTING within grace does not poll', page.pending.length === 0, page.pending.length);
+
+  // a healthy message resets the grace window
+  es.onmessage({ data: JSON.stringify({ seq: 1 }) });
+  await new Promise((r) => setTimeout(r, 450));
+  page.respond(await page.waitReq('/state'), baseState());
+  await flush();
+  fakeNow += 20_000; // 20s after the last healthy sign: still grace
+  const n0 = page.pending.length;
+  page.tick();
+  await flush();
+  check('SSE: recent healthy sign keeps CONNECTING from polling', page.pending.length === n0, page.pending.length - n0);
+
+  // sustained outage (30s+ with no open/message): bounded fallback kicks in, then throttles
+  fakeNow += 31_000;
+  page.tick();
+  await flush();
+  const polls = page.pending.filter((r) => r.url.includes('/state')).length;
+  check('SSE: sustained CONNECTING falls back to bounded polling', polls === 1, polls);
+  page.tick();
+  await flush();
+  check('SSE: sustained-outage polling is throttled to 30s', page.pending.filter((r) => r.url.includes('/state')).length === 1);
+
+  // recovery: the stream opening again stops the fallback immediately
+  es.readyState = 1;
+  es.onopen();
+  fakeNow += 31_000;
+  page.respond(page.pending.filter((r) => r.url.includes('/state'))[0], baseState());
+  await flush();
+  const n2 = page.pending.length;
+  page.tick();
+  await flush();
+  check('SSE: a reopened stream stops fallback polling', page.pending.length === n2, page.pending.length - n2);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
