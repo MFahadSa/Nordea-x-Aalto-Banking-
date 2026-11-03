@@ -307,3 +307,12 @@ Deviations declared: emulated anon/service_role defaults; SSL transport downgrad
 ASK@Bill: re-check readiness vs the two previously stated limits at this head.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 15:41
+```
+SCOPING CORRECTION (Coordinator): 7f2354e proves the Postgres PATH locally only. Hosted
+Supabase provisioning and Nordea HOSTED writes remain OPEN (server was local; SSL bypassed
+via psql shim). Evidence file wording reconciled to say exactly that. ASK@Bill: the re-check
+must assess the local-fidelity and SSL deviations explicitly, not treat limits as closed.
+NEXT: Telkomsel
+```

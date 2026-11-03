@@ -23,8 +23,8 @@ documented one-command path alone:
 4. Nordea feed path end to end: one `nordea_feed` insert was applied by the running app
    ("Applied: Updated 1 transaction"), and the resulting Nordea store write flushed to
    agent_nordea_records (`transactions/nd-fresh-demo-01-h-wafl1w`,
-   `import_batches/batch-fresh-demo-01-mw0qjmar-jykf`). This is the first live proof of the
-   NORDEA flush, closing the gap the 14:23 smoke left open.
+   `import_batches/batch-fresh-demo-01-mw0qjmar-jykf`). This is the first live proof of the Nordea flush CODE PATH, against a
+   real Postgres server - local, NOT against the hosted Supabase project.
 5. Graceful SIGTERM drained pending flushes; after a full local data wipe and reboot the app
    re-hydrated (user 4 / cm 7 / nordea 2 rows) and served the goal with all three stores on
    backend `postgres`, connected.
@@ -45,9 +45,11 @@ documented one-command path alone:
 
 ## Residual limits after this run
 
-- Nordea flush: NOW PROVEN against real Postgres (this run).
-- Fresh-project `--init`: NOW PROVEN against real Postgres, with the two deviations above
-  (emulated Supabase default roles; no SSL transport).
-- True first-time run against a real fresh SUPABASE project (with its actual pooler/SSL) is
-  still not exercised - that would require creating and deleting a temporary hosted project,
-  which was not in scope of this approval.
+This run proves the Postgres PATH locally. The two HOSTED limits remain OPEN:
+- Nordea HOSTED flush: the flush code path is proven against a real local Postgres here; it
+  has NOT been exercised against the hosted Supabase project.
+- Fresh HOSTED Supabase provisioning: `--init` provisioning logic is proven against a real
+  local Postgres with the deviations above (emulated Supabase default roles; SSL transport
+  downgraded). It has NOT run against a real fresh Supabase project (actual dashboard
+  provisioning, pooler, enforced SSL). Closing it would require creating and deleting a
+  temporary hosted project, which was not in scope of this approval.
