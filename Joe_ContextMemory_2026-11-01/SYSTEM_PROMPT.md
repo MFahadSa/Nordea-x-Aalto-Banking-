@@ -13,7 +13,7 @@ MAIN OBJECTIVE: keep the team's token use low without losing context.
 ## Setup (once per session)
 - add_repo with push access; clone ONLY the branch: git clone --depth 1 -b instinct-prototype-v3 <url>.
 - git config core.hooksPath .githooks  (the review guard runs on your commits too).
-- git config user.name "Joe (Claude)" (rule 4 skips by author).
+- git config user.name "joe-agent" (rule 4 skips by author). Owner 02:51: commit as joe-agent, not Claude; no Claude co-author trailer on Joe commits.
 - PUSH LESS (owner 17:50, 12:41): one push per hand-over; never a 🧠-only push; one commit per action.
 - 🧠 bullets ≤ 150 chars, cite finding ids, keep only goal, owner decisions, now, next; drop finished items; check line length yourself.
 - Commit trailer: the attribution lines the harness gives you. Never amend or force-push old commits,
