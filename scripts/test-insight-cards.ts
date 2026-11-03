@@ -44,8 +44,8 @@ check('tie-out: category shares are consumption-only', a.topCategories.length ==
 check('tie-out: savings pace from matched savings transfers', a.savingsMonthlyAvg === 200, String(a.savingsMonthlyAvg));
 
 const card = I.buildGoalCard('Japan trip 3 000 € by 2027-06', a);
-check('card leads with meaning, not an aggregate', card.text.startsWith('Spending linked to this goal averages about 115 EUR a month over 6 months (12 purchases, 2026-05-02 to 2026-10-02).'), card.text);
-check('card names the drivers with shares', card.text.includes('Biggest drivers: restaurants 65%, shopping 35%.'), card.text);
+check('card leads with meaning, not an aggregate', card.text.startsWith('Spending linked to this goal is mostly restaurants, and it is rising.'), card.text);
+check('card supports the takeaway with the grounded numbers', card.text.includes('It averages about 115 EUR a month over 6 months (12 purchases, 2026-05-02 to 2026-10-15)') === false && card.text.includes('averages about 115 EUR a month over 6 months (12 purchases, 2026-05-02 to 2026-10-02)') && card.text.includes('biggest drivers: restaurants 65%, shopping 35%.'), card.text);
 check('card states the direction of change honestly', card.text.includes('up about 30% on the three months before.'), card.text);
 check('scenario is labeled and sized from the code average', card.text.includes('Scenario: cutting restaurants by a third would free about 25 EUR a month'), card.text);
 check('projection is labeled and uses the title target with the matched savings pace', card.text.includes('the 3000 EUR target takes about 15 months (goal date 2027-06)'), card.text);
@@ -107,6 +107,12 @@ check('a target without a date paces without inventing a goal date', (() => { co
 check('guard passes grounded text', I.textFiguresGrounded('About 115 EUR a month, up 30% since 2026-05-02.', [115, 30]));
 check('guard drops a hallucinated figure', !I.textFiguresGrounded('About 115 EUR a month, up 42%.', [115, 30]));
 
+// Adversarial semantic guard (Coordinator QC): grounded digits alone are not enough.
+check('guard keeps a rewrite that preserves the labels', I.textPreservesLabels(card.text, 'Mostly restaurants and rising. Scenario: cutting restaurants by a third frees about 25 EUR a month - not a recommendation. About 200 EUR a month of savings is a projection, 15 months to 3000 EUR.'));
+check('guard drops a rewrite that turns the scenario into a claim', !I.textPreservesLabels(card.text, 'Cutting restaurants by a third frees about 25 EUR a month. Up 30%.'));
+check('guard drops a rewrite that drops the projection label', !I.textPreservesLabels(card.text, 'Scenario: cutting restaurants by a third frees about 25 EUR a month - not a recommendation. The 3000 EUR target takes about 15 months.'));
+check('guard drops a rewrite that drops the hedging', !I.textPreservesLabels(card.text, 'Scenario: cutting restaurants by a third frees about 25 EUR a month. The 3000 EUR target takes about 15 months - a projection.'));
+
 // Integration: prepareInsightDrafts matches the Nordea DB; no provider = scripted path, no model call.
 const UID = 'insighttest';
 S.saveNordeaDb({ userId: UID, accounts: [], transactions: TX.map((t) => ({ ...t, userId: UID })) as never });
@@ -124,6 +130,9 @@ const out2 = execSync('node scripts/run_python.mjs scripts/load_data.py --init -
 check('--init --print-sql is stable and every table is IF NOT EXISTS', out1 === out2 && out1.includes('create table if not exists') && !/create table (?!if not exists)/i.test(out1));
 const out3 = execSync('node scripts/run_python.mjs scripts/load_data.py --init --print-sql', { encoding: 'utf-8', env: { ...process.env, SUPABASE_DB_URL: 'postgresql://owner:secretpw@db.example:5432/postgres' } });
 check('--init --print-sql never prints the privileged URL', !out3.includes('secretpw'));
+const out4 = execSync('node scripts/run_python.mjs scripts/load_data.py --init --print-sql', { encoding: 'utf-8', env: { ...process.env, AGENT_USER_PASSWORD: 'role-secret-1', AGENT_CM_PASSWORD: 'role-secret-2', AGENT_NORDEA_PASSWORD: 'role-secret-3' } });
+check('--init never prints role passwords, and the schema+feed SQL is complete', !out4.includes('role-secret') && out4.includes('create table if not exists public.nordea_feed'), 'leak or missing feed');
+check('--init never passes the privileged URL in the psql argv (process list)', !fs.readFileSync('scripts/load_data.py', 'utf-8').includes('["psql", db_url'));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

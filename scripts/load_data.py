@@ -809,14 +809,14 @@ def main() -> None:
     ap.add_argument("--no-reload", action="store_true", help="don't tell the running app")
     ap.add_argument("--dry-run", action="store_true", help="read and check the files, show what would happen, change nothing")
     ap.add_argument("--init", action="store_true",
-                    help="one-time privileged setup: apply supabase/three-agents.sql via psql using "
+                    help="one-time privileged setup: apply supabase/three-agents.sql + supabase/nordea-feed.sql via psql using "
                          "SUPABASE_DB_URL (environment, .env or .env.local). Idempotent; the URL is never "
                          "printed; no existing role credentials are changed")
     ap.add_argument("--print-sql", action="store_true", help="with --init: print the setup SQL instead of running it")
     args = ap.parse_args()
 
     if args.init:
-        sql = (ROOT / "supabase" / "three-agents.sql").read_text()
+        sql = "\n".join((ROOT / "supabase" / f).read_text() for f in ("three-agents.sql", "nordea-feed.sql"))
         if args.print_sql:
             sys.stdout.write(sql)
             return
@@ -828,14 +828,57 @@ def main() -> None:
         env_local = ROOT / ".env.local"
         if env_local.exists() and "SUPABASE_DB_URL" in env_local.read_text():
             env_local.chmod(0o600)  # a file holding the privileged URL stays readable by the owner only
-        res = subprocess.run(["psql", db_url, "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],
-                             input=sql, text=True, capture_output=True)
+        # The privileged URL never reaches argv (visible in the process list): parse it and
+        # connect through libpq environment variables instead.
+        parts = urllib.parse.urlsplit(db_url)
+        env = dict(os.environ)
+        env.update({
+            "PGHOST": parts.hostname or "",
+            "PGPORT": str(parts.port or 5432),
+            "PGUSER": urllib.parse.unquote(parts.username or ""),
+            "PGPASSWORD": urllib.parse.unquote(parts.password or ""),
+            "PGDATABASE": (parts.path or "/").lstrip("/"),
+            "PGSSLMODE": "require",
+        })
+        smoke = (ROOT / "supabase" / "role-smoke.sql").read_text()
+        # Fresh projects need a password per agent role. Passwords come from the environment
+        # (AGENT_USER_PASSWORD / AGENT_CM_PASSWORD / AGENT_NORDEA_PASSWORD) or are generated here; they
+        # are never printed or logged, they are set ONLY for roles that do not exist yet (an existing
+        # role's credentials are never rotated), and the three role URLs are written to .env.local
+        # (chmod 600) for the app to use. --print-sql never includes them.
+        import secrets
+        owner_user = urllib.parse.unquote(parts.username or "")
+        suffix = owner_user.split(".", 1)[1] if "." in owner_user else ""
+        role_sql = ""
+        role_urls = {}
+        role_pws = []
+        for role in ("agent_user", "agent_cm", "agent_nordea"):
+            pw = os.environ.get(role.upper() + "_PASSWORD", "") or secrets.token_urlsafe(24)
+            role_pws.append(pw)
+            role_sql += ("do $$ begin if not exists (select from pg_roles where rolname = '" + role + "') "
+                         "then create role " + role + " login password '" + pw.replace("'", "''") + "'; end if; end $$;\n")
+            role_user = role + ("." + suffix if suffix else "")
+            role_urls[role.upper() + "_DB_URL"] = ("postgresql://" + urllib.parse.quote(role_user, safe="")
+                                                   + ":" + urllib.parse.quote(pw, safe="")
+                                                   + "@" + (parts.hostname or "") + ":" + str(parts.port or 5432)
+                                                   + "/" + ((parts.path or "/").lstrip("/")))
+        res = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],
+                             input=role_sql + sql + "\n" + smoke, text=True, capture_output=True, env=env)
         if res.returncode != 0:
-            err = (res.stderr or "").replace(db_url, "***").strip().splitlines()
-            sys.exit("psql failed: " + (err[-1] if err else "unknown error"))
-        print("Setup applied (idempotent; no existing role credentials changed): agent_user_records, "
-              "agent_cm_records, agent_nordea_records, one Postgres role per agent. "
-              "Verify with supabase/role-smoke.sql - every line should say PASS.")
+            err = (res.stderr or "").replace(db_url, "***").replace(env["PGPASSWORD"], "***")
+            for pw in role_pws:
+                err = err.replace(pw, "***")
+            sys.exit("psql failed: " + (err.strip().splitlines() or ["unknown error"])[-1])
+        # Write the three role URLs to .env.local (0600) - values are never printed.
+        lines = ["# Written by load_data.py --init - role connection URLs for the three agent stores."]
+        lines += [k + '="' + v + '"' for k, v in role_urls.items()]
+        env_local.write_text("\n".join(lines) + "\n")
+        env_local.chmod(0o600)
+        smoke_out = (res.stdout or "").strip()
+        print("Setup applied (idempotent; existing role credentials never rotated): agent tables, one role "
+              "per agent, Nordea feed, smoke check. The three role URLs were written to .env.local (0600) - "
+              "values are not printed. Smoke output: " + ("; ".join(smoke_out.splitlines()[-3:]) if smoke_out else "see psql output"))
+
         return
 
     if not args.paths and not args.clear:

@@ -1,4 +1,4 @@
-TURN: Telkomsel
+TURN: Bill
 
 # review.md: quality control for `instinct-prototype-v3`
 
@@ -84,4 +84,16 @@ OPEN: G64 (M, security) load_data.py --init passes SUPABASE_DB_URL to psql in ar
 Scope: no owner/Coordinator record for the insight feature or --init (hosted SQL). ASK@Coordinator #insight: owner words verbatim+ts or a D13.
 Nobody runs --init on the live project without an owner go. Recorded: G65 chart arrow (closed), G66 income-as-spending (verified).
 NEXT: Telkomsel
+```
+
+### [Telkomsel] 2026-11-03 12:56
+```
+Follow-up on @a06e941 findings: G63 fixed (adapter counts for the Japan seed goal: 3 goals / 9 entries; green), G64 fixed
+(psql via libpq env vars - URL never in argv; regression test pins it). Model guard hardened: text must keep the card's
+labels (Scenario:/projection/hedge) or fall back to the deterministic card; adversarial tests cover dropped qualifiers.
+Cards lead with meaning, numbers as support. --init covers three-agents + nordea-feed + role-smoke; role passwords from
+env or generated, set only for NEW roles (no rotation), URLs to .env.local 0600, never printed. Suites: insight 42, arch
+410, adapter, load, lint, guard. Clean one-goal proposal->accept UI proof follows. Bill: please re-verify; owner-words ask
+is with Coordinator.
+NEXT: Bill
 ```

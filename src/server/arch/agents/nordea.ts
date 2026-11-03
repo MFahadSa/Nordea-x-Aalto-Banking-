@@ -16,7 +16,7 @@ import { nordeaRiskReceipt, validateNordeaRiskClaim, nordeaRiskRunner } from '..
 import type { NordeaRiskItem, NordeaRiskRun } from '../risk.js';
 import { registerHandler } from '../dispatcher.js';
 import { recordProposals, loadRound, roundDone } from '../rounds.js';
-import { analyseMatches, buildGoalCard, textFiguresGrounded } from '../insight.js';
+import { analyseMatches, buildGoalCard, textFiguresGrounded, textPreservesLabels } from '../insight.js';
 
 /** F26: evidence carries a hash of the FULL sorted id set, so churn checks compare like
  * with like. The 25-id sample stays for display/risk only - never for comparison.
@@ -90,7 +90,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
       const analysis = analyseMatches(matches);
       const card = buildGoalCard(goal.title, analysis);
       const polished = round?.llm?.insightTexts?.[goal.title];
-      const insightText = polished && textFiguresGrounded(polished, analysis.figures) ? polished : card.text;
+      const insightText = polished && textFiguresGrounded(polished, analysis.figures) && textPreservesLabels(card.text, polished) ? polished : card.text;
       const evidence = { total, matched: matches.length, transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)), monthlyAvg: analysis.monthlyAvg, coverageMonths: analysis.coverageMonths, changePct: analysis.changePct, topCategories: analysis.topCategories, sparse: card.sparse };
       sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: insightText, source: 'nordea', evidence, at: now() });
       const title = `Activity related to goal "${goal.title}"`;
@@ -515,7 +515,7 @@ export async function llmDraftInsightTexts(uid: string, drafts: InsightDraft[]):
   for (const d of drafts) {
     const v = raw[d.title] ?? raw[d.title.toLowerCase()];
     // The figure guard: an ungrounded model figure drops this goal back to the deterministic card.
-    if (typeof v === 'string' && v.trim().length >= 20 && textFiguresGrounded(v, d.figures)) texts[d.title] = v.trim();
+    if (typeof v === 'string' && v.trim().length >= 20 && textFiguresGrounded(v, d.figures) && textPreservesLabels(d.text, v)) texts[d.title] = v.trim();
   }
   return Object.keys(texts).length ? { texts, status: 'model' } : { texts: {}, status: 'scripted' };
 }

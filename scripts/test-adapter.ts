@@ -34,7 +34,7 @@ function check(name: string, cond: boolean, detail?: unknown) {
 // --- Migration: legacy demo file -> three agent databases
 check('both demo customers are registered in the customers index', ['lauri', 'eeva'].every((u) => S.listCustomers().includes(u)), S.listCustomers());
 check('lauri profile lives in the User DB', S.loadProfile('lauri')?.name === 'Lauri' && S.loadProfile('lauri')?.age === 31);
-check('lauri goals live in the User DB (2 demo goals)', S.loadUserDb('lauri').goals.length === 2, S.loadUserDb('lauri').goals.length);
+check('lauri goals live in the User DB (3 demo goals)', S.loadUserDb('lauri').goals.length === 3, S.loadUserDb('lauri').goals.length);
 check('lauri non-goal entries live in the Context Memory DB (2 observations + 1 preference)', S.loadCmDb('lauri').entries.length === 3, S.loadCmDb('lauri').entries.length);
 check('eeva data migrated too (1 goal + 2 entries)', S.loadUserDb('eeva').goals.length === 1 && S.loadCmDb('eeva').entries.length === 2);
 check('lauri balances live in the Nordea DB', !!S.loadBalances('lauri')?.current);
@@ -50,7 +50,7 @@ check('rewards live in the Nordea DB, keyed by customer', JSON.parse(S.loadAppRe
 // --- getState composes the old DatabaseState shape
 const state = db.getState();
 check('getState composes users from User DB + Nordea DB + rewards', state.users.lauri?.name === 'Lauri' && state.users.lauri?.points === 120 && !!state.users.lauri?.accounts?.current);
-check('getState composes all 8 demo cabinet entries (goals + entries)', state.cabinetEntries.length === 8, state.cabinetEntries.length);
+check('getState composes all 9 demo cabinet entries (goals + entries)', state.cabinetEntries.length === 9, state.cabinetEntries.length);
 check('getState keeps plumbing lists (messages, access log)', state.messages.length === 3 && state.accessLog.length >= 1, { m: state.messages.length, a: state.accessLog.length });
 
 // --- G2: app code writes the agent DBs directly through the adapter

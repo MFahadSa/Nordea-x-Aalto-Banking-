@@ -131,17 +131,20 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
   }
   const parts: string[] = [];
   if (a.spendingRows > 0 && a.monthlyAvg != null) {
-    let s = `Spending linked to this goal averages about ${a.monthlyAvg} EUR a month over ${a.coverageMonths} months (${a.spendingRows} purchases, ${a.firstDate} to ${a.lastDate}).`;
-    if (a.topCategories.length) {
-      s += ` Biggest drivers: ${a.topCategories.map((c) => `${c.name} ${c.sharePct}%`).join(', ')}.`;
-    }
+    // Meaning first: the takeaway in plain words, then the numbers as its support.
+    const gapped = a.firstDate && a.lastDate
+      ? (Number(a.lastDate.slice(0, 4)) * 12 + Number(a.lastDate.slice(5, 7))) - (Number(a.firstDate.slice(0, 4)) * 12 + Number(a.firstDate.slice(5, 7))) + 1 > a.coverageMonths
+      : false;
+    const drivers = a.topCategories.length ? ` - biggest drivers: ${a.topCategories.map((c) => `${c.name} ${c.sharePct}%`).join(', ')}.` : '.';
+    const base = ` It averages about ${a.monthlyAvg} EUR a month over ${a.coverageMonths} months (${a.spendingRows} purchases, ${a.firstDate} to ${a.lastDate})`;
+    let s = `Spending linked to this goal is mostly ${a.topCategories.length ? a.topCategories[0].name : 'everyday purchases'}`;
     if (a.changePct != null && Math.abs(a.changePct) >= 5) {
-      const gapped = a.firstDate && a.lastDate
-        ? (Number(a.lastDate.slice(0, 4)) * 12 + Number(a.lastDate.slice(5, 7))) - (Number(a.firstDate.slice(0, 4)) * 12 + Number(a.firstDate.slice(5, 7))) + 1 > a.coverageMonths
-        : false;
+      s += `, and it is ${a.changePct > 0 ? 'rising' : 'falling'}.` + base + drivers;
       s += ` That is ${a.changePct > 0 ? 'up' : 'down'} about ${Math.abs(a.changePct)}% on the three ${gapped ? 'covered ' : ''}months before.`;
     } else if (a.changePct != null) {
-      s += ` That has been fairly steady across recent months.`;
+      s += '.' + base + drivers + ` That has been fairly steady across recent months.`;
+    } else {
+      s += '.' + base + drivers;
     }
     parts.push(s);
   } else {
@@ -184,4 +187,16 @@ export function figuresFromText(text: string): number[] {
 
 export function textFiguresGrounded(text: string, figures: number[]): boolean {
   return figuresFromText(text).every((n) => figures.some((f) => Math.abs(f - n) < 1e-9 || Math.abs(f - Math.round(n)) < 1e-9));
+}
+
+/** Semantic guard: a model rewrite must keep the labeled claim types of the card. Grounded
+ *  digits alone are unsafe - a rewrite that drops "Scenario:" or the projection/hedge wording
+ *  can turn a labeled illustration into an unsupported claim. Failing this falls back. */
+export function textPreservesLabels(card: string, text: string): boolean {
+  const need: string[] = [];
+  if (card.includes('Scenario:')) need.push('scenario:');
+  if (card.includes('a projection')) need.push('projection');
+  if (card.includes('not a recommendation')) need.push('not a recommendation');
+  if (card.includes('too little history')) need.push('too little');
+  return need.every((w) => text.toLowerCase().includes(w));
 }
