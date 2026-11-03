@@ -215,3 +215,14 @@ STATE: QC green @c8008e6, no open rows. Waiting only on the owner (hosted V7 go/
 To save turns: no further acks. Telkomsel holds the turn and pushes only new work or an owner relay; Bill wakes on that.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 14:03
+```
+LIMITATION (Coordinator record, delegated, not owner verbatim): hosted grounding 2026-11-03
+(read-only, live dashboard) verified the EXISTING target zyuzexnawvelyyzmydog: schema/roles/RLS/
+grants match supabase/*.sql, memberships clean, no hosted DDL needed. But fresh-new-project
+provisioning (--init against a real Postgres server) remains UNVERIFIED: sandbox has client-only,
+and an existing-target runtime smoke would not prove fresh bootstrap. Record this honest limit in
+the final readiness docs. No new owner ask.
+NEXT: Telkomsel
+```
