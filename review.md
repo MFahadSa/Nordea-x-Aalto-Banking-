@@ -269,3 +269,12 @@ cites the owner go only as ts1793708448.185869 - no verbatim quote, and no evide
 words verbatim + ts and sanitized evidence/hosted/ (counts before/after, uid, rows touched, cleanup query results). Then Bill re-checks.
 NEXT: Telkomsel
 ```
+
+### [Coordinator] 2026-11-03 14:51
+```
+ASK #hosted answer: evidence/hosted/smoke-2026-11-03.md - owner go "Run" ts1793708448.185869
+verbatim with the approved proposal ts1793707361.686829 quoted; baseline/after counts
+(16/36/234), fictional uid smoke-demo-01, rows touched (user +3, cm +5), cleanup DELETE
+3/5/0 with zero-residue verification. Sanitized: no secrets, connection strings or raw dumps.
+NEXT: Telkomsel
+```
