@@ -746,7 +746,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
         <NordeaDataRow userId={state.user.id} onChanged={() => onRefresh?.()} />
         <DebugToggle />
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
-        <NRow name="Delete all data" sub="Load it again with scripts/load_data.py" onClick={onReset} />
+        <NRow name="Reset demo data" sub="Start again" onClick={onReset} />
       </div>
     </div>
   </>

@@ -221,21 +221,19 @@ export const Chat: React.FC<Props> = (p) => {
     const sup = m.supplied;
     if (!sup && !es.length) return null;
     const open = usedOpen === m.id;
-    const docStamp = sup ? `from your document: ${sup.notes} ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ' + account data' : ''}` : '';
-    const sourceStamp = !sup || !sup.source
-      ? `Abel could see ${sup?.notes ?? 0} ${(sup?.notes ?? 0) === 1 ? 'note' : 'notes'}${sup?.accountData ? ' + account data' : ''}`
-      : sup.source === 'model'
-        ? `Abel's AI answered${sup.provider ? ` · ${sup.provider}` : ''} · ${docStamp}`
-        : sup.source === 'scripted-error'
-          ? `Scripted answer after an AI error · ${docStamp}`
-          : `Scripted answer · ${docStamp}`;
-    // Order: question category, client-measured elapsed time, the actual answerer, the round plan.
+    // Plain for the customer: what Abel could see. The technical stamp (timing, model, category,
+    // round plan) only shows with the debug switch on (More → Show technical details).
+    const seeLine = sup ? `Abel could see ${sup.notes} ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ' + account data' : ''}` : '';
     const tm = p.timings?.[m.id];
-    const el = tm ? `${(tm.ms / 1000).toFixed(tm.ms < 10000 ? 1 : 0)} s client-measured${tm.late ? ', picked up late' : ''}` : '';
-    const planStamp = sup?.plan ? `round plan: cm ${sup.plan.cm}, nordea ${sup.plan.nordea}${sup.plan.provider ? ` on ${sup.plan.provider}` : ''}` : '';
-    const head = [el, sup?.category].filter(Boolean).join(' · '); // elapsed first, then the exact category
+    const tech = debug && sup ? [
+      tm ? `${(tm.ms / 1000).toFixed(tm.ms < 10000 ? 1 : 0)} s${tm.late ? ', picked up late' : ''}` : '',
+      sup.category || '',
+      sup.source === 'model' ? `AI${sup.provider ? ` · ${sup.provider}` : ''}` : sup.source === 'scripted-error' ? 'scripted after an AI error' : sup.source === 'scripted' ? 'scripted' : '',
+      sup.shared ? 'shared context from the agents' : '',
+      sup.plan ? `round plan: cm ${sup.plan.cm}, nordea ${sup.plan.nordea}${sup.plan.provider ? ` on ${sup.plan.provider}` : ''}` : '',
+    ].filter(Boolean).join(' · ') : '';
     const label = sup
-      ? [head, sourceStamp, planStamp].filter(Boolean).join(' · ')
+      ? [seeLine, tech].filter(Boolean).join(' · ')
       : `Abel says it used ${es.length} ${es.length === 1 ? 'thing' : 'things'}`;
     return (
       <>
@@ -248,7 +246,7 @@ export const Chat: React.FC<Props> = (p) => {
           <div className="used-list">
             {sup && (
               <p className="used-note">
-                Abel was given {sup.notes} {sup.notes === 1 ? 'note' : 'notes'} you approved{sup.accountData ? ' and your demo account data (balances, salary, spending; fictional)' : ''}. Nothing else: not your kept files, and nothing you declined or removed.
+                Abel was given {sup.notes} {sup.notes === 1 ? 'note' : 'notes'} you approved{sup.accountData ? ' and your demo account data (balances, salary, spending; fictional)' : ''}. {sup.shared ? ' Also the summary the bank’s helper agents prepared for this chat.' : ''} Nothing else: not your kept files, and nothing you declined or removed.
               </p>
             )}
             {es.length > 0 && <p className="used-note"><b>Abel says it used:</b> (its own report, not a proof)</p>}
@@ -450,7 +448,7 @@ export const Chat: React.FC<Props> = (p) => {
     if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">Quick answer from your account data · Abel’s AI is taking a short break</span> });
     if (m.errorInfo && debug) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
-    // The answer stamp only under Abel's latest reply, so it isn't repeated down the whole chat.
+    // "Abel could see …" only under Abel's latest reply, so it isn't repeated down the whole chat.
     if (lastBot && m.id === latestAgentId) lastBot.after = usedLine(m);
     if (m.resolved && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
   });

@@ -695,8 +695,9 @@ export const appWrites = {
     controlRoundTrip(uid, 'personal', 'The app stores a document in the User DB.', { control: 'put-document', doc }),
   removeDocument: (uid: string, id: string) =>
     controlRoundTrip(uid, 'personal', 'The app removes a document from the User DB.', { control: 'remove-document', id }),
-  putEntry: (uid: string, entry: ArchEntry) =>
-    controlRoundTrip(uid, 'cm', `The app writes cabinet entry "${entry.title}" to the Context Memory DB.`, { control: 'put-entry', entry }),
+  /** byCustomer: the write is the customer's own action in the app (a tap or a ticked item) - their consent. */
+  putEntry: (uid: string, entry: ArchEntry, byCustomer = false) =>
+    controlRoundTrip(uid, 'cm', `The app writes cabinet entry "${entry.title}" to the Context Memory DB.`, { control: 'put-entry', entry, ...(byCustomer ? { byCustomer: true } : {}) }),
   removeEntry: (uid: string, entryId: string, purge: boolean) =>
     controlRoundTrip(uid, 'cm', 'The app removes a cabinet entry from the Context Memory DB.', { control: 'remove-entry', entryId, purge }),
   logHistory: (uid: string, event: unknown) =>

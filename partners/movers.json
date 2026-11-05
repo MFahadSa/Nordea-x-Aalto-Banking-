@@ -1,0 +1,32 @@
+{
+  "id": "movers",
+  "name": "Kantaja Movers",
+  "initials": "KM",
+  "color": "#6B4BB8",
+  "kind": "Moving and packing",
+  "when": "The customer needs help with moving, movers, packing or a moving van.",
+  "cta": "See prices",
+  "view": "Ask for a quote",
+  "buy": "Book it (demo)",
+  "verb": "booked",
+  "alternative": "Or plan the moving costs with Abel, free",
+  "fee": {
+    "type": "flat",
+    "value": 40
+  },
+  "shareBack": 0.5,
+  "feeText": "Nordea gets 40 € if you book through Kantaja, and gives half of it back to you.",
+  "items": [
+    {
+      "title": "Two movers · 4 hours",
+      "sub": "Van included · up to 50 m²",
+      "price": 380
+    },
+    {
+      "title": "Packing and moving",
+      "sub": "Boxes, packing, two movers · 6 hours",
+      "price": 640
+    }
+  ],
+  "_note": "Fictional partner for the student concept. Not a real company."
+}

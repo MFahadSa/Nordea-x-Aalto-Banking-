@@ -10,13 +10,15 @@ import { archState } from './arch/orchestrator.js';
 
 // G22: on by default. The monitor shows everything, private cards included, so set
 // DEV_MONITOR=0 on any hosted or shared deployment. Read per request: .env loads after imports.
-const enabled = () => process.env.DEV_MONITOR !== '0';
+// On a hosted copy (Google Cloud Run, which AI Studio uses, sets K_SERVICE) it is OFF unless
+// DEV_MONITOR=1 is set on purpose; on a laptop it stays on unless DEV_MONITOR=0.
+const enabled = () => process.env.DEV_MONITOR === '1' || (process.env.DEV_MONITOR !== '0' && !process.env.K_SERVICE);
 
 export function registerDevMonitor(app: Express) {
   // Registered before the static files, so the page itself is hidden too when the monitor is off.
   app.get(['/dev-monitor.html', '/api/dev/monitor'], (_req: Request, res: Response, next) => {
     if (enabled()) return next();
-    res.status(404).json({ error: 'The developer monitor is off (DEV_MONITOR=0).', code: 'MONITOR_OFF' });
+    res.status(404).json({ error: 'The developer monitor is off (DEV_MONITOR=0, or a hosted copy without DEV_MONITOR=1).', code: 'MONITOR_OFF' });
   });
 
   app.get('/api/dev/monitor', (req: Request, res: Response) => {

@@ -492,17 +492,23 @@ function handleMessage(uid: string, msg: AgentMessage) {
       // nothing reaches the cabinet active without the customer's consent somewhere.
       // An archive is a removal, not new content: it lands directly, and a still-waiting
       // proposal for the same entry is withdrawn so a late accept cannot resurrect it.
-      if (inEntry.status === 'archived') {
+      // "That's wrong" (disputed) also only takes data away from Abel, so it lands directly too.
+      if (inEntry.status === 'archived' || inEntry.status === 'disputed') {
         const waiting = loadBus(uid).messages.find((m) => m.type === 'propose' && m.status === 'pending'
           && (m.payload as { appWrite?: boolean; entry?: { id?: string } } | undefined)?.appWrite === true
           && (m.payload as { entry?: { id?: string } } | undefined)?.entry?.id === inEntry.id);
         if (waiting) updateMessage(uid, waiting.id, { status: 'rejected' });
         putEntry(uid, { ...inEntry, risk, observed });
-        appendMessage(uid, { from: 'cm', to: 'app', type: 'reply', summary: `Context Memory agent archived "${inEntry.title}".`, payload: { inReplyTo: msg.id, ok: true, archived: true } });
+        appendMessage(uid, { from: 'cm', to: 'app', type: 'reply', summary: `Context Memory agent ${inEntry.status === 'disputed' ? 'marked as wrong' : 'archived'} "${inEntry.title}".`, payload: { inReplyTo: msg.id, ok: true, archived: true } });
         updateMessage(uid, msg.id, { status: 'answered' });
         return;
       }
-      if (risk === 'high' || doc.reviewed === false) {
+      // The customer's own action (a ticked import item, a "Save it" tap, sent by the app as byCustomer) IS
+      // the consent for a high-risk write: it lands directly instead of waiting for a second approval, so
+      // the app never says "Saved" for something that is not there. Anything else high-risk or unreviewed
+      // still waits here (G10).
+      const byCustomer = (payload as { byCustomer?: boolean }).byCustomer === true && doc.reviewed !== false;
+      if (doc.reviewed === false || (risk === 'high' && !byCustomer)) {
         // One pending proposal per entry id: a repeated write refreshes the waiting
         // proposal instead of stacking duplicates in the customer's review queue.
         const existing = loadBus(uid).messages.find((m) => m.type === 'propose' && m.status === 'pending'

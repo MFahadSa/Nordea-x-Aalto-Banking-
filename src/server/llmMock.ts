@@ -72,7 +72,10 @@ export const mockProvider: LlmProvider = {
     const u = lastUserText(turns);
     if (last.role === 'user') {
       if (/make up a number/.test(u)) return { calls: [call('finishReply', { text: 'You have 99 999 € hidden somewhere.', suggestions: [], usedEntryIds: [], topic: 'other', couldHelp: true })] };
-      if (/on track/.test(u)) return { calls: [call('getGoalStatus')] };
+      if (/(look|search|find).*(flat|house|apartment)|for sale/.test(u)) return { calls: [call('suggestPartnerOffer', { partnerId: 'homes' })] };
+      if (/financial advice/.test(u)) return { calls: [call('suggestPartnerOffer', { partnerId: 'planner' })] };
+      if (/on track|deposit do i have/.test(u)) return { calls: [call('getGoalStatus')] };
+      if (/afford/.test(u)) return { calls: [call('checkAffordability', { amount: Number((u.match(/(\d[\d\s]*)\s*€/) || ['', '0'])[1].replace(/\s/g, '')) })] };
       if (/yes, move|move 300/.test(u)) return { calls: [call('offerTransfer', { amountPerMonth: 300 })] };
       if (/yes, show me|payday|plan my/.test(u)) return { calls: [call('getPayPlan')] };
       if (/wedding/.test(u)) return { calls: [call('proposeCabinetChange', { action: 'add', type: 'goal', title: 'Save for a wedding', targetAmount: /20 ?000|20k/.test(u) ? 20000 : 15000, targetDate: '2027-07-31', goalType: 'other', sensitive: false })] };
@@ -90,12 +93,15 @@ export const mockProvider: LlmProvider = {
       let text = 'Done (mock).';
       let used: string[] = [];
       if (r.call.name === 'getGoalStatus' && Array.isArray(res)) {
-        const g = res[0];
-        text = `For “${g.title}” you have ${g.saved.toLocaleString('fi-FI')} € and ${g.monthlyGoingIn} € a month going in. You’d be about ${g.shortBy.toLocaleString('fi-FI')} € short.`;
+        // The goal the customer is talking about (flat / deposit / home), else the first one.
+        const g = (/flat|deposit|home|it\b/i.test(u) && res.find((x: any) => /flat|home/i.test(x.title))) || res[0];
+        text = `For “${g.title}” you have ${g.saved.toLocaleString('fi-FI')} € of ${g.target.toLocaleString('fi-FI')} € and ${g.monthlyGoingIn} € a month going in. You’d be about ${g.shortBy.toLocaleString('fi-FI')} € short.`;
         used = [g.goalId];
       } else if (r.call.name === 'getPayPlan') {
         text = `Your next salary is ${res.income.toLocaleString('fi-FI')} €. About ${res.spendingAveragePerMonth.toLocaleString('fi-FI')} € goes on spending. I’d suggest moving ${res.suggestedExtraMove} € more each payday.`;
         used = homeId ? [homeId] : [];
+      } else if (r.call.name === 'suggestPartnerOffer') {
+        text = res.shown ? 'Since you’re saving for a home, this might help.' : 'Okay.';
       } else if (r.call.name === 'offerTransfer') {
         text = 'Here you go, just confirm below 👇';
       } else if (r.call.name === 'proposeCabinetChange') {
@@ -103,7 +109,9 @@ export const mockProvider: LlmProvider = {
       } else if (r.call.name === 'startHandoff') {
         text = 'I can connect you with a Nordea adviser.';
       } else if (r.call.name === 'getSpending') {
-        text = `About ${res.averagePerMonthTotal.toLocaleString('fi-FI')} € a month goes out.`;
+        text = `About ${res.averagePerMonthTotal.toLocaleString('fi-FI')} € a month goes out${res.averagePerMonthByCategory?.housing ? `, ${res.averagePerMonthByCategory.housing.toLocaleString('fi-FI')} € of it on housing` : ''}.`;
+      } else if (r.call.name === 'checkAffordability') {
+        text = `${res.amount.toLocaleString('fi-FI')} € would come out of your ${res.savingsBalance.toLocaleString('fi-FI')} € savings.`;
       }
       return { calls: [call('finishReply', { text, suggestions: [], usedEntryIds: [...used, 'not-a-real-id'], topic: 'goals', couldHelp: true })] };
     }

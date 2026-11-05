@@ -90,7 +90,7 @@ export const PersonaPickerModal: React.FC<Props> = ({
         <button
           className="btn link"
           onClick={() => {
-            if (window.confirm('Delete all customers and their data? Load data again with scripts/load_data.py.')) {
+            if (window.confirm('Reset the demo? Chats and changes are deleted and the demo customers start again.')) {
               onResetDatabase();
               onClose();
             }
@@ -102,7 +102,7 @@ export const PersonaPickerModal: React.FC<Props> = ({
             fontSize: '13.5px',
           }}
         >
-          Delete all data
+          Reset demo data
         </button>
       </div>
     </div>
