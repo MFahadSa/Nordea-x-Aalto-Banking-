@@ -61,7 +61,7 @@ export function kvReplyIn(t: string): { before: string; fields: Record<string, a
  * finishReply's arguments as JSON ({"text":…,"topic":…}) or as lines (see kvReplyIn).
  * Returns the calls and the text that's left once they're taken out.
  */
-export function callsInText(text: string, toolNames: string[], only?: { name: string; required: string[] }): { calls: ToolCall[]; rest: string } {
+export function callsInText(text: string, toolNames: string[], only?: { name: string; required: string[] }, finish?: { name: string; required: string[] }): { calls: ToolCall[]; rest: string } {
   const names = new Set(toolNames);
   let s = String(text || '').replace(/```(?:json)?/gi, '');
   const calls: ToolCall[] = [];
@@ -98,6 +98,14 @@ export function callsInText(text: string, toolNames: string[], only?: { name: st
     const name = v.name || v.function?.name || v.tool;
     const args = v.arguments ?? v.parameters ?? v.args ?? v.function?.arguments;
     const nm = typeof name === 'string' ? closestTool(name, toolNames) : undefined;
+    if (!nm && finish && typeof name === 'string' && name.toLowerCase() === 'json' && args && typeof args === 'object' && !Array.isArray(args)
+        && finish.required.every((k) => k in (args as Record<string, unknown>))) {
+      // gpt-oss writes its function call as {"name":"json","arguments":{…}}; when the args are exactly
+      // the finish tool's shape, run it as that finish call (never invent other tools).
+      calls.push({ id: id(), name: finish.name, args: args as Record<string, unknown> });
+      cut.push([b.start, b.end]);
+      continue;
+    }
     if (nm && (args === undefined || typeof args === 'object' || typeof args === 'string')) {
       const name = nm;
       let a = args;

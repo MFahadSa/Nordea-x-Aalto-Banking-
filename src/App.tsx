@@ -73,6 +73,10 @@ export default function App() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [waiting, setWaiting] = useState(false);
+  // Client-measured: send tap to reply arrival, per agent reply. In memory only - a reload shows nothing
+  // (no invented history). `late` = the reply was picked up after the connection dropped or hung.
+  const [timings, setTimings] = useState<Record<string, { ms: number; late: boolean }>>({});
+  const pendingRef = useRef(0);
   // Which chat is on screen, so a late answer for another chat doesn't land here.
   const viewRef = useRef(0);
 
@@ -136,6 +140,7 @@ export default function App() {
   // ---------- chat ----------
   const openHelper = (id: string) => {
     viewRef.current++;
+    pendingRef.current = 0;
     setWaiting(false);
     setHelperId(id);
     setConversationId(null);
@@ -144,6 +149,7 @@ export default function App() {
   };
   const openConversation = async (id: string) => {
     viewRef.current++;
+    pendingRef.current = 0;
     setWaiting(false);
     const c = state?.conversations.find((x) => x.id === id);
     setHelperId(c?.helperId || 'abel');
@@ -165,19 +171,24 @@ export default function App() {
     const cId = opts ? opts.conversationId : conversationId;
     const temp: ChatMessage = { id: 'tmp-' + Date.now(), userId: state.user.id, agentId: 'abel', channel: 'app', sender: 'user', text, createdAt: new Date().toISOString() };
     setMessages((prev) => [...prev, temp]);
+    pendingRef.current++;
     setWaiting(true);
     const view = viewRef.current;
+    const sentAt = performance.now();
     try {
       const res = await sendChat(state.user.id, cId, hId, text);
-      if (view !== viewRef.current) { refresh(); return; } // the customer moved to another chat meanwhile
+      const ms = Math.round(performance.now() - sentAt);
+      if (view !== viewRef.current) { refresh(); return; } // the customer moved to another chat meanwhile (the reply is stored; reopening the chat shows it)
       setMessages((prev) => prev.filter((m) => m.id !== temp.id));
+      const reply = [...res.messages].reverse().find((m) => m.sender === 'agent');
+      if (reply) setTimings((t) => ({ ...t, [reply.id]: { ms, late: !!res.late } }));
       appendFromServer(res.conversationId, res.messages);
       refresh();
     } catch (e: any) {
       if (view !== viewRef.current) return;
       setMessages((prev) => [...prev, { ...temp, id: 'err-' + Date.now(), sender: 'agent', text: 'Sorry, I didn’t get an answer. Could you try again?', errorInfo: e?.message || 'The request failed' }]);
     } finally {
-      if (view === viewRef.current) setWaiting(false);
+      if (view === viewRef.current) { pendingRef.current = Math.max(0, pendingRef.current - 1); setWaiting(pendingRef.current > 0); }
     }
   };
   /** Open a helper and send a first message straight away. */
@@ -354,6 +365,7 @@ export default function App() {
                 userName={state.user.name}
                 messages={messages}
                 waiting={waiting}
+                timings={timings}
                 entries={state.entries}
                 shares={state.shares}
                 onClose={() => setChatOpen(false)}

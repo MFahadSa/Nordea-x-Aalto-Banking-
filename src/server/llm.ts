@@ -26,13 +26,19 @@ export interface StepResult {
   calls: ToolCall[];
   text?: string;
   raw?: unknown;
+  /** V4: which member of a provider chain answered THIS call (e.g. "Groq openai/gpt-oss-120b").
+   *  Set per result by the chain, so a stamp never reads shared last-used state. Single
+   *  providers leave it unset - their name already identifies them. */
+  answeredBy?: string;
+  /** G51: chain members that answered this step without any tool call; the caller skips them for the rest of its run. */
+  noCallsMembers?: string[];
 }
 
 export interface LlmProvider {
   name: string;
   isConfigured(): boolean;
   /** One model step. The model must answer with tool calls (Abel always ends with finishReply). */
-  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number }): Promise<StepResult>;
+  step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number; skipMembers?: string[]; signal?: AbortSignal }): Promise<StepResult>;
   /** Can read photos (and scanned PDFs). */
   vision?: boolean;
   /** Readable name, e.g. "Groq" or "Gemini". */
@@ -72,8 +78,26 @@ export function recordTurn(ms: number, calls: number) {
   lastTurn = { at: new Date().toISOString(), ms, calls };
 }
 
+
+/** Paid-call cap (G16): when LLM_MAX_CALLS is set, real provider HTTP calls in this process are
+ * counted and refused past the cap, so a live test session cannot spend past its approved budget.
+ * The error fails the step; callers fall back to the scripted path and record it truthfully. */
+let llmCallsMade = 0;
+export function llmCallCount() { return llmCallsMade; }
+export const isLlmBudgetError = (msg: string) => /LLM_MAX_CALLS budget exhausted/.test(msg);
+export function countLlmCall(what: string) {
+  const cap = Number(process.env.LLM_MAX_CALLS) || 0;
+  if (cap > 0 && llmCallsMade >= cap) throw new Error(`LLM_MAX_CALLS budget exhausted (${llmCallsMade}/${cap}) - refusing paid call: ${what}`);
+  llmCallsMade += 1;
+  if (cap > 0) console.log(`[llm] paid call ${llmCallsMade}/${cap}: ${what}`);
+}
+/** Paid calls still allowed under LLM_MAX_CALLS in this process; null when no cap is set. Read-only: never changes the cap. */
+export function llmCallsRemaining(): number | null { const cap = Number(process.env.LLM_MAX_CALLS) || 0; return cap > 0 ? Math.max(0, cap - llmCallsMade) : null; }
+export function resetLlmCallCountForTests() { llmCallsMade = 0; }
+
 /** Max time for one call to the model. Without this a stuck request leaves the chat "typing…" forever. */
-const STEP_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 30000;
+/** One call really gets this long (120 s default): the old 30 s/15 s limits cut off slow-but-working models. */
+const STEP_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 120000;
 
 export function geminiConfigured() {
   const k = process.env.GEMINI_API_KEY;
@@ -102,14 +126,16 @@ function retryAfterMs(msg: string) {
 export const isTimeout = (msg: string) => /\(timeout\)|timed out|DEADLINE_EXCEEDED|\b504\b/i.test(msg);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI'): Promise<T> {
+/** `onTimeout` runs when the time is up, so the caller can CANCEL the work (abort the request)
+ *  instead of only walking away from it. */
+export function withTimeout<T>(p: Promise<T>, ms: number, what = 'The AI', onTimeout?: () => void): Promise<T> {
   return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${what} did not answer within ${Math.round(ms / 1000)} seconds (timeout)`)), ms);
+    const t = setTimeout(() => { try { onTimeout?.(); } catch { /* cancelling is best effort */ } reject(new Error(`${what} did not answer within ${Math.round(ms / 1000)} seconds (timeout)`)); }, ms);
     p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
   });
 }
 
-async function callGemini(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number }) {
+async function callGemini(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number; signal?: AbortSignal }) {
   const known = forced || thinkModes.get(model);
   const modes: ThinkMode[] = known ? [known] : ['level', 'budget', 'none'];
   let last: any;
@@ -126,8 +152,9 @@ async function callGemini(model: string, args: { system: string; contents: any[]
   throw last;
 }
 
-async function callOnce(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number }, thinkingConfig?: object) {
+async function callOnce(model: string, args: { system: string; contents: any[]; tools?: ToolDecl[]; temperature: number; timeoutMs?: number; signal?: AbortSignal }, thinkingConfig?: object) {
   // The key stays on the server: this file only runs in server.ts, never in the browser.
+  countLlmCall(`gemini ${model}`);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const config: any = { systemInstruction: args.system, temperature: args.temperature };
   if (thinkingConfig) config.thinkingConfig = thinkingConfig;
@@ -135,7 +162,11 @@ async function callOnce(model: string, args: { system: string; contents: any[]; 
     config.tools = [{ functionDeclarations: args.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }];
     config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } };
   }
-  return withTimeout(ai.models.generateContent({ model, contents: args.contents, config }), args.timeoutMs || STEP_TIMEOUT_MS);
+  // Own timeout AND the caller's signal both cancel the request (a timed-out call must not keep running).
+  const ctl = new AbortController();
+  if (args.signal) { if (args.signal.aborted) ctl.abort(); else args.signal.addEventListener('abort', () => ctl.abort(), { once: true }); }
+  config.abortSignal = ctl.signal;
+  return withTimeout(ai.models.generateContent({ model, contents: args.contents, config }), args.timeoutMs || STEP_TIMEOUT_MS, 'The AI', () => ctl.abort());
 }
 
 /**
@@ -177,6 +208,7 @@ export async function generateWith(
       } catch (err) {
         last = err;
         const msg = clean(err);
+        if (isLlmBudgetError(msg)) throw err; // paid-call cap: stop, don't burn retries
         lastError = { at: new Date().toISOString(), message: msg, model };
         console.error(`Gemini error (${model}, try ${attempt + 1}):`, msg);
         if (isDailyLimit(msg)) { exhaustedUntil.set(model, Date.now() + retryAfterMs(msg)); useful = { err, msg, model }; break; } // don't waste requests
@@ -284,4 +316,5 @@ export function getProvider(): LlmProvider {
 export function resetModelForTests() {
   activeModel = null;
   exhaustedUntil.clear();
+  llmCallsMade = 0;
 }

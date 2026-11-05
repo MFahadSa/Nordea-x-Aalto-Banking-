@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Load data into the Abel app's Supabase table (abel_records), separately from the app.
+Load data into the Abel app's stores, separately from the app.
 
 The app ships with no data. Whatever this script loads is what the app shows; with nothing loaded the
 app says "No data yet". Every record becomes one row: (kind, id, user_id, data jsonb).
@@ -9,7 +9,7 @@ Files it reads (the record kind comes from --kind, or else from the file or shee
   .csv / .tsv         one record per row. Headers like accounts.current.balance become nested fields,
                       cells holding JSON ({...} or [...]) are parsed, numbers and true/false are converted.
   .json               a list of records, a full snapshot {"users": {...}, "transactions": [...], ...}
-                      (the shape of data/cabinet-db.json), or raw rows [{"kind", "id", "data"}, ...].
+                      (the shape the old data/cabinet-db.json used), or raw rows [{"kind", "id", "data"}, ...].
   .jsonl / .ndjson    one record per line.
   .xlsx               one record per row; each sheet named after a kind is loaded as that kind
                       (needs: pip install openpyxl).
@@ -21,12 +21,24 @@ earnings, shares, documents, entryHistory, dataRewards (snake_case like cabinet_
 Examples:
   python scripts/load_data.py seed/demo                       # the fictional demo customers
   python scripts/load_data.py my.csv --kind transactions --user-id lauri
+  python scripts/load_data.py seed/demo --only-user lauri      # bounded load: one demo customer only
   python scripts/load_data.py seed/demo --clear               # delete everything first, then load
+  ... --clear --only-user lauri                              # delete only lauri first, not everyone
   python scripts/load_data.py --clear                         # just delete everything
   python scripts/load_data.py seed/demo --dry-run             # show what would be loaded
 
-Needs SUPABASE_URL and SUPABASE_SECRET_KEY (read from the environment, .env or .env.local), and
-supabase/setup.sql run once. Without Supabase use --target file to write data/cabinet-db.json instead.
+The default hosted target needs the three per-agent role URLs - USER_DB_URL, CM_DB_URL and
+NORDEA_DB_URL (run supabase/three-agents.sql once in Supabase -> SQL Editor, one plain password
+per role) - and pushes customer records to agent_user_records / agent_cm_records /
+agent_nordea_records, each through its own agent's role, via scripts/load_remote.ts. The load
+first hydrates the local databases from the hosted tables, so existing hosted records merge with
+the load instead of being replaced by it.
+App plumbing (chat transcripts, logs, rewards) goes to the abel_records table when
+SUPABASE_URL and SUPABASE_SECRET_KEY are also set (run supabase/setup.sql once for that),
+and into the agent databases' app_* namespaces otherwise (pushed hosted with the customer).
+All variables are read from the environment, .env or .env.local.
+Use --target file to skip Supabase entirely: everything stays in the local agent databases
+(data/arch/*.db); a fresh load never creates data/cabinet-db.json.
 Afterwards it asks the running app to read the data again (POST /api/admin/reload), so no restart is needed.
 """
 from __future__ import annotations
@@ -37,6 +49,8 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -46,12 +60,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLE = "abel_records"
-LOCAL_FILE = ROOT / "data" / "cabinet-db.json"
+# Honour CABINET_DATA_DIR like the server does, so a scratch/test data dir can be loaded (G9).
+DATA_DIR = Path(os.environ["CABINET_DATA_DIR"]).resolve() if os.environ.get("CABINET_DATA_DIR") else ROOT / "data"
 
 KINDS = [
     "users", "cabinetEntries", "transactions", "messages", "accessLog", "topicLog", "undoRecords",
     "conversations", "earnings", "shares", "documents", "entryHistory", "dataRewards",
+    "balanceSnapshots", "importBatches", "bankAccounts",
 ]
+# Customer data lives in the three agent databases (G1); the old store keeps only app plumbing.
+CUSTOMER_KINDS = {"users", "cabinetEntries", "transactions", "undoRecords", "shares", "documents",
+                  "entryHistory", "balanceSnapshots", "importBatches", "bankAccounts"}
+PLUMBING_KINDS = ["messages", "accessLog", "topicLog", "conversations", "earnings", "dataRewards"]
 # "cabinet_entries", "CabinetEntries", "cabinet-entries" -> "cabinetEntries"
 _KIND_BY_KEY = {re.sub(r"[^a-z]", "", k.lower()): k for k in KINDS}
 
@@ -305,7 +325,7 @@ class Supabase:
         self.key = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
         if not self.url or not self.key:
             sys.exit("SUPABASE_URL and SUPABASE_SECRET_KEY are not set (environment, .env or .env.local). "
-                     "Or use --target file to write data/cabinet-db.json.")
+                     "Or use --target file to keep everything in the local agent databases.")
 
     def _call(self, method: str, query: str, body=None, prefer: str = "return=minimal"):
         headers = {"apikey": self.key, "Content-Type": "application/json", "Prefer": prefer}
@@ -338,37 +358,423 @@ class Supabase:
 
 # ---------------------------------------------------------------- local file (no Supabase)
 
+ARCH_DIR = DATA_DIR / "arch"
+
+_SCHEMAS = {
+    "user": """CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS goals (id TEXT PRIMARY KEY, title TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL, doc TEXT);
+      CREATE TABLE IF NOT EXISTS personal_facts (id TEXT PRIMARY KEY, source TEXT NOT NULL, text TEXT NOT NULL, at TEXT NOT NULL, via_airlock_id TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_conversations (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_messages (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_topic_log (id TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL);""",
+    "cm": """CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS entries (id TEXT PRIMARY KEY, title TEXT NOT NULL, detail TEXT NOT NULL, goal_ids TEXT NOT NULL,
+        proposed_by TEXT NOT NULL, via_message_id TEXT, evidence TEXT, status TEXT NOT NULL,
+        dispute_reason TEXT, created_at TEXT NOT NULL, observed TEXT, risk TEXT, auto_accepted INTEGER, doc TEXT);
+      CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS shares (id TEXT PRIMARY KEY, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS undo (token TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_access_log (id TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_migration_ledger (kind TEXT PRIMARY KEY, source_hash TEXT NOT NULL, rows INTEGER NOT NULL, done_at TEXT NOT NULL);""",
+    "nordea": """CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY, date TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL,
+        account TEXT NOT NULL, description TEXT, json TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
+      CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+      CREATE TABLE IF NOT EXISTS balance_snapshots (id TEXT PRIMARY KEY, account_key TEXT NOT NULL, at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS import_batches (id TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_earnings (id TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_data_rewards (id TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_rewards (user_id TEXT PRIMARY KEY, json TEXT NOT NULL);""",
+}
+
+
+# D12: the same customer-id rule as src/server/customerId.ts (lowercase letters, digits, _ and -).
+# A non-canonical id is refused before anything is written; it is never rewritten to another id.
+_CANONICAL_UID = re.compile(r"[a-z0-9_-]+")
+# Mirrors src/server/customerId.ts: 255 - len(".nordea.json.migrated") = 234. Rejected, never truncated.
+_MAX_UID_LEN = 255 - len(".nordea.json.migrated")
+
+
+def _check_uid(uid) -> str:
+    if isinstance(uid, str) and _CANONICAL_UID.fullmatch(uid) and len(uid) > _MAX_UID_LEN:
+        sys.exit(f"CUSTOMER_ID_TOO_LONG: customer id has {len(uid)} characters, at most {_MAX_UID_LEN} (storage file-name limit). Nothing was written.")
+    if not isinstance(uid, str) or not _CANONICAL_UID.fullmatch(uid):
+        sys.exit(f"Unsupported customer id {uid!r}: use lowercase letters, digits, '_' or '-' only. Nothing was written.")
+    return uid
+
+
+def _canonical_only(uids: list[str]) -> list[str]:
+    """Ids from the stored index that are not canonical are left exactly as they are (never touched, never renamed)."""
+    keep = [u for u in uids if isinstance(u, str) and _CANONICAL_UID.fullmatch(u) and len(u) <= _MAX_UID_LEN]
+    for u in uids:
+        if u not in keep:
+            print(f"Skipping unsupported customer id {u!r} in the stored index: left unchanged.")
+    return keep
+
+
+def _db_file(uid: str, which: str) -> Path:
+    return ARCH_DIR / f"{_check_uid(uid)}.{which}.db"
+
+
+# G21: the same column migrations the app applies (userStore.ts / cmStore.ts) - a database file
+# left by an older version must load without crashing. (table, column, ddl)
+_MIGRATIONS = {
+    "user": [("goals", "doc", "doc TEXT")],
+    "cm": [("entries", "observed", "observed TEXT"), ("entries", "risk", "risk TEXT"),
+           ("entries", "auto_accepted", "auto_accepted INTEGER"), ("entries", "doc", "doc TEXT"),
+           ("entries", "evidence_text", "evidence_text TEXT")],
+    "nordea": [],
+}
+
+
+def _open_db(uid: str, which: str) -> sqlite3.Connection:
+    ARCH_DIR.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(_db_file(uid, which))
+    con.executescript(_SCHEMAS[which])
+    for table, col, ddl in _MIGRATIONS[which]:
+        cols = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+        if col not in cols:
+            con.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+    return con
+
+
+def _kv_set(con: sqlite3.Connection, k: str, v) -> None:
+    con.execute("INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
+                (k, json.dumps(v, ensure_ascii=False)))
+
+
+def _index_read() -> list[str]:
+    f = ARCH_DIR / "customers.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
+
+
+def _index_write(uids: list[str]) -> None:
+    ARCH_DIR.mkdir(parents=True, exist_ok=True)
+    (ARCH_DIR / "customers.json").write_text(json.dumps(sorted(set(uids)), indent=2), encoding="utf-8")
+
+
+def _register(uid: str) -> None:
+    _index_write(_index_read() + [uid])
+
+
+# Plumbing kind -> (agent database, app table, timestamp field of the record).
+PLUMBING_TARGET = {
+    "messages": ("user", "app_messages", "created_at", "createdAt"),
+    "conversations": ("user", "app_conversations", "created_at", "createdAt"),
+    "topicLog": ("user", "app_topic_log", "at", "timestamp"),
+    "accessLog": ("cm", "app_access_log", "at", "timestamp"),
+    "earnings": ("nordea", "app_earnings", "at", "createdAt"),
+    "dataRewards": ("nordea", "app_data_rewards", "at", "at"),
+}
+
+
 class LocalFile:
+    """G5: customer records go straight into the three agent databases (one SQLite file per
+    customer per database, the same files the app and the arch screens use). G33: app plumbing
+    (chat transcripts, logs, conversations, earnings, rewards) goes into the SAME databases'
+    app_* namespaces - chat/topicLog in user.db, accessLog in cm.db, earnings/dataRewards/rewards
+    in nordea.db, exactly where migrate:legacy and the runtime put them. A fresh load never
+    creates data/cabinet-db.json."""
+
     def __init__(self) -> None:
-        self.state = json.loads(LOCAL_FILE.read_text(encoding="utf-8")) if LOCAL_FILE.exists() else {}
-        self.state.setdefault("users", {})
-        for k in KINDS[1:]:
-            self.state.setdefault(k, [])
+        pass
+
+    def _upsert_plumbing(self, row: dict) -> None:
+        kind, rid, data = row["kind"], row["id"], row["data"]
+        uid = str(row.get("user_id") or data.get("userId") or "")
+        if not uid:
+            sys.exit(f"{kind}.{rid}: no userId - refusing to guess the owner")
+        _register(uid)
+        which, table, ts_col, ts_field = PLUMBING_TARGET[kind]
+        with _open_db(uid, which) as con:
+            con.execute(f"INSERT INTO {table} (id, {ts_col}, json) VALUES (?,?,?) "
+                        f"ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                        (rid, data.get(ts_field) or NOW, json.dumps(data, ensure_ascii=False)))
+
+    # ---- customer records -> the owning agent's database
+    def _upsert_customer(self, row: dict) -> None:
+        kind, rid, data = row["kind"], row["id"], row["data"]
+        uid = str(row.get("user_id") or rid)
+        _register(uid)
+        if kind == "users":
+            profile = {k: v for k, v in data.items() if k not in ("id", "points", "pointsSpent", "redeemed", "accounts")}
+            with _open_db(uid, "user") as con:
+                _kv_set(con, "profile", profile)
+            if data.get("accounts"):
+                with _open_db(uid, "nordea") as con:
+                    _kv_set(con, "balances", data["accounts"])
+            rewards = {"points": data.get("points", 0),
+                       **({"pointsSpent": data["pointsSpent"]} if "pointsSpent" in data else {}),
+                       **({"redeemed": data["redeemed"]} if "redeemed" in data else {})}
+            with _open_db(uid, "nordea") as con:
+                con.execute("INSERT INTO app_rewards (user_id, json) VALUES (?,?) "
+                            "ON CONFLICT(user_id) DO UPDATE SET json=excluded.json",
+                            (uid, json.dumps(rewards, ensure_ascii=False)))
+            return
+        if kind == "cabinetEntries":
+            if data.get("type") == "goal":
+                with _open_db(uid, "user") as con:
+                    con.execute("INSERT INTO goals (id, title, detail, created_at, doc) VALUES (?,?,?,?,?) "
+                                "ON CONFLICT(id) DO UPDATE SET title=excluded.title, detail=excluded.detail, doc=excluded.doc",
+                                (rid, data.get("title", ""), data.get("detail", ""), data.get("createdAt", NOW),
+                                 json.dumps(data, ensure_ascii=False)))
+            else:
+                ev = data.get("evidence")
+                evidence = json.dumps({"transactionIds": ev.get("transactionIds"),
+                                       "transactionIdsHash": ev.get("inputsHash")}, ensure_ascii=False) if ev else None
+                with _open_db(uid, "cm") as con:
+                    con.execute("INSERT INTO entries (id, title, detail, goal_ids, proposed_by, via_message_id, evidence, "
+                                "status, dispute_reason, created_at, observed, risk, auto_accepted, doc, evidence_text) "
+                                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                                "ON CONFLICT(id) DO UPDATE SET title=excluded.title, detail=excluded.detail, "
+                                "status=excluded.status, doc=excluded.doc, evidence_text=excluded.evidence_text",
+                                (rid, data.get("title", ""), data.get("detail", ""), "[]",
+                                 "nordea" if data.get("source") == "nordea" else "user", None, evidence,
+                                 data.get("status", "active"), None, data.get("createdAt", NOW), None, None, None,
+                                 json.dumps(data, ensure_ascii=False), data.get("evidenceText")))
+            return
+        if kind == "transactions":
+            with _open_db(uid, "nordea") as con:
+                con.execute("INSERT INTO transactions (id, date, category, amount, account, description, json) "
+                            "VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET date=excluded.date, "
+                            "category=excluded.category, amount=excluded.amount, account=excluded.account, "
+                            "description=excluded.description, json=excluded.json",
+                            (rid, data.get("date", ""), data.get("category", "other"), data.get("amount", 0),
+                             data.get("account", "current"), data.get("description"), json.dumps(data, ensure_ascii=False)))
+            return
+        if kind == "entryHistory":
+            with _open_db(uid, "cm") as con:
+                con.execute("INSERT INTO history (id, entry_id, at, json) VALUES (?,?,?,?) "
+                            "ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                            (rid, data.get("entryId", ""), data.get("at", NOW), json.dumps(data, ensure_ascii=False)))
+            return
+        if kind == "shares":
+            with _open_db(uid, "cm") as con:
+                con.execute("INSERT INTO shares (id, json) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                            (rid, json.dumps(data, ensure_ascii=False)))
+            return
+        if kind == "undoRecords":
+            token = data.get("undoToken") or rid
+            with _open_db(uid, "cm") as con:
+                con.execute("INSERT INTO undo (token, at, json) VALUES (?,?,?) ON CONFLICT(token) DO UPDATE SET json=excluded.json",
+                            (token, data.get("at", NOW), json.dumps(data, ensure_ascii=False)))
+            return
+        if kind == "documents":
+            with _open_db(uid, "user") as con:
+                con.execute("INSERT INTO documents (id, json) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                            (rid, json.dumps(data, ensure_ascii=False)))
+            return
+        if kind == "bankAccounts":
+            with _open_db(uid, "nordea") as con:
+                con.execute("INSERT INTO accounts (id, json) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                            (rid, json.dumps(data, ensure_ascii=False)))
+            return
+        if kind == "balanceSnapshots":
+            with _open_db(uid, "nordea") as con:
+                con.execute("INSERT INTO balance_snapshots (id, account_key, at, json) VALUES (?,?,?,?) "
+                            "ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                            (rid, data.get("accountKey", ""), data.get("at", NOW), json.dumps(data, ensure_ascii=False)))
+            return
+        if kind == "importBatches":
+            with _open_db(uid, "nordea") as con:
+                con.execute("INSERT INTO import_batches (id, at, json) VALUES (?,?,?) "
+                            "ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                            (rid, data.get("at", NOW), json.dumps(data, ensure_ascii=False)))
+            return
+        sys.exit(f"internal: {kind} is not a customer kind")
 
     def upsert(self, rows: list[dict]) -> None:
+        for r in rows:  # validate every id first: a bad id must not leave a half-loaded dataset behind
+            if r["kind"] in CUSTOMER_KINDS:
+                _check_uid(str(r.get("user_id") or r["id"]))
         for r in rows:
-            if r["kind"] == "users":
-                self.state["users"][r["id"]] = r["data"]
+            if r["kind"] in CUSTOMER_KINDS:
+                self._upsert_customer(r)
                 continue
-            lst = self.state[r["kind"]]
-            at = next((i for i, x in enumerate(lst) if key_of(r["kind"], x) == r["id"]), None)
-            if at is None:
-                lst.append(r["data"])
-            else:
-                lst[at] = r["data"]
-        self.save()
+            self._upsert_plumbing(r)
+
+    # ---- deletes
+    def _delete_customer(self, kind: str, user_id: str | None) -> None:
+        uids = [_check_uid(user_id)] if user_id else _canonical_only(_index_read())
+        for uid in uids:
+            if kind == "users":
+                for which, table in (("user", "kv"), ("nordea", "kv")):
+                    f = _db_file(uid, which)
+                    if f.exists():
+                        with sqlite3.connect(f) as con:
+                            con.execute("DELETE FROM kv WHERE k IN ('profile', 'balances')")
+                f = _db_file(uid, "nordea")
+                if f.exists():
+                    with sqlite3.connect(f) as con:
+                        con.execute("DELETE FROM app_rewards WHERE user_id = ?", (uid,))
+                continue
+            table_by_kind = {"cabinetEntries": None, "transactions": ("nordea", "transactions"),
+                             "entryHistory": ("cm", "history"), "shares": ("cm", "shares"), "undoRecords": ("cm", "undo"),
+                             "documents": ("user", "documents"), "bankAccounts": ("nordea", "accounts"),
+                             "balanceSnapshots": ("nordea", "balance_snapshots"), "importBatches": ("nordea", "import_batches")}
+            if kind == "cabinetEntries":
+                for which, table, col in (("user", "goals", "doc"), ("cm", "entries", "doc")):
+                    f = _db_file(uid, which)
+                    if f.exists():
+                        with sqlite3.connect(f) as con:
+                            con.execute(f"DELETE FROM {table} WHERE json_extract({col}, '$.userId') = ?", (uid,))
+                continue
+            target = table_by_kind.get(kind)
+            if target:
+                which, table = target
+                f = _db_file(uid, which)
+                if f.exists():
+                    with sqlite3.connect(f) as con:
+                        con.execute(f"DELETE FROM {table} WHERE json_extract(json, '$.userId') = ?", (uid,))
+
+    def _prune(self, uid: str) -> None:
+        """Drop a customer from the index (and the empty files) once nothing of them is left."""
+        empty = True
+        for which in ("user", "cm", "nordea"):
+            f = _db_file(uid, which)
+            if not f.exists():
+                continue
+            with sqlite3.connect(f) as con:
+                for table in ("kv", "goals", "personal_facts", "documents", "entries", "history", "shares",
+                              "undo", "accounts", "transactions", "balance_snapshots", "import_batches",
+                              "app_conversations", "app_messages", "app_topic_log", "app_access_log",
+                              "app_earnings", "app_data_rewards", "app_rewards"):
+                    try:
+                        if con.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone():
+                            empty = False
+                    except sqlite3.OperationalError:
+                        pass
+        if empty:
+            for which in ("user", "cm", "nordea"):
+                _db_file(uid, which).unlink(missing_ok=True)
+            _index_write([u for u in _index_read() if u != uid])
 
     def delete(self, kind: str | None = None, user_id: str | None = None) -> None:
-        for k in ([kind] if kind else KINDS):
-            if k == "users":
-                self.state["users"] = {i: u for i, u in self.state["users"].items() if user_id and i != user_id}
+        kinds = [kind] if kind else list(CUSTOMER_KINDS) + PLUMBING_KINDS
+        for k in kinds:
+            if k in CUSTOMER_KINDS:
+                self._delete_customer(k, user_id)
             else:
-                self.state[k] = [x for x in self.state[k] if user_id and x.get("userId") != user_id]
+                which, table = PLUMBING_TARGET[k][0], PLUMBING_TARGET[k][1]
+                for uid in ([user_id] if user_id else _index_read()):
+                    f = _db_file(uid, which)
+                    if not f.exists():
+                        continue
+                    with sqlite3.connect(f) as con:
+                        if user_id:
+                            con.execute(f"DELETE FROM {table} WHERE json_extract(json, '$.userId') = ?", (uid,))
+                        else:
+                            con.execute(f"DELETE FROM {table}")
+        if not kind and not user_id:  # --clear: wipe the three databases and the index too
+            for f in ARCH_DIR.glob("*.db"):
+                f.unlink()
+            (ARCH_DIR / "customers.json").unlink(missing_ok=True)
+        for uid in ([user_id] if user_id else list(_index_read())):
+            if uid:
+                self._prune(uid)
         self.save()
 
     def save(self) -> None:
-        LOCAL_FILE.parent.mkdir(parents=True, exist_ok=True)
-        LOCAL_FILE.write_text(json.dumps(self.state, indent=2, ensure_ascii=False), encoding="utf-8")
+        # G33: no JSON file - every write above already landed in the agent databases.
+        return
+
+
+# ---------------------------------------------------------------- hosted (G6/G20)
+
+def run_remote(*args: str) -> None:
+    """Push or clear the hosted agent tables via the Node helper (pg driver lives there)."""
+    cmd = ["npx", "tsx", "scripts/load_remote.ts", *args]
+    if os.name == "nt":  # npx is npx.cmd on Windows
+        cmd = ["cmd", "/c", *cmd]
+    try:
+        subprocess.run(cmd, cwd=ROOT, check=True)
+    except FileNotFoundError:
+        sys.exit("npx was not found - install Node.js (the hosted push runs scripts/load_remote.ts).")
+    except subprocess.CalledProcessError:
+        # G24: never blanket-blame the role URLs - the helper already printed the exact
+        # failing store and customer above (e.g. "push alex -> agent_cm_records failed: ...").
+        sys.exit("Hosted sync failed - the lines above name the exact store and customer that "
+                 "failed. Suspect the role URLs (USER_DB_URL, CM_DB_URL, NORDEA_DB_URL) only when "
+                 "the failure says a table is missing or permission was denied. "
+                 "--target file does a local-only load.")
+
+
+class Hosted(LocalFile):
+    """G20: the default hosted target. Customer records are written to the local agent
+    databases (the same files as --target file) and then pushed to the hosted tables
+    agent_user_records / agent_cm_records / agent_nordea_records - each through its OWN
+    agent's role URL (USER_DB_URL, CM_DB_URL, NORDEA_DB_URL; see supabase/three-agents.sql).
+    App plumbing goes to the abel_records table when SUPABASE_URL and SUPABASE_SECRET_KEY
+    are set, and into the local agent databases' app_* namespaces otherwise (pushed hosted
+    with the affected customers). No path writes data/cabinet-db.json."""
+
+    def __init__(self) -> None:
+        # G20 (merge, Bill 15:14): pull the hosted rows into the local agent databases FIRST,
+        # so the load merges with them - a load must never drop hosted rows silently.
+        run_remote("hydrate")
+        super().__init__()
+        has_sb = os.environ.get("SUPABASE_URL") and \
+            (os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
+        self.plumbing: Supabase | None = Supabase() if has_sb else None
+
+    @staticmethod
+    def _uids(rows: list[dict]) -> list[str]:
+        return sorted({str(r.get("user_id") or r["id"]) for r in rows if r["kind"] in CUSTOMER_KINDS})
+
+    def upsert(self, rows: list[dict]) -> None:
+        cust = [r for r in rows if r["kind"] in CUSTOMER_KINDS]
+        plumb = [r for r in rows if r["kind"] not in CUSTOMER_KINDS]
+        for r in cust:  # D12: refuse a non-canonical id before ANY local or hosted write
+            _check_uid(str(r.get("user_id") or r["id"]))
+        if cust:
+            super().upsert(cust)
+            run_remote("push", *self._uids(cust))
+        if plumb:
+            if self.plumbing:
+                self.plumbing.upsert(plumb)
+            else:
+                # G33: plumbing lives in the local agent databases' app_* namespaces; push the
+                # affected customers so the hosted tables carry the same rows.
+                super().upsert(plumb)
+                uids = sorted({str(r.get("user_id") or r["data"].get("userId")) for r in plumb})
+                run_remote("push", *uids)
+
+    def delete(self, kind: str | None = None, user_id: str | None = None) -> None:
+        if kind is None and user_id is None:  # --clear: local, plumbing and every hosted row
+            super().delete()
+            if self.plumbing:
+                self.plumbing.delete()
+            run_remote("clear", "--all")  # the loader's --clear IS the explicit confirmation
+            return
+        uids = [_check_uid(user_id)] if user_id else _canonical_only(_index_read())
+        if kind is None:
+            # G36 hosted leg: a whole-customer delete is an explicit clear, and it goes FIRST:
+            # the local delete prunes the customer's files, so a push afterwards would be refused
+            # by the G24 missing-file guard - leaving local data deleted but hosted rows kept.
+            # A failed hosted clear here leaves local and plumbing data untouched.
+            if uids:
+                run_remote("clear", *uids)
+            super().delete(None, user_id)
+            if self.plumbing:
+                for k in PLUMBING_KINDS:
+                    self.plumbing.delete(k, user_id)
+            return
+        super().delete(kind, user_id)
+        if self.plumbing and kind in PLUMBING_KINDS:
+            self.plumbing.delete(kind, user_id)
+        for u in uids:
+            files_gone = not any(_db_file(u, w).exists() for w in ("user", "cm", "nordea"))
+            if files_gone:
+                # G36: the delete emptied the customer and the prune removed its files - a push
+                # would be refused by the G24 missing-file guard, so the explicit clear is
+                # authoritative. This also catches a plumbing-kind delete landing last.
+                run_remote("clear", u)
+            elif kind in CUSTOMER_KINDS:
+                # The push serializes the reduced local files (drops the deleted rows hosted).
+                run_remote("push", u)
 
 
 def tell_app(app_url: str) -> None:
@@ -391,16 +797,266 @@ def main() -> None:
     ap.add_argument("paths", nargs="*", help="files or folders to load")
     ap.add_argument("--kind", help="record kind for every file (default: from the file or sheet name)")
     ap.add_argument("--user-id", help="customer id for records without a userId column")
+    ap.add_argument("--only-user", action="append", default=[], metavar="UID",
+                    help="load only these customers (repeat or comma-separate); records of every "
+                         "other customer are skipped, and hosted pushes stay bounded to them")
     ap.add_argument("--clear", action="store_true", help="delete ALL data first (alone: only delete)")
     ap.add_argument("--replace", action="store_true",
                     help="delete the existing records of the kinds being loaded first (only that customer's with --user-id)")
     ap.add_argument("--keep-names", action="store_true", help="keep column names as they are (no user_id -> userId)")
     ap.add_argument("--target", choices=["supabase", "file"], default="supabase",
-                    help="supabase (default) or file = data/cabinet-db.json for running without Supabase")
+                    help="supabase (default) = the hosted agent tables via the per-agent role URLs, or file = local data/arch/*.db only")
     ap.add_argument("--app-url", default="http://localhost:3000", help="running app to tell about the new data")
     ap.add_argument("--no-reload", action="store_true", help="don't tell the running app")
     ap.add_argument("--dry-run", action="store_true", help="read and check the files, show what would happen, change nothing")
+    ap.add_argument("--init", action="store_true",
+                    help="one-time privileged setup: apply supabase/three-agents.sql + supabase/nordea-feed.sql via psql using "
+                         "SUPABASE_DB_URL (environment, .env or .env.local). Idempotent; the URL is never "
+                         "printed; no existing role credentials are changed")
+    ap.add_argument("--print-sql", action="store_true", help="with --init: print the setup SQL instead of running it")
     args = ap.parse_args()
+
+    if args.init:
+        sql = "\n".join((ROOT / "supabase" / f).read_text() for f in ("three-agents.sql", "nordea-feed.sql"))
+        if args.print_sql:
+            sys.stdout.write(sql)
+            return
+        load_env()
+        db_url = os.environ.get("SUPABASE_DB_URL", "")
+        if not db_url:
+            sys.exit("SUPABASE_DB_URL is not set (environment, .env or .env.local). --init needs the project "
+                     "owner's connection string for this one-time setup; the app itself never uses it.")
+        env_local = ROOT / ".env.local"
+        if env_local.exists() and "SUPABASE_DB_URL" in env_local.read_text():
+            env_local.chmod(0o600)  # a file holding the privileged URL stays readable by the owner only
+        # The privileged URL never reaches argv (visible in the process list): parse it and
+        # connect through libpq environment variables instead.
+        parts = urllib.parse.urlsplit(db_url)
+        env = dict(os.environ)
+        env.update({
+            "PGHOST": parts.hostname or "",
+            "PGPORT": str(parts.port or 5432),
+            "PGUSER": urllib.parse.unquote(parts.username or ""),
+            "PGPASSWORD": urllib.parse.unquote(parts.password or ""),
+            "PGDATABASE": (parts.path or "/").lstrip("/"),
+            "PGSSLMODE": "require",
+        })
+        smoke = (ROOT / "supabase" / "role-smoke.sql").read_text()
+        # Fresh projects need a password per agent role. Passwords come from the environment
+        # (AGENT_USER_PASSWORD / AGENT_CM_PASSWORD / AGENT_NORDEA_PASSWORD) or are generated here;
+        # they are never printed or logged and are set ONLY for roles that do not exist yet (an
+        # existing role's credentials are never rotated). Existing roles are detected via pg_roles
+        # first - if that check cannot run, nothing is provisioned blindly. Role URLs go to
+        # .env.local under the names the app reads (USER_DB_URL / CM_DB_URL / NORDEA_DB_URL),
+        # merged into the file (unrelated keys are preserved), and only for roles this run
+        # created or whose current password was supplied via the environment. --print-sql never
+        # includes passwords.
+        import secrets
+        owner_user = urllib.parse.unquote(parts.username or "")
+        suffix = owner_user.split(".", 1)[1] if "." in owner_user else ""
+        role_key = {"agent_user": "USER_DB_URL", "agent_cm": "CM_DB_URL", "agent_nordea": "NORDEA_DB_URL"}
+        host = parts.hostname or ""
+        port = str(parts.port or 5432)
+        dbname = (parts.path or "/").lstrip("/")
+        role_pws = []
+
+        def role_url(role: str, pw: str) -> str:
+            role_user = role + ("." + suffix if suffix else "")
+            return ("postgresql://" + urllib.parse.quote(role_user, safe="")
+                    + ":" + urllib.parse.quote(pw, safe="")
+                    + "@" + host + ":" + port + "/" + dbname)
+
+        def scrub(msg: str) -> str:
+            out = (msg or "").replace(db_url, "***").replace(env["PGPASSWORD"], "***")
+            for p in role_pws:
+                out = out.replace(p, "***")
+            return out
+
+        roles_all = ("agent_user", "agent_cm", "agent_nordea")
+        # VERSION FIRST: the SET ROLE grant form and every later catalog probe depend on the
+        # server version, so the version is read before anything else; an unknown version
+        # refuses before any other query or write.
+        ver = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-tA", "-c", "show server_version_num"],
+                             text=True, capture_output=True, env=env)
+        try:
+            server_num = int((ver.stdout or "").strip())
+        except ValueError:
+            server_num = 0
+        if ver.returncode != 0 or server_num <= 0:
+            sys.exit("could not determine the PostgreSQL server version via server_version_num: "
+                     + (scrub(ver.stderr).strip().splitlines() or ["unknown error"])[-1]
+                     + ". Refusing to provision roles without the right SET ROLE grant form; no changes were made.")
+        # All-role preflight, read-only, before ANY write or CREATE. For each agent role it
+        # reports existence, effective SET capability, direct ADMIN OPTION (any grantor),
+        # superuser status, and - on PG >= 16 - a snapshot of the exact owner-grantor
+        # membership row (role, member = current_user, grantor = current_user) with its
+        # admin/inherit/set options. The snapshot is preservation PROOF ONLY: G71 cleanup is
+        # deferred, so this script never revokes or restores anything. PG >= 16 uses
+        # pg_has_role(current_user, role, 'SET'), which is true exactly when SET ROLE would
+        # succeed: direct membership WITH SET TRUE, an indirect chain of SET TRUE
+        # memberships, or superuser status (docs/16 functions-info). PG < 16 has no per-grant
+        # options - pg_auth_members carries admin_option but no set_option/inherit_option
+        # columns (docs/15 catalog-pg-auth-members) - and plain membership permits SET ROLE,
+        # so the probe checks MEMBER and never references set_option or 'SET'. ADMIN OPTION
+        # exists in both models. On PG >= 16 the no-ADMIN refusal below matches server
+        # capability (a non-superuser needs ADMIN OPTION to grant). On PG < 16 the refusal is
+        # conservative LOADER POLICY, not a server limit: pre-16 a CREATEROLE role could grant
+        # or revoke membership in any non-superuser role WITHOUT ADMIN OPTION (docs/15
+        # sql-grant), but this loader deliberately does not rely on those pre-16 CREATEROLE
+        # powers - it grants only roles it created this run or holds direct ADMIN OPTION on,
+        # keeping behavior uniform across versions. Indirect ADMIN chains are not resolved and
+        # are refused conservatively. For an existing
+        # owner-grantor row GRANT raises only SET and retains the row's other options (PG16:
+        # omitted options keep existing values); no INHERIT clause is ever emitted (G69-B).
+        owner = urllib.parse.unquote(parts.username or "")
+        # pg_has_role uses the oid form: the name form raises on a missing role (regrole lookup);
+        # a NULL oid yields NULL, coalesced to false, so the missing-role path reaches CREATE.
+        me = "(select oid from pg_roles where rolname = current_user)"
+        if server_num >= 160000:
+            preflight_sql = (
+                "select v.rolname, (pr.oid is not null), "
+                "coalesce(pg_has_role(current_user, pr.oid, 'SET'), false), "
+                "coalesce(bool_or(am.admin_option), false), "
+                "(select rolsuper from pg_roles where rolname = current_user), "
+                "(og.roleid is not null), "
+                "coalesce(og.admin_option, false), coalesce(og.inherit_option, false), "
+                "coalesce(og.set_option, false) "
+                "from (values ('agent_user'), ('agent_cm'), ('agent_nordea')) as v(rolname) "
+                "left join pg_roles pr on pr.rolname = v.rolname "
+                "left join pg_auth_members am on am.roleid = pr.oid and am.member = " + me + " "
+                "left join pg_auth_members og on og.roleid = pr.oid and og.member = " + me
+                + " and og.grantor = " + me + " "
+                "group by v.rolname, pr.oid, og.roleid, og.admin_option, og.inherit_option, og.set_option "
+                "order by 1")
+        else:
+            preflight_sql = (
+                "select v.rolname, (pr.oid is not null), "
+                "coalesce(pg_has_role(current_user, pr.oid, 'MEMBER'), false), "
+                "coalesce(bool_or(am.admin_option), false), "
+                "(select rolsuper from pg_roles where rolname = current_user) "
+                "from (values ('agent_user'), ('agent_cm'), ('agent_nordea')) as v(rolname) "
+                "left join pg_roles pr on pr.rolname = v.rolname "
+                "left join pg_auth_members am on am.roleid = pr.oid and am.member = " + me + " "
+                "group by v.rolname, pr.oid order by 1")
+        pf = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-tA", "-F", "\t", "-c", preflight_sql],
+                            text=True, capture_output=True, env=env)
+        if pf.returncode != 0:
+            sys.exit("could not run the read-only role preflight (pg_roles/pg_auth_members): "
+                     + (scrub(pf.stderr).strip().splitlines() or ["unknown error"])[-1]
+                     + ". Refusing to provision credentials blindly; no changes were made.")
+        def tf(s: str) -> bool:
+            return s.strip() == "t"
+        pre = {}
+        for line in pf.stdout.splitlines():
+            c = line.split("\t")
+            if server_num >= 160000 and len(c) == 9:
+                pre[c[0]] = dict(exists=tf(c[1]), can_set=tf(c[2]), admin=tf(c[3]), superuser=tf(c[4]),
+                                 og_row=tf(c[5]), og_admin=tf(c[6]), og_inherit=tf(c[7]), og_set=tf(c[8]))
+            elif server_num < 160000 and len(c) == 5:
+                # PG < 16: plain membership permits SET ROLE, so membership IS the capability.
+                pre[c[0]] = dict(exists=tf(c[1]), can_set=tf(c[2]), admin=tf(c[3]), superuser=tf(c[4]),
+                                 og_row=False, og_admin=False, og_inherit=False, og_set=False)
+        if sorted(pre) != sorted(roles_all):
+            sys.exit("role preflight returned an unexpected row set (expected one row per agent role); "
+                     "refusing to provision blindly; no changes were made.")
+        for r in roles_all:
+            i = pre[r]
+            snap = ""
+            if server_num >= 160000:
+                snap = " og_row_exists=" + str(i["og_row"]).lower()
+                if i["og_row"]:
+                    snap += ("(admin=" + str(i["og_admin"]).lower() + ",inherit=" + str(i["og_inherit"]).lower()
+                             + ",set=" + str(i["og_set"]).lower() + ")")
+            print("preflight " + r + ": exists=" + str(i["exists"]).lower()
+                  + " can_set=" + str(i["can_set"]).lower() + " direct_admin=" + str(i["admin"]).lower()
+                  + " superuser=" + str(i["superuser"]).lower() + snap)
+        refused = [r for r in roles_all
+                   if pre[r]["exists"] and not pre[r]["can_set"] and not pre[r]["superuser"] and not pre[r]["admin"]]
+        if refused:
+            if server_num >= 160000:
+                advice = ("Grant ADMIN OPTION or membership WITH SET TRUE to '" + owner
+                          + "' (or connect as a user that has them) and rerun.")
+            else:
+                advice = ("This server predates per-grant SET/INHERIT options and cannot parse WITH SET TRUE; "
+                          "grant ADMIN OPTION or plain membership (GRANT <role> TO " + owner
+                          + "; plain membership permits SET ROLE pre-16) and rerun. This refusal is "
+                          "conservative loader policy: pre-16 a CREATEROLE role may grant non-superuser "
+                          "roles without ADMIN OPTION (docs/15 sql-grant), but this loader does not rely "
+                          "on those powers.")
+            sys.exit("cannot grant SET ROLE capability for existing role(s) " + ", ".join(refused)
+                     + ": the connecting user '" + owner + "' has no effective permission to SET ROLE to them "
+                     "(not a superuser) and holds no direct ADMIN OPTION on them from any "
+                     "grantor; indirect ADMIN chains are not resolved and are refused conservatively. "
+                     + advice + " No changes were made.")
+        existing = {r for r in roles_all if pre[r]["exists"]}
+        # Grant only where effective SET is missing: pg_has_role 'SET' already covers direct,
+        # indirect and superuser cases, so a skipped role needs no row touched at all. Missing
+        # roles are created below and always granted (the creator holds ADMIN on its own roles).
+        # Known nonblocking limit: a role skipped on effective SET may still lack INHERIT/USAGE
+        # (SET TRUE with INHERIT FALSE), so role-smoke.sql's inheritance-based union can then
+        # fail LOUDLY after the schema step; the preflight predicts SET ROLE readiness only,
+        # not full smoke readiness.
+        set_clause = " with set true" if server_num >= 160000 else ""
+        setrole_sql = "".join(
+            "grant " + role + " to current_user" + set_clause + ";\n"
+            for role in roles_all
+            if not pre[role]["can_set"] and not pre[role]["superuser"])
+
+        role_sql = ""
+        role_urls = {}
+        kept_existing = []
+        for role in ("agent_user", "agent_cm", "agent_nordea"):
+            env_pw = os.environ.get(role.upper() + "_PASSWORD", "")
+            if role in existing:
+                # Existing role: never rotate. A URL is written only with the matching current
+                # password supplied via the environment; otherwise that role's URL is left out.
+                if env_pw:
+                    role_pws.append(env_pw)
+                    role_urls[role_key[role]] = role_url(role, env_pw)
+                else:
+                    kept_existing.append(role)
+                continue
+            pw = env_pw or secrets.token_urlsafe(24)
+            role_pws.append(pw)
+            role_sql += ("do $$ begin if not exists (select from pg_roles where rolname = '" + role + "') "
+                         "then create role " + role + " login password '" + pw.replace("'", "''") + "'; end if; end $$;\n")
+            role_urls[role_key[role]] = role_url(role, pw)
+        res = subprocess.run(["psql", "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"],
+                             input=role_sql + setrole_sql + sql + "\n" + smoke, text=True, capture_output=True, env=env)
+        if res.returncode != 0:
+            sys.exit("psql failed: " + (scrub(res.stderr).strip().splitlines() or ["unknown error"])[-1])
+        # Merge the role URLs into .env.local (0600): unrelated keys (SUPABASE_DB_URL,
+        # GEMINI_API_KEY, ...) are preserved; only the three managed role-URL keys are replaced,
+        # and only with URLs carrying a known-current password. Values are never printed.
+        kept = []
+        if env_local.exists():
+            for line in env_local.read_text().splitlines():
+                key = line.split("=", 1)[0].strip() if "=" in line else ""
+                if line.startswith("# Written by load_data.py --init"):
+                    continue
+                # A managed role URL is replaced only with a validated replacement (role created
+                # this run or the matching current password supplied); otherwise the working
+                # line is preserved - a rerun never deletes a working config (G64d).
+                if key in role_key.values() and key in role_urls:
+                    continue
+                kept.append(line)
+        while kept and not kept[-1].strip():
+            kept.pop()
+        lines = kept
+        if role_urls:
+            lines += ["", "# Written by load_data.py --init - role connection URLs for the three agent stores."]
+            lines += [k + '="' + v + '"' for k, v in role_urls.items()]
+        if lines:
+            env_local.write_text("\n".join(lines) + "\n")
+            env_local.chmod(0o600)
+        smoke_out = (res.stdout or "").strip()
+        note = (" Existing roles kept their credentials"
+                + ("; existing URLs kept for " + ", ".join(kept_existing) + " (supply the matching AGENT_*_PASSWORD to rewrite one)" if kept_existing else "") + ".")
+        print("Setup applied (idempotent; existing role credentials never rotated): agent tables, one role "
+              "per agent, Nordea feed, smoke check." + note + " Role URLs were merged into .env.local (0600) - "
+              "values are not printed. Smoke output: " + ("; ".join(smoke_out.splitlines()[-3:]) if smoke_out else "see psql output"))
+
+        return
 
     if not args.paths and not args.clear:
         ap.error("give a file or folder to load, or --clear")
@@ -426,30 +1082,51 @@ def main() -> None:
 
     # Later files win when the same record appears twice.
     rows = list({(r["kind"], r["id"]): r for r in rows}.values())
+
+    # G32 closing: --only-user bounds the load (and any hosted push) to the named customers,
+    # so a second-load merge check can run against one demo customer instead of every store.
+    only = {u.strip() for arg in args.only_user for u in arg.split(",") if u.strip()}
+    if only:
+        rows = [r for r in rows if r["user_id"] in only]
+        if not rows and not args.clear:
+            sys.exit(f"Nothing to load for {', '.join(sorted(only))} in the given files.")
     by_kind: dict[str, int] = {}
     for r in rows:
         by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
 
-    where = "data/cabinet-db.json" if args.target == "file" else f"Supabase table {TABLE}"
+    where = ("the three agent databases (data/arch/*.db)" if args.target == "file" else
+             "the hosted agent tables (agent_user/cm/nordea_records)"
+             + (" + abel_records plumbing" if os.environ.get("SUPABASE_URL") else ""))
     if args.dry_run:
         if args.clear:
-            print(f"Would delete all data in {where}.")
+            print(f"Would delete all data{f' of {chr(44).join(sorted(only))}' if only else ''} in {where}.")
         elif args.replace:
-            print(f"Would first delete existing {', '.join(by_kind)}{f' of {args.user_id}' if args.user_id else ''}.")
+            _scope = sorted(only) if only else ([args.user_id] if args.user_id else [])
+            print(f"Would first delete existing {', '.join(by_kind)}"
+                  f"{f' of {chr(44).join(_scope)}' if _scope else ''}.")
         print(f"Would load {len(rows)} records into {where}: " + ", ".join(f"{n} {k}" for k, n in by_kind.items()))
         if rows and "users" not in by_kind:
             print("Note: no users in this load. The app shows customers only for ids that exist as users.")
         return
 
     load_env()
-    store = LocalFile() if args.target == "file" else Supabase()
+    store = LocalFile() if args.target == "file" else Hosted()
     if args.clear:
-        store.delete()
-        print(f"Deleted all data in {where}.")
+        if only:
+            # G36: --only-user scopes the clear too - never wipe other customers' stores.
+            for u in sorted(only):
+                store.delete(None, u)
+            print(f"Deleted all data of {', '.join(sorted(only))} in {where}.")
+        else:
+            store.delete()
+            print(f"Deleted all data in {where}.")
     elif args.replace:
-        for k in by_kind:
-            store.delete(k, args.user_id)
-        print(f"Deleted existing {', '.join(by_kind)}{f' of {args.user_id}' if args.user_id else ''}.")
+        scope = sorted(only) if only else [args.user_id]
+        for u in scope:
+            for k in by_kind:
+                store.delete(k, u)
+        print(f"Deleted existing {', '.join(by_kind)}"
+              f"{f' of {chr(44).join(scope)}' if any(scope) else ''}.")
     if rows:
         store.upsert(rows)
         print(f"Loaded {len(rows)} records into {where}: " + ", ".join(f"{n} {k}" for k, n in by_kind.items()))

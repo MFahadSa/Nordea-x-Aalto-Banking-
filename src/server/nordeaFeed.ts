@@ -1,6 +1,6 @@
 // Watches the Supabase table "nordea_feed" for new Nordea account data and applies it (see nordeaData.ts).
 // Without Supabase, new data can still be uploaded as a file in More → Nordea account data.
-import { supabaseConfigured, feedPending, feedDone } from './store.js';
+import { feedConfigured, feedPending, feedDone } from './store.js';
 import { applyNordeaData, ApplyResult } from './nordeaData.js';
 import { db } from './db.js';
 import { applyBankImportToArch } from './arch/orchestrator.js';
@@ -13,7 +13,7 @@ export interface FeedStatus {
   lastApplied?: { at: string; rowId: number; userId: string; result: string };
 }
 
-let status: FeedStatus = { enabled: false, ok: true, message: 'Supabase isn’t set up, so the feed is off. You can still upload a file.' };
+let status: FeedStatus = { enabled: false, ok: true, message: 'No feed is configured (NORDEA_DB_URL or Supabase), so the feed is off. You can still upload a file.' };
 let busy = false;
 
 export const feedStatus = () => status;
@@ -21,7 +21,7 @@ export const feedStatus = () => status;
 /** Look for new rows now. Returns what was applied. */
 export async function checkFeed(): Promise<{ applied: { rowId: number; userId: string; result: ApplyResult }[]; status: FeedStatus }> {
   const applied: { rowId: number; userId: string; result: ApplyResult }[] = [];
-  if (!supabaseConfigured()) return { applied, status };
+  if (!feedConfigured()) return { applied, status };
   if (busy) return { applied, status };
   busy = true;
   try {
@@ -38,7 +38,7 @@ export async function checkFeed(): Promise<{ applied: { rowId: number; userId: s
       await feedDone(r.id, `${result.ok ? 'Applied' : 'Not applied'}: ${result.message}`);
       // The applied feed row IS the trigger: source-owner DB refresh + staleness detection.
       if (result.ok) {
-        try { applyBankImportToArch(userId); } catch (err) { console.error('arch import hook failed:', err); }
+        try { applyBankImportToArch(userId); void import('./arch/orchestrator.js').then((O) => O.levelNordeaProposals(userId)).catch(() => {}); } catch (err) { console.error('arch import hook failed:', err); }
       }
       applied.push({ rowId: r.id, userId, result });
       status = { ...status, lastApplied: { at: new Date().toISOString(), rowId: r.id, userId, result: result.message } };
@@ -55,7 +55,7 @@ export async function checkFeed(): Promise<{ applied: { rowId: number; userId: s
 
 /** Checks every 20 seconds while the server runs (only with Supabase). */
 export function startFeedWatcher(everyMs = 20000) {
-  if (!supabaseConfigured()) return;
+  if (!feedConfigured()) return;
   status = { ...status, enabled: true, message: 'Starting…' };
   checkFeed().catch(() => {});
   setInterval(() => checkFeed().catch(() => {}), everyMs).unref?.();

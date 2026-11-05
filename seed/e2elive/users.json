@@ -1,0 +1,37 @@
+[
+  {
+    "id": "e2elive",
+    "persona": "e2elive",
+    "name": "E2E Live",
+    "age": 31,
+    "roleDescription": "Salary grew to 3 900 \u20ac; saving for flat with partner in 18 mo; car goal is stale.",
+    "viewMode": "full",
+    "layoutPrefs": {
+      "widgetsOrder": [
+        "quickActions",
+        "goals",
+        "accounts",
+        "insights",
+        "cabinet"
+      ],
+      "hiddenWidgets": []
+    },
+    "accounts": {
+      "current": {
+        "iban": "FI29 1234 5678 9012 34",
+        "balance": 1420.5
+      },
+      "savings": {
+        "iban": "FI29 1234 5678 9012 35",
+        "balance": 14600,
+        "monthlyDeposit": 400
+      },
+      "carFund": {
+        "iban": "FI29 1234 5678 9012 36",
+        "balance": 2350,
+        "lastContribution": "2024-02-28"
+      }
+    },
+    "points": 120
+  }
+]

@@ -40,6 +40,8 @@ interface Props {
   userName: string;
   messages: ChatMessage[];
   waiting: boolean;
+  /** Client-measured send-to-arrival time per agent reply id (absent after a reload). */
+  timings?: Record<string, { ms: number; late: boolean }>;
   entries: CabinetEntry[];
   shares: Share[];
   onClose: () => void;
@@ -211,15 +213,29 @@ export const Chat: React.FC<Props> = (p) => {
   };
 
   const byId = (id: string) => p.entries.find((e) => e.id === id);
-  // What Abel could see for this reply (its inputs), and, separately, what the model says it used.
+  // The stamp under a reply names the actual answering source (model+provider / scripted /
+  // scripted-error) and the document it was based on; separately, what the model says it used.
   // The model's list is its own report, so it's labelled that way, not as proof.
   const usedLine = (m: ChatMessage) => {
     const es = (m.usedEntryIds || []).map(byId).filter((e): e is CabinetEntry => !!e && e.status !== 'archived');
     const sup = m.supplied;
     if (!sup && !es.length) return null;
     const open = usedOpen === m.id;
+    const docStamp = sup ? `from your document: ${sup.notes} ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ' + account data' : ''}` : '';
+    const sourceStamp = !sup || !sup.source
+      ? `Abel could see ${sup?.notes ?? 0} ${(sup?.notes ?? 0) === 1 ? 'note' : 'notes'}${sup?.accountData ? ' + account data' : ''}`
+      : sup.source === 'model'
+        ? `Abel's AI answered${sup.provider ? ` · ${sup.provider}` : ''} · ${docStamp}`
+        : sup.source === 'scripted-error'
+          ? `Scripted answer after an AI error · ${docStamp}`
+          : `Scripted answer · ${docStamp}`;
+    // Order: question category, client-measured elapsed time, the actual answerer, the round plan.
+    const tm = p.timings?.[m.id];
+    const el = tm ? `${(tm.ms / 1000).toFixed(tm.ms < 10000 ? 1 : 0)} s client-measured${tm.late ? ', picked up late' : ''}` : '';
+    const planStamp = sup?.plan ? `round plan: cm ${sup.plan.cm}, nordea ${sup.plan.nordea}${sup.plan.provider ? ` on ${sup.plan.provider}` : ''}` : '';
+    const head = [el, sup?.category].filter(Boolean).join(' · '); // elapsed first, then the exact category
     const label = sup
-      ? `Abel could see ${sup.notes} ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ' + account data' : ''}`
+      ? [head, sourceStamp, planStamp].filter(Boolean).join(' · ')
       : `Abel says it used ${es.length} ${es.length === 1 ? 'thing' : 'things'}`;
     return (
       <>
@@ -434,7 +450,7 @@ export const Chat: React.FC<Props> = (p) => {
     if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">Quick answer from your account data · Abel’s AI is taking a short break</span> });
     if (m.errorInfo && debug) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
-    // "Abel could see …" only under Abel's latest reply, so it isn't repeated down the whole chat.
+    // The answer stamp only under Abel's latest reply, so it isn't repeated down the whole chat.
     if (lastBot && m.id === latestAgentId) lastBot.after = usedLine(m);
     if (m.resolved && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
   });

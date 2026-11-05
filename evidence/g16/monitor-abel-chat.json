@@ -1,0 +1,827 @@
+{
+  "userId": "g16test",
+  "stores": {
+    "user": {
+      "backend": "sqlite",
+      "file": "g16test.user.db",
+      "connected": true,
+      "lastWrite": "2026-11-01T10:43:32.384Z"
+    },
+    "cm": {
+      "backend": "sqlite",
+      "file": "g16test.cm.db",
+      "connected": true,
+      "lastWrite": "2026-11-01T10:43:59.945Z"
+    },
+    "nordea": {
+      "backend": "sqlite",
+      "file": "g16test.nordea.db",
+      "connected": true,
+      "lastWrite": "2026-11-01T10:43:58.405Z"
+    }
+  },
+  "context": {
+    "sessionId": "g16-sess-1",
+    "roundId": "round-mvxpcxf2-x9zg",
+    "trigger": "session",
+    "openedAt": "2026-11-01T10:43:59.922Z",
+    "finalisedAt": "2026-11-01T10:43:59.947Z"
+  },
+  "llm": {
+    "provider": "chain",
+    "maxSteps": 4,
+    "stepTimeoutMs": 15000
+  },
+  "sessionId": "g16-sess-1",
+  "agents": {
+    "personal": {
+      "mode": "abel",
+      "name": "Abel",
+      "simulated": false,
+      "off": false
+    },
+    "cm": {
+      "off": false
+    },
+    "nordea": {
+      "off": false
+    }
+  },
+  "goals": [
+    {
+      "id": "goal-mvxpcc69-4d8a",
+      "title": "Save for a car",
+      "detail": "12 000 EUR"
+    }
+  ],
+  "databases": {
+    "user": {
+      "goals": 1,
+      "personalFacts": 0,
+      "profile": false
+    },
+    "contextMemory": {
+      "entries": 0,
+      "disputed": 0,
+      "parked": false,
+      "permissions": null
+    },
+    "nordea": {
+      "accounts": 1,
+      "transactions": 5
+    }
+  },
+  "contextMd": "# Context - g16test\n\n<!-- build round: round-mvxpcxf2-x9zg (session) opened 2026-11-01T10:43:59.922Z, finalised 2026-11-01T10:43:59.947Z -->\n\n## Customer\n\n- Goal: Save for a car (goal-mvxpcc69-4d8a)\n\n_1 of 1 goal shared by title (relevant to the question); details and personal facts stay in the User DB until the customer allows sharing them._\n\n## Context memory\n\n_nothing relevant stored yet_\n\n## Nordea\n\n- Relevant to your question: 3 transactions totalling 128.5 EUR of related spending (aggregates only - no account identifiers, no raw transactions).\n- Relevant to your question: 3 transactions totalling 128.5 EUR of related spending (aggregates only - no account identifiers, no raw transactions).\n- Save for a car: 3 transactions totalling 128.5 EUR of related spending (aggregates only - no account identifiers, no raw transactions).\n",
+  "queues": {
+    "airlock": [],
+    "review": [
+      {
+        "id": "msg-mvxpcc6l-93lf",
+        "at": "2026-11-01T10:43:32.397Z",
+        "from": "personal",
+        "to": "cm",
+        "type": "propose",
+        "summary": "Customer goal: Save for a car",
+        "payload": {
+          "roundId": "round-mvxpcc6f-6h2n",
+          "goalIds": [
+            "goal-mvxpcc69-4d8a"
+          ],
+          "detail": "The customer is saving toward \"Save for a car\". Proposed by the personal agent from the User DB (direct customer input).",
+          "observed": "observed"
+        },
+        "status": "pending"
+      },
+      {
+        "id": "msg-mvxpcc6u-cpds",
+        "at": "2026-11-01T10:43:32.406Z",
+        "from": "nordea",
+        "to": "cm",
+        "type": "propose",
+        "summary": "Activity related to goal \"Save for a car\"",
+        "payload": {
+          "inReplyTo": "msg-mvxpcc6r-b20j",
+          "roundId": "round-mvxpcc6f-6h2n",
+          "goalIds": [
+            "goal-mvxpcc69-4d8a"
+          ],
+          "detail": "2 transactions totalling 83.5 EUR of related spending relate to this goal (matched on category and description keywords). Proposed by the Nordea agent from the Nordea DB only - the raw transactions stay there.",
+          "transactionIds": [
+            "t1",
+            "t2"
+          ],
+          "transactionIdsHash": "c124a104",
+          "total": 83.5
+        },
+        "status": "pending"
+      }
+    ]
+  },
+  "messages": [
+    {
+      "id": "msg-mvxpcxpg-18np5",
+      "at": "2026-11-01T10:44:00.292Z",
+      "from": "personal",
+      "to": "app",
+      "type": "inform",
+      "summary": "Chat reply: composed by the model.",
+      "payload": {
+        "llm": true,
+        "kind": "chat-reply",
+        "source": "model"
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxfz-179zy",
+      "at": "2026-11-01T10:43:59.951Z",
+      "from": "cm",
+      "to": "user",
+      "type": "inform",
+      "summary": "Context Memory agent finalised build round round-mvxpcxf2-x9zg: 0 proposals for review, 0 stale flags; the round record is stored in the Context Memory DB.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxfx-16koj",
+      "at": "2026-11-01T10:43:59.949Z",
+      "from": "cm",
+      "to": "app",
+      "type": "reply",
+      "summary": "Context Memory agent confirms round round-mvxpcxf2-x9zg is stored in the Context Memory DB.",
+      "payload": {
+        "inReplyTo": "msg-mvxpcxfs-154e7",
+        "roundId": "round-mvxpcxf2-x9zg",
+        "stored": true,
+        "proposals": 0,
+        "staleFlags": 0
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxfs-154e7",
+      "at": "2026-11-01T10:43:59.944Z",
+      "from": "app",
+      "to": "cm",
+      "type": "control",
+      "summary": "Finalise build round round-mvxpcxf2-x9zg.",
+      "payload": {
+        "control": "finalize-round",
+        "roundId": "round-mvxpcxf2-x9zg"
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcxfn-14bwt",
+      "at": "2026-11-01T10:43:59.939Z",
+      "from": "cm",
+      "to": "user",
+      "type": "done",
+      "summary": "cm agent signals done in build round round-mvxpcxf2-x9zg.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxfk-13ecg",
+      "at": "2026-11-01T10:43:59.936Z",
+      "from": "nordea",
+      "to": "user",
+      "type": "done",
+      "summary": "nordea agent signals done in build round round-mvxpcxf2-x9zg.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxfh-12uxj",
+      "at": "2026-11-01T10:43:59.933Z",
+      "from": "nordea",
+      "to": "cm",
+      "type": "reply",
+      "summary": "Nordea agent proposes 0 goal-relevant cabinet entries (nothing else leaves the Nordea DB).",
+      "payload": {
+        "inReplyTo": "msg-mvxpcxfd-11cqb",
+        "purpose": "contribute",
+        "roundId": "round-mvxpcxf2-x9zg",
+        "proposals": []
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxfd-11cqb",
+      "at": "2026-11-01T10:43:59.929Z",
+      "from": "cm",
+      "to": "nordea",
+      "type": "query",
+      "summary": "Context Memory agent asks the Nordea agent for aggregates relevant to the session question and the Customer section.",
+      "payload": {
+        "purpose": "contribute",
+        "roundId": "round-mvxpcxf2-x9zg",
+        "trigger": "session",
+        "question": "how much did I spend on my car?"
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcxf9-10nqo",
+      "at": "2026-11-01T10:43:59.925Z",
+      "from": "personal",
+      "to": "user",
+      "type": "done",
+      "summary": "personal agent signals done in build round round-mvxpcxf2-x9zg.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxf7-zfuu",
+      "at": "2026-11-01T10:43:59.923Z",
+      "from": "personal",
+      "to": "cm",
+      "type": "inform",
+      "summary": "Abel wrote the Customer section of context.md (1 goal shared by title).",
+      "payload": {
+        "roundId": "round-mvxpcxf2-x9zg",
+        "question": "how much did I spend on my car?"
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxf3-yrby",
+      "at": "2026-11-01T10:43:59.919Z",
+      "from": "app",
+      "to": "personal",
+      "type": "round-start",
+      "summary": "Build round round-mvxpcxf2-x9zg opens (session).",
+      "payload": {
+        "roundId": "round-mvxpcxf2-x9zg",
+        "trigger": "session",
+        "question": "how much did I spend on my car?",
+        "sessionId": "g16-sess-1"
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcxf0-wq2l",
+      "at": "2026-11-01T10:43:59.916Z",
+      "from": "cm",
+      "to": "app",
+      "type": "inform",
+      "summary": "Round plan: cm scripted, nordea model.",
+      "payload": {
+        "llm": true,
+        "status": {
+          "cm": "scripted",
+          "nordea": "model",
+          "provider": "chain"
+        }
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwy1-vp49",
+      "at": "2026-11-01T10:43:59.305Z",
+      "from": "cm",
+      "to": "user",
+      "type": "inform",
+      "summary": "Context Memory agent finalised build round round-mvxpcwx4-le8t: 0 proposals for review, 0 stale flags; the round record is stored in the Context Memory DB.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwy0-uiy8",
+      "at": "2026-11-01T10:43:59.304Z",
+      "from": "cm",
+      "to": "app",
+      "type": "reply",
+      "summary": "Context Memory agent confirms round round-mvxpcwx4-le8t is stored in the Context Memory DB.",
+      "payload": {
+        "inReplyTo": "msg-mvxpcwxv-taqx",
+        "roundId": "round-mvxpcwx4-le8t",
+        "stored": true,
+        "proposals": 0,
+        "staleFlags": 0
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwxv-taqx",
+      "at": "2026-11-01T10:43:59.299Z",
+      "from": "app",
+      "to": "cm",
+      "type": "control",
+      "summary": "Finalise build round round-mvxpcwx4-le8t.",
+      "payload": {
+        "control": "finalize-round",
+        "roundId": "round-mvxpcwx4-le8t"
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcwxq-smt2",
+      "at": "2026-11-01T10:43:59.294Z",
+      "from": "cm",
+      "to": "user",
+      "type": "done",
+      "summary": "cm agent signals done in build round round-mvxpcwx4-le8t.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwxn-rfql",
+      "at": "2026-11-01T10:43:59.291Z",
+      "from": "nordea",
+      "to": "user",
+      "type": "done",
+      "summary": "nordea agent signals done in build round round-mvxpcwx4-le8t.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwxk-qj26",
+      "at": "2026-11-01T10:43:59.288Z",
+      "from": "nordea",
+      "to": "cm",
+      "type": "reply",
+      "summary": "Nordea agent proposes 0 goal-relevant cabinet entries (nothing else leaves the Nordea DB).",
+      "payload": {
+        "inReplyTo": "msg-mvxpcwxg-pqbk",
+        "purpose": "contribute",
+        "roundId": "round-mvxpcwx4-le8t",
+        "proposals": []
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwxg-pqbk",
+      "at": "2026-11-01T10:43:59.284Z",
+      "from": "cm",
+      "to": "nordea",
+      "type": "query",
+      "summary": "Context Memory agent asks the Nordea agent for aggregates relevant to the session question and the Customer section.",
+      "payload": {
+        "purpose": "contribute",
+        "roundId": "round-mvxpcwx4-le8t",
+        "trigger": "session",
+        "question": "how much did I spend on my car?"
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcwxc-oc4a",
+      "at": "2026-11-01T10:43:59.280Z",
+      "from": "personal",
+      "to": "user",
+      "type": "done",
+      "summary": "personal agent signals done in build round round-mvxpcwx4-le8t.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwx9-nfh6",
+      "at": "2026-11-01T10:43:59.277Z",
+      "from": "personal",
+      "to": "cm",
+      "type": "inform",
+      "summary": "Abel wrote the Customer section of context.md (1 goal shared by title).",
+      "payload": {
+        "roundId": "round-mvxpcwx4-le8t",
+        "question": "how much did I spend on my car?"
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwx6-mkae",
+      "at": "2026-11-01T10:43:59.274Z",
+      "from": "app",
+      "to": "personal",
+      "type": "round-start",
+      "summary": "Build round round-mvxpcwx4-le8t opens (session).",
+      "payload": {
+        "roundId": "round-mvxpcwx4-le8t",
+        "trigger": "session",
+        "question": "how much did I spend on my car?",
+        "sessionId": "g16-sess-1"
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwx2-k6ij",
+      "at": "2026-11-01T10:43:59.270Z",
+      "from": "cm",
+      "to": "app",
+      "type": "inform",
+      "summary": "Round plan: cm scripted, nordea model.",
+      "payload": {
+        "llm": true,
+        "status": {
+          "cm": "scripted",
+          "nordea": "model",
+          "provider": "chain"
+        }
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwa5-jpw9",
+      "at": "2026-11-01T10:43:58.445Z",
+      "from": "cm",
+      "to": "user",
+      "type": "inform",
+      "summary": "Context Memory agent finalised build round round-mvxpcw9l-dlyn: 0 proposals for review, 0 stale flags; the round record is stored in the Context Memory DB.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcwa4-ir1p",
+      "at": "2026-11-01T10:43:58.444Z",
+      "from": "cm",
+      "to": "app",
+      "type": "reply",
+      "summary": "Context Memory agent confirms round round-mvxpcw9l-dlyn is stored in the Context Memory DB.",
+      "payload": {
+        "inReplyTo": "msg-mvxpcw9y-h0es",
+        "roundId": "round-mvxpcw9l-dlyn",
+        "stored": true,
+        "proposals": 0,
+        "staleFlags": 0
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw9y-h0es",
+      "at": "2026-11-01T10:43:58.438Z",
+      "from": "app",
+      "to": "cm",
+      "type": "control",
+      "summary": "Finalise build round round-mvxpcw9l-dlyn.",
+      "payload": {
+        "control": "finalize-round",
+        "roundId": "round-mvxpcw9l-dlyn"
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcw9u-girr",
+      "at": "2026-11-01T10:43:58.434Z",
+      "from": "cm",
+      "to": "user",
+      "type": "done",
+      "summary": "cm agent signals done in build round round-mvxpcw9l-dlyn.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw9r-fye1",
+      "at": "2026-11-01T10:43:58.431Z",
+      "from": "nordea",
+      "to": "user",
+      "type": "done",
+      "summary": "nordea agent signals done in build round round-mvxpcw9l-dlyn.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw9n-est7",
+      "at": "2026-11-01T10:43:58.427Z",
+      "from": "app",
+      "to": "cm",
+      "type": "round-start",
+      "summary": "Build round round-mvxpcw9l-dlyn opens (decay).",
+      "payload": {
+        "roundId": "round-mvxpcw9l-dlyn",
+        "trigger": "decay"
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw9i-ckd5",
+      "at": "2026-11-01T10:43:58.422Z",
+      "from": "cm",
+      "to": "app",
+      "type": "reply",
+      "summary": "Context Memory agent reports its own status.",
+      "payload": {
+        "inReplyTo": "msg-mvxpcw9f-b493",
+        "parked": false,
+        "entries": 0,
+        "hasActiveEntry": false
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw9f-b493",
+      "at": "2026-11-01T10:43:58.419Z",
+      "from": "app",
+      "to": "cm",
+      "type": "control",
+      "summary": "Context Memory agent status before a decay re-check.",
+      "payload": {
+        "control": "status"
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcw9b-awdr",
+      "at": "2026-11-01T10:43:58.415Z",
+      "from": "nordea",
+      "to": "app",
+      "type": "reply",
+      "summary": "Nordea DB is current (imports write it directly).",
+      "payload": {
+        "inReplyTo": "msg-mvxpcw98-8hq4",
+        "updated": true,
+        "transactions": 5,
+        "accounts": 1
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw9a-9mbn",
+      "at": "2026-11-01T10:43:58.414Z",
+      "from": "nordea",
+      "to": "user",
+      "type": "inform",
+      "summary": "Nordea agent updated the Nordea DB from the new bank import (5 transactions, 1 account) and re-checked accepted cabinet entries.",
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw98-8hq4",
+      "at": "2026-11-01T10:43:58.413Z",
+      "from": "app",
+      "to": "nordea",
+      "type": "control",
+      "summary": "Refresh the Nordea DB from core bank data.",
+      "payload": {
+        "control": "refresh-from-core",
+        "inform": "Nordea agent updated the Nordea DB from the new bank import ({n} transactions, {m}) and re-checked accepted cabinet entries."
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcw95-72zi",
+      "at": "2026-11-01T10:43:58.409Z",
+      "from": "nordea",
+      "to": "app",
+      "type": "reply",
+      "summary": "Nordea agent applied 5 transactions to its DB (0 skipped, 0 corrected).",
+      "payload": {
+        "inReplyTo": "msg-mvxpcw93-6u69",
+        "added": [
+          {
+            "id": "t1",
+            "userId": "g16test",
+            "date": "2026-10-01",
+            "category": "transport",
+            "amount": -52.1,
+            "account": "current",
+            "description": "Fuel for the car",
+            "counterparty": "NestE"
+          },
+          {
+            "id": "t2",
+            "userId": "g16test",
+            "date": "2026-10-05",
+            "category": "transport",
+            "amount": -31.4,
+            "account": "current",
+            "description": "Car wash",
+            "counterparty": "WashCo"
+          },
+          {
+            "id": "t3",
+            "userId": "g16test",
+            "date": "2026-10-07",
+            "category": "groceries",
+            "amount": -64.2,
+            "account": "current",
+            "description": "Weekly groceries",
+            "counterparty": "K-Market"
+          },
+          {
+            "id": "t4",
+            "userId": "g16test",
+            "date": "2026-10-09",
+            "category": "salary",
+            "amount": 3900,
+            "account": "current",
+            "description": "Salary",
+            "counterparty": "Employer Oy"
+          },
+          {
+            "id": "t5",
+            "userId": "g16test",
+            "date": "2026-10-12",
+            "category": "transport",
+            "amount": -45,
+            "account": "current",
+            "description": "Tyre change",
+            "counterparty": "TyreShop"
+          }
+        ],
+        "skipped": [],
+        "updated": []
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw93-6u69",
+      "at": "2026-11-01T10:43:58.407Z",
+      "from": "app",
+      "to": "nordea",
+      "type": "control",
+      "summary": "The app applies bank transactions to the Nordea DB.",
+      "payload": {
+        "control": "put-transactions",
+        "transactions": [
+          {
+            "id": "t1",
+            "userId": "g16test",
+            "date": "2026-10-01",
+            "category": "transport",
+            "amount": -52.1,
+            "account": "current",
+            "description": "Fuel for the car",
+            "counterparty": "NestE"
+          },
+          {
+            "id": "t2",
+            "userId": "g16test",
+            "date": "2026-10-05",
+            "category": "transport",
+            "amount": -31.4,
+            "account": "current",
+            "description": "Car wash",
+            "counterparty": "WashCo"
+          },
+          {
+            "id": "t3",
+            "userId": "g16test",
+            "date": "2026-10-07",
+            "category": "groceries",
+            "amount": -64.2,
+            "account": "current",
+            "description": "Weekly groceries",
+            "counterparty": "K-Market"
+          },
+          {
+            "id": "t4",
+            "userId": "g16test",
+            "date": "2026-10-09",
+            "category": "salary",
+            "amount": 3900,
+            "account": "current",
+            "description": "Salary",
+            "counterparty": "Employer Oy"
+          },
+          {
+            "id": "t5",
+            "userId": "g16test",
+            "date": "2026-10-12",
+            "category": "transport",
+            "amount": -45,
+            "account": "current",
+            "description": "Tyre change",
+            "counterparty": "TyreShop"
+          }
+        ],
+        "mode": "replace"
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcw90-5pnu",
+      "at": "2026-11-01T10:43:58.404Z",
+      "from": "nordea",
+      "to": "app",
+      "type": "reply",
+      "summary": "Nordea agent stored the account record in its DB.",
+      "payload": {
+        "inReplyTo": "msg-mvxpcw8y-433x",
+        "account": {
+          "id": "a1",
+          "userId": "g16test",
+          "key": "current",
+          "type": "current account"
+        }
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw8y-433x",
+      "at": "2026-11-01T10:43:58.402Z",
+      "from": "app",
+      "to": "nordea",
+      "type": "control",
+      "summary": "The app stores an account record in the Nordea DB.",
+      "payload": {
+        "control": "put-bank-account",
+        "account": {
+          "id": "a1",
+          "userId": "g16test",
+          "key": "current",
+          "type": "current account"
+        }
+      },
+      "status": "answered"
+    },
+    {
+      "id": "msg-mvxpcw8v-3jgf",
+      "at": "2026-11-01T10:43:58.399Z",
+      "from": "nordea",
+      "to": "app",
+      "type": "reply",
+      "summary": "Nordea agent applied 4 transactions to its DB (0 skipped, 0 corrected).",
+      "payload": {
+        "inReplyTo": "msg-mvxpcw8t-23ft",
+        "added": [
+          {
+            "id": "t1",
+            "userId": "g16test",
+            "date": "2026-10-01",
+            "category": "transport",
+            "amount": -52.1,
+            "account": "current",
+            "description": "Fuel for the car",
+            "counterparty": "NestE"
+          },
+          {
+            "id": "t2",
+            "userId": "g16test",
+            "date": "2026-10-05",
+            "category": "transport",
+            "amount": -31.4,
+            "account": "current",
+            "description": "Car wash",
+            "counterparty": "WashCo"
+          },
+          {
+            "id": "t3",
+            "userId": "g16test",
+            "date": "2026-10-07",
+            "category": "groceries",
+            "amount": -64.2,
+            "account": "current",
+            "description": "Weekly groceries",
+            "counterparty": "K-Market"
+          },
+          {
+            "id": "t4",
+            "userId": "g16test",
+            "date": "2026-10-09",
+            "category": "salary",
+            "amount": 3900,
+            "account": "current",
+            "description": "Salary",
+            "counterparty": "Employer Oy"
+          }
+        ],
+        "skipped": [],
+        "updated": []
+      },
+      "status": "read"
+    },
+    {
+      "id": "msg-mvxpcw8t-23ft",
+      "at": "2026-11-01T10:43:58.397Z",
+      "from": "app",
+      "to": "nordea",
+      "type": "control",
+      "summary": "The app applies bank transactions to the Nordea DB.",
+      "payload": {
+        "control": "put-transactions",
+        "transactions": [
+          {
+            "id": "t1",
+            "userId": "g16test",
+            "date": "2026-10-01",
+            "category": "transport",
+            "amount": -52.1,
+            "account": "current",
+            "description": "Fuel for the car",
+            "counterparty": "NestE"
+          },
+          {
+            "id": "t2",
+            "userId": "g16test",
+            "date": "2026-10-05",
+            "category": "transport",
+            "amount": -31.4,
+            "account": "current",
+            "description": "Car wash",
+            "counterparty": "WashCo"
+          },
+          {
+            "id": "t3",
+            "userId": "g16test",
+            "date": "2026-10-07",
+            "category": "groceries",
+            "amount": -64.2,
+            "account": "current",
+            "description": "Weekly groceries",
+            "counterparty": "K-Market"
+          },
+          {
+            "id": "t4",
+            "userId": "g16test",
+            "date": "2026-10-09",
+            "category": "salary",
+            "amount": 3900,
+            "account": "current",
+            "description": "Salary",
+            "counterparty": "Employer Oy"
+          }
+        ],
+        "mode": "replace"
+      },
+      "status": "answered"
+    }
+  ]
+}
