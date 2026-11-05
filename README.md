@@ -24,7 +24,7 @@
 </div>
 
 > [!NOTE]
-> This branch is a **research prototype** exploring a three-agent architecture. It is not merged into `main`. All bank data, partners and customers are fictional.
+> This branch is a **research prototype** exploring a three-agent architecture. All bank data, partners and customers are fictional.
 
 ## 💡 The idea in 30 seconds
 
@@ -399,40 +399,22 @@ Abel's chat on this branch lives in the three-agent code (`src/server/arch/orche
 
 </details>
 
-## Team
+## ✍️ About this README
 
-Five roles ran this project. The chart shows who decided, who built, who checked, and who kept the record; the signatures below are each role's confirmed acknowledgment.
+Written by AI agents working together on the branch `ai-agent-communications`, with facts about the final prototype checked by **Instinct**, who built it. Their conversation is in [`AGENT_CHAT.md`](https://github.com/coolkowkank/Nordea-x-Aalto-Banking-/blob/ai-agent-communications/AGENT_CHAT.md) and [`AGENT_CHAT_2.md`](https://github.com/coolkowkank/Nordea-x-Aalto-Banking-/blob/ai-agent-communications/AGENT_CHAT_2.md) on that branch.
 
-![Project team chart: project owner, Coordinator, Telkomsel, Bill (final QC / readiness gate), Joe](docs/team-chart-legend.png)
+| Agent | Role | Signature |
+|---|---|---|
+| **Jeff** (Claude) | Content and accuracy | ✍️ *Jeff was here: first draft, every claim checked against the code.* |
+| **Bill** | Design and readability | ✍️ *Bill was here: layout, badges, gallery, diagrams and tables, so it reads in one minute and runs in five.* |
+| **Instinct** | Architecture and fact-checking | ✍️ *Instinct was here: checked the prototype claims against the code and verified the airlock correction.* |
+| **Joe** | Context memory | ✍️ *Joe was here: kept the shared memory, so four agents could pick up any turn without rereading the whole thread.* |
 
-*Chart labels: names are project roles. @coolkowkank is shown as the repository owner account only - no binding to the approving user's identity is implied. Bill and Joe have no verified GitHub account.*
+> [!NOTE]
+> **Updated 31 October 2026:** [LAPTOP.md](LAPTOP.md) now clones from this repository (`coolkowkank/Nordea-x-Aalto-Banking-`), works on Windows, Mac and Linux, and covers Groq (no VPN) as well as the Aalto LLM.
 
-<details><summary>Mermaid approximation of the canonical image above (GitHub cannot render mermaid here)</summary>
+---
 
-```mermaid
-flowchart TD
-    Owner["Project owner (repository owner)<br/>@coolkowkank"]
-    Coord["Coordinator (GitHub: instinct-christina)<br/>Relays the owner's words (timestamp + verbatim),<br/>verifies pushes independently, takes delegated routine decisions.<br/>Holds no TURN"]
-    Tel["Telkomsel (GitHub: instinct-telkomsel)<br/>Sole executing writer of code and docs,<br/>acting only on its TURN: one commit per batch,<br/>guard PASS first"]
-    Bill["Bill — independent QC<br/>Verdicts on every batch: findings, acceptance,<br/>docs review, final readiness before merge"]
-    Joe["Joe — records and archive<br/>Keeps review.md small, archives hand-overs,<br/>answers progress. No TURN; never moves work"]
-
-    Owner -->|direction + gates| Coord
-    Coord -->|assignments + relays| Tel
-    Coord -->|asks + relays| Bill
-    Tel -->|hand-over| Bill
-    Bill -->|verdicts| Tel
-    Tel -->|hand-overs| Joe
-    Bill -->|verdicts| Joe
-    Owner -.->|"final QC / readiness gate"| Bill
-```
-
-</details>
-
-### Signatures
-
-- **Project owner (approving user)** — decided scope, spend, hosted/live, security and the merge gate; every owner word reached the team as a timestamped verbatim relay. Sign-off: original conditional once-only, merge-last grant recorded (refs 1793664882.497109, 1793665293.820759); not a new signature.
-- **Coordinator** (GitHub: instinct-christina) — assignments and timestamped verbatim relays, independent verification of every builder push, delegated routine decisions (D1–D7, ratified id rules). Sign-off: confirmed by the Coordinator, 3 Nov 2026.
-- **Telkomsel** (GitHub: instinct-telkomsel) — sole executing writer of code and docs; acts only on its TURN, one commit per batch, guard PASS before push. Sign-off: confirmed by committing this section on its TURN.
-- **Bill** — independent QC; verdicts on every batch, from-zero README run green (mock/local) @5d80921. Sign-off: role content confirmed in review.md 11:54 @e355df7; the final readiness verdict on the resulting head remains Bill's to give.
-- **Joe** — records and archive; keeps review.md hot, archives hand-overs, never moves work. Sign-off: role content confirmed in review.md 11:57 @5438715 (first readback 11:47 @04132d7).
+<div align="center">
+<sub>Built as a <b>Nordea × Aalto University</b> research prototype. All data is fictional.</sub>
+</div>

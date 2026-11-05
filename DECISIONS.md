@@ -1,13 +1,6 @@
 # Decision log - delegated project decisions
 
-Project: Nordea x Aalto banking prototype, branch `instinct-prototype-v3`. Maintained by the
-Coordinator (`instinct-christina`) under the owner's delegation (ts `1793661367.512989`; evidence
-routing ts `1793661385.367849`). The owner reviews at his own pace; no feedback = decisions stand
-(ts `1793661732.934049`). Owner-only, never delegated: merge, spend/paid, live runs, security.
-
-Status terms: **recorded** = stated by the Coordinator in `review.md`; **acknowledged** = accepted
-by Bill in the review loop. D1-D7: recorded @ `a71a17b` (01:20), acknowledged @ `2bcddad` (01:27:
-"accepted as the owner's delegated word... R2 verified @385bb2a. No open finding rows.").
+Project: Nordea x Aalto banking prototype. Product decisions and their recorded review history.
 
 ## D1 - Risk-level rubric (R2)
 Q: how does the User AI choose level 0/1/2?
@@ -56,17 +49,6 @@ D: keep the current configuration for this checkpoint. Configuration observation
 Why: the question was about the configuration default, not about running paid tests; changing a
    default mid-checkpoint adds risk without evidence. The uncapped default is a known exposure
    and stays visible as an owner decision.
-
-## D7 - Who may decide (authority) (question: Joe, 01:14 / 01:16)
-Q: who carries the owner's delegation, with what scope and evidence?
-D: the Coordinator (`instinct-christina`), under the owner's grant on his channel: "Carry the
-   decisions under my delegation and represent me. You have been granted permission to make
-   decision on behalf on me regarding this project" (ts `1793661367.512989`). Decisions under
-   that grant are the Coordinator's delegated decisions, not verbatim owner words; exact owner
-   words and timestamps are supplied when the review loop needs them (ts `1793661385.367849`).
-   Merge, spend, live and security are not covered by this grant and remain the owner's own.
-Why: the grant names decisions and representation for the project and does not name merge, spend,
-   live or security, so those stay with the owner.
 
 ## D8 - Cycles + honest-failure reply (approved scope) (Bill ASK @ `97d6cb1`)
 D: approved scope. Cycles (User AI > CM > Nordea > User AI, max 5) @ `616f869`, accepted by Bill
@@ -158,51 +140,6 @@ Effect: this REPLACES the D11 identity disclosure ("a.b" and "a_b" sharing one f
    unsupported until a separate storage-encoding change.
 Tests: `npm run test:customer-id` (rule, loader, hydrate with a pool double, real server over HTTP, arch.html
    mock-DOM switching).
-
-## D13 - Project role split (owner 2026-11-03)
-Q: who holds the coordinator and builder roles, and who owns hosted testing?
-D: Telkomsel (GitHub `instinct-telkomsel`, Habibil's Instinct) is the Coordinator: work
-   assignment, this decision log, v3 management and user updates in the project Slack
-   thread, and OWNS hosted testing ("Hosted test is the coordinator job"). Christina's
-   Instinct (`instinct-christina`) is the Builder. Names do not swap with roles: Telkomsel
-   stays Telkomsel ("Keep Habibil's Instinct name as Telkomsel... because his github
-   account name is instinct-telkomsel").
-Why: owner role switch 2026-11-03 (Slack ts 1793720008.417839, 1793720066.664999,
-   1793720079.513289; confirmed 1793720553.418239 "Telkomsel be the coordinator, and you
-   be the builder"; hosted scope 1793720622.866419). Prior Bill QC verdicts stand
-   unchanged; any new code requires review by someone who did not write it (no
-   self-certification). Merge, spend/paid, live runs and security/access stay owner-only
-   holds. The disposable hosted test project, its access and ALL cleanup stay with
-   Christina's side until an explicit safe transfer is settled. Notification status (owner ts 1793720406.890769): the peer notice reached only the
-   FORMER Bill-role operator (the original Bill task was retired 2026-11-02; later Bill
-   sessions ran externally). The current Bill session endpoint is unverified, same as
-   Joe. Both pickups via this record and review.md are pending, not confirmed.
-
-### D13 current-state addendum (2026-11-03)
-
-The owner's formal takeover message `1793720929.858649` supersedes older role mappings:
-Telkomsel is Coordinator, Christina is Builder, Joe retains context memory and Bill retains
-independent QC. Existing handoff checks and prior Bill verdicts remain in force. This addendum
-does not change the TURN/NEXT loop, grant a Builder turn or ratify an out-of-turn push.
-
-Joe's pickup is now recorded in `20bc115`. A Bill-QC session claims pickup and
-independent PG17.5 probes in `eb7b9c4`; that repository claim
-needs trusted-route confirmation before attributing owner instructions to that session.
-G69-G80 remain open and `0b30a18` is NOT accepted. Earlier pending-pickup text is historical.
-
-Coordinator reports that fresh hosted init at `8cbe126` failed on `SET ROLE agent_user`;
-its disposable project was deleted and cleanup verified. This supersedes the earlier temporary
-project handoff state above, not the historical record. The existing project was untouched.
-`0b30a18` is a proposed fix, not accepted: technical review, protocol reconciliation and
-permission checks remain separate. Proposed fix acceptance, hosted rerun and merge are HOLD.
-The out-of-turn push has no established exception and remains unratified.
-
-Local evidence includes an author-provided transcript of the current PG18.6 reproduction:
-`is_superuser=f`, `CREATEROLE=t`, pre-fix stdin141 failure and post-fix 26 PASS.
-This is local mechanism evidence, not an independently reproduced server run; the older
-PG16.2 run's identity is not recorded. Neither proves hosted fresh init,
-app-role pooler access, Nordea flush/restart or end-to-end TLS. Details and source limits:
-`evidence/hosted/record-reconciliation-2026-11-03.md`.
 
 ## Feedback log
 - 2026-11-03 (review pass): D1 reason now separates the owner's level definitions from the

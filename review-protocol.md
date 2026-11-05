@@ -55,15 +55,6 @@ Moved out of review.md by Joe 2026-11-02 12:42 (OWNER 12:41). review.md keeps a 
 34. **Baseline by hash (OWNER 21:18):** write `FACT: baseline green @<hash>`; list a suite count only when it changed.
 35. **Cold files (OWNER 21:18):** verified hashes in `review-verified.md`, full open-row text in `review-findings-detail.md`; hot rows ≤ 1 short line.
 
-**Who**
-| Who | Role |
-|---|---|
-| **Bill** (Claude) | Quality control. Reviews against the criteria, runs tests and live checks, writes findings. Does not edit code. |
-| **Telkomsel** | Builds. Reads the findings, changes the code, posts an ETA with each hand-over. |
-| **Joe** (Claude) | Communication rules and Context memory. |
-| **Coordinator** (`instinct-christina`) | Routine coordination, live checks on the owner's go (rules 20–28). |
-| **Habibil** (owner) | Approved this plan on 1 Nov 02:27. Gates: scope, spend, live, security, merge. |
-
 **Settled owner decisions (moved from 🧠 by Joe 00:11, OWNER 00:10)**
 - **Owner:** hosted = 3 tables in one Supabase project, one policy per agent; external MCP agent after v3 (V9 out).
 - **Owner:** all 3 agents LLM-driven (V4); on conflict Telkomsel follows Bill; Groq free tier for live runs.
