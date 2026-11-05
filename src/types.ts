@@ -273,7 +273,9 @@ export interface ChatMessage {
     /** Exact question category, decided by code: 'General Question' or 'Related Question'. */
     category?: 'General Question' | 'Related Question';
     /** The round plan path of THIS reply's round (absent when no round ran for it). */
-    plan?: { cm: string; nordea: string; provider?: string } };
+    plan?: { cm: string; nordea: string; provider?: string };
+    /** The three agents' shared session document was given to Abel for this reply. */
+    shared?: boolean };
   /** Correlates a customer message with its reply (late pickup, no duplicate resubmit). */
   requestId?: string;
   replyToRequestId?: string;
@@ -308,6 +310,26 @@ export interface PartnerItem {
   per?: string;
 }
 
+export interface PartnerManifest {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  kind: string;
+  /** When Abel may suggest this partner (given to the model as a description). */
+  when: string;
+  cta: string;
+  view: string;
+  buy: string;
+  verb: string;
+  alternative: string;
+  /** How Nordea is paid. Computed in code, never by the model. */
+  fee: { type: 'percent' | 'flat' | 'percentOfYear'; value: number };
+  /** Share of Nordea's fee given back to the customer's savings. */
+  shareBack: number;
+  feeText: string;
+  items: PartnerItem[];
+}
 
 export interface Earning {
   id: string;

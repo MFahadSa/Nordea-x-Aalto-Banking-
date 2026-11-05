@@ -6,12 +6,12 @@ import { previewCabinetForAgent, readCabinetThroughGateway } from './accessGatew
 import { summary as dataRewardsSummary } from './dataRewards.js';
 import { applyNordeaData, readNordeaFile, NordeaData } from './nordeaData.js';
 import { checkFeed, feedStatus } from './nordeaFeed.js';
-import { applyBankImportToArch } from './arch/orchestrator.js';
+import { applyBankImportToArch, abelSharedContext, classifyQuestion } from './arch/orchestrator.js';
+import { getPartner, getAllPartners } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { proposeFromContent, SAMPLE_CHAT, ImportItem } from './importPropose.js';
 import { runOnce, requestState } from './chatRequests.js';
-import { chat as archChat } from './arch/orchestrator.js';
-import { loadContext } from './arch/store/contextStore.js';
+import { abelTurn, offerHeadline } from './abel.js';
 import { getProvider, aiStatus, aiPing } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } from '../types.js';
 import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } from './documents.js';
@@ -113,6 +113,7 @@ export function registerV14Routes(app: Express) {
     });
   });
 
+  app.get('/api/partners', (_req, res) => res.json({ partners: getAllPartners() }));
 
   // AI connection check (More → AI connection). Shows whether a key is present, which model works,
   // and the last error. Never returns the key.
@@ -149,21 +150,22 @@ export function registerV14Routes(app: Express) {
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
-    const reply = await archChat(userId, u.text, conv.id);
-    // The honesty line reflects THIS pipeline: rows of the session's finalised document,
-    // the actual answering source (model+provider / scripted / scripted-error), never a
-    // configured-chain claim (V4).
-    const doc = loadContext(userId);
-    const docRows = doc && doc.sessionId === reply.sessionId ? Object.values(doc.sections).flatMap((sec) => sec.rows) : [];
-    const a = agentMsg(userId, conv.id, conv.helperId, reply.reply, {
-      suggestions: reply.suggestions ?? [],
-      usedEntryIds: reply.used,
-      supplied: { notes: docRows.length, accountData: docRows.some((r) => r.source === 'nordea'), source: reply.source, ...(reply.provider ? { provider: reply.provider } : {}), ...(reply.category ? { category: reply.category } : {}), ...(reply.plan ? { plan: { cm: reply.plan.cm, nordea: reply.plan.nordea, ...(reply.plan.provider ? { provider: reply.plan.provider } : {}) } } : {}) },
-      errorInfo: reply.plan?.error,
-      answeredBy: reply.source === 'model' ? undefined : 'bank_code',
+    // His three agents gather what Abel may see for this conversation (User DB via the personal agent,
+    // the session's finalised context.md); Abel writes the reply, with cards and the reply checks.
+    const shared = await abelSharedContext(userId, conv.id, u.text);
+    const reply = await abelTurn(userId, conv.id, conv.helperId, u.text, shared);
+    db.addTopicLogEntry({ id: id('topic'), timestamp: now(), userId, topic: reply.topic, couldHelp: reply.couldHelp });
+    const a = agentMsg(userId, conv.id, conv.helperId, reply.text, {
+      suggestions: reply.suggestions,
+      cards: reply.cards,
+      notes: reply.notes,
+      usedEntryIds: reply.usedEntryIds,
+      supplied: { ...(reply.supplied || { notes: 0, accountData: true }), source: reply.offline ? 'scripted' : 'model', category: classifyQuestion(u.text, shared.sharedContext ? [shared.sharedContext] : []), ...(shared.sharedContext ? { shared: true } : {}) },
+      errorInfo: reply.errorDetail,
+      answeredBy: reply.offline ? 'bank_code' : undefined,
       ...(requestId ? { replyToRequestId: requestId } : {}),
     });
-    return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: reply.source === 'scripted-error' ? 'ai' : undefined } };
+    return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: reply.error } };
   };
   app.post('/api/chat', async (req, res) => {
     const { userId = 'lauri', text, conversationId, helperId = 'abel' } = req.body || {};
@@ -201,7 +203,7 @@ export function registerV14Routes(app: Express) {
     const { userId = 'lauri', messageId, action, payload = {} } = req.body || {};
     const msg = db.getMessages(userId).find((m) => m.id === messageId);
     if (!msg || !msg.conversationId) return res.status(404).json({ error: 'Message not found' });
-    if (msg.resolved) return res.status(409).json({ error: 'Already answered' });
+    if (msg.resolved && !['offer_view'].includes(action)) return res.status(409).json({ error: 'Already answered' });
     const conv = msg.conversationId;
     const helper = msg.helperId || 'abel';
     const user = db.getUser(userId)!;
@@ -209,6 +211,55 @@ export function registerV14Routes(app: Express) {
     const card = (t: MessageCard['type']) => msg.cards?.find((c) => c.type === t);
 
     switch (action) {
+      case 'offer_show':
+      case 'offer_no':
+      case 'offer_off': {
+        const c = card('offer');
+        const p = c && getPartner(c.data!.partnerId);
+        if (!p) return res.status(400).json({ error: 'No offer on this message' });
+        if (action === 'offer_show') {
+          db.updateMessage(msg.id, { resolved: p.cta });
+          const h = offerHeadline(userId, p.id);
+          const home = h.used.length ? db.getCabinetEntry(h.used[0]) : undefined;
+          out.push(agentMsg(userId, conv, helper, home?.target ? `Here are three on Kotiväli that work with a ${fmt(home.target.amount)} deposit:` : `Here’s what ${p.name} has:`, {
+            cards: [{ type: 'offer_list', data: { partnerId: p.id, name: p.name, initials: p.initials, color: p.color, items: p.items, view: p.view, buy: p.buy, verb: p.verb, feeText: p.feeText } }],
+            usedEntryIds: h.used,
+          }));
+        } else if (action === 'offer_no') {
+          db.updateMessage(msg.id, { resolved: 'No thanks' });
+          out.push(agentMsg(userId, conv, helper, 'No problem 👍 I won’t bring it up again in this chat.'));
+        } else {
+          db.updateMessage(msg.id, { resolved: 'Turn off partner offers' });
+          db.updateUser(userId, { offersOff: true });
+          out.push(agentMsg(userId, conv, helper, 'Done, no more partner offers. You can turn them back on any time in Who sees it.'));
+        }
+        break;
+      }
+      case 'offer_view':
+      case 'offer_buy': {
+        const c = card('offer_list');
+        const p = c && getPartner(c.data!.partnerId);
+        const item = p && p.items[Number(payload.index)];
+        if (!p || !item) return res.status(400).json({ error: 'No such item' });
+        if (msg.resolved) return res.status(409).json({ error: 'Already bought' });
+        if (action === 'offer_view') {
+          out.push(userMsg(userId, conv, helper, `${p.view}: ${item.title}`));
+          out.push(agentMsg(userId, conv, helper, `Sent to ${p.name} (demo) ✓ They only get your name and phone number. Nothing Abel knows about you is shared.`));
+          break;
+        }
+        const fee = fin.partnerFee(p.fee, item.price);
+        const back = Math.round(fee * p.shareBack);
+        db.updateMessage(msg.id, { resolved: `bought:${payload.index}` });
+        db.addEarning({ id: id('earn'), userId, partnerId: p.id, partnerName: p.name, what: `You ${p.verb} ${item.title}`, fee, back, createdAt: now() });
+        db.updateUser(userId, { accounts: { ...user.accounts, savings: { ...user.accounts.savings, balance: Math.round((user.accounts.savings.balance + back) * 100) / 100 } } });
+        out.push(userMsg(userId, conv, helper, `${p.id === 'homes' ? 'I bought' : p.buy.replace(' (demo)', '')}: ${item.title}`));
+        const home = p.id === 'homes' ? db.getCabinetEntries(userId).find((e) => e.goalType === 'home' && e.status === 'active') : undefined;
+        out.push(agentMsg(userId, conv, helper, `${p.id === 'homes' ? 'Congratulations on your new home! 🎉' : 'Done (demo) ✓'}\n\nNordea earned ${fmt(fee)} from ${p.name} for this. As promised, ${fmt(back)} of it goes back to your savings account.`, {
+          suggestions: home ? [`Mark “${home.title}” as done`] : [],
+          cards: [{ type: 'info', data: { link: 'privacy', label: 'See what Nordea earned' } }],
+        }));
+        break;
+      }
       case 'plan_confirm':
       case 'plan_cancel': {
         const c = card('confirm_plan');

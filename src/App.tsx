@@ -412,7 +412,7 @@ export default function App() {
                 users={users}
                 currentUserId={state.user.id}
                 onSelectPersona={(p) => { setPersonaId(p); setUsersOpen(false); setChatOpen(false); setPage('home'); }}
-                onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'All data deleted' }); }}
+                onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
               />
               <AddGoalModal
                 isOpen={addGoalOpen}
@@ -500,7 +500,7 @@ export default function App() {
               onUsers={() => setUsersOpen(true)}
               onCalm={async () => { await updateUserViewMode(state.user.id, isCalm ? 'full' : 'calm'); refresh(); }}
               onDark={toggleTheme}
-              onReset={async () => { if (!window.confirm('Delete all customers and their data? Load data again with scripts/load_data.py.')) return; await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'All data deleted' }); }}
+              onReset={async () => { if (!window.confirm('Reset the demo? Chats and changes are deleted and the demo customers start again.')) return; await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
               onRefresh={() => refresh()}
             />
           )}

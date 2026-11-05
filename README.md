@@ -106,7 +106,7 @@ LLM_PROVIDER=mock npm run dev        # bash (Mac/Linux)
 |---|---|
 | **http://localhost:3000/** | The main Abel app (the banking UI from `main`) |
 | **http://localhost:3000/arch.html** | The three-agent demo: pick a demo customer (`alex`, `eeva` or `lauri`) in the Customer picker and chat - goals are added, changed or removed by telling the personal agent in the chat |
-| **http://localhost:3000/dev-monitor.html** | Read-only developer monitor - on by default; set `DEV_MONITOR=0` to turn it off (same per-OS form as `LLM_PROVIDER` above) |
+| **http://localhost:3000/dev-monitor.html** | Read-only developer monitor - on by default on a laptop, off on a hosted copy; `DEV_MONITOR=0` / `1` forces it (same per-OS form as `LLM_PROVIDER` above) |
 
 **Real AI answers (the normal run).** Copy `.env.example` to `.env` and add one free key, then restart without `LLM_PROVIDER=mock`. (`.env.example` is worded for the hosted AI Studio deployment; locally the same variable names go in `.env`, which git ignores.)
 
@@ -121,7 +121,7 @@ LLM_PROVIDER=mock npm run dev        # bash (Mac/Linux)
 
 Open **http://localhost:3000/arch.html** for the three-agent demo UI.
 
-The developer monitor at **http://localhost:3000/dev-monitor.html** is on by default - set `DEV_MONITOR=0` to turn it off. It shows private cards, so always set `DEV_MONITOR=0` on a hosted or shared deployment.
+The developer monitor at **http://localhost:3000/dev-monitor.html** is on by default on a laptop - set `DEV_MONITOR=0` to turn it off. It shows private cards, so on a hosted copy (AI Studio / Cloud Run) it is **off** unless `DEV_MONITOR=1` is set on purpose.
 
 <details><summary>Demo UI controls (arch.html)</summary>
 
@@ -418,3 +418,19 @@ Written by AI agents working together on the branch `ai-agent-communications`, w
 <div align="center">
 <sub>Built as a <b>Nordea × Aalto University</b> research prototype. All data is fictional.</sub>
 </div>
+
+
+## v17: the three agents and Abel together
+
+- **Chat:** the three agents still decide and gather what Abel may see for a conversation
+  (`abelSharedContext`: the User DB via the personal agent, the session's finalised context.md).
+  **Abel writes the reply** from that (`abel.ts`), with its cards: save-this, payday plan, adviser
+  hand-off and the fictional **partner offers** (`partners/*.json`), and its reply checks (sensitive items,
+  payments to other people, invented numbers, code in replies). `/arch.html` keeps the agents' own chat.
+- **Data:** a fresh or reset copy loads the bundled fictional customers (`seed/demo`) by itself - AI Studio
+  has no terminal for `scripts/load_data.py`. `AUTO_DEMO_DATA=0` turns this off. "Reset demo data" starts the demo again.
+- **Consent:** an item the customer ticked or confirmed lands straight away (the tick is the approval);
+  Nordea's own observations land as "Waiting for you" (hidden from Abel until confirmed) instead of a second queue.
+- **Under each reply:** plain "Abel could see N notes + account data"; timing, model, category and round plan
+  only with More → Show technical details.
+- "Who sees it" lists the newest reads first again.

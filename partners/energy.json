@@ -1,0 +1,34 @@
+{
+  "id": "energy",
+  "name": "Lumivalo Energy",
+  "initials": "LE",
+  "color": "#B7791F",
+  "kind": "Electricity",
+  "when": "The customer says their electricity or energy bill is high, or asks about electricity contracts.",
+  "cta": "See prices",
+  "view": "Compare with mine",
+  "buy": "Switch (demo)",
+  "verb": "switched to",
+  "alternative": "Or let Abel check your current bill, free",
+  "fee": {
+    "type": "flat",
+    "value": 25
+  },
+  "shareBack": 0.5,
+  "feeText": "Nordea gets 25 € if you switch, and gives half of it back to you.",
+  "items": [
+    {
+      "title": "Fixed price · 12 months",
+      "sub": "7,9 c/kWh, plus a monthly fee",
+      "price": 3.9,
+      "per": "/month"
+    },
+    {
+      "title": "Exchange price",
+      "sub": "Spot price + 0,39 c/kWh",
+      "price": 2.9,
+      "per": "/month"
+    }
+  ],
+  "_note": "Fictional partner for the student concept. Not a real company."
+}

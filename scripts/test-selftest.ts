@@ -68,7 +68,7 @@ const res = await runSelfTest();
 console.log('RESULT ' + res.passed + '/' + res.total);
 `, { CABINET_DATA_DIR: path.join(dir, 'data') });
   const line = r.out.split('\n').find((l) => l.startsWith('RESULT ')) ?? '';
-  check('selftest guard: an empty store is seeded from the bundled dataset and passes (mock)', line === 'RESULT 13/13', { line, err: r.err.slice(-300) });
+  check('selftest guard: an empty store is seeded from the bundled dataset and passes (mock)', line === 'RESULT 12/12', { line, err: r.err.slice(-300) });
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

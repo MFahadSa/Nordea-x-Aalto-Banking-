@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { autoDemoOn, loadBundledDemo } from './demoSeed.js';
 import path from 'path';
 import {
   User,
@@ -149,6 +150,23 @@ export function migrateLegacyState(state: DatabaseState): DatabaseState {
 // readableBy, provenance, target, why, reviewed, goalType, confirmedAt, updatedAt) live in the
 // row's `doc` JSON. The two views are merged on read, split on write.
 
+/** A held Nordea observation (G11) shown with the wording that waits in the queue, still unreviewed. */
+const withWaitingVersion = (userId: string, entry: CabinetEntry): CabinetEntry => {
+  if (entry.source !== 'nordea' || entry.reviewed !== false) return entry;
+  const waiting = (pendingAppWrite(userId, entry.id)?.payload as { entry?: { doc?: CabinetEntry } } | undefined)?.entry?.doc;
+  return waiting ? { ...entry, title: waiting.title ?? entry.title, detail: waiting.detail ?? entry.detail, why: waiting.why ?? entry.why, updatedAt: waiting.updatedAt ?? entry.updatedAt, reviewed: false } : entry;
+};
+/** A NEW Nordea observation that so far exists only as a waiting write. */
+const waitingNordeaDoc = (userId: string, entryId: string): CabinetEntry | undefined => {
+  const d = (pendingAppWrite(userId, entryId)?.payload as { entry?: { doc?: CabinetEntry } } | undefined)?.entry?.doc;
+  return d && d.source === 'nordea' ? { ...d, id: entryId, reviewed: false } : undefined;
+};
+
+/** The app write still waiting in the CM review queue for this entry id, if any. */
+const pendingAppWrite = (uid: string, entryId: string) => loadBus(uid).messages.find((m) => m.type === 'propose' && m.status === 'pending'
+  && (m.payload as { appWrite?: boolean; entry?: { id?: string } } | undefined)?.appWrite === true
+  && (m.payload as { entry?: { id?: string } } | undefined)?.entry?.id === entryId);
+
 const goalToEntry = (userId: string, g: Goal): CabinetEntry =>
   g.doc
     ? { ...g.doc, id: g.id, userId, type: 'goal', title: g.title, detail: g.detail, createdAt: g.createdAt }
@@ -250,6 +268,11 @@ class Database {
     if (hydrated.length) console.log(`Database: agent stores hydrated from hosted tables: ${hydrated.join(', ')}`);
     if (fs.existsSync(DB_FILE)) {
       console.log('Database: found legacy cabinet-db.json - run `npm run migrate:legacy` to move it into the three agent databases (verified, then the file is deleted).');
+    }
+    // A fresh copy (AI Studio has no terminal for scripts/load_data.py): load the bundled demo customers.
+    if (!this.hasData() && autoDemoOn()) {
+      const r = await loadBundledDemo().catch((e) => ({ ok: false, message: String(e?.message || e) }));
+      console.log(`Database: no data yet - ${r.ok ? r.message : `demo data not loaded: ${r.message}`}`);
     }
     const hosted = remoteConfigured('user') || remoteConfigured('cm') || remoteConfigured('nordea');
     this.st = hosted
@@ -357,7 +380,22 @@ class Database {
 
   public getCabinetEntries(userId: string): CabinetEntry[] {
     const goals = loadUserDb(userId).goals.map((g) => goalToEntry(userId, g));
-    const cm = loadCmDb(userId).entries.map((e) => cmToEntry(userId, e));
+    // A Nordea observation whose new version waits in the queue (G11, held copy) is SHOWN with the
+    // waiting wording, still unreviewed - so "Waiting for you" asks about what Nordea noticed now, and
+    // the access gateway keeps it from Abel until the customer confirms (unreviewed Nordea items are blocked).
+    const cm = loadCmDb(userId).entries.map((e) => withWaitingVersion(userId, cmToEntry(userId, e)));
+    // A NEW Nordea observation still in the queue (no stored copy yet) is shown the same way: unreviewed,
+    // in "Waiting for you"; confirming it accepts the queued write (updateCabinetEntry, G10).
+    const stored = new Set(cm.map((e) => e.id));
+    for (const m of loadBus(userId).messages) {
+      if (m.type !== 'propose' || m.status !== 'pending') continue;
+      const pl = m.payload as { appWrite?: boolean; entry?: { id?: string; doc?: CabinetEntry } } | undefined;
+      const d = pl?.appWrite === true ? pl.entry?.doc : undefined;
+      if (d && d.source === 'nordea' && d.userId === userId && d.status === 'active' && pl!.entry!.id && !stored.has(pl!.entry!.id)) {
+        stored.add(pl!.entry!.id);
+        cm.push({ ...d, id: pl!.entry!.id, reviewed: false });
+      }
+    }
     return [...goals, ...cm].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
   }
 
@@ -366,7 +404,11 @@ class Database {
       const g = loadUserDb(uid).goals.find((x) => x.id === id);
       if (g) return goalToEntry(uid, g);
       const e = loadCmDb(uid).entries.find((x) => x.id === id);
-      if (e) return cmToEntry(uid, e);
+      if (e) return withWaitingVersion(uid, cmToEntry(uid, e));
+    }
+    for (const uid of listCustomers()) {
+      const w = waitingNordeaDoc(uid, id);
+      if (w) return w;
     }
     return undefined;
   }
@@ -389,7 +431,7 @@ class Database {
 
   public addCabinetEntry(entry: CabinetEntry, meta: ChangeMeta = {}): CabinetEntry {
     if (entry.type === 'goal') appWrites.putGoal(entry.userId, entryToGoal(entry));
-    else appWrites.putEntry(entry.userId, entryToCm(entry));
+    else appWrites.putEntry(entry.userId, entryToCm(entry), meta.by === 'you');
     this.logEvent(entry, 'added', meta);
     return entry;
   }
@@ -410,6 +452,25 @@ class Database {
 
   public updateCabinetEntry(id: string, updates: Partial<CabinetEntry>, meta: ChangeMeta = {}): CabinetEntry | undefined {
     let before = this.getCabinetEntry(id);
+    // G11: a held copy (reviewed=false) may have a newer version waiting in the queue - the
+    // customer's confirm then accepts THAT version, never the old text on its own.
+    const heldUpdate = before && before.source === 'nordea' && updates.reviewed === true && pendingAppWrite(before.userId, id);
+    if (heldUpdate) { decideProposal(before!.userId, heldUpdate.id, true); before = this.getCabinetEntry(id); }
+    if (!before && (updates.status === 'disputed' || updates.status === 'archived')) {
+      // "That's wrong" / remove on an observation that is still only waiting in the queue: reject it there.
+      for (const uid of listCustomers()) {
+        const waiting = pendingAppWrite(uid, id);
+        const doc = (waiting?.payload as { entry?: { doc?: CabinetEntry } } | undefined)?.entry?.doc;
+        if (waiting && doc) {
+          decideProposal(uid, waiting.id, false);
+          // Kept as disputed/archived (lands directly), so the same bank data does not propose it again.
+          const gone = { ...doc, id, ...updates, updatedAt: new Date().toISOString() } as CabinetEntry;
+          appWrites.putEntry(uid, entryToCm(gone), true);
+          this.logEvent(gone, updates.status === 'disputed' ? 'marked_wrong' : 'removed', meta);
+          return gone;
+        }
+      }
+    }
     if (!before && updates.reviewed === true) {
       // G10 one consent path: the write may still wait in the CM review queue. The app's
       // confirm IS the queue decision (Bill 03:09) - accept the pending proposal for this
@@ -428,7 +489,7 @@ class Database {
       appWrites.putGoal(before.userId, entryToGoal(after));
     } else {
       const existing = loadCmDb(before.userId).entries.find((x) => x.id === id);
-      appWrites.putEntry(before.userId, entryToCm(after, existing));
+      appWrites.putEntry(before.userId, entryToCm(after, existing), meta.by === 'you');
     }
     const changes = TRACKED.filter((f) => f in updates && !same(before[f], after[f])).map((f) => ({ field: f, from: before[f] ?? null, to: after[f] ?? null }));
     const status = changes.find((c) => c.field === 'status');
@@ -631,8 +692,10 @@ class Database {
   }
 
   public getAccessLog(userId?: string): AccessLogEntry[] {
-    if (userId) return loadAppAccessLog<AccessLogEntry>(userId);
-    return listCustomers().flatMap((uid) => loadAppAccessLog<AccessLogEntry>(uid));
+    // Newest first, like the old store (the agent store reads oldest first): "Who sees it" and the
+    // monitor show the latest reads, not the oldest ones.
+    if (userId) return loadAppAccessLog<AccessLogEntry>(userId).reverse();
+    return listCustomers().flatMap((uid) => loadAppAccessLog<AccessLogEntry>(uid)).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }
 
   public addAccessLogEntry(log: AccessLogEntry): AccessLogEntry {

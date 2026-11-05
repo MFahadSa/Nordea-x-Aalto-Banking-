@@ -370,15 +370,12 @@ check('AC1: the insight builder is pure shared infra - no agent store, no bus, n
 check('AC1: the dispatcher and round engine open no agent store at all',
   !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/dispatcher.ts')) && !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/rounds.ts')));
 
-// --- AC11: the legacy Abel modules are gone - the app chats only through the arch pipeline.
-// The old boundary property (no app module opens an agent store) is pinned by AC1/AC2 and
-// G30 slice 3; these checks pin the removal itself so the old path cannot creep back.
-const abelGone = (f: string) => !fs.existsSync(new URL(f, import.meta.url));
-const tsIn = (dir: string): string[] => fs.readdirSync(new URL(dir, import.meta.url)).filter((f) => f.endsWith('.ts')).map((f) => `${dir}/${f}`);
-const appLayerFiles = [...tsIn('../src/server'), ...tsIn('../src/server/arch'), ...tsIn('../src/server/arch/agents'), ...tsIn('../src/server/arch/store')];
-const legacyAbelRefs = appLayerFiles.filter((f) => /from\s+['"][^'"]*abel(?:Offline)?\.js['"]/.test(readSrc(f)));
-check('AC11: abel.ts and abelOffline.ts are removed and no module imports them',
-  abelGone('../src/server/abel.ts') && abelGone('../src/server/abelOffline.ts') && legacyAbelRefs.length === 0, legacyAbelRefs.join(','));
+// --- AC11 (v17, owner of the app repo): the in-app chat is Abel again, fed by the three agents.
+// The agents gather what Abel may see (User DB via the personal agent, the session's finalised
+// context.md) through abelSharedContext; Abel itself never opens an agent store.
+const abelSrc = readSrc('../src/server/abel.ts');
+check('AC11: abel.ts opens no agent store directly (it gets the shared context by message)',
+  !/arch\/store\/(userStore|cmStore|nordeaStore|common)/.test(abelSrc) && /AbelSharedContext/.test(abelSrc));
 
 // --- AC6: a contribution runs as a real build round: open -> contributions -> done -> finalise -> stored
 const UID9 = 'rounduser';
@@ -1491,7 +1488,7 @@ check("F30: the STORED document still records the marks - only Abel's copy is fi
     !!compose && compose.prompt.includes('Shared context (via the Context Memory agent)') && /car/i.test(compose.prompt), (compose?.prompt ?? '(no compose call)').slice(0, 160));
 }
 const routesSrc2 = readSrc('../src/server/routes.ts');
-check('G30 slice 3: /api/chat answers through the arch pipeline, conversation id IS the session id', /archChat\(userId, u\.text, conv\.id\)/.test(routesSrc2) && !/abelTurn|abelSharedContext/.test(routesSrc2));
+check('G30 slice 3 (v17): /api/chat = the agents\' shared context for this conversation, then Abel writes the reply; conversation id IS the session id', /abelSharedContext\(userId, conv\.id, u\.text\)/.test(routesSrc2) && /abelTurn\(userId, conv\.id, conv\.helperId, u\.text, shared\)/.test(routesSrc2));
 
 
 // --- F10 phase 2, Bill's condition: the Abel shared-context path reads context.md only -
@@ -1527,7 +1524,7 @@ check('F10p2: the personal agent answers abel-facts from its own User DB (the ow
 const appSrcQ = readSrc('../src/App.tsx'), apiSrcQ = readSrc('../src/services/api.ts'), routesSrcQ = readSrc('../src/server/routes.ts'), chatSrcQ = readSrc('../src/components/Chat.tsx'), archHtmlQ = readSrc('../public/arch.html');
 check('Q3: no fixed 180 s client abort; requestId sent; late pickup by requestId, never an automatic resubmit', !/180000/.test(apiSrcQ) && /requestId/.test(apiSrcQ) && /api\/chat\/result/.test(apiSrcQ) && (apiSrcQ.match(/fetch\('\/api\/chat'/g) ?? []).length === 1, '');
 check('Q3: server runs a requestId once (join in-flight / stored reply) and serialises a user\'s turns', /storedReply\(userId, requestId\)/.test(routesSrcQ) && /runOnce\(/.test(routesSrcQ) && /enqueue/.test(readSrc('../src/server/chatRequests.ts')) && /runOnce/.test(readSrc('../src/server/arch/routes.ts')) && /chat\/result/.test(archHtmlQ) && /chatOnce/.test(archHtmlQ), '');
-check('Q2: mobile caption = category, client-measured elapsed, actual answerer, round plan; arch.html shows category + client-measured elapsed', /performance\.now\(\) - sentAt/.test(appSrcQ) && /sup\?\.plan/.test(chatSrcQ) && /sup\?\.category/.test(chatSrcQ) && /client-measured/.test(archHtmlQ), '');
+check('Q2 (v17): mobile caption is plain ("Abel could see …"); elapsed, category, answerer and round plan only with the debug switch; arch.html shows category + client-measured elapsed', /performance\.now\(\) - sentAt/.test(appSrcQ) && /const tech = debug && sup/.test(chatSrcQ) && /sup\.plan/.test(chatSrcQ) && /sup\.category/.test(chatSrcQ) && /Abel could see/.test(chatSrcQ) && /client-measured/.test(archHtmlQ), '');
 
 // --- Q4 conservative grounding: a General classification never lets a customer-looking figure through
 {
@@ -1635,7 +1632,7 @@ check('timeout: Gemini and OpenAI-compatible adapters both default to 120 s (no 
   setProviderForTests(null);
 }
 const chatSrcQ2 = readSrc('../src/components/Chat.tsx'), archHtmlQ2 = readSrc('../public/arch.html');
-check('Q2: caption order is elapsed (client-measured) first, then the exact category, on mobile and arch.html', /\[el, sup\?\.category\]/.test(chatSrcQ2) && /client-measured' \+ \(late[^\n]*\n  if \(j\.category\)/.test(archHtmlQ2) && /s client-measured/.test(chatSrcQ2), '');
+check('Q2: caption order is elapsed first, then the exact category (mobile debug stamp and arch.html)', chatSrcQ2.indexOf('tm.late') > 0 && chatSrcQ2.indexOf('tm.late') < chatSrcQ2.indexOf('sup.category ||') && /client-measured' \+ \(late[^\n]*\n  if \(j\.category\)/.test(archHtmlQ2), '');
 
 // ---------- R6/R7/R8/R9: goal intents in chat; no Add-goal field; goals below the chat; automatic insights ----------
 {
@@ -1712,7 +1709,7 @@ check('Q2: caption order is elapsed (client-measured) first, then the exact cate
     const p6: any = await A.chat(W, 'undo', 'sess-g47'); const p7: any = await A.chat(W, 'undo', 'sess-g47');
     check('G47: a second undo with nothing to undo does not invent a goal', gl().filter((t) => t === 'Save for a car').length === 1 && p7.intent !== 'goal_add', p6.reply + ' || ' + p7.reply);
     const r2 = readSrc('../README.md');
-    check('G46: README names no removed file (abel.ts, abelOffline.ts) and no offers risk line', !/abel\.ts|abelOffline|High risk always waits for the customer: offers/.test(r2));
+    check('G46 (v17): README describes the current chat path (agents gather via abelSharedContext, Abel writes the reply) and no stale offers risk line', /abelSharedContext/.test(r2) && /Abel writes the reply/.test(r2) && !/High risk always waits for the customer: offers/.test(r2));
   }
   {
     const X = 'fiuser'; const gl = () => (S.loadUserDb(X).goals ?? []).map((g: any) => g.title);

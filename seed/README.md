@@ -1,6 +1,7 @@
 # Loading data
 
-The app comes with **no data**. Until something is loaded it shows "No data yet". Data is loaded
+The app comes with **no data files**. When its stores are empty it loads the demo customers below by itself
+(`AUTO_DEMO_DATA=0` turns that off; then it shows "No data yet"). Other data is loaded
 separately with `scripts/load_data.py` (Python 3.9+, no packages needed except `openpyxl` for `.xlsx`).
 
 ## Once
