@@ -16,6 +16,14 @@ import { assessEntryRisk } from '../risk.js';
 import { codeFloor, makeApprovalId, contentHash, readApproval, validateModelLevel, withFloor, RUBRIC } from '../approvalGate.js';
 import type { ModelLevel } from '../approvalGate.js';
 
+
+/** The goals the personal agent may share (with Abel, the shared document or a chat answer): the customer's
+ *  own choices in the app apply at the source. A goal they removed (archived), said is wrong (disputed) or
+ *  turned off for Abel ("Not used: you turned it off") stays in the User DB but leaves it no further. */
+export function sharedGoals(u: { goals: Goal[] }): Goal[] {
+  return u.goals.filter((g) => g.doc?.status !== 'archived' && g.doc?.status !== 'disputed' && g.doc?.readableBy?.abel !== false);
+}
+
 export const personalLabel = (u: { personalAgent: { mode: string; externalName?: string } }) =>
   (u.personalAgent.mode === 'external' ? u.personalAgent.externalName || 'External personal agent' : 'Abel');
 
@@ -98,7 +106,7 @@ export function beginChat(uid: string, text: string, sessionId?: string): ChatBe
   const factSources: string[] = [];
 
   // 1. The personal agent's own store.
-  const goalHits = u.goals.filter((g) => overlaps(q, words(`${g.title} ${g.detail}`)));
+  const goalHits = sharedGoals(u).filter((g) => overlaps(q, words(`${g.title} ${g.detail}`)));
   const factHits = u.personalFacts.filter((f) => overlaps(q, words(f.text)));
   if (goalHits.length || factHits.length) {
     used.push('user-db');
@@ -207,7 +215,7 @@ export async function llmComposeReply(uid: string, question: string, parts: stri
     runTool: (call) => {
       const u = loadUserDb(uid);
       if (call.name === 'listMyGoals') {
-        const rows = u.goals.map((g) => ({ title: g.title, detail: g.detail, ...(g.doc?.target ? { targetAmount: g.doc.target.amount, targetDate: g.doc.target.date } : {}) }));
+        const rows = sharedGoals(u).map((g) => ({ title: g.title, detail: g.detail, ...(g.doc?.target ? { targetAmount: g.doc.target.amount, targetDate: g.doc.target.date } : {}) }));
         seenFacts.push(JSON.stringify(rows));
         return rows.slice(0, 20);
       }
@@ -447,8 +455,8 @@ function handleMessage(uid: string, msg: AgentMessage) {
     const u = loadUserDb(uid);
     appendMessage(uid, {
       from: 'personal', to: 'app', type: 'reply',
-      summary: `Personal agent returns ${u.goals.length} goal${u.goals.length === 1 ? '' : 's'} and ${u.personalFacts.length} fact${u.personalFacts.length === 1 ? '' : 's'} from the User DB for Abel.`,
-      payload: { inReplyTo: msg.id, from: 'user-db', goals: u.goals.map((g) => ({ title: g.title, detail: g.detail })), facts: u.personalFacts.map((f) => ({ text: f.text, source: f.source })) },
+      summary: `Personal agent returns ${sharedGoals(u).length} goal${sharedGoals(u).length === 1 ? '' : 's'} and ${u.personalFacts.length} fact${u.personalFacts.length === 1 ? '' : 's'} from the User DB for Abel.`,
+      payload: { inReplyTo: msg.id, from: 'user-db', goals: sharedGoals(u).map((g) => ({ title: g.title, detail: g.detail })), facts: u.personalFacts.map((f) => ({ text: f.text, source: f.source })) },
     });
     updateMessage(uid, msg.id, { status: 'answered' });
     return;
@@ -519,7 +527,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
     const u = loadUserDb(uid);
     const question = typeof payload.question === 'string' ? payload.question : null;
     const qw = question ? words(question) : [];
-    const relevant = question ? u.goals.filter((g) => overlaps(qw, words(`${g.title} ${g.detail}`))) : u.goals;
+    const relevant = question ? sharedGoals(u).filter((g) => overlaps(qw, words(`${g.title} ${g.detail}`))) : sharedGoals(u);
     const goalRows = relevant.map((g) => ({ id: g.id, title: g.title, detail: '', source: 'personal' as const, observed: 'observed' as const, at: now() }));
     const mergedCustomer = [...readSectionRows(uid, 'customer').filter((r) => !goalRows.some((n) => n.id === r.id)), ...goalRows]; // F18: merge, never drop
     writeCustomerSection(uid, mergedCustomer,

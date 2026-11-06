@@ -331,12 +331,24 @@ function derivable(n: number, known: number[]): boolean {
   for (const a of k) for (const m of counts) if (near(a * m) || near(a / m)) return true;
   return false;
 }
-function unsupportedNumbers(reply: string, known: number[], money: number[] = []): number[] {
+/** A percentage that really follows from two known amounts: a share ("49 % saved" = 14 600 of 30 000)
+ *  or a change ("up about 140 %" from 160 € to 390 €). Same rounding as derivable(). */
+function pctDerivable(n: number, known: number[]): boolean {
+  const k = Array.from(new Set(known.filter((x) => x !== 0 && Number.isFinite(x)).map((x) => Math.abs(x)))).slice(0, 250);
+  const near = (v: number) => Math.abs(v - n) <= Math.max(0.05, Math.abs(v) * 0.002) || (n % 10 === 0 && Math.abs(v - n) <= 5) || (Number.isInteger(n) && Math.abs(v - n) < 0.5);
+  for (const a of k) for (const b of k) if (a !== b && (near((a / b) * 100) || near(((a - b) / b) * 100))) return true;
+  return false;
+}
+export function unsupportedNumbers(reply: string, known: number[], money: number[] = []): number[] {
   const bad: number[] = [];
+  // A percentage is checked whatever its size: an invented interest rate ("3.5 %") is small but never harmless.
+  const pct = new Set<number>();
+  for (const m of withoutDates(reply).matchAll(/(\d+(?:[.,]\d+)?)\s?(?:%|per ?cent\b|prosent)/gi)) pct.add(Number(m[1].replace(',', '.')));
   for (const n of numbersIn(withoutDates(reply))) {
-    if (n < 13 || (n >= 1990 && n <= 2100 && Number.isInteger(n))) continue; // small counts, years
+    if (!pct.has(n) && (n < 13 || (n >= 1990 && n <= 2100 && Number.isInteger(n)))) continue; // small counts, years
     if (known.some((k) => k !== 0 && Math.abs(k - n) / Math.abs(k) <= 0.03)) continue; // rounding allowed
     if (derivable(n, money)) continue;
+    if (pct.has(n) && pctDerivable(n, money)) continue;
     bad.push(n);
   }
   return bad;
@@ -647,6 +659,9 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   collectNumbers(customerWords, known);
   collectNumbers(facts, known);
   if (shared) collectNumbers([shared.userDbFacts ?? '', shared.sharedContext ?? ''], known); // F10: architecture facts are quotable
+  // Partner fees as the percentages a card shows (a 2 % fee is stored as 0.02).
+  for (const p of getAllPartners()) if (p.fee.type !== 'flat') known.push(Math.round(p.fee.value * 10000) / 100);
+  known.push(100); // "100 %" (all of it) is plain language, not a figure
   // For maths checks, only real amounts (not ids, IBANs or dates, which would make almost any number "derivable").
   const money: number[] = [];
   const numsOnly = (v: unknown) => { if (typeof v === 'number') money.push(v); else if (Array.isArray(v)) v.forEach(numsOnly); else if (v && typeof v === 'object') Object.values(v).forEach(numsOnly); };
