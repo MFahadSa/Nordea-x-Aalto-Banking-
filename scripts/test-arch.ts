@@ -1498,8 +1498,8 @@ const fnStart = orchSrc.indexOf('export async function abelSharedContext');
 const fnBody = orchSrc.slice(fnStart, orchSrc.indexOf('\n}\n', fnStart) + 3);
 check('F10p2: the Abel path opens no agent store at all - only the shared context.md and bus messages',
   !/loadUserDb|loadCmDb|loadNordeaDb|userStore|cmStore|nordeaStore/.test(fnBody) && fnBody.includes('loadContext') && fnBody.includes("controlRoundTrip(uid, 'personal'"), '');
-check('F10p2: the personal agent answers abel-facts from its own User DB (the owning agent reads, not the app)',
-  personalSrc.includes("control === 'abel-facts'") && /u\.goals\.map/.test(personalSrc));
+check('F10p2 (v19): the personal agent answers abel-facts from its own User DB, only goals the customer still allows (sharedGoals)',
+  personalSrc.includes("control === 'abel-facts'") && /goals: sharedGoals\(u\)\.map/.test(personalSrc));
 
 // --- Outcome 4: General vs Related question category (exact, code-decided) ---
 {
