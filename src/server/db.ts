@@ -383,7 +383,13 @@ class Database {
     // A Nordea observation whose new version waits in the queue (G11, held copy) is SHOWN with the
     // waiting wording, still unreviewed - so "Waiting for you" asks about what Nordea noticed now, and
     // the access gateway keeps it from Abel until the customer confirms (unreviewed Nordea items are blocked).
-    const cm = loadCmDb(userId).entries.map((e) => withWaitingVersion(userId, cmToEntry(userId, e)));
+    // The personal agent's "Customer goal: <title>" card is the agents' copy of a goal the customer already
+    // sees (and Abel already reads) as the goal itself. In the app it is left out while that goal exists, so
+    // Abel never sees two of one goal - "delete my goal" then removes the real goal, not the copy.
+    // The copy stays in the Context Memory DB for the agents (and /arch.html).
+    const goalIds = new Set(goals.map((g) => g.id));
+    const isGoalCopy = (e: ArchEntry) => e.proposedBy === 'personal' && /^Customer goal: /.test(e.title) && e.goalIds.length > 0 && e.goalIds.every((g) => goalIds.has(g));
+    const cm = loadCmDb(userId).entries.filter((e) => !isGoalCopy(e)).map((e) => withWaitingVersion(userId, cmToEntry(userId, e)));
     // A NEW Nordea observation still in the queue (no stored copy yet) is shown the same way: unreviewed,
     // in "Waiting for you"; confirming it accepts the queued write (updateCabinetEntry, G10).
     const stored = new Set(cm.map((e) => e.id));
