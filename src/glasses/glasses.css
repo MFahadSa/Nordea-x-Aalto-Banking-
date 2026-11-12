@@ -40,7 +40,7 @@ a.step{color:inherit;text-decoration:none}
 .step span.s{color:#9AA0C8;font-size:13px}
 .buf{background:#1B1E40;border-radius:14px;padding:12px 14px;font-size:13px}
 .buf li{margin-left:16px}
-.res{background:#13321F;border:1px solid #2B6B43;border-radius:14px;padding:12px 14px;font-size:13.5px}
+.res{white-space:pre-line;background:#13321F;border:1px solid #2B6B43;border-radius:14px;padding:12px 14px;font-size:13.5px}
 .res.err{background:#3A1A18;border-color:#7A2E28}
 .links a{color:#9EB2FF}
 .legend{display:flex;gap:14px;font-size:12.5px;color:#C9CEF0}

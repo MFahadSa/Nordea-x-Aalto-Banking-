@@ -24,7 +24,7 @@ import {
 // G1: customer data lives in the three agent databases (User / Context Memory / Nordea).
 // The app layer may import the store modules (see the store file headers); agents never
 // import this module, and no agent module imports another agent's store.
-import { listCustomers, unregisterCustomer, deleteDbFile, ARCH_DIR, hydrateAgentStoresDetailed, remoteConfigured, configureRemote, dropRemote, clearRemoteCustomer, drainRemoteFlushes } from './arch/store/common.js';
+import { listCustomers, unregisterCustomer, deleteDbFile, ARCH_DIR, hydrateAgentStoresDetailed, pushLocalMissingFromHosted, remoteConfigured, configureRemote, dropRemote, clearRemoteCustomer, drainRemoteFlushes } from './arch/store/common.js';
 import { restMirrorAvailable } from './arch/store/restRemote.js';
 import { loadBus } from './arch/store/busStore.js';
 import { appWrites, decideProposal } from './arch/orchestrator.js';
@@ -227,6 +227,17 @@ export const entryToCm = (e: CabinetEntry, existing?: ArchEntry): ArchEntry => (
   doc: e,
 });
 
+/** v23: say what actually went wrong with Supabase, in words the presenter can act on. */
+export function hostedProblem(err: string): string {
+  const e = err.toLowerCase();
+  const tail = 'Saved on this server only until then.';
+  if (/does not exist|schema cache|could not find the table|relation .* not/.test(e)) return `Supabase tables missing: run supabase/pipeline.sql once. ${tail}`;
+  if (/permission denied/.test(e)) return `Supabase refused access to the tables (permission denied): run the latest supabase/pipeline.sql again, it grants access. ${tail}`;
+  if (/invalid api key|jwt|unauthori[sz]ed|401/.test(e)) return `Supabase did not accept the secret key: check SUPABASE_SECRET_KEY in AI Studio Secrets. ${tail}`;
+  if (/fetch failed|enotfound|econnrefused|timeout|network/.test(e)) return `Supabase could not be reached: check SUPABASE_URL in AI Studio Secrets. ${tail}`;
+  return `Supabase error: ${err.slice(0, 160) || 'unknown'}. ${tail}`;
+}
+
 export interface DbStatus {
   mode: 'supabase' | 'file' | 'memory';
   ok: boolean;
@@ -263,6 +274,15 @@ class Database {
    * writes cabinet-db.json - a leftover file only triggers the migration hint below.
    */
   private hostedFailed: string[] = [];
+  private hostedError = '';
+
+  /** v23: Supabase could not be read at startup (e.g. the tables were created later): try again
+   *  without a restart. Returns true when it is connected now. */
+  public async retryHosted(): Promise<boolean> {
+    if (!this.hostedFailed.length) return true;
+    await this.reload();
+    return !this.hostedFailed.length;
+  }
 
   public async init() {
     // G6: when the three agent stores have hosted secrets, their tables are the source of
@@ -270,7 +290,8 @@ class Database {
     // v20: no role connection strings, but the project's Supabase keys are there (AI Studio): keep the
     // three agent tables in Supabase over its web API instead, so data survives a restart.
     if (restMirrorAvailable()) for (const k of ['user', 'cm', 'nordea'] as const) if (!remoteConfigured(k)) configureRemote(k, `supabase-rest:${k}`);
-    const { hydrated, failed } = await hydrateAgentStoresDetailed();
+    const { hydrated, failed, errors, hostedUids } = await hydrateAgentStoresDetailed();
+    this.hostedError = failed.length ? String(errors[failed[0] as 'user'] || '') : '';
     if (hydrated.length) console.log(`Database: agent stores hydrated from hosted tables: ${hydrated.join(', ')}`);
     if (failed.length) console.error(`Database: could not read ${failed.join(', ')} from Supabase - run supabase/pipeline.sql once in the Supabase SQL editor. Working on this server's copy meanwhile.`);
     this.hostedFailed = failed;
@@ -283,9 +304,11 @@ class Database {
       const r = await loadBundledDemo().catch((e) => ({ ok: false, message: String(e?.message || e) }));
       console.log(`Database: no data yet - ${r.ok ? r.message : `demo data not loaded: ${r.message}`}`);
     }
+    // v23: customers that exist here but not in Supabase yet (e.g. loaded while it was unreachable) go up now.
+    for (const k of ['user', 'cm', 'nordea'] as const) if (hostedUids[k]) pushLocalMissingFromHosted(k, hostedUids[k]!);
     const hosted = remoteConfigured('user') || remoteConfigured('cm') || remoteConfigured('nordea');
     this.st = this.hostedFailed.length
-      ? { mode: 'file', ok: false, message: 'Supabase tables missing: run supabase/pipeline.sql once. Saved on this server only until then.', waiting: 0 }
+      ? { mode: 'file', ok: false, message: hostedProblem(this.hostedError), waiting: 0 }
       : hosted
       ? { mode: 'supabase', ok: true, message: 'Saved in Supabase', waiting: 0 }
       : { mode: 'file', ok: true, message: 'Saved on this server only. It resets when the app restarts.', waiting: 0 };

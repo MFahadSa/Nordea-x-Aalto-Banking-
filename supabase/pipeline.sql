@@ -39,5 +39,10 @@ alter table agent_user_records enable row level security;
 alter table agent_cm_records enable row level security;
 alter table agent_nordea_records enable row level security;
 alter table pipeline_records enable row level security;
+
+-- v23: let the server's secret key (service_role) use the tables even in a project where new tables
+-- get no grants automatically. Browser roles (anon, authenticated) still get nothing.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on table agent_user_records, agent_cm_records, agent_nordea_records, pipeline_records to service_role;
 -- No policies for anon/authenticated: the browser can never read these tables. The server's
 -- secret key bypasses row-level security by design.

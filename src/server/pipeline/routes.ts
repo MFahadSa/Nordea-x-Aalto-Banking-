@@ -21,7 +21,7 @@ export function registerPipelineRoutes(app: Express) {
     const source = String(b.source) as PipeSource;
     if (!SOURCES.includes(source)) return res.status(400).json({ error: `source must be one of ${SOURCES.join(', ')}` });
     const r = await ingest(String(b.userId || ''), source, { signals: b.signals, text: b.text, file: b.file, label: b.label || b.file?.name });
-    res.status(201).json(r);
+    res.status(201).json({ ...r, stored: await S.pipelineStorage() }); // v23: say where it was really saved
   }));
 
   // What waits for the customer ("Waiting for you" in the app).

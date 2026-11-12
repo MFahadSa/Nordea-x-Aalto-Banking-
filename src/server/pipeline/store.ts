@@ -102,9 +102,16 @@ const sb = () => (client ||= createClient(process.env.SUPABASE_URL!, key(), { au
 let mirrorOk: boolean | null = null;
 let chain: Promise<void> = Promise.resolve();
 
-function mirror(recs: Rec[], removeIds: string[] = []) {
+let lastError = '';
+let lastSavedAt = '';
+
+function mirror(recs: Rec[], removeIds: string[] = [], clearAll = false) {
   if (!mirrorOn() || mirrorOk === false) return;
   chain = chain.then(async () => {
+    if (clearAll) {
+      const { error } = await sb().from(TABLE).delete().neq('id', '');
+      if (error) throw new Error(error.message);
+    }
     if (recs.length) {
       const { error } = await sb().from(TABLE).upsert(recs.map((r) => ({ ...r, updated_at: new Date().toISOString() })), { onConflict: 'id' });
       if (error) throw new Error(error.message);
@@ -113,7 +120,19 @@ function mirror(recs: Rec[], removeIds: string[] = []) {
       const { error } = await sb().from(TABLE).delete().in('id', removeIds);
       if (error) throw new Error(error.message);
     }
-  }).catch((e) => console.error('Pipeline: Supabase save failed:', e instanceof Error ? e.message : e));
+    lastError = '';
+    lastSavedAt = new Date().toISOString();
+  }).catch((e) => { lastError = e instanceof Error ? e.message : String(e); console.error('Pipeline: Supabase save failed:', lastError); });
+}
+
+/** v23: where pipeline records are kept right now - after the queued saves have finished, so a
+ *  "Saved in Supabase" reply is true. */
+export async function pipelineStorage(): Promise<{ where: 'supabase' | 'server'; ok: boolean; message: string; lastSavedAt?: string }> {
+  await chain;
+  if (!mirrorOn()) return { where: 'server', ok: true, message: 'Saved on this server only (no Supabase keys).' };
+  if (mirrorOk === false) return { where: 'server', ok: false, message: `Not in Supabase: ${lastError || 'table missing or unreachable'}. Saved on this server only.` };
+  if (lastError) return { where: 'server', ok: false, message: `Supabase save failed: ${lastError}. Saved on this server only.` };
+  return { where: 'supabase', ok: true, message: 'Saved in Supabase', lastSavedAt: lastSavedAt || undefined };
 }
 
 /** Startup: when Supabase holds pipeline records, they are the source of truth (a fresh AI Studio
@@ -129,20 +148,24 @@ export async function hydratePipeline(): Promise<string> {
       if (!data || data.length < 1000) break;
     }
     mirrorOk = true;
-    if (!all.length) { // first run against an empty table: push what this server has
-      const s = load();
-      mirror([...s.runs.map(recOf('run')), ...s.candidates.map(recOf('candidate')), ...s.cases.map(recOf('case'))]);
-      return 'pipeline: Supabase (empty table, seeded from this server)';
-    }
+    lastError = '';
+    // Merge: what Supabase holds, plus anything this server made while Supabase was unreachable
+    // (a fresh AI Studio container has nothing local, so this is simply "load from Supabase").
+    const s = load();
+    const remoteIds = new Set(all.map((r) => r.id));
+    const localOnly = [...s.runs.map(recOf('run')), ...s.candidates.map(recOf('candidate')), ...s.cases.map(recOf('case'))].filter((r) => !remoteIds.has(r.id));
+    const merged = [...all, ...localOnly];
     st = {
-      runs: all.filter((r) => r.kind === 'run').map((r) => r.data as PipeRun),
-      candidates: all.filter((r) => r.kind === 'candidate').map((r) => r.data as PipeCandidate),
-      cases: all.filter((r) => r.kind === 'case').map((r) => r.data as NordeaCase),
+      runs: merged.filter((r) => r.kind === 'run').map((r) => r.data as PipeRun),
+      candidates: merged.filter((r) => r.kind === 'candidate').map((r) => r.data as PipeCandidate),
+      cases: merged.filter((r) => r.kind === 'case').map((r) => r.data as NordeaCase),
     };
     writeLocal();
-    return `pipeline: Supabase (${all.length} records)`;
+    if (localOnly.length) mirror(localOnly);
+    return `pipeline: Supabase (${all.length} records${localOnly.length ? `, ${localOnly.length} sent up from this server` : ''})`;
   } catch (e) {
     mirrorOk = false;
+    lastError = e instanceof Error ? e.message : String(e);
     return `pipeline: Supabase table missing or unreachable (${e instanceof Error ? e.message : e}) - run supabase/pipeline.sql; this server only meanwhile`;
   }
 }
@@ -179,7 +202,8 @@ export function clearPipeline(userId?: string) {
   s.cases = s.cases.filter((x) => userId && x.userId !== userId);
   for (const id of gone) presenter.delete(id);
   writeLocal();
-  mirror([], gone);
+  // Reset (no customer named): empty the whole Supabase table, including rows this server never knew.
+  if (userId) mirror([], gone); else mirror([], [], true);
 }
 
 /** Tests: forget the in-memory copy (the file stays). */

@@ -14,7 +14,7 @@ import { registerDevMonitor } from './src/server/devMonitor.js';
 import { registerArchRoutes } from './src/server/arch/routes.js';
 import { startFeedWatcher } from './src/server/nordeaFeed.js';
 import { registerPipelineRoutes, registerWorkspaceRoutes } from './src/server/pipeline/routes.js';
-import { hydratePipeline, clearPipeline } from './src/server/pipeline/store.js';
+import { hydratePipeline, clearPipeline, pipelineStorage } from './src/server/pipeline/store.js';
 import { setProvider } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
 import { providerChainMembersFromEnv } from './src/server/llmOpenAI.js';
@@ -111,9 +111,12 @@ app.patch('/api/users/:userId', (req, res) => {
 // Other data is loaded with scripts/load_data.py.
 app.post('/api/users/reset', async (req, res) => {
   try {
+    // v23: the pipeline first, so a failure further down can never leave old inputs waiting.
+    await hydratePipeline(); // reach Supabase again if it was missing at startup, so the reset empties it too
+    clearPipeline();
+    await pipelineStorage(); // wait until Supabase has emptied the table
     await deleteAllDocumentFiles();
     await db.clearAll();
-    clearPipeline();
     // Reset = start the demo again: the bundled fictional customers are loaded straight back
     // (AUTO_DEMO_DATA=0 keeps the old behaviour: everything stays deleted).
     if (autoDemoOn()) await loadBundledDemo();
@@ -348,6 +351,17 @@ async function startServer() {
   // Connect to Supabase first (if its secrets are set), so the first request already sees saved data.
   await db.init();
   console.log(`Database: ${await hydratePipeline()}`);
+  // v23: Supabase unreachable at startup (e.g. the tables were created later): keep trying, quietly.
+  const retry = setInterval(async () => {
+    try {
+      const ok = await db.retryHosted();
+      const p = await pipelineStorage();
+      if (p.where !== 'supabase' && p.message.startsWith('Not in Supabase')) console.log(`Database: ${await hydratePipeline()}`);
+      const p2 = await pipelineStorage();
+      if (ok && p2.ok) { clearInterval(retry); if (p2.where === 'supabase') console.log('Database: connected to Supabase'); }
+    } catch { /* try again next minute */ }
+  }, 60_000);
+  retry.unref?.();
   // New Nordea account data added to Supabase → nordea_feed is applied automatically.
   startFeedWatcher();
   const isProd = process.env.NODE_ENV === 'production';

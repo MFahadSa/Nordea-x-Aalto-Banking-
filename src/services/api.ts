@@ -290,8 +290,10 @@ export const fetchHistory = (userId: string, entryId: string) =>
 export const deleteChat = (userId: string, id: string) =>
   fetch(`/api/conversations/${id}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' }).then((r) => j<{ message: string }>(r));
 export const deleteChats = (userId: string) => post('/api/chats/delete', { userId }).then((r) => j<{ message: string; deletedMessages: number }>(r));
-export interface DbStatus { mode: 'supabase' | 'file' | 'memory'; ok: boolean; message: string; lastSavedAt?: string; lastError?: { at: string; message: string }; rows?: number; waiting: number }
+export interface DbStatus { mode: 'supabase' | 'file' | 'memory'; ok: boolean; message: string; lastSavedAt?: string; lastError?: { at: string; message: string }; rows?: number; waiting: number; pipeline?: { where: 'supabase' | 'server'; ok: boolean; message: string } }
 export const fetchDbStatus = () => fetch('/api/db-status').then((r) => j<DbStatus>(r));
+/** v23: try Supabase again without restarting the app. */
+export const retryDbStatus = () => fetch('/api/db-status/retry', { method: 'POST' }).then((r) => j<DbStatus>(r));
 
 export interface CheckResult { name: string; asked: string; ok: boolean; why: string; reply: string; cards: string[]; answeredBy: string; ms: number }
 /** Runs about 12 real questions; can take a few minutes on a free plan. */

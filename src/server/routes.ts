@@ -19,6 +19,7 @@ import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } 
 import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } from './documents.js';
 import { XLSX_MIME, csvText } from './fileText.js';
 import { runSelfTest } from './selftest.js';
+import { pipelineStorage, hydratePipeline } from './pipeline/store.js';
 
 const fmt = (n: number, d = 0) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
@@ -632,7 +633,12 @@ export function registerV14Routes(app: Express) {
     res.json({ deletedMessages: n, message: n ? 'Your chats are deleted' : 'There were no chats to delete' });
   });
 
-  app.get('/api/db-status', (_req, res) => res.json(db.status()));
+  app.get('/api/db-status', async (_req, res) => res.json({ ...db.status(), pipeline: await pipelineStorage() }));
+  // v23: "Check" tries Supabase again (e.g. the tables were created after this server started).
+  app.post('/api/db-status/retry', async (_req, res) => {
+    try { await db.retryHosted(); await hydratePipeline(); } catch (e) { console.error('Retry failed:', e); }
+    res.json({ ...db.status(), pipeline: await pipelineStorage() });
+  });
 
   // More → Check Abel's answers: real questions to the real AI on a copy of Lauri, graded automatically.
   let selftestRunning = false;
