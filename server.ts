@@ -109,7 +109,11 @@ app.patch('/api/users/:userId', (req, res) => {
 
 // The app ships with no data files; a fresh or reset copy loads the bundled demo customers (seed/demo).
 // Other data is loaded with scripts/load_data.py.
+// v24: one reset at a time - a second tap waits for the running one instead of interleaving with it.
+let resetting: Promise<void> | null = null;
 app.post('/api/users/reset', async (req, res) => {
+  if (resetting) { await resetting.catch(() => {}); return res.json({ message: 'Demo data reset' }); }
+  let done!: () => void; resetting = new Promise<void>((r) => { done = r; });
   try {
     // v23: the pipeline first, so a failure further down can never leave old inputs waiting.
     await hydratePipeline(); // reach Supabase again if it was missing at startup, so the reset empties it too
@@ -119,11 +123,14 @@ app.post('/api/users/reset', async (req, res) => {
     await db.clearAll();
     // Reset = start the demo again: the bundled fictional customers are loaded straight back
     // (AUTO_DEMO_DATA=0 keeps the old behaviour: everything stays deleted).
-    if (autoDemoOn()) await loadBundledDemo();
+    const loaded = autoDemoOn() ? await loadBundledDemo() : { ok: true, message: '' };
     await db.reload();
+    if (!loaded.ok) return res.status(500).json({ error: `Reset, but the demo customers were not loaded: ${loaded.message}` }); // say so, never a silent empty app
     res.json({ message: autoDemoOn() ? 'Demo data reset' : 'All data deleted. Load data again with scripts/load_data.py.' });
   } catch (err: any) {
     res.status(500).json({ error: String(err?.message || err) });
+  } finally {
+    resetting = null; done();
   }
 });
 
