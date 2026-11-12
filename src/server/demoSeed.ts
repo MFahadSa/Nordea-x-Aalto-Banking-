@@ -50,7 +50,17 @@ export async function loadBundledDemo(): Promise<{ ok: boolean; message: string 
   const M = await import('./arch/legacyMigrate.js');
   const { remoteConfigured } = await import('./arch/store/common.js');
   const hosted = remoteConfigured('user') || remoteConfigured('cm') || remoteConfigured('nordea');
-  const r = hosted ? await M.runLegacyMigrationHostedSafe() : M.runLegacyMigration();
+  let r = hosted ? await M.runLegacyMigrationHostedSafe() : M.runLegacyMigration();
+  const seedFile = path.join(DATA_DIR, 'cabinet-db.json');
+  // v24: Supabase did not answer during the hosted load: load the demo on this server instead (it is sent
+  // up once Supabase answers again), so a hiccup can never leave the app with no customers.
+  if (!r.ok && hosted && fs.existsSync(seedFile)) {
+    console.error(`Demo data: Supabase step failed (${r.failures[0] || 'unknown'}) - loading on this server instead.`);
+    r = M.runLegacyMigration();
+  }
+  // The file is our own temporary copy of seed/demo, never the customer's: never leave it behind,
+  // or every later reset would refuse to load the demo.
+  if (fs.existsSync(seedFile)) fs.unlinkSync(seedFile);
   return r.ok
     ? { ok: true, message: `Loaded the demo customers (${users.map((u) => u.id).join(', ')})` }
     : { ok: false, message: r.failures.slice(0, 3).join('; ') };

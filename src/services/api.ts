@@ -38,7 +38,7 @@ export async function updateUserViewMode(userId: string, viewMode: 'full' | 'cal
 /** Deletes all data. Nothing comes back by itself: load data again with scripts/load_data.py. */
 export async function resetDatabase(): Promise<void> {
   const res = await fetch('/api/users/reset', { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to delete the data');
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Failed to delete the data');
 }
 
 /** Asks the server to read the data again (after scripts/load_data.py loaded new data). */

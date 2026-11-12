@@ -501,7 +501,7 @@ export default function App() {
               onUsers={() => setUsersOpen(true)}
               onCalm={async () => { await updateUserViewMode(state.user.id, isCalm ? 'full' : 'calm'); refresh(); }}
               onDark={toggleTheme}
-              onReset={async () => { if (!window.confirm('Reset the demo? Chats and changes are deleted and the demo customers start again.')) return; await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
+              onReset={async () => { await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
               onRefresh={() => refresh()}
             />
           )}

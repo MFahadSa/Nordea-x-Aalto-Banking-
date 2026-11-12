@@ -18,6 +18,8 @@ export const PersonaPickerModal: React.FC<Props> = ({
   onSelectPersona,
   onResetDatabase,
 }) => {
+  const [sure, setSure] = React.useState(false);
+  React.useEffect(() => { if (!isOpen) setSure(false); }, [isOpen]);
   if (!isOpen) return null;
 
   return (
@@ -90,10 +92,10 @@ export const PersonaPickerModal: React.FC<Props> = ({
         <button
           className="btn link"
           onClick={() => {
-            if (window.confirm('Reset the demo? Chats and changes are deleted and the demo customers start again.')) {
-              onResetDatabase();
-              onClose();
-            }
+            // v24: ask inside the app (a browser pop-up can be blocked silently in AI Studio's preview).
+            if (!sure) { setSure(true); return; }
+            onResetDatabase();
+            onClose();
           }}
           style={{
             color: 'var(--warn)',
@@ -102,7 +104,7 @@ export const PersonaPickerModal: React.FC<Props> = ({
             fontSize: '13.5px',
           }}
         >
-          Reset demo data
+          {sure ? 'Tap again to reset: chats and changes are deleted' : 'Reset demo data'}
         </button>
       </div>
     </div>

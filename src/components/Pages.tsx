@@ -617,6 +617,20 @@ const speed = (s: { lastTurn?: { ms: number; calls: number } | null; thinking?: 
   (s.lastTurn ? ` · last chat answer ${(s.lastTurn.ms / 1000).toFixed(1)} s (${s.lastTurn.calls} ${s.lastTurn.calls === 1 ? 'call' : 'calls'})` : '') + (s.thinking && s.thinking !== 'not tried yet' ? ` · thinking ${s.thinking}` : '');
 /** Shows whether Abel's AI works here, and the real reason if not. Never shows the key. */
 /** Where the demo's data is saved (Supabase or only this server). */
+/** v24: the reset asks inside the app. A browser pop-up (window.confirm) can be blocked silently in
+ *  an embedded preview such as AI Studio's, and then the reset never happened. */
+const ResetRow: React.FC<{ onReset: () => Promise<void> }> = ({ onReset }) => {
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  if (!ask) return <NRow name="Reset demo data" sub={err ? <span className="ai-bad">{err}</span> : 'Start again'} onClick={() => { setErr(''); setAsk(true); }} />;
+  const go = async () => {
+    setBusy(true);
+    try { await onReset(); setAsk(false); } catch (e: any) { setErr(`Reset failed: ${e?.message || e}`); setAsk(false); } finally { setBusy(false); }
+  };
+  return <NRow name="Reset the demo?" sub="Chats, changes and inputs are deleted, here and in Supabase. The demo customers start again." right={<span style={{ display: 'flex', gap: 6 }}><button className="btn small quiet" onClick={() => setAsk(false)} disabled={busy}>Cancel</button><button className="btn small primary" onClick={go} disabled={busy}>{busy ? 'Resetting…' : 'Reset'}</button></span>} />;
+};
+
 const DbCheck: React.FC = () => {
   const [s, setS] = useState<DbStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -774,7 +788,7 @@ const DebugToggle: React.FC = () => {
 };
 
 // ---------------- More ----------------
-export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: string) => void; onUsers: () => void; onCalm: () => void; onDark: () => void; onReset: () => void; onRefresh?: () => void }> = ({ state, isDark, onPage, onUsers, onCalm, onDark, onReset, onRefresh }) => (
+export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: string) => void; onUsers: () => void; onCalm: () => void; onDark: () => void; onReset: () => Promise<void>; onRefresh?: () => void }> = ({ state, isDark, onPage, onUsers, onCalm, onDark, onReset, onRefresh }) => (
   <>
     <DetailHead title="More" />
     <div className="nbody">
@@ -799,7 +813,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
         <NordeaDataRow userId={state.user.id} onChanged={() => onRefresh?.()} />
         <DebugToggle />
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
-        <NRow name="Reset demo data" sub="Start again" onClick={onReset} />
+        <ResetRow onReset={onReset} />
       </div>
     </div>
   </>
