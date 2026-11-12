@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus, ApprovalCard, fetchApprovalCards, decideApprovalCard, PipeItem, fetchPipelineWaiting, decidePipelineItem, SOURCE_NAME } from '../services/api.js';
+import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, retryDbStatus, DbStatus, ApprovalCard, fetchApprovalCards, decideApprovalCard, PipeItem, fetchPipelineWaiting, decidePipelineItem, SOURCE_NAME } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
@@ -170,7 +170,12 @@ const ApprovalWaiting: React.FC<{ cards: ApprovalCard[]; onDecide: (id: string, 
  *  until they decide: Save (Abel and, for a case they share, Nordea), Keep private (Abel only), Drop. */
 const PipelineWaiting: React.FC<{ items: PipeItem[]; onDecide: (id: string, a: 'save' | 'private' | 'drop') => void }> = ({ items, onDecide }) => {
   const [all, setAll] = useState(false);
-  if (!items.length) return null;
+  if (!items.length) return (
+    <>
+      <Band left="From your inputs" right={<span className="band-note">Only what looked useful</span>} />
+      <div className="ncard flat"><div className="nrow2 static"><span className="n-l"><span className="n-name">Nothing waiting</span><span className="n-sub">When your glasses, chats or documents pick up something useful, it appears here for you to save or drop.</span></span></div></div>
+    </>
+  );
   const shown = all ? items : items.slice(0, 3);
   return (
     <>
@@ -253,6 +258,8 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   const [pipe, setPipe] = React.useState<PipeItem[]>([]);
   const loadPipe = () => fetchPipelineWaiting(state.user.id).then(setPipe);
   React.useEffect(() => { loadPipe(); }, [state.user.id, state.entries.length]);
+  // v23: new inputs (e.g. a glasses sync in another window) appear here by themselves.
+  React.useEffect(() => { const t = window.setInterval(() => { if (!document.hidden) loadPipe(); }, 4000); return () => window.clearInterval(t); }, [state.user.id]);
   const decidePipe = async (id: string, a: 'save' | 'private' | 'drop') => { await decidePipelineItem(state.user.id, id, a); await loadPipe(); p.onChanged?.(); };
   const shownWaiting = allWaiting ? waiting : waiting.slice(0, 2);
   const listedRest = listed.filter((e) => !waiting.includes(e) && !staleGoals.includes(e));
@@ -612,10 +619,15 @@ const speed = (s: { lastTurn?: { ms: number; calls: number } | null; thinking?: 
 /** Where the demo's data is saved (Supabase or only this server). */
 const DbCheck: React.FC = () => {
   const [s, setS] = useState<DbStatus | null>(null);
+  const [busy, setBusy] = useState(false);
   const load = () => fetchDbStatus().then(setS).catch(() => setS(null));
+  // v23: "Check" also tries Supabase again, so tables created after the app started are picked up.
+  const check = () => { setBusy(true); retryDbStatus().then(setS).catch(() => setS(null)).finally(() => setBusy(false)); };
   React.useEffect(() => { load(); }, []);
   const text = !s ? 'Checking…' : s.mode === 'supabase' ? (s.ok ? `Saved in Supabase${s.rows ? ` · ${s.rows} records` : ''}${s.waiting ? ` · ${s.waiting} waiting` : ''}` : s.message) : s.message;
-  return <NRow name="Saved data" sub={<span className={s && s.mode === 'supabase' && s.ok ? 'up' : s && !s.ok ? 'ai-bad' : ''}>{text}</span>} right={<button className="btn small" onClick={load}>Check</button>} />;
+  const pipe = s?.pipeline;
+  const good = !!s && s.mode === 'supabase' && s.ok && (!pipe || pipe.where === 'supabase');
+  return <NRow name="Saved data" sub={<span className={good ? 'up' : s && (!s.ok || (pipe && !pipe.ok)) ? 'ai-bad' : ''}>{text}{pipe && <><br />Inputs pipeline: {pipe.message}</>}</span>} right={<button className="btn small" onClick={check} disabled={busy}>{busy ? 'Checking…' : 'Check'}</button>} />;
 };
 
 /** Nordea's (fictional) account data: where it came from, upload a new file, or pull new rows from Supabase. */

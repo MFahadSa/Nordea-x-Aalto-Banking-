@@ -94,8 +94,8 @@ export const Glasses: React.FC = () => {
     try {
       const r = await post<any>('/api/ingest', { userId: UID, source: 'glasses', label: `Smart glasses · ${buffer.length} signals`, signals: buffer });
       const run = r.run;
-      const text = `${run.heard} heard → ${run.kept} useful${run.private ? ` + ${run.private} private` : ''} · ${run.dropped} dropped${run.merged ? ` · ${run.merged} already known` : ''}. Waiting for you in the app: What Abel knows → From your inputs.${run.aiJudged ? '' : ' (AI unavailable: the rule check decided.)'}`;
-      setRes({ ok: true, text });
+      const text = `${run.heard} heard → ${run.kept} useful${run.private ? ` + ${run.private} private` : ''} · ${run.dropped} dropped${run.merged ? ` · ${run.merged} already known` : ''}. Waiting for you in the app: What Abel knows → From your inputs.${run.aiJudged ? '' : ' (AI unavailable: the rule check decided.)'}${r.stored ? `\n${r.stored.where === 'supabase' ? '✓ ' : '⚠ '}${r.stored.message}` : ''}`;
+      setRes({ ok: !r.stored || r.stored.ok, text });
       setBubble({ who: 'Personal AI · synced', text: `Sent ${run.kept + run.private} of ${run.heard} things to your app for you to check. The rest stayed here and is gone.` });
       setBuffer([]); setShown([]);
       setDone((d) => ({ ...d, sync: true }));
@@ -107,7 +107,7 @@ export const Glasses: React.FC = () => {
     try {
       const r = await post<any>('/api/ingest', { userId: UID, ...body });
       const run = r.run;
-      setRes({ ok: true, text: `${run.label}: ${run.heard} heard → ${run.kept} useful${run.private ? ` + ${run.private} private` : ''} · ${run.dropped} dropped${run.merged ? ` · ${run.merged} folded/known` : ''}.${r.message ? ` ${r.message}` : ''}` });
+      setRes({ ok: !r.stored || r.stored.ok, text: `${run.label}: ${run.heard} heard → ${run.kept} useful${run.private ? ` + ${run.private} private` : ''} · ${run.dropped} dropped${run.merged ? ` · ${run.merged} folded/known` : ''}.${r.message ? ` ${r.message}` : ''}${r.stored ? `\n${r.stored.where === 'supabase' ? '✓ ' : '⚠ '}${r.stored.message}` : ''}` });
       setDone((d) => ({ ...d, [key]: true }));
     } catch (e: any) { setRes({ ok: false, text: e.message }); } finally { setBusy(''); }
   };

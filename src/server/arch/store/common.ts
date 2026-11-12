@@ -216,8 +216,25 @@ export async function drainRemoteFlushes(): Promise<void> {
  * for that kind are replaced by the remote ones. Runs before the app serves requests.
  */
 /** G20: hydrate with per-store failure reporting (the hosted data loader must stop on a failed pull). */
-export async function hydrateAgentStoresDetailed(): Promise<{ hydrated: string[]; failed: string[]; skipped: HydrateSkip[] }> {
+export async function hydrateAgentStoresDetailed(): Promise<HydrateResult> {
   return hydrateDetailed();
+}
+export interface HydrateResult { hydrated: string[]; failed: string[]; skipped: HydrateSkip[]; errors: Partial<Record<DbKind, string>>; hostedUids: Partial<Record<DbKind, string[]>> }
+
+/** v23: send every local customer that has no rows in the hosted table yet (e.g. demo data loaded
+ *  while Supabase was unreachable), so the hosted copy is complete once the connection works. */
+export function pushLocalMissingFromHosted(kind: DbKind, hostedUids: string[]): number {
+  if (!REMOTE_SECRETS.has(kind)) return 0;
+  const have = new Set(hostedUids);
+  let n = 0;
+  for (const uid of listCustomers()) {
+    if (have.has(uid)) continue;
+    const file = fileFor(uid, kind);
+    if (!fs.existsSync(file)) continue;
+    queueFlush(`${kind}:${file}`, file, kind);
+    n++;
+  }
+  return n;
 }
 
 export async function hydrateAgentStores(): Promise<string[]> {
@@ -229,10 +246,12 @@ export interface HydrateSkip { store: DbKind; id: string; rows: number }
 let lastHydrateSkipped: HydrateSkip[] = [];
 export const hydrateSkipped = () => ({ count: lastHydrateSkipped.length, ids: lastHydrateSkipped.slice(), hostedUnchanged: true as const });
 
-async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[]; skipped: HydrateSkip[] }> {
+async function hydrateDetailed(): Promise<HydrateResult> {
   lastHydrateSkipped = [];
   const hydrated: string[] = [];
   const failed: string[] = [];
+  const errors: Partial<Record<DbKind, string>> = {};
+  const hostedUids: Partial<Record<DbKind, string[]>> = {};
   for (const [kind, url] of REMOTE_SECRETS) {
     if (kind === 'bus') continue; // the bus is transient agent messaging, local by design
     try {
@@ -244,6 +263,7 @@ async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[]
         list.push(r);
         byUid.set(r.user_id, list);
       }
+      hostedUids[kind] = [...byUid.keys()];
       for (const [uid, list] of byUid) {
         // D12: a hosted row set under a non-canonical id is left untouched in the hosted store and not hydrated.
         if (!isCanonicalCustomerId(uid)) { lastHydrateSkipped.push({ store: kind, id: uid, rows: list.length }); console.error(`Remote hydrate skipped a non-canonical customer id in ${kind} (${list.length} rows, left unchanged hosted).`); continue; }
@@ -271,9 +291,10 @@ async function hydrateDetailed(): Promise<{ hydrated: string[]; failed: string[]
       // A failed remote must not stop the app: keep working on the local files.
       console.error(`Remote hydrate failed for ${kind}:`, err instanceof Error ? err.message : err);
       failed.push(kind);
+      errors[kind] = err instanceof Error ? err.message : String(err);
     }
   }
-  return { hydrated, failed, skipped: lastHydrateSkipped.slice() };
+  return { hydrated, failed, skipped: lastHydrateSkipped.slice(), errors, hostedUids };
 }
 
 
