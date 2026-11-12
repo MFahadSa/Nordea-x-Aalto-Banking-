@@ -11,12 +11,13 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    // v21: more than one page in one app - the customer app and the Nordea employee workspace.
+    // v21: more than one page in one app - the customer app, the Nordea employee workspace and the smart glasses.
     build: {
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, 'index.html'),
           workspace: path.resolve(__dirname, 'workspace.html'),
+          glasses: path.resolve(__dirname, 'glasses.html'),
         },
       },
     },

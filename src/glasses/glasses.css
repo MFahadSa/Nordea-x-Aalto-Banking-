@@ -1,0 +1,48 @@
+/* Smart glasses (concept): Lauri's first-person view with a heads-up display, and a presenter panel. */
+@font-face{font-family:'Noto Sans';font-weight:400;font-display:swap;src:url(/fonts/noto-sans-400.woff2) format('woff2')}
+@font-face{font-family:'Noto Sans';font-weight:600;font-display:swap;src:url(/fonts/noto-sans-600.woff2) format('woff2')}
+@font-face{font-family:'Noto Sans';font-weight:700;font-display:swap;src:url(/fonts/noto-sans-700.woff2) format('woff2')}
+*{box-sizing:border-box;margin:0}
+html,body,#root{height:100%}
+body{font-family:'Noto Sans',system-ui,sans-serif;background:#0B0D1E;color:#EEF0FF;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid #7FA6FF;outline-offset:2px}
+.gl{display:flex;min-height:100%;min-width:1100px}
+.view{flex:1;position:relative;overflow:hidden;min-height:100vh}
+.view svg.scene{position:absolute;inset:0;width:100%;height:100%}
+.lens{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 160px 40px rgba(0,0,0,.55);border-radius:0}
+.hud-top{position:absolute;top:22px;left:26px;right:26px;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#CFE3FF;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+.hud-top .pill{background:rgba(10,14,40,.55);border:1px solid rgba(160,190,255,.35);border-radius:99px;padding:5px 12px;backdrop-filter:blur(6px)}
+.bubble{position:absolute;left:50%;top:22%;transform:translateX(-50%);width:min(560px,70%);background:rgba(10,14,40,.72);border:1px solid rgba(120,170,255,.45);border-radius:18px;padding:16px 20px;backdrop-filter:blur(8px);box-shadow:0 0 40px rgba(70,140,255,.25)}
+.bubble .who{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8FB8FF;margin-bottom:6px}
+.bubble p{font-size:17px}
+.seen{position:absolute;left:26px;bottom:110px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:440px;z-index:2}
+.seen .sig{display:block;max-width:100%;background:rgba(10,14,40,.82);border-left:3px solid #4CC4AF;border-radius:8px;padding:6px 10px;font-size:13px;animation:pop .35s ease}
+.seen .sig.k-heard{border-left-color:#F0C25A}
+@keyframes pop{from{opacity:0}to{opacity:1}}
+.sub{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);width:min(760px,86%);display:flex;gap:10px;align-items:center}
+.sub input{flex:1;background:rgba(10,14,40,.7);border:1px solid rgba(160,190,255,.4);border-radius:99px;padding:11px 16px;color:#fff}
+.sub input::placeholder{color:#9AA6D6}
+.rbtn{border:0;border-radius:99px;padding:11px 16px;font-weight:700;cursor:pointer;background:#2E44FF;color:#fff;white-space:nowrap}
+.rbtn.ghost{background:rgba(10,14,40,.7);border:1px solid rgba(160,190,255,.4)}
+.rbtn.on{background:#C0392B}
+.rbtn:disabled{opacity:.5;cursor:default}
+.panel{width:420px;flex:none;background:#12142E;border-left:1px solid #2D3256;padding:22px 20px;display:flex;flex-direction:column;gap:14px;max-height:100vh;overflow:auto}
+.panel h2{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#F0C25A}
+.panel h3{font-size:20px;font-weight:700}
+.panel .muted{color:#9AA0C8}
+.step{display:flex;gap:12px;background:#1B1E40;border:1px solid #2D3256;border-radius:14px;padding:12px 14px;text-align:left;cursor:pointer;width:100%}
+.step:hover{border-color:#5865D8}
+a.step{color:inherit;text-decoration:none}
+.step.done{opacity:.6}
+.step .n{width:26px;height:26px;border-radius:50%;background:#2D3256;display:grid;place-items:center;font-weight:700;flex:none;font-size:13px}
+.step b{display:block}
+.step span.s{color:#9AA0C8;font-size:13px}
+.buf{background:#1B1E40;border-radius:14px;padding:12px 14px;font-size:13px}
+.buf li{margin-left:16px}
+.res{background:#13321F;border:1px solid #2B6B43;border-radius:14px;padding:12px 14px;font-size:13.5px}
+.res.err{background:#3A1A18;border-color:#7A2E28}
+.links a{color:#9EB2FF}
+.legend{display:flex;gap:14px;font-size:12.5px;color:#C9CEF0}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.concept{font-size:11.5px;color:#7F86B8}

@@ -53,6 +53,8 @@ export interface PipeCandidate {
   updatesId?: string;
   /** The cabinet entry it became (saved / kept private), or the Nordea observation it is. */
   entryId?: string;
+  /** 'chat': decided in Abel's import card (not in "From your inputs"). */
+  via?: 'chat';
 }
 
 export interface CaseDecision { by: string; at: string; outcome: 'pre_approved' | 'declined' | 'more_info'; amount?: number; reason: string }
@@ -146,6 +148,9 @@ export async function hydratePipeline(): Promise<string> {
 }
 
 function writeLocal() {
+  const s = load();
+  // Nothing to keep and no file yet: create none (a bad customer id must leave no file behind).
+  if (!s.runs.length && !s.candidates.length && !s.cases.length && !fs.existsSync(FILE())) return;
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(FILE(), JSON.stringify(load()), 'utf-8');
 }

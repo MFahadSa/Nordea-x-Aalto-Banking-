@@ -106,8 +106,12 @@ export function caseDetail(caseId: string, sid: string) {
   const u = db.getUser(c.userId);
   const items = readShared(c, sid, `${c.title}: reading what ${u?.name ?? 'the customer'} shared`);
   const heldBack = Math.max(0, db.getCabinetEntries(c.userId).filter((e) => e.status !== 'archived').length - items.length);
-  const price = c.amount;
-  const aff = affordability(c.userId, price);
+  // The flat's price: what the customer answered, else a price in a shared item ("For sale: … 389 000 €").
+  const priceItem = items.find((e) => /\b(flat|apartment|for sale|price|asking)\b/i.test(`${e.title} ${e.detail}`) && /\d{3}\s?\d{3}\s?€/.test(`${e.title} ${e.detail}`));
+  const fromItem = priceItem ? Number(`${priceItem.title} ${priceItem.detail}`.match(/(\d{3})\s?(\d{3})\s?€/)!.slice(1).join('')) : undefined;
+  const price = c.amount ?? fromItem;
+  const priceSource = c.amount ? 'the customer’s answer' : priceItem ? `shared item “${priceItem.title}”` : undefined;
+  const aff = { ...affordability(c.userId, price), ...(priceSource ? { priceSource } : {}) };
   const sal = fin.salaryInfo(c.userId);
   const sharedText = items.map((e) => `${e.title} ${e.detail}`).join(' ');
   const incomeShared = items.some((e) => /salary|payslip|income/i.test(e.title + e.detail));
