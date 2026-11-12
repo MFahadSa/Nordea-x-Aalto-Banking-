@@ -14,7 +14,7 @@ import { db } from '../db.js';
 import { isSensitiveTopic } from '../sensitive.js';
 import { findSimilar, compare, words } from '../similar.js';
 import { proposeFromContent, targetOf } from '../importPropose.js';
-import { applyNordeaData, readNordeaFile } from '../nordeaData.js';
+import { applyNordeaData, readNordeaFile, type ApplyResult } from '../nordeaData.js';
 import * as fin from '../finance.js';
 import { CabinetEntry } from '../../types.js';
 import * as S from './store.js';
@@ -78,7 +78,10 @@ function ruleJudge(userId: string, text: string): { decision: 'keep' | 'drop' | 
   const goalWords = new Set(fin.activeGoals(userId).flatMap((g) => [...words(g.title)]).filter((w) => !COMMON.has(w)));
   const touchesGoal = [...words(text)].some((w) => goalWords.has(w));
   if (touchesGoal) return { decision: 'keep', reason: 'touches a goal (rule)' };
-  if (FINANCE.test(text) && /\d/.test(text)) return { decision: 'keep', reason: 'a money fact (rule)' };
+  if (/\b(never want|always want|i prefer|prefer to|at least|at most)\b/i.test(text) && /\b(account|balance|save|saving|buffer|risk|€|eur)\b|\d/i.test(text)) return { decision: 'keep', reason: 'a lasting preference (rule)' };
+  if (/\b(pre-?approval|mortgage|loan|bank)\b/i.test(text) && !/\d/.test(text)) return { decision: 'keep', reason: 'about a loan (rule)' };
+  const amounts = (text.match(/\d[\d\s.,]*/g) || []).map((x) => Number(x.replace(/\s/g, '').replace(',', '.')));
+  if (FINANCE.test(text) && amounts.some((n) => n > 0)) return { decision: 'keep', reason: 'a money fact (rule)' };
   return { decision: 'drop', reason: 'not related to a goal or money (rule)' };
 }
 
@@ -205,7 +208,16 @@ async function ingestBankData(userId: string, input: IngestInput): Promise<Inges
   const data = readNordeaFile(input.text || '', input.label || 'bank.csv');
   const r = applyNordeaData(userId, data, input.label || 'Pipeline upload');
   if (!r.ok) throw Object.assign(new Error(r.message), { status: 422 });
-  const run: PipeRun = { id: id('run'), userId, source: 'csv', at: now(), label: (input.label || 'Bank data').slice(0, 80), heard: r.transactions ?? data.transactions?.length ?? 0, kept: 0, private: 0, dropped: 0, merged: 0, aiJudged: false };
+  // The import is the Nordea agent's trigger (as the More -> Nordea data upload does).
+  await import('../arch/orchestrator.js').then((O) => { O.applyBankImportToArch(userId); void O.levelNordeaProposals(userId).catch(() => {}); }).catch(() => {});
+  const out = recordBankRun(userId, input.label || 'Bank data', r, data.transactions?.length ?? 0);
+  return { ...out, message: r.message };
+}
+
+/** Records a bank-data import as a pipeline run (also called by the More upload and the Supabase feed). */
+export function recordBankRun(userId: string, label: string, r: ApplyResult, transactions: number): { run: PipeRun; candidates: PipeCandidate[] } {
+  // Heard = the transactions in THIS upload (an incremental update is a few, not the whole history).
+  const run: PipeRun = { id: id('run'), userId, source: 'csv', at: now(), label: label.slice(0, 80), heard: transactions || r.added || r.transactions || 0, kept: 0, private: 0, dropped: 0, merged: 0, aiJudged: false };
   const noticed = [...(r.noticed?.added || []), ...(r.noticed?.updated || [])];
   const obs = db.getCabinetEntries(userId).filter((e) => e.source === 'nordea' && e.type === 'observation' && e.status === 'active');
   const out: PipeCandidate[] = [];
@@ -218,7 +230,7 @@ async function ingestBankData(userId: string, input: IngestInput): Promise<Inges
   S.putRun(run);
   for (const c of out) S.putCandidate(c);
   S.rememberDropped(run.id, [{ text: `${run.heard} transactions`, reason: 'folded into monthly totals; no account numbers', decision: 'merged' }]);
-  return { run, candidates: out, message: r.message };
+  return { run, candidates: out };
 }
 
 // ---------------- step 3 + 4: the customer decides; saved items enter the cabinet ----------------
@@ -260,7 +272,39 @@ export function decide(candidateId: string, action: 'save' | 'private' | 'drop',
   return c;
 }
 
-export const waitingFor = (userId: string) => S.candidates(userId).filter((c) => c.customer === 'waiting' && c.type !== 'observation');
+export const waitingFor = (userId: string) => S.candidates(userId).filter((c) => c.customer === 'waiting' && c.type !== 'observation' && c.via !== 'chat');
+
+// ---------------- the app's own "Import a chat" / file in Abel: recorded in the same pipeline ----------------
+// Abel's import card stays the customer's place to decide; the run and its items are recorded so the
+// funnel and the workspace see every input. Returns the candidate id for each proposed item.
+export function recordChatImport(userId: string, label: string, whatsapp: boolean, heard: number, items: { type: string; title: string; detail: string; sensitive?: boolean; duplicateOfId?: string; updates?: boolean; target?: { amount: number; date: string } }[]): string[] {
+  const source: PipeSource = whatsapp ? 'whatsapp' : 'document';
+  const run: PipeRun = { id: id('run'), userId, source, at: now(), label: label.slice(0, 80), heard: Math.max(heard, items.length), kept: 0, private: 0, dropped: 0, merged: 0, aiJudged: true };
+  const ids: string[] = [];
+  for (const it of items) {
+    const priv = !!it.sensitive || isSensitiveTopic(`${it.title} ${it.detail}`);
+    const c = candidate(run, { type: (['goal', 'life_event', 'preference', 'fact'].includes(it.type) ? it.type : 'fact') as PipeCandidate['type'], title: it.title, detail: it.detail, reason: priv ? 'private: sensitive topic' : it.updates ? 'updates something known' : 'worth remembering', filter: priv ? 'private' : 'kept', target: it.target, updatesId: it.updates ? it.duplicateOfId : undefined, via: 'chat' });
+    S.putCandidate(c);
+    ids.push(c.id);
+  }
+  run.kept = items.filter((it) => !(it.sensitive || isSensitiveTopic(`${it.title} ${it.detail}`))).length;
+  run.private = items.length - run.kept;
+  run.dropped = Math.max(0, run.heard - items.length);
+  S.putRun(run);
+  S.rememberDropped(run.id, run.dropped ? [{ text: `${run.dropped} other lines`, reason: 'nothing about goals or plans', decision: 'dropped' }] : []);
+  return ids;
+}
+
+/** The customer decided in the import card: picked items are saved (with their entry), the rest dropped. */
+export function settleChatImport(candidateIds: string[], entryByIndex: Record<number, string | undefined>) {
+  const t = now();
+  candidateIds.forEach((cid, i) => {
+    const c = S.getCandidate(cid);
+    if (!c || c.customer !== 'waiting') return;
+    const entryId = entryByIndex[i];
+    S.putCandidate(entryId ? { ...c, customer: c.filter === 'private' ? 'private' : 'saved', entryId, decidedAt: t } : { ...c, customer: 'dropped', detail: '', decidedAt: t });
+  });
+}
 
 // ---------------- the funnel, for the pipeline views ----------------
 

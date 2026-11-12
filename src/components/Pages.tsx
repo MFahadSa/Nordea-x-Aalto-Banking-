@@ -779,6 +779,8 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       </div>
       <Band left="Demo" />
       <div className="ncard flat">
+        <NRow name="Smart glasses" sub="Lauri’s view: inputs go through the pipeline" onClick={() => window.open('/glasses', '_blank', 'noopener')} />
+        <NRow name="Nordea workspace" sub="The employee side, desktop: cases and decisions" onClick={() => window.open('/workspace', '_blank', 'noopener')} />
         <AiCheck />
         <SelfTest />
         <DbCheck />

@@ -339,8 +339,9 @@ registerDevMonitor(app);
 registerArchRoutes(app);
 registerPipelineRoutes(app);
 registerWorkspaceRoutes(app);
-// The Nordea employee workspace (desktop page).
+// The Nordea employee workspace (desktop page) and the smart-glasses page.
 app.get(['/workspace', '/workspace/'], (_req, res) => res.redirect('/workspace.html'));
+app.get(['/glasses', '/glasses/'], (_req, res) => res.redirect('/glasses.html'));
 
 // Vite Middleware Mounting (Development) or Static File Serving (Production)
 async function startServer() {

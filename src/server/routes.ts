@@ -9,6 +9,7 @@ import { checkFeed, feedStatus } from './nordeaFeed.js';
 import { applyBankImportToArch, abelSharedContext, classifyQuestion } from './arch/orchestrator.js';
 import { getPartner, getAllPartners } from './partnerRegistry.js';
 import { openCaseFromHandoff, withdrawCasesForShare, answerRequest, relevantForLoan, isLoanContext } from './pipeline/cases.js';
+import { recordChatImport, settleChatImport, recordBankRun } from './pipeline/engine.js';
 import * as fin from './finance.js';
 import { proposeFromContent, SAMPLE_CHAT, ImportItem } from './importPropose.js';
 import { runOnce, requestState } from './chatRequests.js';
@@ -341,6 +342,7 @@ export function registerV14Routes(app: Express) {
         if (action === 'import_no') {
           // Nothing was approved: the suggestions are dropped from the card, so they can't reach Abel later.
           db.updateMessage(msg.id, { resolved: 'Not now', cards: msg.cards!.map((x) => (x === c ? { ...x, data: { ...x.data, items: [], savedIds: [] } } : x)) });
+          if (Array.isArray(c.data!.pipeIds)) settleChatImport(c.data!.pipeIds, {});
           const kept = c.data!.documentId ? db.getDocument(c.data!.documentId) : undefined;
           out.push(agentMsg(userId, conv, helper, kept ? `Okay, nothing saved from it. Your copy stays in Your documents until ${fmtDay(kept.expiresAt.slice(0, 10))}, and you can delete it any time.` : 'Okay, nothing saved. I don’t keep the file.'));
           break;
@@ -353,6 +355,7 @@ export function registerV14Routes(app: Express) {
         let updated = 0;
         const undoNotes: NonNullable<ChatMessage['notes']> = [];
         const touched: string[] = [];
+        const entryByIndex: Record<number, string> = {};
         for (const i of picked) {
           const x = items[i];
           const old = x.updates && x.duplicateOfId ? db.getCabinetEntry(x.duplicateOfId) : undefined;
@@ -364,6 +367,7 @@ export function registerV14Routes(app: Express) {
             const undoToken = id('undo');
             db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'update', description: `Updated "${old.title}"`, previousEntry: prev, entryId: old.id });
             undoNotes.push({ text: `📌 Updated: ${old.title}`, undoToken, entryId: old.id });
+            entryByIndex[i] = old.id;
             updated++;
             continue;
           }
@@ -376,7 +380,9 @@ export function registerV14Routes(app: Express) {
           };
           db.addCabinetEntry(e, { by: 'you', how });
           ids.push(e.id);
+          entryByIndex[i] = e.id;
         }
+        if (Array.isArray(c.data!.pipeIds)) settleChatImport(c.data!.pipeIds, entryByIndex);
         // A kept file remembers what came from it, so deleting the file can offer to delete those too.
         const doc = c.data!.documentId ? db.getDocument(c.data!.documentId) : undefined;
         if (doc) db.updateDocument(doc.id, { entryIds: [...doc.entryIds, ...ids] });
@@ -462,6 +468,7 @@ export function registerV14Routes(app: Express) {
     // staleness detection runs immediately - no manual contribution press, no background loop.
     const arch = applyBankImportToArch(userId);
     void import('./arch/orchestrator.js').then((O) => O.levelNordeaProposals(userId)).catch(() => {}); // D9: level the decay round's proposals
+    recordBankRun(userId, fileName ? String(fileName).slice(0, 60) : 'Uploaded data', r, parsed.transactions?.length ?? 0); // v22: in the pipeline view too
     res.json({ result: r, arch });
   });
   app.post('/api/nordea-data/check', async (req, res) => {
@@ -559,7 +566,7 @@ export function registerV14Routes(app: Express) {
       if (r.amount && ['price_tag', 'receipt', 'bill', 'other'].includes(r.kind || '')) suggestions.push(r.kind === 'bill' ? `Can I pay ${fmt(r.amount, r.amount % 1 ? 2 : 0)} this month?` : `Can I afford ${fmt(r.amount, r.amount % 1 ? 2 : 0)}?`);
       a = r.items.length
         ? agentMsg(userId, conv.id, conv.helperId, `${what}${keptLine}\n\nHere’s what I’d remember. Untick anything you’d rather I didn’t keep:`, {
-            cards: [{ type: 'import', data: { items: r.items, source, transcript: body, documentId: doc?.id, channel } }],
+            cards: [{ type: 'import', data: { items: r.items, source, transcript: body, documentId: doc?.id, channel, pipeIds: recordChatImport(userId, source, channel === 'whatsapp', r.lines, r.items) } }],
           })
         : agentMsg(userId, conv.id, conv.helperId, doc ? `${what}\n\nI didn’t find anything about your goals or plans worth remembering.${keptLine}` : `${what}\n\nI didn’t find anything about your goals or plans worth remembering, so I won’t keep it.`, { suggestions });
     }

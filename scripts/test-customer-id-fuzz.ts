@@ -93,7 +93,9 @@ try {
   // what must never happen is a file or index entry named after a bad id.
   const after = snapshot().split('\n').map((l) => l.split(':')[0]);
   const before0 = new Set(snap0.split('\n').map((l) => l.split(':')[0]));
-  const created = after.filter((f) => !before0.has(f) && !/^arch\/lauri\./.test(f)); // lauri = the default customer: its own lazy files are legitimate
+  // The shared pipeline file is fine only if every record in it is the default customer's.
+  const pipeOnlyLauri = (f: string) => f === 'pipeline.json' && (() => { const s = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf-8')); return [...s.runs, ...s.candidates, ...s.cases].every((x: { userId: string }) => x.userId === 'lauri'); })();
+  const created = after.filter((f) => !before0.has(f) && !/^arch\/lauri\./.test(f) && !pipeOnlyLauri(f)); // lauri = the default customer: its own lazy files are legitimate
   check('no file was created for any bad id or alias (a_b, te_st, lauri-case variants)', created.length === 0, created);
   check('customers index lists no bad id', !BADS.some((b) => fs.readFileSync(path.join(DIR, 'arch', 'customers.json'), 'utf-8').includes(JSON.stringify(b))));
   console.log(`routes parsed: ${uniq.length}; fuzzed: ${tested.length}; skipped: ${skipped.length}; requests: ${requests}`);

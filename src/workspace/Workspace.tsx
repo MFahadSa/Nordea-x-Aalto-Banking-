@@ -49,7 +49,7 @@ export const Workspace: React.FC = () => {
         {nav('case', 'Cases', (t?.cases?.[0] ? `/case/${t.cases[0].id}` : '/today'), open)}
         {nav('pipeline', 'Pipeline', '/pipeline/lauri')}
         {nav('audit', 'Audit log', '/audit/lauri')}
-        <div className="foot">You see only what customers share with you, for a purpose and until a date. Every view is logged in their app.<br /><br /><a href="/">Open the customer app</a></div>
+        <div className="foot">You see only what customers share with you, for a purpose and until a date. Every view is logged in their app.<br /><br /><a href="/">Open the customer app</a> · <a href="/glasses">Smart glasses</a></div>
       </nav>
       <div className="main">
         <div className="top">
@@ -184,7 +184,7 @@ const CaseView: React.FC<{ id: string; sid: string; onToast: (s: string) => void
                 <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${Math.min(100, a.goal.percentSaved)}%` }} /></div>
               </div>
             )}
-            <p className="muted small" style={{ marginTop: 10 }}>Demo rules: the payment at a {a.rules.stressRate * 100} % stress rate over {a.rules.years} years may be at most {a.rules.paymentShare * 100} % of income ({eur(a.maxPayment)} a month → loan up to {eur(a.maxLoan)}); at least {a.rules.depositShare * 100} % deposit.{a.price ? ` Price from the customer: ${eur(a.price)} → ${eur(a.paymentAtStress)} a month at the stress rate.` : ''}</p>
+            <p className="muted small" style={{ marginTop: 10 }}>Demo rules: the payment at a {a.rules.stressRate * 100} % stress rate over {a.rules.years} years may be at most {a.rules.paymentShare * 100} % of income ({eur(a.maxPayment)} a month → loan up to {eur(a.maxLoan)}); at least {a.rules.depositShare * 100} % deposit.{a.price ? ` Price ${eur(a.price)} (from ${a.priceSource}) → loan ${eur(a.loanNeeded)} → ${eur(a.paymentAtStress)} a month at the stress rate.` : ''}</p>
           </div>
           <div className="ai">
             <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
