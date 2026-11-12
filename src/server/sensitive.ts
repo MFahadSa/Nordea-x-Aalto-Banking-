@@ -13,6 +13,6 @@
 export const ABEL_PRIVATE_TOPIC = /\b(health|illness|ill|sick|cancer|diagnos\w*|pregnan\w*|baby on the way|ivf|divorc\w*|separation|separated|affair|therap\w*|depress\w*|anxiety|anxious|panic attack|disabilit\w*|disabled|surgery|hospitali[sz]\w*|debt collectors?|gambl\w*|addict\w*)\b/i;
 
 /** The wider AC7 risk list: high-risk proposals always wait for the customer. */
-export const SENSITIVE_TOPIC = /\b(health|illness|ill|sick|cancer|diagnos\w*|pregnan\w*|baby on the way|ivf|divorc\w*|separation|separated|affair|therap\w*|depress\w*|anxiety|anxious|panic attack|disabilit\w*|disabled|surgery|hospitali[sz]\w*|debt collectors?|arrears|bankrupt\w*|can't pay|cant pay|gambl\w*|addict\w*|religion|religious|church|mosque|prayer|politic\w*|election|trade union|dating|sexual\w*|ethnic\w*)\b/i;
+export const SENSITIVE_TOPIC = /\b(health|illness|ill|sick|doctor|dentist|clinic|medication|medicine|prescription|cancer|diagnos\w*|pregnan\w*|baby on the way|ivf|divorc\w*|separation|separated|affair|therap\w*|depress\w*|anxiety|anxious|panic attack|disabilit\w*|disabled|surgery|hospitali[sz]\w*|debt collectors?|arrears|bankrupt\w*|can't pay|cant pay|gambl\w*|addict\w*|religion|religious|church|mosque|prayer|politic\w*|election|trade union|dating|sexual\w*|ethnic\w*)\b/i;
 
 export const isSensitiveTopic = (text: string) => SENSITIVE_TOPIC.test(text);

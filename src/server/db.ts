@@ -24,7 +24,8 @@ import {
 // G1: customer data lives in the three agent databases (User / Context Memory / Nordea).
 // The app layer may import the store modules (see the store file headers); agents never
 // import this module, and no agent module imports another agent's store.
-import { listCustomers, unregisterCustomer, deleteDbFile, ARCH_DIR, hydrateAgentStores, remoteConfigured } from './arch/store/common.js';
+import { listCustomers, unregisterCustomer, deleteDbFile, ARCH_DIR, hydrateAgentStoresDetailed, remoteConfigured, configureRemote, dropRemote, clearRemoteCustomer, drainRemoteFlushes } from './arch/store/common.js';
+import { restMirrorAvailable } from './arch/store/restRemote.js';
 import { loadBus } from './arch/store/busStore.js';
 import { appWrites, decideProposal } from './arch/orchestrator.js';
 import {
@@ -261,11 +262,19 @@ class Database {
    * Everything lives in the three agent databases (owner, 2026-11-01): the app never reads or
    * writes cabinet-db.json - a leftover file only triggers the migration hint below.
    */
+  private hostedFailed: string[] = [];
+
   public async init() {
     // G6: when the three agent stores have hosted secrets, their tables are the source of
     // truth - pull them into the local SQLite files before anything reads them.
-    const hydrated = await hydrateAgentStores();
+    // v20: no role connection strings, but the project's Supabase keys are there (AI Studio): keep the
+    // three agent tables in Supabase over its web API instead, so data survives a restart.
+    if (restMirrorAvailable()) for (const k of ['user', 'cm', 'nordea'] as const) if (!remoteConfigured(k)) configureRemote(k, `supabase-rest:${k}`);
+    const { hydrated, failed } = await hydrateAgentStoresDetailed();
     if (hydrated.length) console.log(`Database: agent stores hydrated from hosted tables: ${hydrated.join(', ')}`);
+    if (failed.length) console.error(`Database: could not read ${failed.join(', ')} from Supabase - run supabase/pipeline.sql once in the Supabase SQL editor. Working on this server's copy meanwhile.`);
+    this.hostedFailed = failed;
+    for (const k of failed) dropRemote(k as 'user' | 'cm' | 'nordea'); // tables missing: work locally, demo data still loads
     if (fs.existsSync(DB_FILE)) {
       console.log('Database: found legacy cabinet-db.json - run `npm run migrate:legacy` to move it into the three agent databases (verified, then the file is deleted).');
     }
@@ -275,7 +284,9 @@ class Database {
       console.log(`Database: no data yet - ${r.ok ? r.message : `demo data not loaded: ${r.message}`}`);
     }
     const hosted = remoteConfigured('user') || remoteConfigured('cm') || remoteConfigured('nordea');
-    this.st = hosted
+    this.st = this.hostedFailed.length
+      ? { mode: 'file', ok: false, message: 'Supabase tables missing: run supabase/pipeline.sql once. Saved on this server only until then.', waiting: 0 }
+      : hosted
       ? { mode: 'supabase', ok: true, message: 'Saved in Supabase', waiting: 0 }
       : { mode: 'file', ok: true, message: 'Saved on this server only. It resets when the app restarts.', waiting: 0 };
     console.log(`Database: ${hosted ? 'Supabase' : 'local file'} (${listCustomers().length} customers in the three databases)`);
@@ -283,6 +294,7 @@ class Database {
 
   /** Read the data again, e.g. after scripts/load_data.py added rows while the app was running. */
   public async reload(): Promise<DatabaseState> {
+    await drainRemoteFlushes(); // writes still on their way to Supabase must land before it is read back
     await this.init();
     return this.getState();
   }
@@ -330,6 +342,11 @@ class Database {
 
   /** Delete all data, including rows loaded into Supabase that this app never read. */
   public async clearAll(): Promise<DatabaseState> {
+    // Hosted copies go too - otherwise the next start (or the reload after a reset) brings them back.
+    await drainRemoteFlushes();
+    for (const uid of listCustomers()) for (const k of ['user', 'cm', 'nordea'] as const) {
+      if (remoteConfigured(k)) await clearRemoteCustomer(k, uid).catch((e) => console.error(`Hosted clear failed for ${k}:${uid}:`, e instanceof Error ? e.message : e));
+    }
     fs.rmSync(ARCH_DIR, { recursive: true, force: true });
     this.st = { ...this.st, ok: true, message: this.st.mode === 'supabase' ? 'Supabase is empty. Load data with scripts/load_data.py.' : this.st.message, rows: 0 };
     return this.getState();

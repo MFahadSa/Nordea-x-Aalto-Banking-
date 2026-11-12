@@ -303,3 +303,18 @@ export const fetchApprovalCards = (userId: string): Promise<ApprovalCard[]> =>
     (d.proposals ?? []).filter((m) => m.effectiveApproval).map((m) => ({ id: m.id, summary: m.summary, detail: m.payload?.detail ?? '', approvalId: m.effectiveApproval!.id, levelName: m.effectiveApproval!.label, why: m.effectiveApproval!.why, unknown: m.effectiveApproval!.unknown }))).catch(() => []);
 export const decideApprovalCard = (userId: string, id: string, ok: boolean) =>
   fetch(`/api/arch/${encodeURIComponent(userId)}/review/${encodeURIComponent(id)}/${ok ? 'accept' : 'reject'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.ok);
+
+/** v20: the input pipeline (smart glasses, WhatsApp, documents, bank data, later a personal-AI cloud). */
+export type PipeSource = 'glasses' | 'whatsapp' | 'document' | 'csv' | 'abel' | 'cloud';
+export interface PipeItem {
+  id: string; runId: string; source: PipeSource; at: string; type: string; title: string; detail: string;
+  reason: string; filter: 'kept' | 'private' | 'merged'; customer: 'waiting' | 'saved' | 'private' | 'dropped'; entryId?: string; updatesId?: string;
+}
+export interface PipeRun { id: string; source: PipeSource; at: string; label: string; heard: number; kept: number; private: number; dropped: number; merged: number; aiJudged: boolean }
+export const SOURCE_NAME: Record<PipeSource, string> = { glasses: 'Smart glasses', whatsapp: 'WhatsApp', document: 'Document', csv: 'Bank data', abel: 'Abel chat', cloud: 'Personal AI cloud' };
+export const fetchPipelineWaiting = (userId: string): Promise<PipeItem[]> =>
+  fetch(`/api/pipeline/${encodeURIComponent(userId)}/waiting`).then((r) => (r.ok ? r.json() : { items: [] })).then((d) => d.items ?? []).catch(() => []);
+export const decidePipelineItem = (userId: string, id: string, action: 'save' | 'private' | 'drop') =>
+  post(`/api/pipeline/${encodeURIComponent(userId)}/items/${encodeURIComponent(id)}`, { action }).then((r) => j<{ item: PipeItem }>(r));
+export const sendToPipeline = (userId: string, source: PipeSource, input: { signals?: { text: string; kind?: string }[]; text?: string; file?: { mimeType: string; data: string; name?: string }; label?: string }) =>
+  post('/api/ingest', { userId, source, ...input }).then((r) => j<{ run: PipeRun; candidates: PipeItem[]; message?: string }>(r));
