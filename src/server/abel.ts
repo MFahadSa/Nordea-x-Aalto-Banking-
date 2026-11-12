@@ -14,6 +14,7 @@
 //     kept-file text, and replies based on something since removed never reach the model.
 import { db } from './db.js';
 import { readCabinetThroughGateway, previewCabinetForAgent } from './accessGateway.js';
+import { relevantForLoan, isLoanContext } from './pipeline/loan.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn, isBusy } from './llm.js';
@@ -543,14 +544,18 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       if (ctx.helperId !== 'person' && !ASKS_PERSON.test(ctx.userText))
         return { shown: false, error: 'Not now: the customer didn’t ask for a person or about a loan. Answer their question; you may mention in one short sentence that an adviser can help.' };
       const prev = previewCabinetForAgent(ctx.userId, 'adviser');
+      // v21: about a home loan, only what matters for it is offered for sharing (the rest stays out).
+      const loan = isLoanContext(ctx.userText);
+      const gets = loan ? relevantForLoan(prev.allowed) : prev.allowed;
       ctx.cards.push({
         type: 'handoff',
-        title: 'Nordea adviser',
-        body: 'A person who reads what you share before your call, once.',
+        title: loan ? 'Nordea home loan adviser' : 'Nordea adviser',
+        body: loan ? 'A person who looks at a pre-approval with you, using only what you share for it.' : 'A person who reads what you share before your call, once.',
         data: {
           agentId: 'adviser',
-          gets: prev.allowed.map((e) => ({ title: e.title, source: e.source })),
-          heldBack: prev.blocked.length,
+          ...(loan ? { purpose: 'home_loan' } : {}),
+          gets: gets.map((e) => ({ title: e.title, source: e.source })),
+          heldBack: prev.blocked.length + (prev.allowed.length - gets.length),
           earns: 'Free, and commits you to nothing',
           share: 'Shared once, for 7 days. You can stop it any time.',
         },

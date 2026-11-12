@@ -72,6 +72,8 @@ export interface NordeaCase {
   decisions: CaseDecision[];
   /** The customer's chat the case talks back to. */
   conversationId?: string;
+  /** The share (from "Connect me") this case reads through; stopping it withdraws the case. */
+  shareId?: string;
 }
 
 interface Rec { id: string; user_id: string; kind: 'run' | 'candidate' | 'case'; data: unknown }

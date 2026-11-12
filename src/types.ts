@@ -234,7 +234,11 @@ export interface MessageCard {
     | 'handoff'
     | 'confirm_save'
     | 'confirm_plan'
-    | 'duplicate';
+    | 'duplicate'
+    /** v21: a Nordea adviser's question about a case, answered in the card. */
+    | 'case_request'
+    /** v21: Nordea's decision on a case, with the reason and what was used. */
+    | 'case_decision';
   title?: string;
   body?: string;
   data?: Record<string, any>;

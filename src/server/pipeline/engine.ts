@@ -155,7 +155,9 @@ export async function ingest(userId: string, source: PipeSource, input: IngestIn
     // Glasses / cloud signals, or a chat: one signal per line or event.
     const signals: Signal[] = input.signals?.length
       ? input.signals.filter((s) => s.text?.trim()).slice(0, 120)
-      : (input.text || '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 150).map((text) => ({ text }));
+      : (input.text || '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 150)
+          // A WhatsApp export line: "14/10/2026, 19:02 - Lauri: text" -> "Lauri: text" (the date is not a fact).
+          .map((l) => ({ text: l.replace(/^\[?\d{1,2}[./]\d{1,2}[./]\d{2,4},?\s+\d{1,2}[:.]\d{2}(?::\d{2})?\]?\s*[-–]?\s*/, '') }));
     if (!signals.length) throw Object.assign(new Error('Nothing to read'), { status: 400 });
     run.heard = signals.length;
     const { results, ai } = await judge(userId, signals);

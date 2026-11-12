@@ -171,6 +171,8 @@ export interface GoalStatus {
 }
 export interface AppState {
   user: User;
+  /** v21: a Nordea adviser's question or decision about a case (shown on Home). */
+  notices?: { id: string; conversationId: string; kind: 'question' | 'decision'; by: string; text: string; at: string }[];
   entries: CabinetEntry[];
   accounts: { current: { balance: number; iban: string }; savings: { balance: number; iban: string; monthlyDeposit: number }; carFund?: { balance: number; iban: string } };
   goals: GoalStatus[];
