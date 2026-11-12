@@ -8,6 +8,7 @@ import { applyNordeaData, readNordeaFile, NordeaData } from './nordeaData.js';
 import { checkFeed, feedStatus } from './nordeaFeed.js';
 import { applyBankImportToArch, abelSharedContext, classifyQuestion } from './arch/orchestrator.js';
 import { getPartner, getAllPartners } from './partnerRegistry.js';
+import { openCaseFromHandoff, withdrawCasesForShare, answerRequest, relevantForLoan, isLoanContext } from './pipeline/cases.js';
 import * as fin from './finance.js';
 import { proposeFromContent, SAMPLE_CHAT, ImportItem } from './importPropose.js';
 import { runOnce, requestState } from './chatRequests.js';
@@ -110,6 +111,9 @@ export function registerV14Routes(app: Express) {
       aiConnected: getProvider().isConfigured(),
       documents: db.getDocuments(userId).map(docInfo),
       today: fin.DEMO_TODAY,
+      // v21: what a Nordea adviser sent about a case (a question to answer, or a decision), shown on Home.
+      notices: msgs.filter((m) => m.channel === 'staff' && m.conversationId && (m.cards || []).some((c) => (c.type === 'case_request' && !m.resolved) || c.type === 'case_decision'))
+        .slice(-3).reverse().map((m) => { const c = (m.cards || []).find((x) => x.type === 'case_request' || x.type === 'case_decision')!; return { id: m.id, conversationId: m.conversationId!, kind: c.type === 'case_request' ? 'question' : 'decision', by: c.data?.by || 'Nordea', text: c.type === 'case_request' ? c.data?.ask : m.text, at: m.createdAt }; }),
     });
   });
 
@@ -295,6 +299,16 @@ export function registerV14Routes(app: Express) {
         out.push(agentMsg(userId, conv, helper, 'Saved privately 🔒 Only I can read it, never offers.', { notes: [{ text: `📌 Abel will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
         break;
       }
+      case 'case_answer': {
+        // v21: the customer answers a Nordea adviser's question about a case (stored in the case only).
+        const c = card('case_request');
+        if (!c) return res.status(400).json({ error: 'No question on this message' });
+        try { answerRequest(userId, c.data!.caseId, c.data!.requestId, String(payload.text || '')); }
+        catch (e: any) { return res.status(e?.status || 400).json({ error: e?.message || String(e) }); }
+        db.updateMessage(msg.id, { resolved: String(payload.text || '').trim().slice(0, 400) });
+        out.push(agentMsg(userId, conv, helper, 'Sent to your adviser ✓ Only they see this answer, for this application.'));
+        break;
+      }
       case 'handoff_connect':
       case 'handoff_no': {
         const c = card('handoff');
@@ -306,11 +320,16 @@ export function registerV14Routes(app: Express) {
         }
         const prev = previewCabinetForAgent(userId, 'adviser');
         const today = now().slice(0, 10);
-        const share = db.addShare({ id: id('share'), userId, agentId: 'adviser', items: prev.allowed.map((e) => e.title), createdAt: now(), until: fin.addDays(today, 7), revoked: false });
+        // v21: for a home loan, only what matters for it is shared (the card listed the same items).
+        const recent = db.getMessages(userId).filter((m) => m.conversationId === conv && m.sender === 'user').slice(-4).map((m) => m.text).join(' ');
+        const forCase = c.data?.purpose === 'home_loan' || isLoanContext(recent) ? relevantForLoan(prev.allowed) : prev.allowed;
+        const share = db.addShare({ id: id('share'), userId, agentId: 'adviser', items: forCase.map((e) => e.title), createdAt: now(), until: fin.addDays(today, 7), revoked: false });
         // The adviser reads what was shared (a logged gateway read, which also earns the customer points).
         readCabinetThroughGateway(userId, 'adviser', 'Meeting prep: what you shared');
         db.updateMessage(msg.id, { resolved: 'Connect me' });
-        out.push(agentMsg(userId, conv, helper, `Connected ✓ A Nordea adviser will contact you. They see ${share.items.length} things you approved, once, until ${fmtDay(share.until)}.`, {
+        // v21: the share opens a case in the Nordea workspace, limited to exactly these items and this date.
+        const kase = openCaseFromHandoff(userId, conv, forCase, share.until, recent, share.id);
+        out.push(agentMsg(userId, conv, helper, `Connected ✓ A Nordea adviser will look at your ${kase.title.toLowerCase()}. They see ${share.items.length} things you approved, once, until ${fmtDay(share.until)}.`, {
           cards: [{ type: 'info', data: { shareId: share.id, label: 'Stop sharing now' } }],
         }));
         break;
@@ -481,6 +500,7 @@ export function registerV14Routes(app: Express) {
 
   app.post('/api/shares/:id/revoke', (req, res) => {
     const s = db.updateShare(req.params.id, { revoked: true, revokedAt: now() });
+    if (s) withdrawCasesForShare(s.userId, s.id); // v21: the case can't read anything any more
     if (!s) return res.status(404).json({ error: 'Share not found' });
     res.json({ share: s, message: 'Sharing stopped. The adviser can’t see it any more.' });
   });

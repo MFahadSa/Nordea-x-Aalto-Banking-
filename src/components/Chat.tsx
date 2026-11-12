@@ -67,6 +67,7 @@ type Item = { who: 'me' | 'bot'; key: string; node: React.ReactNode; rich?: bool
 export const Chat: React.FC<Props> = (p) => {
   const h = HELPERS[p.helperId] || HELPERS.abel;
   const [text, setText] = useState('');
+  const [caseAns, setCaseAns] = useState<Record<string, string>>({});
   const [attOpen, setAttOpen] = useState(false);
   // "Keep a copy": off by default, so Abel reads a file once and it's gone.
   const [keepCopy, setKeepCopy] = useState(false);
@@ -374,6 +375,30 @@ export const Chat: React.FC<Props> = (p) => {
           </div>
         );
       }
+      case 'case_request':
+        // v21: a Nordea adviser's question about a case. The answer goes to that case only.
+        return (
+          <div className="offer">
+            <div className="of-h sm"><span className="of-logo" style={{ background: 'var(--bank)' }}><Icon name="chat" /></span><span className="of-n"><b>{d.by}</b><span>Nordea adviser · about your application</span></span></div>
+            <div className="of-b"><b>{d.ask}</b></div>
+            {open ? (
+              <div className="of-act" style={{ paddingBottom: 12, flexDirection: 'column', alignItems: 'stretch' }}>
+                <textarea className="case-ans" rows={2} placeholder="Your answer" value={caseAns[m.id] || ''} onChange={(e) => setCaseAns({ ...caseAns, [m.id]: e.target.value })} />
+                <button className="btn primary" disabled={!(caseAns[m.id] || '').trim()} onClick={() => act('case_answer', { text: caseAns[m.id] })}>Send to the adviser</button>
+              </div>
+            ) : <div className="of-fee"><Icon name="check" /><span>You answered: {m.resolved}</span></div>}
+            <div className="of-fee"><Icon name="shield" /><span>Only your adviser sees the answer, for this application.</span></div>
+          </div>
+        );
+      case 'case_decision':
+        return (
+          <div className="offer">
+            <div className="of-h sm"><span className="of-logo" style={{ background: d.outcome === 'pre_approved' ? 'var(--ok)' : 'var(--bank)' }}><Icon name={d.outcome === 'pre_approved' ? 'check' : 'clock'} /></span><span className="of-n"><b>{d.outcome === 'pre_approved' ? `Pre-approved up to ${eur(d.amount)}` : 'Not pre-approved yet'}</b><span>Home loan · decided by {d.by}</span></span></div>
+            <div className="of-row"><div className="of-rt"><span><b>Why</b><span>{d.reason}</span></span></div></div>
+            {(d.used || []).length > 0 && <div className="of-row"><div className="of-rt"><span><b>What Nordea used</b><span>{d.used.join(' · ')}</span></span></div></div>}
+            <div className="of-fee"><Icon name="shield" /><span>Only what you shared for this application, plus your Nordea account data. Concept · not a real credit decision.</span></div>
+          </div>
+        );
       case 'info': {
         if (d.shareId) {
           const s = p.shares.find((x) => x.id === d.shareId);

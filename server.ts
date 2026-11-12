@@ -13,7 +13,7 @@ import { registerV14Routes } from './src/server/routes.js';
 import { registerDevMonitor } from './src/server/devMonitor.js';
 import { registerArchRoutes } from './src/server/arch/routes.js';
 import { startFeedWatcher } from './src/server/nordeaFeed.js';
-import { registerPipelineRoutes } from './src/server/pipeline/routes.js';
+import { registerPipelineRoutes, registerWorkspaceRoutes } from './src/server/pipeline/routes.js';
 import { hydratePipeline, clearPipeline } from './src/server/pipeline/store.js';
 import { setProvider } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
@@ -338,6 +338,9 @@ registerDevMonitor(app);
 // Three-database architecture (User DB / Context Memory DB / Nordea DB, one agent each): /arch.html
 registerArchRoutes(app);
 registerPipelineRoutes(app);
+registerWorkspaceRoutes(app);
+// The Nordea employee workspace (desktop page).
+app.get(['/workspace', '/workspace/'], (_req, res) => res.redirect('/workspace.html'));
 
 // Vite Middleware Mounting (Development) or Static File Serving (Production)
 async function startServer() {

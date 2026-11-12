@@ -24,6 +24,7 @@
     "test:env": "tsx scripts/test-env.ts",
     "test:guards": "tsx scripts/test-guards.ts",
     "test:pipeline": "tsx scripts/test-pipeline.ts",
+    "test:workspace": "tsx scripts/test-workspace.ts",
     "test:selftest": "tsx scripts/test-selftest.ts",
     "test:load": "node scripts/run_python.mjs scripts/test-load-merge.py",
     "test:arch-ui": "node scripts/test-arch-perm-ui.mjs",
