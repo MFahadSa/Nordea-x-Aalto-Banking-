@@ -49,7 +49,8 @@ export interface CabinetEntry {
     [agentId: string]: boolean;
   };
   provenance: {
-    channel: 'app' | 'whatsapp' | 'staff' | 'system';
+    /** v20: also where a pipeline input came from (smart glasses, a document, a personal-AI cloud). */
+    channel: 'app' | 'whatsapp' | 'staff' | 'system' | 'glasses' | 'document' | 'cloud';
     documentId?: string;
     page?: number;
     messageId?: string;

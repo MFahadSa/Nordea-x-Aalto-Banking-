@@ -475,6 +475,7 @@ export default function App() {
               onConfirm={confirm}
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
               onDeleteDoc={setDelDocId}
+              onChanged={() => refresh()}
             />
           )}
           {page === 'privacy' && (

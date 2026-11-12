@@ -12,6 +12,10 @@
  */
 import pg from 'pg';
 import type { DbKind } from './common.js';
+import { restPull, restHasRows, restPush } from './restRemote.js';
+
+/** v20: "supabase-rest:<kind>" = the same table over Supabase's web API (restRemote.ts), not a Postgres role. */
+const isRest = (url: string) => url.startsWith('supabase-rest:');
 
 /** Store kind -> hosted table (mirrors supabase/three-agents.sql). */
 export const REMOTE_TABLES: Partial<Record<DbKind, string>> = {
@@ -53,6 +57,7 @@ export async function queryRemote(url: string, text: string, params: unknown[] =
 export async function pullStore(kind: DbKind, url: string): Promise<RemoteRow[]> {
   const table = REMOTE_TABLES[kind];
   if (!table) return [];
+  if (isRest(url)) return restPull(table);
   const res = await poolFor(url).query(`SELECT user_id, table_name, id, data FROM ${table}`);
   return res.rows as RemoteRow[];
 }
@@ -62,6 +67,7 @@ export async function pullStore(kind: DbKind, url: string): Promise<RemoteRow[]>
 export async function hostedHasRows(kind: DbKind, url: string, uid: string): Promise<boolean> {
   const table = REMOTE_TABLES[kind];
   if (!table) return false;
+  if (isRest(url)) return restHasRows(table, uid);
   const res = await poolFor(url).query(`SELECT 1 FROM ${table} WHERE user_id = $1 LIMIT 1`, [uid]);
   return res.rows.length > 0;
 }
@@ -78,6 +84,7 @@ export async function assertReplaceSafe(kind: DbKind, url: string, uid: string, 
 export async function pushCustomer(kind: DbKind, url: string, uid: string, rows: RemoteRow[]): Promise<void> {
   const table = REMOTE_TABLES[kind];
   if (!table) return;
+  if (isRest(url)) return restPush(table, uid, rows);
   const client = await poolFor(url).connect();
   try {
     await client.query('BEGIN');

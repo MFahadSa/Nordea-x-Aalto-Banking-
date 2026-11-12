@@ -17,6 +17,21 @@ export const mockProvider: LlmProvider = {
   isConfigured: () => true,
   async step({ turns, tools, system }) {
     const last = turns[turns.length - 1];
+    // v20: the pipeline's usefulness filter. Deterministic stand-in for a model's judgement, so the AI path
+    // (not only the rule check) is exercised: money/goal words keep, health/other people private, rest drop.
+    if (tools.some((t) => t.name === 'judgeSignals') && last.role === 'user') {
+      const items = last.text.split('\n').map((line) => {
+        const m = line.match(/^(\d+)\.\s*(?:\[[^\]]*\]\s*)?(.*)$/);
+        if (!m) return null;
+        const n = Number(m[1]); const t = m[2];
+        if (/health|doctor|surgery|appointment|pregnan/i.test(t)) return { n, decision: 'private', reason: 'health, another person', type: 'fact', title: t.slice(0, 50), detail: '' };
+        if (/flat|apartment|deposit|mortgage|viewing|kalasatama|spring 2028/i.test(t)) return { n, decision: 'keep', reason: 'touches the flat goal', type: /aim|goal|deposit/i.test(t) ? 'goal' : 'fact', title: t.replace(/^.*?:\s*/, '').slice(0, 60), detail: t.slice(0, 120) };
+        if (/salary|payslip|raise|bonus|income/i.test(t)) return { n, decision: 'keep', reason: 'changes affordability', type: 'fact', title: t.slice(0, 60), detail: t.slice(0, 120) };
+        if (/prefer|never want|always/i.test(t)) return { n, decision: 'keep', reason: 'a lasting preference', type: 'preference', title: t.slice(0, 60), detail: t.slice(0, 120) };
+        return { n, decision: 'drop', reason: 'not related to any goal' };
+      }).filter(Boolean);
+      return { calls: [call('judgeSignals', { items })] };
+    }
     if (tools.some((t) => t.name === 'proposeEntries') && last.role === 'user' && last.files?.length) {
       return { calls: [call('proposeEntries', { kind: 'price_tag', summary: 'A price tag for a sofa: 1 290 €.', amount: 1290, items: [] })] };
     }

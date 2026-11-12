@@ -13,6 +13,8 @@ import { registerV14Routes } from './src/server/routes.js';
 import { registerDevMonitor } from './src/server/devMonitor.js';
 import { registerArchRoutes } from './src/server/arch/routes.js';
 import { startFeedWatcher } from './src/server/nordeaFeed.js';
+import { registerPipelineRoutes } from './src/server/pipeline/routes.js';
+import { hydratePipeline, clearPipeline } from './src/server/pipeline/store.js';
 import { setProvider } from './src/server/llm.js';
 import { mockProvider } from './src/server/llmMock.js';
 import { providerChainMembersFromEnv } from './src/server/llmOpenAI.js';
@@ -111,6 +113,7 @@ app.post('/api/users/reset', async (req, res) => {
   try {
     await deleteAllDocumentFiles();
     await db.clearAll();
+    clearPipeline();
     // Reset = start the demo again: the bundled fictional customers are loaded straight back
     // (AUTO_DEMO_DATA=0 keeps the old behaviour: everything stays deleted).
     if (autoDemoOn()) await loadBundledDemo();
@@ -334,11 +337,13 @@ registerDevMonitor(app);
 
 // Three-database architecture (User DB / Context Memory DB / Nordea DB, one agent each): /arch.html
 registerArchRoutes(app);
+registerPipelineRoutes(app);
 
 // Vite Middleware Mounting (Development) or Static File Serving (Production)
 async function startServer() {
   // Connect to Supabase first (if its secrets are set), so the first request already sees saved data.
   await db.init();
+  console.log(`Database: ${await hydratePipeline()}`);
   // New Nordea account data added to Supabase → nordea_feed is applied automatically.
   startFeedWatcher();
   const isProd = process.env.NODE_ENV === 'production';

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus, ApprovalCard, fetchApprovalCards, decideApprovalCard } from '../services/api.js';
+import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, DbStatus, ApprovalCard, fetchApprovalCards, decideApprovalCard, PipeItem, fetchPipelineWaiting, decidePipelineItem, SOURCE_NAME } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
@@ -29,6 +29,8 @@ interface KnowsProps {
   /** An out-of-date goal is still a plan. */
   onKeep: (e: CabinetEntry) => void;
   onDeleteDoc: (id: string) => void;
+  /** v20: something was saved from the pipeline: reload the app state. */
+  onChanged?: () => void;
 }
 
 // ---------------- History of one entry ----------------
@@ -164,6 +166,38 @@ const ApprovalWaiting: React.FC<{ cards: ApprovalCard[]; onDecide: (id: string, 
   );
 };
 
+/** v20: what the input pipeline kept for the customer (glasses, WhatsApp, documents...). Nothing is used
+ *  until they decide: Save (Abel and, for a case they share, Nordea), Keep private (Abel only), Drop. */
+const PipelineWaiting: React.FC<{ items: PipeItem[]; onDecide: (id: string, a: 'save' | 'private' | 'drop') => void }> = ({ items, onDecide }) => {
+  const [all, setAll] = useState(false);
+  if (!items.length) return null;
+  const shown = all ? items : items.slice(0, 3);
+  return (
+    <>
+      <Band left="From your inputs" right={<span className="band-note">Only what looked useful</span>} />
+      <div className="ncard flat">
+        {shown.map((c) => (
+          <div className="nrow2 static wait" key={c.id}>
+            <span className="n-l">
+              <span className="n-name"><span className="dotc you" />{c.title}</span>
+              {c.detail && c.detail !== c.title && <span className="n-sub">{c.detail}</span>}
+              <span className="n-sub"><span className="src-chip">{SOURCE_NAME[c.source]}</span> {c.filter === 'private' ? 'Looks private' : `Kept: ${c.reason}`}</span>
+              <span className="wait-act">
+                <button className="btn small primary" onClick={() => onDecide(c.id, c.filter === 'private' ? 'private' : 'save')}>{c.filter === 'private' ? 'Keep private' : 'Save'}</button>
+                {c.filter === 'private'
+                  ? <button className="btn small" onClick={() => onDecide(c.id, 'save')}>Save and share</button>
+                  : <button className="btn small" onClick={() => onDecide(c.id, 'private')}>Keep private</button>}
+                <button className="btn small quiet" onClick={() => onDecide(c.id, 'drop')}>Drop</button>
+              </span>
+            </span>
+          </div>
+        ))}
+        {items.length > 3 && <NRow name={all ? 'Show less' : `${items.length - 3} more from your inputs`} className="link-row" onClick={() => setAll(!all)} />}
+      </div>
+    </>
+  );
+};
+
 const DocsSection: React.FC<{ userId: string; docs: DocInfo[]; onDelete: (id: string) => void }> = ({ userId, docs, onDelete }) => (
   <>
     <div className="sec-title" id="your-docs"><h2>Your documents</h2><span className="kicker">{docs.length ? `${docs.length} kept` : 'none kept'}</span></div>
@@ -216,6 +250,10 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   const loadApprovals = () => fetchApprovalCards(state.user.id).then(setApprovals);
   React.useEffect(() => { loadApprovals(); }, [state.user.id]);
   const decideApproval = async (id: string, ok: boolean) => { await decideApprovalCard(state.user.id, id, ok); await loadApprovals(); };
+  const [pipe, setPipe] = React.useState<PipeItem[]>([]);
+  const loadPipe = () => fetchPipelineWaiting(state.user.id).then(setPipe);
+  React.useEffect(() => { loadPipe(); }, [state.user.id, state.entries.length]);
+  const decidePipe = async (id: string, a: 'save' | 'private' | 'drop') => { await decidePipelineItem(state.user.id, id, a); await loadPipe(); p.onChanged?.(); };
   const shownWaiting = allWaiting ? waiting : waiting.slice(0, 2);
   const listedRest = listed.filter((e) => !waiting.includes(e) && !staleGoals.includes(e));
   return (
@@ -228,7 +266,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         </div>
         <div className="kn-sum">
           <div><b>{inUse}</b><span>In use</span></div>
-          <div className={waiting.length + staleGoals.length + approvals.length ? 'hl' : ''}><b>{waiting.length + staleGoals.length + approvals.length}</b><span>Waiting for you</span></div>
+          <div className={waiting.length + staleGoals.length + approvals.length + pipe.length ? 'hl' : ''}><b>{waiting.length + staleGoals.length + approvals.length + pipe.length}</b><span>Waiting for you</span></div>
           <div><b>{notShared}</b><span>Not shared</span></div>
         </div>
         <RoundActions actions={[
@@ -260,6 +298,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
             </div>
           </>
         )}
+        <PipelineWaiting items={pipe} onDecide={decidePipe} />
         <ApprovalWaiting cards={approvals} onDecide={decideApproval} />
         <Band left="Goals" right={state.goals.length + staleGoals.length} />
         {state.goals.length || staleGoals.length ? (

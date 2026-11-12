@@ -106,6 +106,10 @@ export function configureRemote(kind: DbKind, url: string | undefined) {
   if (url) REMOTE_SECRETS.set(kind, url);
 }
 export const remoteConfigured = (kind: DbKind) => REMOTE_SECRETS.has(kind);
+/** v20: forget a hosted target that could not be read at startup (e.g. the Supabase tables were never
+ *  created), so the store works on its local file instead of half-hosted. Only the web-API mirror
+ *  is ever dropped this way; a configured role URL stays (its failures are logged as before). */
+export function dropRemote(kind: DbKind) { if (REMOTE_SECRETS.get(kind)?.startsWith('supabase-rest:')) REMOTE_SECRETS.delete(kind); }
 /** The configured hosted URL for one store kind (undefined when local-only). */
 export const remoteUrl = (kind: DbKind) => REMOTE_SECRETS.get(kind);
 
