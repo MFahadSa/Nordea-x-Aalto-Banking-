@@ -84,7 +84,7 @@ function seenLine(e: CabinetEntry): string {
   // Only say something when it isn't the obvious "Abel uses it".
   if (e.type === 'blind_spot' || e.status === 'archived') return '';
   if (e.status === 'disputed') return 'Not used: you said it’s wrong';
-  if (e.source === 'nordea' && !e.reviewed) return 'Not used until you confirm it';
+  if (e.source === 'nordea' && !e.reviewed) return 'This note isn’t used until you confirm it (Abel still sees your account payments)';
   if (e.readableBy?.abel === false) return 'Not used: you turned it off';
   if (e.readableBy?.offers && !e.private) return 'Offers can use it';
   return '';
@@ -289,7 +289,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
       <div className="nbody">
         {waiting.length > 0 && (
           <>
-            <Band left="Waiting for you" right={<span className="band-note">Not used until you confirm</span>} />
+            <Band left="Waiting for you" right={<span className="band-note">Notes here aren’t used until you confirm</span>} />
             <div className="ncard flat">
               {shownWaiting.map((e) => (
                 <div className="nrow2 static wait" key={e.id}>

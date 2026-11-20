@@ -33,6 +33,7 @@
     "oldLimit": 5000
   },
   "message": "Since this year you can give each person gifts worth less than {limit} € in total every {years} years without gift tax. Before, the limit was {oldLimit} €. The limit counts per giver, so two grandparents can each give.",
+  "explain": "The limit is per receiver and per giver: gifts from the same giver to the same person over {years} years are added together, and gift tax applies only from {limit} € upwards. If the customer names an amount, say in words whether it is below {limit} € or not. Never work out the tax itself; for that, point to the Tax Administration (vero.fi).",
   "earns": "Nordea earns nothing from this.",
   "tests": [
     {

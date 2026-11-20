@@ -3,6 +3,7 @@
 // with options to tap. Cards (flat search, transfer, adviser) are made by the same code the AI uses.
 import * as fin from './finance.js';
 import { db } from './db.js';
+import { FRAUD } from './safety.js';
 import { CabinetEntry, MessageCard } from '../types.js';
 
 const eur = (n: number) => Number(Math.round(n)).toLocaleString('fi-FI').replace(/ /g, ' ') + ' €';
@@ -39,6 +40,17 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
   const goals = fin.activeGoals(userId).filter((g) => allowedIds.has(g.id));
   const main = goals.find((g) => g.goalType === 'home') || goals[0];
   const pills = ['Am I on track?', 'Where does my money go?', 'Plan my next payday'];
+
+  // v29: a scam or a lost card. The safety steps are put first by the caller; here: where the money is now.
+  if (FRAUD.test(text)) {
+    const acc = fin.accounts(userId)!;
+    return {
+      text: `Right now your current account has ${eur(acc.current.balance)} and your savings ${eur(acc.savings.balance)}. If you see a payment you don’t recognise, tell Nordea’s customer service about it when you call.`,
+      suggestions: ['Talk to a person'],
+      usedEntryIds: [],
+      topic: 'other',
+    };
+  }
 
   // Looking for a flat / apartment / home (e.g. in Espoo): the partner offer card, if offers are on.
   if (/\b(flat|apartment|apartments|flats|home|house|asunto)\b/.test(t) && /\b(look|looking|search|find|buy|buying|for sale|view|espoo|helsinki|vantaa)/.test(t)) {
@@ -150,7 +162,8 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
   if (/\b(how are you|how's it going|how are things|what'?s up|whats up)\b/.test(t)) {
     return { text: `I’m good, thanks for asking! 😊 How about you, ${u.name}? Anything on your mind money-wise?`, suggestions: pills, usedEntryIds: [], topic: 'small_talk' };
   }
-  if (/\b(thanks|thank you|kiitos)\b/.test(t)) return { text: 'You’re welcome! 💙', suggestions: [], usedEntryIds: [], topic: 'small_talk' };
+  // Only a plain thank-you ("thanks, and can I give my grandkids money?" is a question, not a thank-you).
+  if (/\b(thanks|thank you|kiitos)\b/.test(t) && !/\?/.test(t) && t.length <= 40) return { text: 'You’re welcome! 💙', suggestions: [], usedEntryIds: [], topic: 'small_talk' };
 
   // Greetings.
   if (/^\s*(hi|hey|hello|moi|hei|terve|good (morning|evening|day))\b/.test(t)) {
@@ -161,7 +174,7 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
   return {
     text: reason === 'unclear'
       ? 'Sorry, I didn’t get that right. Could you say it another way? I can also help straight away with your goals, your spending, your pay or whether something is affordable.'
-      : 'I can answer that properly in a few minutes. Right now I can help straight away with your goals, your spending, your pay and whether something is affordable.',
+      : 'Sorry, I can’t answer that one right now. I can still help straight away with your goals, your spending, your pay and whether something is affordable.',
     suggestions: pills,
     usedEntryIds: [],
     topic: 'other',

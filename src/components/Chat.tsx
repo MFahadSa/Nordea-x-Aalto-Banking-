@@ -116,6 +116,35 @@ export const Chat: React.FC<Props> = (p) => {
   useEffect(() => {
     if (!p.open) { stopCamera(); setAttOpen(false); }
   }, [p.open]);
+  // v29 keyboard: the chat takes focus when it opens and gives it back when it closes.
+  const secRef = useRef<HTMLElement | null>(null);
+  const backTo = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (p.open) {
+      backTo.current = document.activeElement as HTMLElement | null;
+      requestAnimationFrame(() => boxRef.current?.focus({ preventScroll: true }));
+    } else if (backTo.current && document.contains(backTo.current)) {
+      backTo.current.focus({ preventScroll: true });
+      backTo.current = null;
+    }
+  }, [p.open]);
+  /** Escape closes (the open sheet first); Tab stays inside the chat. */
+  function onKey(e: React.KeyboardEvent<HTMLElement>) {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      if (camOpen) stopCamera();
+      else if (attOpen) setAttOpen(false);
+      else p.onClose();
+      return;
+    }
+    if (e.key !== 'Tab' || !secRef.current) return;
+    const f = Array.from(secRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),[href],input:not([type="hidden"]):not([hidden]):not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'))
+      .filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -309,12 +338,12 @@ export const Chat: React.FC<Props> = (p) => {
         return (
           <div className="offer">
             <div className="of-h sm"><span className="of-logo" style={{ background: 'var(--brand)' }}><Icon name="cycle" /></span><span className="of-n"><b>{c.title}</b><span>Please confirm</span></span></div>
-            <div className="of-row"><div className="of-rt"><span><b>Amount</b></span><b className="of-p">{eur(d.amount)} every month</b></div></div>
+            <div className="of-row"><div className="of-rt"><span><b>Amount</b></span><b className="of-p">{eur(d.amount)} {d.once ? 'once, now' : 'every month'}</b></div></div>
             <div className="of-row"><div className="of-rt"><span><b>From</b></span><span>{d.from}</span></div></div>
             <div className="of-row"><div className="of-rt"><span><b>To</b></span><span>{d.to}</span></div></div>
-            <div className="of-row"><div className="of-rt"><span><b>Starts</b></span><span>{dayMonth(d.starts)}</span></div></div>
+            <div className="of-row"><div className="of-rt"><span><b>{d.once ? 'When' : 'Starts'}</b></span><span>{d.once ? 'Today' : dayMonth(d.starts)}</span></div></div>
             <div className="of-fee"><Icon name="shield" /><span>{d.earns}</span></div>
-            {open && <div className="of-act" style={{ paddingBottom: 12 }}><button className="btn primary" onClick={() => act('plan_confirm')}>Yes, set it up</button><button className="btn" onClick={() => act('plan_cancel')}>Cancel</button></div>}
+            {open && <div className="of-act" style={{ paddingBottom: 12 }}><button className="btn primary" onClick={() => act('plan_confirm')}>{d.once ? 'Yes, move it now' : 'Yes, set it up'}</button><button className="btn" onClick={() => act('plan_cancel')}>Cancel</button></div>}
           </div>
         );
       case 'ask_fact': {
@@ -546,7 +575,7 @@ export const Chat: React.FC<Props> = (p) => {
   const pillLabel = (s: string) => (!p.messages.length ? h.chips.find((c) => c[1] === s)?.[0] || s : s);
 
   return (
-    <section className={`chat ${h.cls}`} role="dialog" aria-label={`Chat with ${h.name}`}>
+    <section ref={secRef} className={`chat ${h.cls}`} role="dialog" aria-modal="true" aria-label={`Chat with ${h.name}`} onKeyDown={onKey}>
       <div className="chat-h">
         <span className="bot-av lg" aria-hidden="true"><Icon name={h.icon} /></span>
         <div className="chat-t">
@@ -651,7 +680,7 @@ export const Chat: React.FC<Props> = (p) => {
         <input type="file" ref={imgRef} accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, f.name); }} />
         <input type="file" ref={camFallbackRef} accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, 'Photo'); }} />
       </div>
-      <p className="chat-foot">Concept · fictional data · nothing saved without your OK</p>
+      <p className="chat-foot">Concept · fictional data · notes are saved only with your OK</p>
     </section>
   );
 };

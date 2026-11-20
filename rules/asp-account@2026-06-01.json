@@ -46,10 +46,14 @@
     "deposits": 20,
     "minDeposit": 50,
     "maxDeposit": 1500,
-    "share": 10
+    "share": 10,
+    "interestDay": "31 December",
+    "bonusYears": 5,
+    "taxIfOtherUse": 30
   },
   "compute": "aspPlan",
   "message": "ASP pays {interest} % interest plus a {bonus} % bonus, tax-free, when the savings go to your first home. You need {deposits} monthly deposits of {minDeposit}–{maxDeposit} €; start this month and the last one lands in {twentiethDepositMonth}. Your ASP savings need to cover {share} % of your share of the price.",
+  "explain": "Interest of {interest} % a year is added once a year, on {interestDay}. The {bonus} % bonus interest is not paid on every deposit: it is paid once, afterwards, when you buy your first home with your ASP savings and an ASP or home loan, after at least {deposits} approved monthly deposits. The bonus counts for the year you start saving and the next {bonusYears} calendar years. If you close the account for something else, there is no bonus and {taxIfOtherUse} % tax is taken from the interest. Never work out euro amounts of interest or bonus for the customer.",
   "earns": "The interest margin on your savings, and on a home loan if you later take one with Nordea.",
   "cta": "Open an ASP account",
   "tests": [

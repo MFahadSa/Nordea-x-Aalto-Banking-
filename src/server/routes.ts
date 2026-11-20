@@ -316,6 +316,16 @@ export function registerV14Routes(app: Express) {
           break;
         }
         const amt = Number(c.data!.amount);
+        if (c.data!.once) {
+          // v29: one transfer now. Concept app: the fictional balances move, nothing is sent anywhere.
+          const cur = user.accounts.current.balance;
+          if (!(amt > 0) || amt > cur) return res.status(400).json({ error: 'Not enough on the current account' });
+          db.updateMessage(msg.id, { resolved: 'Yes, move it now' });
+          db.updateUser(userId, { accounts: { ...user.accounts, current: { ...user.accounts.current, balance: Math.round((cur - amt) * 100) / 100 }, savings: { ...user.accounts.savings, balance: Math.round((user.accounts.savings.balance + amt) * 100) / 100 } }, points: (user.points || 0) + 20 });
+          const g1 = fin.primaryGoal(userId);
+          out.push(agentMsg(userId, conv, helper, `Done ✓ ${fmt(amt)} moved to ${g1 ? `“${g1.title}”` : 'your savings'} now. This was a one-time move; nothing repeats.`, { usedEntryIds: g1 ? [g1.id] : [] }));
+          break;
+        }
         db.updateMessage(msg.id, { resolved: 'Yes, set it up' });
         db.updateUser(userId, { extraMonthly: (user.extraMonthly || 0) + amt, points: (user.points || 0) + 50 });
         const goal = fin.primaryGoal(userId);

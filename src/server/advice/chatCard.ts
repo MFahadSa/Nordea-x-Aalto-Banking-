@@ -67,5 +67,26 @@ export function ruleCardFor(userId: string, conversationId: string, intent: Inte
   const describe = ev.status === 'ask'
     ? `The app shows ONE question card below your words: "${ev.ask!.question}" (it checks "${rule.title}"). Say in one short sentence why answering helps. Do not ask the question yourself and do not say they qualify.`
     : `The app shows ONE suggestion card below your words: "${rule.title}", with its numbers, reasons and official source.${rule.regulated ? ' Advice on it comes from a person, not from you.' : ''} Introduce it in one short sentence. Do not repeat its numbers and do not say they qualify.`;
-  return { card, describe, notes };
+  const ex = explainFor(rule.id, today);
+  return { card, describe: ex ? `${describe} ${ex}` : describe, notes };
+}
+
+/** v29: the rule's own plain explanation (numbers from its params), for Abel when the customer asks how it works. */
+export function explainFor(ruleId: string, today: string): string {
+  const versions = catalogue().filter((r) => r.id === ruleId && r.validFrom <= today && (!r.validTo || r.validTo >= today));
+  const r = versions.sort((a, b) => b.version.localeCompare(a.version))[0];
+  if (!r?.explain) return '';
+  const text = r.explain.replace(/\{(\w+)\}/g, (m, k) => {
+    const v = (r.params as Record<string, unknown>)[k];
+    return typeof v === 'number' ? v.toLocaleString('fi-FI').replace(/\u00a0/g, ' ') : String(v ?? m);
+  });
+  return `HOW "${r.title}" WORKS (official, use only this if they ask; never add numbers): ${text}`;
+}
+
+/** v29: a rule card shown earlier in this chat: its explanation stays available for follow-up questions. */
+export function earlierRuleExplain(userId: string, conversationId: string, today: string): string {
+  const ids = new Set<string>();
+  for (const m of db.getMessages(userId).filter((x) => x.conversationId === conversationId).slice(-12))
+    for (const k of m.cards || []) if ((k.type === 'opportunity' || k.type === 'ask_fact') && k.data?.ruleId) ids.add(String(k.data.ruleId));
+  return [...ids].map((id) => explainFor(id, today)).filter(Boolean).join(' ');
 }
