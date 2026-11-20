@@ -52,7 +52,7 @@ const FieldRow: React.FC<{
           <label><span className="kicker" style={{ display: 'block', marginBottom: 4 }}>Name</span>
             <input style={input} value={label} maxLength={60} onChange={(x) => setLabel(x.target.value)} aria-label="Field name" /></label>
           <label><span className="kicker" style={{ display: 'block', marginBottom: 4 }}>Value</span>
-            <input style={input} value={value} maxLength={300} onChange={(x) => setValue(x.target.value)} aria-label="Field value" /></label>
+            <textarea style={{ ...input, minHeight: 44, resize: 'vertical', fontFamily: 'inherit' }} rows={e.detail.length > 60 ? 3 : 1} value={value} maxLength={1000} onChange={(x) => setValue(x.target.value)} aria-label="Field value" /></label>
           <label><span className="kicker" style={{ display: 'block', marginBottom: 4 }}>Section</span>
             <input style={input} value={group} maxLength={40} list="profile-groups" onChange={(x) => setGroup(x.target.value)} aria-label="Section" />
             <datalist id="profile-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist></label>
@@ -78,10 +78,12 @@ const AddSheet: React.FC<{ groups: string[]; onClose: () => void; onAdd: (f: { l
   const [priv, setPriv] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  // One box: "Occupation: Nurse". The part before the first colon is the name, the rest is the answer.
-  const m = line.match(/^\s*([^:：]{1,60}?)\s*[:：]\s*(.+?)\s*$/);
-  const label = m?.[1] ?? '';
-  const value = m?.[2] ?? '';
+  // One box. "Occupation: Nurse" (a short name before a colon) becomes a named field;
+  // anything else ("I'm a nurse in Espoo with two kids") is kept as a note in the customer's own words.
+  const m = line.match(/^\s*([^:：]{1,40}?)\s*[:：]\s*(.+?)\s*$/);
+  const named = !!m && m[1].trim().split(/\s+/).length <= 4;
+  const label = named ? m![1] : '';
+  const value = named ? m![2] : line.trim();
   return (
     <div className="sheet-bg" onClick={onClose} role="presentation">
       <form className="sheet" role="dialog" aria-label="Add to your profile" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '82vh', overflowY: 'auto', gap: 12 }}
@@ -90,9 +92,11 @@ const AddSheet: React.FC<{ groups: string[]; onClose: () => void; onAdd: (f: { l
           <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>Add to your profile</h3>
           <button type="button" className="btn small quiet" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <label><span className="kicker" style={{ display: 'block', marginBottom: 6 }}>Write it as “name: answer”</span>
-          <input style={input} autoFocus value={line} maxLength={360} placeholder="Occupation: Nurse" aria-label="Profile line" onChange={(e) => { setLine(e.target.value); setErr(''); }} /></label>
-        {line.trim() && !m && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>Add a colon between the name and the answer, like “City: Espoo”.</p>}
+        <label><span className="kicker" style={{ display: 'block', marginBottom: 6 }}>Tell Abel about yourself</span>
+          <textarea style={{ ...input, minHeight: 84, resize: 'vertical', fontFamily: 'inherit' }} autoFocus value={line} maxLength={1000} rows={3}
+            placeholder="e.g. I’m a nurse in Espoo, living with my partner and our cat. Or: Occupation: Nurse" aria-label="Profile line"
+            onChange={(e) => { setLine(e.target.value); setErr(''); }} /></label>
+        {line.trim() && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>{named ? `Saved as “${label.trim()}: ${value}”` : 'Saved as a note in your own words'}</p>}
         <label><span className="kicker" style={{ display: 'block', marginBottom: 6 }}>Section</span>
           <input style={input} value={group} maxLength={40} list="profile-groups-add" onChange={(e) => setGroup(e.target.value)} />
           <datalist id="profile-groups-add">{[...new Set([DEFAULT_GROUP, 'Work & income', 'Home & family', ...groups])].map((g) => <option key={g} value={g} />)}</datalist></label>
@@ -101,7 +105,7 @@ const AddSheet: React.FC<{ groups: string[]; onClose: () => void; onAdd: (f: { l
         {err && <p role="alert" style={{ color: 'var(--bad, #a4352c)', fontSize: 13 }}>{err}</p>}
         <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>📌 Offers never see your profile. You can undo this straight away.</p>
         <div className="btns">
-          <button type="submit" className="btn primary block" disabled={busy || !label.trim() || !value.trim()} style={{ minHeight: 44 }}>{busy ? 'Saving…' : 'Add'}</button>
+          <button type="submit" className="btn primary block" disabled={busy || !value.trim()} style={{ minHeight: 44 }}>{busy ? 'Saving…' : 'Add'}</button>
           <button type="button" className="btn quiet block" onClick={onClose}>Cancel</button>
         </div>
       </form>

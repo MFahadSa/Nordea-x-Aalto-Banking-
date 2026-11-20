@@ -62,7 +62,9 @@ check('a plain list under a heading becomes one field', get('languages')?.value 
 check('sections become groups', get('employer')?.group === 'Work & income' && get('age')?.group === 'About you');
 check('code fences are ignored', !f.some((x) => /ignored/i.test(x.label)));
 check('the file is data: it is just a field, never an instruction', f.some((x) => /ignore all previous/i.test(x.label)) && f.every((x) => x.value.length <= 300));
-check('empty and non-profile text gives nothing', P.parseProfileMarkdown('').length === 0 && P.parseProfileMarkdown('hello there\nno fields').length === 0);
+check('empty text gives nothing, very short text is no note', P.parseProfileMarkdown('').length === 0 && P.parseProfileMarkdown('hi').length === 0);
+const prose = P.parseProfileMarkdown('# Me\n\nI work nights at the hospital and\nlive with my partner in Espoo.\n\n- Age: 34\n\nWe want a dog one day.');
+check('free paragraphs become notes, fields still read', prose.filter((x) => x.label === P.NOTE_LABEL).length === 2 && prose.some((x) => x.key === 'age') && prose[0].value === 'I work nights at the hospital and live with my partner in Espoo.', prose);
 check('a bare URL is not a field', P.parseProfileMarkdown('https://example.com').length === 0);
 check('field count is capped', P.parseProfileMarkdown(Array.from({ length: 200 }, (_, i) => `- Field${i}: v`).join('\n')).length === 60);
 
@@ -107,6 +109,17 @@ check('remove archives (kept in history), it leaves the list', removed.entry.sta
 const back = P.saveProfileField(U, { label: 'Hobby', value: 'Chess' });
 check('after removing, the same field can be added again', back.created);
 
+// --- 4b. a free description (no name) is a note; two notes never overwrite each other
+const n1 = P.saveProfileField(U, { label: '', value: 'I am a nurse in Espoo, living with my partner and our cat.' });
+const n2 = P.saveProfileField(U, { label: '', value: 'I prefer to save before I spend.' });
+check('a free description is saved as a note', n1.created && n1.entry.title === P.NOTE_LABEL && /nurse in Espoo/.test(n1.entry.detail));
+check('a second note is added, not merged', n2.created && n1.entry.profileKey !== n2.entry.profileKey && db.getCabinetEntry(n1.entry.id)!.detail.includes('Espoo'));
+const n1e = P.updateProfileField(n1.entry.id, { value: 'I am a head nurse in Espoo.' });
+check('editing a note keeps its own key', n1e.entry.profileKey === n1.entry.profileKey);
+check('a health description is saved private', P.saveProfileField(U, { label: '', value: 'I have anxiety about money' }).entry.private === true);
+let emptyNote = false; try { P.saveProfileField(U, { label: '', value: '  ' }); } catch (e: any) { emptyNote = e.status === 400; }
+check('an empty note is refused', emptyNote);
+
 // --- 5. who can read it
 const abel = readCabinetThroughGateway(U, 'abel', 'test');
 const offers = readCabinetThroughGateway(U, 'offers', 'test');
@@ -145,7 +158,7 @@ const call = async (m: string, url: string, body?: unknown) => {
 };
 check('route: unknown customer is 404', (await call('GET', '/api/profile?userId=nobody')).status === 404);
 check('route: preview of an empty file is 400', (await call('POST', '/api/profile/import/preview', { userId: 'eeva', text: '  ' })).status === 400);
-check('route: preview of a file with no fields is 422', (await call('POST', '/api/profile/import/preview', { userId: 'eeva', text: 'just words' })).status === 422);
+check('route: preview of a file with nothing usable is 422', (await call('POST', '/api/profile/import/preview', { userId: 'eeva', text: 'hi' })).status === 422);
 const pv = await call('POST', '/api/profile/import/preview', { userId: 'eeva', text: '- Occupation: Designer\n- City: Tampere', fileName: 'me.md' });
 check('route: preview returns items and does not save', pv.status === 200 && pv.body.items.length === 2 && P.getProfileEntries('eeva').length === 0, pv.body);
 const ap = await call('POST', '/api/profile/import/apply', { userId: 'eeva', items: pv.body.items, source: pv.body.source });

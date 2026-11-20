@@ -9,9 +9,16 @@ import { ABEL_PRIVATE_TOPIC } from './sensitive.js';
 import type { CabinetEntry } from '../types.js';
 
 export const DEFAULT_GROUP = 'About you';
+/** The name a free description is shown under. */
+export const NOTE_LABEL = 'In my words';
+const NOTE_KEY = 'inmywords';
+const isNote = (e: { profileKey?: string; title: string }) => (e.profileKey || '').startsWith('note-') || e.title === NOTE_LABEL;
+const noteKey = () => `note-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const MAX_FIELDS = 60;
 const MAX_LABEL = 60;
 const MAX_VALUE = 300;
+/** A note in the customer's own words can be longer than a field value. */
+const MAX_NOTE = 1000;
 const MAX_TEXT = 200_000;
 
 export interface ProfileField {
@@ -70,7 +77,7 @@ function plain(s: string): string {
 
 function make(label: string, value: string, group: string): ProfileField | null {
   const l = plain(label).replace(/[:：]\s*$/, '').trim().slice(0, MAX_LABEL);
-  const v = plain(value).slice(0, MAX_VALUE);
+  const v = plain(value).slice(0, profileKeyOf(l) === NOTE_KEY ? MAX_NOTE : MAX_VALUE);
   if (!l || !v || PLACEHOLDER.test(v) || PLACEHOLDER.test(l) || v.startsWith('//')) return null;
   return { key: profileKeyOf(l), label: l, value: v, group: plain(group).slice(0, 40) || DEFAULT_GROUP };
 }
@@ -118,15 +125,30 @@ export function parseProfileMarkdown(raw: string): ProfileField[] {
     listItems = [];
   };
 
+  // Free text (a paragraph that is not a field or a list) is kept as a note in the customer's own words.
+  let para: string[] = [];
+  const flushPara = () => {
+    const txt = para.join(' ').trim();
+    para = [];
+    if (txt.length < 12 || out.length >= MAX_FIELDS) return; // too short to say anything
+    const v = plain(txt).slice(0, MAX_NOTE);
+    if (!v || /^https?:\/\/\S+$/.test(v)) return;
+    const id = `${group}\u0000note\u0000${v.toLowerCase()}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push({ key: NOTE_KEY, label: NOTE_LABEL, value: v, group });
+  };
+
   let inFence = false;
   for (const line of lines) {
-    if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; continue; }
+    if (/^\s*(```|~~~)/.test(line)) { flushPara(); inFence = !inFence; continue; }
     if (inFence) continue;
     const t = line.trim();
-    if (!t) continue;
+    if (!t) { flushPara(); continue; }
 
     const h = t.match(/^(#{1,6})\s+(.*?)\s*#*$/);
     if (h) {
+      flushPara();
       flushList();
       const name = plain(h[2]);
       // "# My profile" (level 1) is the title. Level 2+ opens a section and may also name a list field.
@@ -137,6 +159,7 @@ export function parseProfileMarkdown(raw: string): ProfileField[] {
 
     // Table row.
     if (t.startsWith('|')) {
+      flushPara();
       const cells = t.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
       if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue; // |---|---|
       if (cells.length >= 2 && !/^(field|key|item|question|label|name)$/i.test(plain(cells[0])) ) add(make(cells[0], cells[1], group));
@@ -150,10 +173,12 @@ export function parseProfileMarkdown(raw: string): ProfileField[] {
     if (kv) {
       const label = kv.length === 4 ? kv[2] : kv[1];
       const value = kv.length === 4 ? kv[3] : kv[2];
-      if (label.trim().split(/\s+/).length <= 6) { add(make(label, value, group)); continue; }
+      if (label.trim().split(/\s+/).length <= 6 && !/^https?$/i.test(label.trim())) { flushPara(); add(make(label, value, group)); continue; }
     }
-    if (bullet && listHeading) listItems.push(plain(bullet[1]));
+    if (bullet) { flushPara(); if (listHeading) listItems.push(plain(bullet[1])); continue; }
+    para.push(t);
   }
+  flushPara();
   flushList();
   return out;
 }
@@ -172,9 +197,14 @@ const keyOfEntry = (e: CabinetEntry) => e.profileKey || profileKeyOf(e.title);
 export function previewProfileImport(userId: string, fields: ProfileField[]): ProfileImportItem[] {
   const mine = getProfileEntries(userId);
   return fields.map((f) => {
-    const hit = mine.find((e) => keyOfEntry(e) === f.key);
     const sensitive = ABEL_PRIVATE_TOPIC.test(`${f.label} ${f.value}`);
     const base = { ...f, sensitive };
+    if (f.key === NOTE_KEY) {
+      // Notes are never merged into each other: the same text is "already there", anything else is new.
+      const same = mine.find((e) => isNote(e) && e.detail.trim().toLowerCase() === f.value.trim().toLowerCase());
+      return (same ? { ...base, action: 'same', existingId: same.id, oldValue: same.detail, on: false } : { ...base, action: 'new', on: !sensitive }) as ProfileImportItem;
+    }
+    const hit = mine.find((e) => !isNote(e) && keyOfEntry(e) === f.key);
     if (!hit) return { ...base, action: 'new', on: !sensitive } as ProfileImportItem;
     if (hit.detail.trim().toLowerCase() === f.value.trim().toLowerCase())
       return { ...base, action: 'same', existingId: hit.id, oldValue: hit.detail, on: false };
@@ -195,9 +225,25 @@ export interface ProfileInput {
 
 /** Adds one profile field (a new field with the same key as an existing one updates that one). */
 export function saveProfileField(userId: string, input: ProfileInput, how = 'In the app') {
+  // A free description ("I'm a nurse in Espoo with two kids") has no name: it is saved as its own note,
+  // with a unique key, so a second note never overwrites the first.
+  if ((!plain(input.label || '') || profileKeyOf(input.label) === NOTE_KEY) && plain(input.value || '')) {
+    const v = plain(input.value).slice(0, MAX_NOTE);
+    const t = stamp();
+    const entry: CabinetEntry = {
+      id: newId(), userId, type: 'profile', title: NOTE_LABEL, detail: v, source: 'customer', status: 'active',
+      private: !!input.private || ABEL_PRIVATE_TOPIC.test(v), readableBy: { abel: true, offers: false }, provenance: { channel: 'app' },
+      profileKey: noteKey(), profileGroup: plain(input.group || '').slice(0, 40) || DEFAULT_GROUP,
+      reviewed: true, confirmedAt: t, createdAt: t, updatedAt: t,
+    };
+    db.addCabinetEntry(entry, { by: 'you', how });
+    const undoToken = undoId();
+    db.addUndoRecord({ undoToken, timestamp: t, userId, action: 'create', description: 'Added a note to your profile', previousEntry: null, entryId: entry.id });
+    return { entry, undoToken, created: true };
+  }
   const f = make(input.label, input.value, input.group || DEFAULT_GROUP);
   if (!f) throw Object.assign(new Error('Write a name and a value for it.'), { status: 400 });
-  const hit = getProfileEntries(userId).find((e) => keyOfEntry(e) === f.key);
+  const hit = getProfileEntries(userId).find((e) => !isNote(e) && keyOfEntry(e) === f.key);
   if (hit) return { ...updateProfileField(hit.id, { label: f.label, value: f.value, group: f.group, private: input.private }, how), created: false };
   const t = stamp();
   const entry: CabinetEntry = {
@@ -216,10 +262,10 @@ export function updateProfileField(id: string, input: Partial<ProfileInput>, how
   const old = db.getCabinetEntry(id);
   if (!old || old.type !== 'profile') throw Object.assign(new Error('Profile field not found'), { status: 404 });
   const label = input.label !== undefined ? plain(input.label).replace(/[:：]\s*$/, '').slice(0, MAX_LABEL) : old.title;
-  const value = input.value !== undefined ? plain(input.value).slice(0, MAX_VALUE) : old.detail;
+  const value = input.value !== undefined ? plain(input.value).slice(0, isNote(old) ? MAX_NOTE : MAX_VALUE) : old.detail;
   if (!label || !value) throw Object.assign(new Error('Write a name and a value for it.'), { status: 400 });
   const updates: Partial<CabinetEntry> = {
-    title: label, detail: value, profileKey: profileKeyOf(label),
+    title: label, detail: value, profileKey: label === old.title && old.profileKey ? old.profileKey : profileKeyOf(label),
     profileGroup: input.group !== undefined ? plain(input.group).slice(0, 40) || DEFAULT_GROUP : old.profileGroup || DEFAULT_GROUP,
     status: 'active', confirmedAt: stamp(),
   };
@@ -256,10 +302,14 @@ export function applyProfileImport(userId: string, items: Array<ProfileField & {
   for (const raw of items.slice(0, MAX_FIELDS)) {
     const f = make(raw.label, raw.value, raw.group || DEFAULT_GROUP);
     if (!f) continue;
-    // Trust the server's own view of what exists, never an id from the browser alone.
-    const hit = mine.find((e) => (raw.existingId && e.id === raw.existingId) || keyOfEntry(e) === f.key);
+    const note = f.key === NOTE_KEY;
+    // Trust the server's own view of what exists, never an id from the browser alone. Notes only match the same text.
+    const hit = note
+      ? mine.find((e) => isNote(e) && e.detail.trim().toLowerCase() === f.value.trim().toLowerCase())
+      : mine.find((e) => !isNote(e) && ((raw.existingId && e.id === raw.existingId) || keyOfEntry(e) === f.key));
     const sensitive = !!raw.sensitive || ABEL_PRIVATE_TOPIC.test(`${f.label} ${f.value}`);
     const t = stamp();
+    if (hit && note) continue;
     if (hit) {
       if (hit.detail === f.value && (hit.profileGroup || DEFAULT_GROUP) === f.group) continue;
       const prev = { ...hit };
@@ -273,7 +323,7 @@ export function applyProfileImport(userId: string, items: Array<ProfileField & {
     const entry: CabinetEntry = {
       id: newId(), userId, type: 'profile', title: f.label, detail: f.value, source: 'document', status: 'active',
       private: sensitive, readableBy: { abel: true, offers: false }, provenance: { channel: 'document' },
-      profileKey: f.key, profileGroup: f.group, reviewed: true, confirmedAt: t, createdAt: t, updatedAt: t,
+      profileKey: note ? noteKey() : f.key, profileGroup: f.group, reviewed: true, confirmedAt: t, createdAt: t, updatedAt: t,
     };
     db.addCabinetEntry(entry, { by: 'you', how });
     mine.push(entry);

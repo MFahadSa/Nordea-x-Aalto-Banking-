@@ -63,7 +63,7 @@ export function registerProfileRoutes(app: Express) {
     if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: 'The file is empty.' });
     if (text.length > 200_000) return res.status(413).json({ error: 'That file is too big. Try one under 200 KB.' });
     const fields = parseProfileMarkdown(text);
-    if (!fields.length) return res.status(422).json({ error: 'I could not find any “Name: value” lines in that file. Try lines like “- Occupation: Nurse”.' });
+    if (!fields.length) return res.status(422).json({ error: 'I couldn’t find anything about you in that file. Write a few sentences, or lines like “- Occupation: Nurse”.' });
     res.json({ items: previewProfileImport(userId, fields), source: String(req.body?.fileName || 'your file').slice(0, 80) });
   });
 
