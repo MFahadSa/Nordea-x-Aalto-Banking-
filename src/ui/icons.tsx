@@ -26,6 +26,7 @@ export const ICONS: Record<string, string> = {
  "pay": "<rect x=\"3.5\" y=\"6\" width=\"17\" height=\"12\" rx=\"2\"/><path d=\"M3.5 10h17M7 14.5h4\"/>",
  "scan": "<path d=\"M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3\"/><path d=\"M8 9v6M11 9v6M13.5 9v6M16 9v6\"/>",
  "transfer": "<rect x=\"4\" y=\"5\" width=\"11\" height=\"8\" rx=\"2\"/><rect x=\"9\" y=\"11\" width=\"11\" height=\"8\" rx=\"2\"/><path d=\"M12.5 15h4M15 13l2 2-2 2\"/>",
+ "search": "<circle cx=\"10.5\" cy=\"10.5\" r=\"6.5\"/><path d=\"M15.5 15.5L20.5 20.5\"/>",
  "chev": "<path d=\"M9.5 6l6 6-6 6\"/>",
  "back": "<path d=\"M15 5l-7 7 7 7\"/>",
  "more": "<circle cx=\"6\" cy=\"12\" r=\"1.6\"/><circle cx=\"12\" cy=\"12\" r=\"1.6\"/><path d=\"M17 10.4a1.6 1.6 0 1 0 1.6 1.6\"/>",

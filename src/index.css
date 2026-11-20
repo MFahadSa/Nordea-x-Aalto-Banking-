@@ -856,3 +856,37 @@ span.cam-x{background:none}
 .calm .nh-bell{min-width:44px;min-height:44px;display:inline-grid;place-items:center}
 .calm .nshowall{min-height:44px}
 .calm .ask-bar{min-height:52px}
+
+/* ---------- v30: Home laid out like the bank's own overview ---------- */
+.nwelcome.left{text-align:left;font-size:26px;font-weight:800;letter-spacing:-.2px;margin:18px 2px 10px;line-height:1.2}
+.calm .nwelcome.left{font-size:28px}
+.qa-card{padding:14px 16px 12px;border-radius:12px}
+.qa-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.qa-h h2{font-size:16.5px;font-weight:700;color:var(--ink);margin:0}
+.qa-all{border:0;background:none;font:inherit;font-size:15px;font-weight:700;color:var(--brand-soft);cursor:pointer;padding:6px 2px;min-height:32px}
+.qa-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.qa{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:6px;font:inherit;color:var(--ink);cursor:pointer;padding:2px 0}
+.qa-c{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);color:var(--brand);border:1px solid var(--line)}
+.qa-c svg{width:22px;height:22px}
+.qa-l{font-size:13px;line-height:1.2;text-align:center}
+.qa-note{margin:10px 0 0;font-size:12.5px;line-height:1.35;color:var(--muted);text-align:center}
+.qa-note b{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:#FFF4D6;color:#7A4B00;margin-right:6px}
+:root[data-theme="dark"] .qa-c{background:#fff;color:#00005E;border-color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .qa-c{background:#fff;color:#00005E;border-color:#fff}}
+.acc-more{display:block;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:12px;font:inherit;font-size:14px;color:var(--muted);cursor:pointer;text-align:center}
+.abel-anchor{scroll-margin-top:8px;border-radius:8px;transition:box-shadow .3s}
+.abel-anchor.from-bell{box-shadow:0 0 0 3px #F59E0B}
+.abel-none{margin:0;padding:12px 16px;font-size:15px;color:var(--muted);background:var(--surface);border-radius:4px}
+.presenter-note{margin:0;padding:12px 16px;font-size:14px;line-height:1.4;color:var(--muted);background:var(--surface-2);border-radius:10px}
+.calm .qa-l{font-size:15px}.calm .qa-c{width:54px;height:54px}.calm .qa-note,.calm .acc-more{font-size:15px}
+
+/* ---------- v30: calm view, bigger labels and switches (On / Off written next to them) ---------- */
+.calm .concept-tag{font-size:14px;padding:5px 12px}
+.calm .nav button span{font-size:14.5px;max-width:none}
+.calm .tgl{width:60px;height:36px;border-radius:18px;margin-right:30px}
+.calm .tgl i{width:30px;height:30px}
+.calm .tgl.on i{transform:translateX(24px)}
+.calm .tgl::after{content:"Off";position:absolute;right:-32px;top:9px;font-size:14px;font-weight:600;color:var(--muted)}
+.calm .tgl.on::after{content:"On";color:var(--brand-soft)}
+.calm .qa-note b{font-size:14px;padding:2px 9px}.calm .qa-all{min-height:44px;font-size:16px}.calm .nband-r{font-size:15px}
+.qa-all{min-height:44px}

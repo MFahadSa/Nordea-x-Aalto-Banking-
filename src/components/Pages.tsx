@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, retryDbStatus, DbStatus, ApprovalCard, fetchApprovalCards, decideApprovalCard, PipeItem, fetchPipelineWaiting, decidePipelineItem, SOURCE_NAME } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
-import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
+import { nfi, eur, monthLong, monthShort, dayMonth } from '../ui/format.js';
 import { DetailHead, NRow, Band, Toggle, RoundActions, BAND_BG } from './Nordea.js';
 import { HistoryCard } from './HomePage.js';
 import { AdviceList, proactiveName } from './Advice.js';
@@ -320,10 +320,10 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 <button className="nrow2 goal" onClick={() => setGoalOpen(goalOpen === g.goalId ? null : g.goalId)}>
                   <span className="n-l">
                     <span className="n-name">{g.title}</span>
-                    <span className="n-sub">{n0(g.saved)} of {eur(g.target)} · {monthShort(g.targetDate.slice(0, 7))}</span>
+                    <span className="n-sub">Saved now <b>{eur(g.saved)}</b> of {eur(g.target)} · goal {monthShort(g.targetDate.slice(0, 7))}</span>
                     <span className="gbar"><i style={{ width: `${g.percentSaved}%` }} /></span>
                   </span>
-                  <span className="n-r"><span className={`npill ${g.onTrack ? 'up' : 'down'}`}>{g.onTrack ? 'On track' : `${eur(g.shortBy)} short`}</span></span>
+                  <span className="n-r"><span className={`npill ${g.onTrack ? 'up' : 'down'}`}>{g.onTrack ? 'On track' : `Forecast: ${eur(g.shortBy)} short`}</span></span>
                   <span className="nchev" aria-hidden="true"><Icon name="chev" /></span>
                 </button>
                 {goalOpen === g.goalId && (
@@ -331,9 +331,13 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                     <div className="gm-stats">
                       <div><b>{eur(g.monthlyGoingIn)}</b><span>saved a month</span></div>
                       <div><b>{g.monthsLeft}</b><span>months left</span></div>
-                      <div className={g.onTrack ? 'ok' : 'gap'}><b>{g.onTrack ? '✓' : `+${eur(g.extraPerMonthNeeded)}`}</b><span>{g.onTrack ? 'on track' : 'a month to be on time'}</span></div>
+                      <div className={g.onTrack ? 'ok' : 'gap'}><b>{g.onTrack ? '✓' : `+${eur(g.extraPerMonthNeeded)}`}</b><span>{g.onTrack ? 'on track' : 'more a month closes the forecast gap'}</span></div>
                     </div>
-                    <p className="gm-note">At this pace you’ll have about {eur(g.projectedByTargetDate)} by {monthLong(g.targetDate.slice(0, 7))}.</p>
+                    <p className="gm-note">
+                      {/* v30: current progress and the forecast are kept apart (PDF proposal 2). Same numbers as before. */}
+                      <b>Forecast</b> at {eur(g.monthlyGoingIn)} a month: about {eur(g.projectedByTargetDate)} by {monthLong(g.targetDate.slice(0, 7))}{g.onTrack ? '.' : `, so ${eur(g.shortBy)} short.`} An estimate, not a guarantee.
+                      {g.target > g.saved && <><br /><b>Still to save today:</b> {eur(g.target - g.saved)}.</>}
+                    </p>
                     <div className="gm-act">
                       <button className="btn small primary" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Abel about this</button>
                       <button className="btn small" onClick={() => p.onAskAbout('Plan my next payday')}>Plan my payday</button>
@@ -809,17 +813,38 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
         {onSuggest && <NRow name="Suggestions from Abel" sub={proactiveName(state.advice?.proactive)} onClick={onSuggest} />}
         <NRow name="Dark mode" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
       </div>
-      <Band left="Demo" />
+      {/* v30: the demo tools live on their own page, so customer settings stay customer settings. */}
+      <Band left="For the demo team" />
+      <div className="ncard flat">
+        <NRow name="Presenter tools" sub="Switch customer, reset, AI and data checks. Not part of the customer app." onClick={() => onPage('presenter')} />
+      </div>
+    </div>
+  </>
+);
+
+// ---------------- Presenter tools (v30: moved out of More → Settings) ----------------
+export const PresenterPage: React.FC<{ state: AppState; onBack: () => void; onUsers: () => void; onReset: () => Promise<void>; onRefresh?: () => void }> = ({ state, onBack, onUsers, onReset, onRefresh }) => (
+  <>
+    <DetailHead title="Presenter tools" onBack={onBack} />
+    <div className="nbody">
+      <p className="presenter-note">These tools are for presenting the concept. Customers don’t see them: they open from More → Presenter tools.</p>
+      <Band left="Demo customer" />
+      <div className="ncard flat">
+        <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
+        <ResetRow onReset={onReset} />
+      </div>
+      <Band left="Other views" />
       <div className="ncard flat">
         <NRow name="Smart glasses" sub="Lauri’s view: inputs go through the pipeline" onClick={() => window.open('/glasses', '_blank', 'noopener')} />
         <NRow name="Nordea workspace" sub="The employee side, desktop: cases and decisions" onClick={() => window.open('/workspace', '_blank', 'noopener')} />
+      </div>
+      <Band left="Checks" />
+      <div className="ncard flat">
         <AiCheck />
         <SelfTest />
         <DbCheck />
         <NordeaDataRow userId={state.user.id} onChanged={() => onRefresh?.()} />
         <DebugToggle />
-        <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
-        <ResetRow onReset={onReset} />
       </div>
     </div>
   </>

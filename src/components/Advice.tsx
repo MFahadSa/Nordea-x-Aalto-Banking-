@@ -81,14 +81,16 @@ export const ForYou: React.FC<{
   onAnswer: (value: string) => void;
   onShow: () => void;
   onNotNow: () => void;
-}> = ({ card, busy, onAnswer, onShow, onNotNow }) => {
+  /** v30: shown inside Home's "From Abel" list, which has its own heading. */
+  inList?: boolean;
+}> = ({ card, busy, onAnswer, onShow, onNotNow, inList }) => {
   const [date, setDate] = useState('');
   const [why, setWhy] = useState(false);
   const d = card.data || {};
   if (card.type === 'ask_fact') {
     return (
       <>
-        <Band left="For you" />
+        {!inList && <Band left="For you" />}
         <div className="card adv-home" aria-busy={busy}>
           <span className="from bank">One question from Abel</span>
           <div>
@@ -120,7 +122,7 @@ export const ForYou: React.FC<{
   }
   return (
     <>
-      <Band left="For you" />
+      {!inList && <Band left="For you" />}
       <div className="card adv-home" aria-busy={busy}>
         <span className="from bank">For you · {d.kindLabel}</span>
         <div>
