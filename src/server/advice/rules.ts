@@ -47,6 +47,8 @@ export interface Rule {
   params: Record<string, number | string>;
   compute?: string;
   message: string;
+  /** v29: how it works in plain words (only params), given to Abel when this card is in the chat. */
+  explain?: string;
   /** "What Nordea earns", in words, shown on every card. No numbers. */
   earns: string;
   /** Button label for an in-app offer (required when action is appOffer). */
@@ -57,7 +59,7 @@ export interface Rule {
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isDate = (v: unknown): v is string => typeof v === 'string' && DATE.test(v) && !Number.isNaN(Date.parse(v));
 const OPS: Op[] = ['eq', 'ne', 'gte', 'gt', 'lte', 'lt', 'in'];
-const RULE_KEYS = ['id', 'version', 'title', 'kind', 'validFrom', 'validTo', 'source', 'reviewDays', 'when', 'ask', 'timing', 'action', 'regulated', 'uses', 'params', 'compute', 'message', 'earns', 'cta', 'tests', '_note'];
+const RULE_KEYS = ['id', 'version', 'title', 'kind', 'validFrom', 'validTo', 'source', 'reviewDays', 'when', 'ask', 'timing', 'action', 'regulated', 'uses', 'params', 'compute', 'message', 'explain', 'earns', 'cta', 'tests', '_note'];
 
 /** Values a compute step adds to the message, by name. Kept here so validation knows them. */
 /** Rules whose in-app offer has code that carries it out (src/server/advice/actions.ts). */
@@ -134,6 +136,14 @@ export function validateRule(r: any): string[] {
     const known = new Set([...Object.keys(r.params || {}), ...(COMPUTE_OUTPUTS[r.compute] || [])]);
     for (const m of r.message.matchAll(/\{(\w+)\}/g)) if (!known.has(m[1])) e.push(`message: {${m[1]}} has no value`);
     if (/\d/.test(r.message.replace(/\{\w+\}/g, ''))) e.push('message: numbers go in params, never typed in the text');
+  }
+  // v29: how it works, in plain words, for Abel to explain when asked. Same rules as message: numbers only from params.
+  if (r.explain !== undefined) {
+    if (typeof r.explain !== 'string' || !r.explain.trim()) e.push('explain: words, or leave it out');
+    else {
+      for (const m of r.explain.matchAll(/\{(\w+)\}/g)) if (!(m[1] in (r.params || {}))) e.push(`explain: {${m[1]}} is not in params`);
+      if (/\d/.test(r.explain.replace(/\{\w+\}/g, ''))) e.push('explain: numbers go in params, never typed in the text');
+    }
   }
   if (typeof r.earns !== 'string' || !r.earns.trim()) e.push('earns: say what Nordea earns (or "Nordea earns nothing from this.")');
   else if (/\d/.test(r.earns)) e.push('earns: words only, no numbers');
