@@ -28,6 +28,37 @@ export interface User {
     carFund?: { iban: string; balance: number; lastContribution?: string };
   };
   points: number;
+  connections?: AppConnection[];
+  customApps?: ConnectableApp[];
+}
+
+export type ConnectionProtocol = 'a2a' | 'mcp';
+
+/** An outside app (AI assistant or tool) that can be connected to the cabinet. */
+export interface ConnectableApp {
+  id: string;
+  name: string;
+  kind: 'assistant' | 'tool';
+  description: string;
+  protocols: ConnectionProtocol[];
+  /** Two letters for the badge (no brand logos). */
+  initials: string;
+  color: string;
+  /** Added by the customer, with the address they gave. */
+  custom?: boolean;
+  endpoint?: string;
+}
+
+/** A connection the customer made: which app, over which protocol, and which drawers it may read. */
+export interface AppConnection {
+  id: string;
+  appId: string;
+  protocol: ConnectionProtocol;
+  /** Cabinet entry types it may read. Private entries are never shared, whatever is ticked. */
+  scopes: CabinetEntryType[];
+  status: 'active' | 'paused';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type CabinetEntryType = 'goal' | 'life_event' | 'preference' | 'fact' | 'observation' | 'blind_spot' | 'profile';

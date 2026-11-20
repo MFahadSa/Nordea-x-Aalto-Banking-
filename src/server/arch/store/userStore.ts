@@ -72,6 +72,10 @@ export interface UserProfile {
   offersOff?: boolean;
   extraMonthly?: number;
   nordeaData?: { from: string; at: string; transactions: number; balances: boolean };
+  /** Outside apps the customer connected to their cabinet (A2A / MCP), with what each may read. */
+  connections?: import('../../../types.js').AppConnection[];
+  /** Apps the customer added themselves (shown next to the built-in list). */
+  customApps?: import('../../../types.js').ConnectableApp[];
 }
 
 export function loadProfile(uid: string): UserProfile | null {

@@ -2,9 +2,10 @@ import React, { useRef, useState } from 'react';
 import { CabinetEntry } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { Band } from './Nordea.js';
+import { ConnectionsSheet } from './ConnectionsSheet.js';
 import {
   addProfileField, editProfileField, removeProfileField, previewProfileImport, applyProfileImport,
-  profileExportUrl, undoCabinetAction, ProfileImportItem,
+  profileExportUrl, undoCabinetAction, ProfileImportItem, fetchConnections,
 } from '../services/api.js';
 
 const DEFAULT_GROUP = 'About you';
@@ -184,7 +185,12 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
   const [adding, setAdding] = useState(false);
   const [imp, setImp] = useState<{ source: string; items: ProfileImportItem[] } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [conns, setConns] = useState(false);
+  const [active, setActive] = useState<number | null>(null);
   const file = useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    fetchConnections(userId).then((v) => setActive(v.connections.filter((c) => c.status === 'active').length)).catch(() => setActive(null));
+  }, [userId]);
 
   const guard = async (fn: () => Promise<void>) => {
     try { await fn(); } catch (x: any) { onToast(x?.message || 'That didn’t work. Try again.'); }
@@ -224,9 +230,13 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
             </div>
           ))
         )}
-        <div className="wait-act" style={{ padding: '10px 16px 14px' }}>
+        <div className="wait-act" style={{ padding: '10px 16px 14px', flexWrap: 'wrap' }}>
           <button className="btn small primary" onClick={() => setAdding(true)}>Add</button>
           <button className="btn small" disabled={busy} onClick={() => file.current?.click()}>{busy ? 'Reading…' : 'Import .md'}</button>
+          <button className="btn small" onClick={() => setConns(true)} aria-label="Active connections">
+            <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 99, marginRight: 6, background: active ? 'var(--mint, #1aa36b)' : 'var(--line)' }} />
+            Active connections{active ? ` · ${active}` : ''}
+          </button>
           {fields.length > 0 && <a className="btn small quiet" href={profileExportUrl(userId)} download="my-profile.md">Export .md</a>}
           <input ref={file} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden aria-label="Import a Markdown file"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pick(f); }} />
@@ -236,6 +246,7 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
         <AddSheet groups={groups} onClose={() => setAdding(false)}
           onAdd={async (f) => { const r = await addProfileField(userId, f); setAdding(false); onToast(r.created ? '📌 Abel will remember this' : 'You already had that, so I updated it.', r.undoToken); onChanged(); }} />
       )}
+      {conns && <ConnectionsSheet userId={userId} onClose={() => setConns(false)} onCount={setActive} />}
       {imp && <ImportSheet userId={userId} source={imp.source} items={imp.items} onClose={() => setImp(null)} onDone={onChanged} />}
     </>
   );

@@ -1,3 +1,4 @@
+import type { AppConnection, ConnectableApp, CabinetEntryType, ConnectionProtocol } from '../types.js';
 import type { Conversation, Earning, Share, EntryEvent } from '../types.js';
 import {
   User,
@@ -342,3 +343,22 @@ export const previewProfileImport = (userId: string, text: string, fileName: str
 export const applyProfileImport = (userId: string, items: ProfileImportItem[], source: string) =>
   post('/api/profile/import/apply', { userId, items, source }).then((r) => j<{ added: number; updated: number; undoTokens: string[] }>(r));
 export const profileExportUrl = (userId: string) => `/api/profile/export?userId=${encodeURIComponent(userId)}`;
+
+// ---------------- Active connections (A2A / MCP, concept demo) ----------------
+export interface ConnectionsView {
+  scopes: { type: CabinetEntryType; label: string }[];
+  apps: ConnectableApp[];
+  connections: (AppConnection & { sees: number; seesTitles: string[] })[];
+}
+const q = (userId: string) => `userId=${encodeURIComponent(userId)}`;
+export const fetchConnections = (userId: string) => fetch(`/api/connections?${q(userId)}`).then((r) => j<ConnectionsView>(r));
+export const connectApp = (userId: string, appId: string, protocol: ConnectionProtocol, scopes: CabinetEntryType[]) =>
+  post('/api/connections', { userId, appId, protocol, scopes }).then((r) => j<ConnectionsView>(r));
+export const changeConnection = (userId: string, id: string, body: { scopes?: CabinetEntryType[]; status?: 'active' | 'paused'; protocol?: ConnectionProtocol }) =>
+  fetch(`/api/connections/${encodeURIComponent(id)}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ userId, ...body }) }).then((r) => j<ConnectionsView>(r));
+export const disconnectApp = (userId: string, id: string) =>
+  fetch(`/api/connections/${encodeURIComponent(id)}?${q(userId)}`, { method: 'DELETE' }).then((r) => j<ConnectionsView>(r));
+export const addOwnApp = (userId: string, body: { name: string; protocol: ConnectionProtocol[]; endpoint: string; description?: string; kind?: 'assistant' | 'tool' }) =>
+  post('/api/connections/apps', { userId, ...body }).then((r) => j<ConnectionsView>(r));
+export const removeOwnApp = (userId: string, appId: string) =>
+  fetch(`/api/connections/apps/${encodeURIComponent(appId)}?${q(userId)}`, { method: 'DELETE' }).then((r) => j<ConnectionsView>(r));

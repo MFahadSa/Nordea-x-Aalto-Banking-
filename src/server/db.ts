@@ -399,6 +399,8 @@ class Database {
       ...(profile?.offersOff !== undefined ? { offersOff: profile.offersOff } : {}),
       ...(profile?.extraMonthly !== undefined ? { extraMonthly: profile.extraMonthly } : {}),
       ...(profile?.nordeaData ? { nordeaData: profile.nordeaData } : {}),
+      ...(profile?.connections ? { connections: profile.connections } : {}),
+      ...(profile?.customApps ? { customApps: profile.customApps } : {}),
     };
   }
 
