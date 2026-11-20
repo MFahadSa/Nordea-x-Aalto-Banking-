@@ -476,6 +476,7 @@ export default function App() {
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
               onDeleteDoc={setDelDocId}
               onChanged={() => refresh()}
+              onToast={(message, undoToken) => setToast({ message, undoToken })}
             />
           )}
           {page === 'privacy' && (

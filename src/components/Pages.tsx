@@ -5,6 +5,7 @@ import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
 import { DetailHead, NRow, Band, Toggle, RoundActions, BAND_BG } from './Nordea.js';
 import { HistoryCard } from './HomePage.js';
+import { ProfileSection } from './ProfileSection.js';
 
 // ---------------- What Abel knows ----------------
 const DRAWERS: { name: string; has: (e: CabinetEntry) => boolean; icon: string }[] = [
@@ -31,6 +32,8 @@ interface KnowsProps {
   onDeleteDoc: (id: string) => void;
   /** v20: something was saved from the pipeline: reload the app state. */
   onChanged?: () => void;
+  /** Shows a message (with an Undo when a token is given) in the app's toast. */
+  onToast?: (message: string, undoToken?: string) => void;
 }
 
 // ---------------- History of one entry ----------------
@@ -262,7 +265,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   React.useEffect(() => { const t = window.setInterval(() => { if (!document.hidden) loadPipe(); }, 4000); return () => window.clearInterval(t); }, [state.user.id]);
   const decidePipe = async (id: string, a: 'save' | 'private' | 'drop') => { await decidePipelineItem(state.user.id, id, a); await loadPipe(); p.onChanged?.(); };
   const shownWaiting = allWaiting ? waiting : waiting.slice(0, 2);
-  const listedRest = listed.filter((e) => !waiting.includes(e) && !staleGoals.includes(e));
+  const listedRest = listed.filter((e) => e.type !== 'profile' && !waiting.includes(e) && !staleGoals.includes(e));
   return (
     <>
       <header className="nhead detail kn-head" style={{ backgroundImage: BAND_BG }}>
@@ -307,6 +310,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         )}
         <PipelineWaiting items={pipe} onDecide={decidePipe} />
         <ApprovalWaiting cards={approvals} onDecide={decideApproval} />
+        <ProfileSection userId={state.user.id} entries={state.entries} onChanged={() => p.onChanged?.()} onToast={(m, t) => p.onToast?.(m, t)} />
         <Band left="Goals" right={state.goals.length + staleGoals.length} />
         {state.goals.length || staleGoals.length ? (
           <div className="ncard flat">

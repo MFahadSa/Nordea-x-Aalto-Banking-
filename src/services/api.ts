@@ -322,3 +322,23 @@ export const decidePipelineItem = (userId: string, id: string, action: 'save' | 
   post(`/api/pipeline/${encodeURIComponent(userId)}/items/${encodeURIComponent(id)}`, { action }).then((r) => j<{ item: PipeItem }>(r));
 export const sendToPipeline = (userId: string, source: PipeSource, input: { signals?: { text: string; kind?: string }[]; text?: string; file?: { mimeType: string; data: string; name?: string }; label?: string }) =>
   post('/api/ingest', { userId, source, ...input }).then((r) => j<{ run: PipeRun; candidates: PipeItem[]; message?: string }>(r));
+
+// ---------------- Profile (the "You told us" facts about the customer) ----------------
+export interface ProfileFieldInput { label: string; value: string; group?: string; private?: boolean }
+export interface ProfileImportItem {
+  key: string; label: string; value: string; group: string;
+  action: 'new' | 'update' | 'same';
+  existingId?: string; oldValue?: string; sensitive: boolean; on: boolean;
+}
+const jsonHeaders = { 'Content-Type': 'application/json' };
+export const addProfileField = (userId: string, f: ProfileFieldInput) =>
+  post('/api/profile', { userId, ...f }).then((r) => j<{ entry: CabinetEntry; undoToken: string; created: boolean }>(r));
+export const editProfileField = (userId: string, id: string, f: Partial<ProfileFieldInput>) =>
+  fetch(`/api/profile/${encodeURIComponent(id)}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ userId, ...f }) }).then((r) => j<{ entry: CabinetEntry; undoToken: string }>(r));
+export const removeProfileField = (userId: string, id: string) =>
+  fetch(`/api/profile/${encodeURIComponent(id)}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' }).then((r) => j<{ entry: CabinetEntry; undoToken: string }>(r));
+export const previewProfileImport = (userId: string, text: string, fileName: string) =>
+  post('/api/profile/import/preview', { userId, text, fileName }).then((r) => j<{ items: ProfileImportItem[]; source: string }>(r));
+export const applyProfileImport = (userId: string, items: ProfileImportItem[], source: string) =>
+  post('/api/profile/import/apply', { userId, items, source }).then((r) => j<{ added: number; updated: number; undoTokens: string[] }>(r));
+export const profileExportUrl = (userId: string) => `/api/profile/export?userId=${encodeURIComponent(userId)}`;

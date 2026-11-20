@@ -30,7 +30,7 @@ export interface User {
   points: number;
 }
 
-export type CabinetEntryType = 'goal' | 'life_event' | 'preference' | 'fact' | 'observation' | 'blind_spot';
+export type CabinetEntryType = 'goal' | 'life_event' | 'preference' | 'fact' | 'observation' | 'blind_spot' | 'profile';
 export type CabinetEntrySource = 'customer' | 'nordea' | 'document';
 export type CabinetEntryStatus = 'active' | 'stale' | 'archived' | 'disputed';
 
@@ -76,6 +76,10 @@ export interface CabinetEntry {
     /** Fingerprint of the inputs; a mismatch means the data moved on and this needs recomputing. */
     inputsHash?: string;
   };
+  /** Profile entries only: a stable key for the field ("occupation"), so an import can update it instead of adding a copy. */
+  profileKey?: string;
+  /** Profile entries only: the section it is shown under ("About you", "Work & income", ...). */
+  profileGroup?: string;
   reviewed: boolean;
   goalType?: 'home' | 'car' | 'travel' | 'buffer' | 'other';
   confirmedAt?: string;

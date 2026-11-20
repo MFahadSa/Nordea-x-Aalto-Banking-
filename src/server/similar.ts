@@ -25,6 +25,8 @@ export function findSimilar(userId: string, c: Candidate): CabinetEntry | undefi
   let best: { e: CabinetEntry; score: number } | undefined;
   for (const e of db.getCabinetEntries(userId)) {
     if (e.status === 'archived' || e.type === 'blind_spot') continue;
+    // Profile fields have their own key-based matching (profile.ts); chat/imports never match against them.
+    if (e.type === 'profile' && c.type !== 'profile') continue;
     const theirs = words(`${e.title} ${e.detail}`);
     const overlap = [...mine].filter((w) => theirs.has(w)).length;
     // One shared word counts only between the two names, not the details:
