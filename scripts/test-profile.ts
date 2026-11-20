@@ -54,6 +54,8 @@ const get = (k: string) => f.find((x) => x.key === k);
 check('front matter is read', get('name')?.value === 'Lauri Virtanen', f);
 check('bullet "Key: value" is read', get('age')?.value === '34');
 check('bold key and inline HTML comment are cleaned', get('occupation')?.value === 'Nurse', get('occupation'));
+check('"Works as", "Working as" and "Job role" are the occupation key; "Works for" is employer',
+  P.profileKeyOf('Works as') === 'occupation' && P.profileKeyOf('Working as') === 'occupation' && P.profileKeyOf('Job role') === 'occupation' && P.profileKeyOf('Works for') === 'employer');
 check('"Lives in" and "City" are the same field (location), first one wins', get('location')?.value === 'Espoo' && f.filter((x) => x.key === 'location').length === 1, f);
 check('links become plain text', !/https?:/.test(get('location')?.value || ''));
 check('table rows are read, header row skipped', get('employer')?.value === 'HUS' && !f.some((x) => x.label.toLowerCase() === 'field'));
