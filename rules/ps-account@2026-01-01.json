@@ -1,0 +1,73 @@
+{
+  "id": "ps-account",
+  "version": "2026-01-01",
+  "title": "Last year to deduct PS savings",
+  "kind": "tax",
+  "validFrom": "2026-01-01",
+  "validTo": "2027-01-01",
+  "source": {
+    "url": "https://www.nordea.fi/henkiloasiakkaat/palvelumme/saastaminen-sijoittaminen/saastamisen-tilit/ps-tilin-veromuutos.html",
+    "checkedAt": "2026-11-20",
+    "owner": "Pension saving product team (demo)"
+  },
+  "reviewDays": 120,
+  "when": {
+    "all": [
+      {
+        "fact": "hasPsAccount",
+        "eq": true
+      }
+    ]
+  },
+  "ask": {},
+  "timing": {
+    "from": "2026-10-01",
+    "to": "2027-01-01"
+  },
+  "action": "inform",
+  "regulated": false,
+  "uses": [
+    "abel"
+  ],
+  "params": {
+    "max": 5000,
+    "lastDay": "31 December 2026",
+    "endDate": "1 January 2027"
+  },
+  "message": "PS payments made by {lastDay} can still be deducted in tax, up to {max} € this year. The deduction ends on {endDate}. If your balance is {max} € or less on {endDate}, you can withdraw it in the next two years at the normal capital income tax, so check your balance before paying in more.",
+  "tests": [
+    {
+      "name": "PS saver in November",
+      "today": "2026-11-20",
+      "facts": {
+        "hasPsAccount": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "last day still counts",
+      "today": "2026-12-31",
+      "facts": {
+        "hasPsAccount": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "too early to raise it",
+      "today": "2026-09-30",
+      "facts": {
+        "hasPsAccount": true
+      },
+      "expect": "notTime"
+    },
+    {
+      "name": "no PS account",
+      "today": "2026-11-20",
+      "facts": {
+        "hasPsAccount": false
+      },
+      "expect": "notEligible"
+    }
+  ],
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+}

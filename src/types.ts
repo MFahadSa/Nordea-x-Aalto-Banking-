@@ -78,6 +78,9 @@ export interface CabinetEntry {
   };
   reviewed: boolean;
   goalType?: 'home' | 'car' | 'travel' | 'buffer' | 'other';
+  /** v25: a customer's answer to one of Abel's fact questions (see src/server/advice/facts.ts). */
+  factKey?: string;
+  factValue?: boolean | number | string;
   confirmedAt?: string;
   createdAt: string;
   updatedAt: string;

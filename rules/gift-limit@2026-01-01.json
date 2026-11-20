@@ -1,0 +1,69 @@
+{
+  "id": "gift-limit",
+  "version": "2026-01-01",
+  "title": "Bigger tax-free gifts to family",
+  "kind": "tax",
+  "validFrom": "2026-01-01",
+  "validTo": null,
+  "source": {
+    "url": "https://vero.fi/henkiloasiakkaat/omaisuus/lahja/milloin-pit%C3%A4%C3%A4-maksaa-lahjaveroa/kuinka-paljon-voi-lahjoittaa-verovapaasti/",
+    "checkedAt": "2026-11-20",
+    "owner": "Tax rules owner (demo)"
+  },
+  "reviewDays": 180,
+  "when": {
+    "all": [
+      {
+        "fact": "helpsFamilyWithMoney",
+        "eq": true
+      }
+    ]
+  },
+  "ask": {
+    "helpsFamilyWithMoney": "Do you sometimes help your children or grandchildren with money?"
+  },
+  "action": "inform",
+  "regulated": false,
+  "uses": [
+    "abel"
+  ],
+  "params": {
+    "limit": 7500,
+    "years": 3,
+    "oldLimit": 5000
+  },
+  "message": "Since this year you can give each person gifts worth less than {limit} € in total every {years} years without gift tax. Before, the limit was {oldLimit} €. The limit counts per giver, so two grandparents can each give.",
+  "tests": [
+    {
+      "name": "helps family",
+      "today": "2026-11-20",
+      "facts": {
+        "helpsFamilyWithMoney": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "does not",
+      "today": "2026-11-20",
+      "facts": {
+        "helpsFamilyWithMoney": false
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "unknown: ask",
+      "today": "2026-11-20",
+      "facts": {},
+      "expect": "ask:helpsFamilyWithMoney"
+    },
+    {
+      "name": "old limit year",
+      "today": "2025-12-31",
+      "facts": {
+        "helpsFamilyWithMoney": true
+      },
+      "expect": "notLive"
+    }
+  ],
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+}

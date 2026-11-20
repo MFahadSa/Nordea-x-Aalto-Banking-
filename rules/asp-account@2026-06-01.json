@@ -1,0 +1,173 @@
+{
+  "id": "asp-account",
+  "version": "2026-06-01",
+  "title": "Open an ASP account",
+  "kind": "product",
+  "validFrom": "2026-06-01",
+  "validTo": null,
+  "source": {
+    "url": "https://www.nordea.fi/en/personal/our-services/savings-investments/saving-for-a-home.html",
+    "checkedAt": "2026-11-20",
+    "owner": "Home saving product team (demo)"
+  },
+  "reviewDays": 180,
+  "when": {
+    "all": [
+      {
+        "fact": "age",
+        "gte": 15
+      },
+      {
+        "fact": "hasAspAccount",
+        "eq": false
+      },
+      {
+        "fact": "everOwnedHalfOfHome",
+        "eq": false
+      },
+      {
+        "fact": "savingForHome",
+        "eq": true
+      }
+    ]
+  },
+  "ask": {
+    "everOwnedHalfOfHome": "Have you ever owned half or more of a home?",
+    "savingForHome": "Are you saving towards buying a home?"
+  },
+  "action": "appOffer",
+  "regulated": false,
+  "uses": [
+    "abel"
+  ],
+  "params": {
+    "interest": 1,
+    "bonus": 4,
+    "deposits": 20,
+    "minDeposit": 50,
+    "maxDeposit": 1500,
+    "share": 10
+  },
+  "compute": "aspPlan",
+  "message": "ASP pays {interest} % interest plus a {bonus} % bonus, tax-free, when the savings go to your first home. You need {deposits} monthly deposits of {minDeposit}–{maxDeposit} €; start this month and the last one lands in {twentiethDepositMonth}. Your ASP savings need to cover {share} % of your share of the price.",
+  "tests": [
+    {
+      "name": "eligible at 31",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": false,
+        "savingForHome": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "14 is too young",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 14,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": false,
+        "savingForHome": true
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "15 is old enough",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 15,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": false,
+        "savingForHome": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "50 is fine after the June change",
+      "today": "2026-06-01",
+      "facts": {
+        "age": 50,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": false,
+        "savingForHome": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "not live before 1 June 2026",
+      "today": "2026-05-31",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": false,
+        "savingForHome": true
+      },
+      "expect": "notLive"
+    },
+    {
+      "name": "already has ASP",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": true,
+        "everOwnedHalfOfHome": false,
+        "savingForHome": true
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "has owned a home",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": true,
+        "savingForHome": true
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "unknown ownership: ask it first",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": false
+      },
+      "expect": "ask:everOwnedHalfOfHome"
+    },
+    {
+      "name": "then ask about the home goal",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": false
+      },
+      "expect": "ask:savingForHome"
+    },
+    {
+      "name": "a known no is not asked again",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": false,
+        "savingForHome": false
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "stale after its review period",
+      "today": "2027-06-01",
+      "facts": {
+        "age": 31,
+        "hasAspAccount": false,
+        "everOwnedHalfOfHome": false,
+        "savingForHome": true
+      },
+      "expect": "stale"
+    }
+  ],
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+}
