@@ -108,7 +108,7 @@ export const KnowsSheet: React.FC<{
         {err && <p role="alert" style={{ color: 'var(--bad, #a4352c)', fontSize: 13, margin: 0 }}>{err}</p>}
         {!data ? <p style={small}>Loading…</p> : tab === 'card' ? (
           <>
-            <KnowsCard data={data} mode="self" />
+            <KnowsCard data={data} />
             <p style={small}>Everything, one by one: where it came from, when, and whether Abel uses it. Tap ⋯ to fix it. Every change can be undone and stays in its history.</p>
             {ORDER.map(([name, has]) => {
               const items = data.items.filter(has);

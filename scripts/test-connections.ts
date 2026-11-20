@@ -1,9 +1,8 @@
 /**
- * Active connections, two directions (concept demo):
- *  OUT  an app uses what Abel knows: no address or protocol asked; a link + key; reads only ticked,
- *       non-private, confirmed things; fails closed; every read logged.
- *  IN   a tool brings info in: protocol read from the address; reads nothing; a sync goes through the
- *       airlock and waits for the customer.
+ * Active connections, inflow only (concept demo):
+ *  Assistants: their profile of the customer comes in (pasted, or sent with link + key) and waits for review.
+ *              They never read the cabinet.
+ *  Tools:      protocol read from the address; a sync goes through the airlock and waits for the customer.
  */
 import fs from 'fs';
 import os from 'os';
@@ -36,29 +35,29 @@ check('"mcp" inside a word is not MCP', C.detectProtocol('https://mcpherson.exam
 const apps = C.listApps(U);
 check('assistants use Abel (out), tools bring info in', apps.filter((a) => a.kind === 'assistant').every((a) => a.direction === 'out') && apps.filter((a) => a.kind === 'tool').every((a) => a.direction === 'in'));
 
-// --- OUT
-const out = C.connect(U, { appId: 'claude', scopes: ['goal', 'profile'] });
-check('OUT connect returns a key once; only hash + hint stored', !!out.key && out.key.startsWith('cab_') && out.connection.keyHash !== out.key && out.connection.keyHint === out.key!.slice(-4) && !JSON.stringify(db.getUser(U)).includes(out.key!));
-check('connecting the same app twice is refused', throws(() => C.connect(U, { appId: 'claude', scopes: ['goal'] }), 409));
-P.saveProfileField(U, { label: 'Occupation', value: 'Nurse' });
-const priv = P.saveProfileField(U, { label: 'Health', value: 'Knee surgery', private: true });
-const r1 = C.readWithKey(out.connection.id, out.key!);
-check('read with key: ticked drawers only, never private', r1.entries.length > 0 && r1.entries.every((e) => ['goal', 'profile'].includes(e.type)) && !r1.entries.some((e) => e.id === priv.entry.id));
-check('every read is logged for "Who sees it"', db.getAccessLog(U).some((l) => l.agentId === 'conn:claude' && l.itemsReadCount === r1.entries.length));
-check('wrong key is refused', throws(() => C.readWithKey(out.connection.id, 'cab_wrong'), 401));
-check('no key is refused', throws(() => C.readWithKey(out.connection.id, ''), 401));
-check('unknown connection is refused', throws(() => C.readWithKey('conn-nope', out.key!), 401));
+// --- assistants: inflow only
+const out = C.connect(U, { appId: 'claude', scopes: ['goal', 'profile'] } as any);
+check('assistant connect returns a key once; only hash + hint stored', !!out.key && out.key.startsWith('cab_') && out.connection.keyHash !== out.key && out.connection.keyHint === out.key!.slice(-4) && !JSON.stringify(db.getUser(U)).includes(out.key!));
+check('asking for read permissions is ignored: it reads nothing', out.connection.scopes.length === 0);
+check('connecting the same app twice is refused', throws(() => C.connect(U, { appId: 'claude' }), 409));
+check('there is no read function any more', !('readWithKey' in C) && !('previewForConnection' in C));
+const before0 = P.getProfileEntries(U).length;
+let wrong = false; try { await C.sendWithKey(out.connection.id, 'cab_wrong', undefined, '- City: X'); } catch (e: any) { wrong = e.status === 401; }
+check('send with a wrong key is refused', wrong);
 C.updateConnection(U, out.connection.id, { status: 'paused' });
-check('paused: read refused', throws(() => C.readWithKey(out.connection.id, out.key!), 403));
-C.updateConnection(U, out.connection.id, { status: 'active', scopes: ['fact'] });
-check('unconfirmed Nordea observations are never read', !C.readWithKey(out.connection.id, out.key!).entries.some((e) => e.source === 'nordea' && !e.reviewed));
+let paused = false; try { await C.sendWithKey(out.connection.id, out.key!, undefined, '- City: X'); } catch (e: any) { paused = e.status === 403; }
+check('paused: send refused', paused && P.getProfileEntries(U).length === before0);
+C.updateConnection(U, out.connection.id, { status: 'active' });
 const rot = C.rotateKey(U, out.connection.id);
-check('new key: old key stops working, new one works', throws(() => C.readWithKey(out.connection.id, out.key!), 401) && !!C.readWithKey(out.connection.id, rot.key));
+let old = false; try { await C.sendWithKey(out.connection.id, out.key!, undefined, '- City: X'); } catch (e: any) { old = e.status === 401; }
+check('new key: old key stops working, new one works', old && (await C.sendWithKey(out.connection.id, rot.key, undefined, '- City: Y')).waiting === 1);
+C.dropInbox(U, C.listInbox(U)[0].id);
+P.saveProfileField(U, { label: 'Occupation', value: 'Nurse' });
+P.saveProfileField(U, { label: 'Health', value: 'Knee surgery', private: true });
 
 // --- the main way: the assistant's profile comes IN to Abel (pasted or sent), and waits for review
 const g = C.connect(U, { appId: 'gemini' });
-check('an assistant can connect without reading anything', g.connection.scopes.length === 0 && g.connection.canSend === true);
-check('with nothing ticked, reading is refused', throws(() => C.readWithKey(g.connection.id, g.key!), 403));
+check('an assistant connects to send, not to read', g.connection.scopes.length === 0 && g.connection.canSend === true);
 const sent = await C.sendWithKey(g.connection.id, g.key!, undefined, '## About me\n- City: Espoo\n- Occupation: Nurse');
 check('a sent profile waits in the inbox, nothing saved yet', sent.waiting === 1 && C.listInbox(U).length === 1 && C.listInbox(U)[0].from === 'Gemini' && !P.getProfileEntries(U).some((e) => e.detail === 'Espoo'));
 await C.sendWithKey(g.connection.id, g.key!, undefined, '- City: Helsinki');
@@ -83,9 +82,6 @@ check('card items say where each came from and whether Abel uses it', C.knowsSum
 // --- IN
 const inn = C.connect(U, { appId: 'gcal' });
 check('IN connect needs no drawers and gets no key', inn.connection.direction === 'in' && !inn.key && inn.connection.protocol === 'mcp');
-check('IN reads nothing from the cabinet', C.previewForConnection(U, inn.connection).length === 0);
-check('IN has no read endpoint', throws(() => C.readWithKey(inn.connection.id, rot.key), 401));
-check('IN cannot be given drawers', throws(() => C.updateConnection(U, inn.connection.id, { scopes: ['goal'] }), 400));
 check('IN has no key to rotate', throws(() => C.rotateKey(U, inn.connection.id), 400));
 const before = db.getCabinetEntries(U).length;
 const s = await C.trySync(U, inn.connection.id);
@@ -105,12 +101,11 @@ check('removing an own app removes its connection', !C.listConnections(U).some((
 
 // --- older saved data still reads
 db.updateUser('eeva', { connections: [{ id: 'conn-old1', appId: 'claude', scopes: ['goal'], status: 'active', createdAt: '2026-11-20', updatedAt: '2026-11-20' } as any] });
-check('a connection saved before directions reads as OUT', C.listConnections('eeva')[0].direction === 'out');
+check('a connection saved before (with read permissions) reads as an assistant that reads nothing', C.listConnections('eeva')[0].direction === 'out' && C.listConnections('eeva')[0].scopes.length === 0);
 
 // --- the card
 const k = C.knowsSummary(U);
 check('card: name, facts and one item per known thing', k.name.length > 0 && k.facts.length === 4 && k.items.length === db.getCabinetEntries(U).filter((e) => e.status !== 'archived' && e.type !== 'blind_spot').length);
-check('card: private things are never shareable', k.items.filter((i) => i.private).every((i) => !i.shareable));
 check('card: works as = the profile occupation', k.facts.find((f) => f.label === 'Works as')?.value === 'Nurse');
 
 // --- routes
@@ -123,15 +118,18 @@ const call = async (m: string, url: string, body?: unknown, headers: Record<stri
   const r = await fetch(base + url, { method: m, headers: { 'Content-Type': 'application/json', ...headers }, body: body ? JSON.stringify(body) : undefined });
   return { status: r.status, body: await r.json() };
 };
-const made = await call('POST', '/api/connections', { userId: 'alex', appId: 'gemini', scopes: ['goal'] });
+const made = await call('POST', '/api/connections', { userId: 'alex', appId: 'gemini' });
 check('route: connect returns the key once', made.status === 201 && made.body.newKey?.key?.startsWith('cab_'));
 check('route: key hash never sent to the browser', !JSON.stringify(made.body.connections).includes('keyHash'));
 const id = made.body.newKey.connectionId;
-const rd = await call('GET', `/api/connect/${id}`, undefined, { Authorization: `Bearer ${made.body.newKey.key}` });
-check('route: the app reads with the key', rd.status === 200 && Array.isArray(rd.body.items), rd.body);
-check('route: without the key it gets nothing', (await call('GET', `/api/connect/${id}`)).status === 401);
-check('route: the card', (await call('GET', '/api/connections/knows?userId=alex')).body.items.length >= 0);
+const auth = { Authorization: `Bearer ${made.body.newKey.key}` };
+check('route: reading the cabinet is not possible (no GET)', (await fetch(`${base}/api/connect/${id}`, { headers: auth })).status === 404);
+const snd = await call('POST', `/api/connect/${id}`, { profile: '## About me\n- City: Turku' }, auth);
+check('route: the assistant sends its profile; it waits for review', snd.status === 202 && (await call('GET', '/api/profile/inbox?userId=alex')).body.items.length === 1, snd.body);
+check('route: without the key nothing is accepted', (await call('POST', `/api/connect/${id}`, { profile: '- City: X' })).status === 401);
 check('route: another customer cannot pause it', (await call('PATCH', `/api/connections/${id}`, { userId: 'lauri', status: 'paused' })).status === 404);
+const kmd = await fetch(`${base}/api/knows.md?userId=alex`);
+check('route: the .md view', kmd.status === 200 && (await kmd.text()).includes('<!-- abel:read-only -->'));
 server.close();
 
 fs.rmSync(DIR, { recursive: true, force: true });

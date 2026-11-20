@@ -1,38 +1,21 @@
-// Active connections: outside apps linked to the customer's cabinet. Two directions, never mixed:
+// Active connections: outside AI assistants and tools that bring info INTO Abel. Inflow only:
+// nothing in the cabinet is ever read by them.
 //
-//  OUT  AI assistants connected with Abel (Claude, Gemini, ChatGPT, Copilot, or your own). The main
-//       way is IN: the profile the assistant already keeps about the customer comes to Abel's Profile
-//       (pasted by the customer, or sent with the link and key) and is reviewed like a .md import.
-//       Reading Abel back is optional and off unless the customer ticks drawers.
-//       The cabinet is the server: the app connects to US with a link and a key we give the customer.
-//       No address and no protocol question: the same link serves an MCP client or an A2A agent.
-//       What the app gets is decided in code (the ticked drawers only; never private, removed,
-//       disputed or unconfirmed entries; nothing while paused), and every read is logged.
-//       The same link and key let the app SEND info back (if the customer allows it): that goes
-//       through the airlock like any other input and waits for the customer.
+//  AI assistants (Claude, Gemini, ChatGPT, Copilot, or your own): what the assistant already remembers
+//       about the customer comes into Abel's Profile. The customer pastes the assistant's answer, or the
+//       assistant sends it with a link and key (POST /api/connect/:id). Either way it waits for review.
+//  Tools (Calendar, Notion, Drive, Todoist, or your own address): Abel connects to the tool's server.
+//       The protocol is read from the address, not asked. What arrives goes through the airlock (the
+//       input pipeline) and waits in "From your inputs"; it never goes straight into the cabinet.
 //
-//  IN   "Bring info in from a tool" (Calendar, Notion, Drive, Todoist, or your own address).
-//       The tool is the server and Abel would connect to it. The protocol is read from the address,
-//       not asked. Whatever arrives goes through the airlock (the input pipeline) and waits in
-//       "Waiting for you": it never goes straight into the cabinet.
-//
-// Concept demo: Abel does not contact outside tools yet ("Try a sync" sends sample signals through
-// the real airlock), and the OUT link is a simple JSON read endpoint, not a full MCP/A2A server.
+// Concept demo: Abel does not contact outside tools yet ("Try a sync" sends sample signals through the
+// real airlock), and the assistant link is a simple JSON endpoint, not a full MCP or A2A server.
 import crypto from 'crypto';
 import { db } from './db.js';
 import { profileToMarkdown, READ_ONLY_MARK } from './profile.js';
 import { ingest } from './pipeline/engine.js';
 import { listCustomers } from './arch/store/common.js';
 import type { ProfileInboxItem, AccessLogEntry, AppConnection, CabinetEntry, CabinetEntryType, ConnectableApp, ConnectionDirection, ConnectionProtocol } from '../types.js';
-
-export const SCOPES: { type: CabinetEntryType; label: string }[] = [
-  { type: 'profile', label: 'Profile' },
-  { type: 'goal', label: 'Goals' },
-  { type: 'life_event', label: 'Life events' },
-  { type: 'preference', label: 'Preferences' },
-  { type: 'fact', label: 'Money facts' },
-];
-const SCOPE_TYPES = new Set(SCOPES.map((s) => s.type));
 
 /** Sample signals a tool would send, so a demo sync shows the airlock at work. */
 const SAMPLE: Record<string, string[]> = {
@@ -43,10 +26,10 @@ const SAMPLE: Record<string, string[]> = {
 };
 
 export const CATALOG: ConnectableApp[] = [
-  { id: 'claude', name: 'Claude', kind: 'assistant', direction: 'out', description: 'AI assistant by Anthropic. Can use what you allow as context when you ask about money.', initials: 'Cl', color: '#C96442' },
-  { id: 'gemini', name: 'Gemini', kind: 'assistant', direction: 'out', description: 'AI assistant by Google. Can ask Abel about what you allow.', initials: 'Ge', color: '#3B6FD8' },
-  { id: 'chatgpt', name: 'ChatGPT', kind: 'assistant', direction: 'out', description: 'AI assistant by OpenAI. Can read what you allow as context.', initials: 'GP', color: '#10A37F' },
-  { id: 'copilot', name: 'Microsoft Copilot', kind: 'assistant', direction: 'out', description: 'AI assistant by Microsoft. Can ask Abel about what you allow.', initials: 'Co', color: '#5B5FC7' },
+  { id: 'claude', name: 'Claude', kind: 'assistant', direction: 'out', description: 'AI assistant by Anthropic. Bring in what it remembers about you.', initials: 'Cl', color: '#C96442' },
+  { id: 'gemini', name: 'Gemini', kind: 'assistant', direction: 'out', description: 'AI assistant by Google. Bring in what it remembers about you.', initials: 'Ge', color: '#3B6FD8' },
+  { id: 'chatgpt', name: 'ChatGPT', kind: 'assistant', direction: 'out', description: 'AI assistant by OpenAI. Bring in what it remembers about you.', initials: 'GP', color: '#10A37F' },
+  { id: 'copilot', name: 'Microsoft Copilot', kind: 'assistant', direction: 'out', description: 'AI assistant by Microsoft. Bring in what it remembers about you.', initials: 'Co', color: '#5B5FC7' },
   { id: 'gcal', name: 'Google Calendar', kind: 'tool', direction: 'in', protocol: 'mcp', description: 'Dates like a move or a trip, so goals line up.', initials: 'Ca', color: '#1A73E8' },
   { id: 'notion', name: 'Notion', kind: 'tool', direction: 'in', protocol: 'mcp', description: 'Your own notes and plans.', initials: 'No', color: '#37352F' },
   { id: 'gdrive', name: 'Google Drive', kind: 'tool', direction: 'in', protocol: 'mcp', description: 'Documents like payslips and contracts.', initials: 'Dr', color: '#188038' },
@@ -72,7 +55,8 @@ const normApp = (a: ConnectableApp & { protocols?: ConnectionProtocol[] }): Conn
 };
 const normConn = (c: AppConnection): AppConnection => {
   const direction = c.direction ?? 'out';
-  return { ...c, direction, scopes: c.scopes ?? [], ...(direction === 'out' ? { canSend: c.canSend !== false } : {}) };
+  // Inflow only: older saved read permissions are dropped.
+  return { ...c, direction, scopes: [], ...(direction === 'out' ? { canSend: c.canSend !== false } : {}) };
 };
 
 export function listApps(userId: string): ConnectableApp[] {
@@ -106,9 +90,6 @@ function checkAddress(raw: unknown): string {
   return url.toString();
 }
 
-const validScopes = (s: unknown): CabinetEntryType[] =>
-  [...new Set((Array.isArray(s) ? s : []).map(String))].filter((t): t is CabinetEntryType => SCOPE_TYPES.has(t as CabinetEntryType));
-
 /** A new key for an OUT connection. Only its hash and last 4 characters are kept; the key is shown once. */
 function newKey() {
   const key = `cab_${crypto.randomBytes(24).toString('base64url')}`;
@@ -116,7 +97,7 @@ function newKey() {
 }
 
 /** Connects an app. OUT returns the key once; IN needs nothing more (a custom IN app has its address). */
-export function connect(userId: string, input: { appId: unknown; scopes?: unknown; canSend?: unknown }) {
+export function connect(userId: string, input: { appId: unknown; canSend?: unknown }) {
   const app = listApps(userId).find((a) => a.id === input.appId);
   if (!app) throw err(404, 'That app is not in the list.');
   const list = listConnections(userId);
@@ -125,10 +106,9 @@ export function connect(userId: string, input: { appId: unknown; scopes?: unknow
   let conn: AppConnection;
   let key: string | undefined;
   if (app.direction === 'out') {
-    const scopes = validScopes(input.scopes); // may be empty: then it reads nothing
     const k = newKey();
     key = k.key;
-    conn = { id: rid('conn'), appId: app.id, direction: 'out', scopes, canSend: input.canSend !== false, status: 'active', keyHash: k.keyHash, keyHint: k.keyHint, createdAt: t, updatedAt: t };
+    conn = { id: rid('conn'), appId: app.id, direction: 'out', scopes: [], canSend: input.canSend !== false, status: 'active', keyHash: k.keyHash, keyHint: k.keyHint, createdAt: t, updatedAt: t };
   } else {
     conn = { id: rid('conn'), appId: app.id, direction: 'in', scopes: [], status: 'active', protocol: app.protocol, createdAt: t, updatedAt: t };
   }
@@ -136,17 +116,13 @@ export function connect(userId: string, input: { appId: unknown; scopes?: unknow
   return { connection: conn, app, key };
 }
 
-export function updateConnection(userId: string, id: string, input: { scopes?: unknown; status?: unknown; canSend?: unknown }) {
+export function updateConnection(userId: string, id: string, input: { status?: unknown; canSend?: unknown }) {
   const list = listConnections(userId);
   const old = list.find((c) => c.id === id);
   if (!old) throw err(404, 'Connection not found');
   const next: AppConnection = { ...old, updatedAt: now() };
-  if (input.scopes !== undefined) {
-    if (old.direction !== 'out') throw err(400, 'A tool that brings info in reads nothing from your cabinet.');
-    next.scopes = validScopes(input.scopes);
-  }
   if (input.canSend !== undefined) {
-    if (old.direction !== 'out') throw err(400, 'Only apps connected with Abel can be allowed to send info.');
+    if (old.direction !== 'out') throw err(400, 'Only assistants send their profile with a key.');
     next.canSend = !!input.canSend;
   }
   if (input.status !== undefined) {
@@ -162,7 +138,7 @@ export function rotateKey(userId: string, id: string) {
   const list = listConnections(userId);
   const old = list.find((c) => c.id === id);
   if (!old) throw err(404, 'Connection not found');
-  if (old.direction !== 'out') throw err(400, 'Only apps that use what Abel knows have a key.');
+  if (old.direction !== 'out') throw err(400, 'Only assistants have a key.');
   const k = newKey();
   const next = { ...old, keyHash: k.keyHash, keyHint: k.keyHint, updatedAt: now() };
   save(userId, list.map((c) => (c.id === id ? next : c)));
@@ -206,19 +182,6 @@ export function removeCustomApp(userId: string, appId: string) {
   return { removed: appId };
 }
 
-/** OUT: exactly what the app may see right now. IN: nothing (a tool reads nothing from the cabinet). */
-export function previewForConnection(userId: string, conn: AppConnection): CabinetEntry[] {
-  if (conn.direction !== 'out' || conn.status !== 'active') return [];
-  const allowed = new Set(conn.scopes);
-  return db.getCabinetEntries(userId).filter((e) =>
-    allowed.has(e.type) && !e.private && (e.status === 'active' || e.status === 'stale') && !(e.source === 'nordea' && !e.reviewed),
-  );
-}
-
-/**
- * OUT read, as the outside app would call it: connection id + key. Fails closed (unknown id, wrong
- * key, paused, IN connection: nothing). Every successful read is logged where "Who sees it" shows reads.
- */
 /** The key decides everything: which customer, which connection. Fails closed. */
 function byKey(connId: string, key: string) {
   const denied = () => err(401, 'Unknown connection or wrong key');
@@ -252,20 +215,6 @@ export async function sendWithKey(connId: string, key: string, raw: unknown, pro
   return { app, heard: list.length, waiting: r.candidates.length };
 }
 
-export function readWithKey(connId: string, key: string): { app: ConnectableApp; entries: CabinetEntry[]; userId: string } {
-  const { owner, conn, app } = byKey(connId, key);
-  if (!conn.scopes.length) throw err(403, 'The customer has not allowed this app to read anything.');
-  const entries = previewForConnection(owner.id, conn);
-  const log: AccessLogEntry = {
-    id: `log-${Date.now()}-${crypto.randomBytes(2).toString('hex')}`, timestamp: now(), userId: owner.id,
-    agentId: `conn:${app.id}`, agentName: app.name, purpose: `Connected app read (${conn.scopes.join(', ')})`,
-    itemsReadCount: entries.length, blockedCount: 0, allowedItems: entries.map((e) => e.title), allowedIds: entries.map((e) => e.id), blockedReasons: [],
-  };
-  db.addAccessLogEntry(log);
-  save(owner.id, listConnections(owner.id).map((c) => (c.id === connId ? { ...c, lastUsedAt: log.timestamp } : c)));
-  return { app, entries, userId: owner.id };
-}
-
 /** IN, demo: sends the tool's sample signals through the real airlock. They wait for the customer. */
 export async function trySync(userId: string, id: string) {
   const conn = listConnections(userId).find((c) => c.id === id);
@@ -296,8 +245,7 @@ const TYPE_LABEL: Partial<Record<CabinetEntryType, string>> = { profile: 'Profil
 
 /**
  * "What Abel knows about you", for the card shown when a connection starts: a few headline facts and
- * one square per thing in the cabinet. `shareable` uses the same rule as previewForConnection, so the
- * card can show exactly which squares a connection with the ticked drawers would see.
+ * one square per thing in the cabinet, with where it came from and whether Abel uses it.
  */
 export function knowsSummary(userId: string) {
   const u = user(userId);
@@ -320,7 +268,6 @@ export function knowsSummary(userId: string) {
       private: e.private, fromNordea: e.source === 'nordea', source: e.source, status: e.status, why: e.why,
       at: (e.updatedAt || e.createdAt).slice(0, 10), reviewed: e.reviewed, offers: !!e.readableBy?.offers,
       abelUses: e.readableBy?.abel !== false && (e.status === 'active' || e.status === 'stale') && !(e.source === 'nordea' && !e.reviewed),
-      shareable: !e.private && (e.status === 'active' || e.status === 'stale') && !(e.source === 'nordea' && !e.reviewed) && SCOPE_TYPES.has(e.type),
     })),
   };
 }

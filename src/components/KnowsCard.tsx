@@ -1,11 +1,9 @@
 import React from 'react';
-import type { CabinetEntryType } from '../types.js';
 import type { KnowsSummary } from '../services/api.js';
 
-// "What Abel knows about you": a record card shown when a connection starts. The layout is a
-// record card with a header band, a pixel portrait, a big serif name, a facts grid, and a 10×10
-// grid where each square is 1% of what Abel knows: filled = this app gets it, plain = it stays with
-// Abel, hatched = private, never shared. Our own colours (Nordea navy), no outside artwork.
+// "What Abel knows about you": a record card with a header band, a pixel portrait, a big serif name,
+// a facts grid, and a 10×10 grid where each square is 1% of what Abel knows: filled = Abel uses it,
+// hatched = private (only Abel), pale = not used. Our own colours (Nordea navy), no outside artwork.
 
 function hash(s: string) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
 
@@ -40,18 +38,14 @@ const PixelAvatar: React.FC<{ name: string }> = ({ name }) => {
   );
 };
 
-/**
- * mode "share": what one app would see (filled = it sees it). mode "self": what Abel itself uses
- * (filled = used, hatched = private: Abel uses it but it is never shared, plain = not used).
- */
-export const KnowsCard: React.FC<{ data: KnowsSummary; appName?: string; scopes?: CabinetEntryType[]; reads?: boolean; mode?: 'share' | 'self' }> = ({ data, appName = 'Abel', scopes = [], reads = false, mode = 'share' }) => {
-  const self = mode === 'self';
-  const sees = (i: KnowsSummary['items'][number]) => (self ? i.abelUses && !i.private : reads && i.shareable && scopes.includes(i.type));
+/** What Abel knows and uses: filled = Abel uses it, hatched = private (only Abel), pale = not used. */
+export const KnowsCard: React.FC<{ data: KnowsSummary; note?: string }> = ({ data, note }) => {
+  const sees = (i: KnowsSummary['items'][number]) => i.abelUses && !i.private;
   const total = data.items.length;
   const seen = data.items.filter(sees).length;
-  const priv = data.items.filter((i) => i.private && (!self || i.abelUses)).length;
+  const priv = data.items.filter((i) => i.private && i.abelUses).length;
   const nordea = data.items.filter((i) => i.fromNordea).length;
-  const pct = total ? Math.round(((self ? seen + priv : seen) / total) * 100) : 0;
+  const pct = total ? Math.round(((seen + priv) / total) * 100) : 0;
   const seenPct = total ? Math.round((seen / total) * 100) : 0;
   const privPct = total ? Math.round((priv / total) * 100) : 0;
   const code = `AB-${new Date().getFullYear()}-${String(hash(data.name) % 900 + 100)}`;
@@ -95,27 +89,27 @@ export const KnowsCard: React.FC<{ data: KnowsSummary; appName?: string; scopes?
         </div>
 
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-          <div style={{ ...label, marginBottom: 8 }}>{self ? 'Use map · one square = 1% · filled = Abel uses it · hatched = private, only Abel · pale = not used' : `Share map · one square = 1% · filled = ${appName} sees it · hatched = private, never shared`}</div>
+          <div style={{ ...label, marginBottom: 8 }}>Use map · one square = 1% · filled = Abel uses it · hatched = private, only Abel · pale = not used</div>
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <svg viewBox="0 0 100 100" width="128" height="128" role="img" aria-label={`${pct}% of what Abel knows would be shared with ${appName}`} style={{ flex: 'none' }}>
+            <svg viewBox="0 0 100 100" width="128" height="128" role="img" aria-label={`Abel uses ${pct}% of what it knows about you`} style={{ flex: 'none' }}>
               <defs>
                 <pattern id="kc-hatch" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1" height="2.4" fill="#1d1b18" /></pattern>
               </defs>
               {Array.from({ length: 100 }, (_, n) => {
                 const x = (n % 10) * 10, y = Math.floor(n / 10) * 10;
-                const kind = n < seenPct ? 'seen' : (self ? n < seenPct + privPct : n >= 100 - privPct) ? 'private' : 'kept';
+                const kind = n < seenPct ? 'seen' : n < seenPct + privPct ? 'private' : 'kept';
                 return <rect key={n} x={x + 0.8} y={y + 0.8} width="8.4" height="8.4" rx="0.8"
                   fill={kind === 'seen' ? green : kind === 'private' ? 'url(#kc-hatch)' : 'rgba(47,125,109,.16)'}
                   stroke={kind === 'private' ? '#1d1b18' : 'none'} strokeWidth="0.6" />;
               })}
             </svg>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: serif, fontSize: 52, fontWeight: 700, color: reads || self ? green : 'var(--muted)', lineHeight: 0.95 }}>{pct}%</div>
+              <div style={{ fontFamily: serif, fontSize: 52, fontWeight: 700, color: green, lineHeight: 0.95 }}>{pct}%</div>
               <div style={{ fontSize: 12.5, color: 'var(--ink)', marginTop: 4 }}>
-                {self ? 'of what Abel knows about you, Abel uses when it helps you' : reads ? `of what Abel knows about you, ${appName} would see` : `${appName} reads none of it. What it sends you review first.`}
+                {note || 'of what Abel knows about you, Abel uses when it helps you'}
               </div>
               <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>
-                {self ? `${seen + priv} of ${total} used${total - seen - priv ? ` · ${total - seen - priv} not used` : ''}` : `${seen} of ${total} things`}{priv ? ` · ${priv} private` : ''}
+                {`${seen + priv} of ${total} used${total - seen - priv ? ` · ${total - seen - priv} not used` : ''}`}{priv ? ` · ${priv} private` : ''}
               </div>
             </div>
           </div>
@@ -123,7 +117,7 @@ export const KnowsCard: React.FC<{ data: KnowsSummary; appName?: string; scopes?
       </div>
 
       <div style={{ borderTop: '1px solid var(--line)', padding: '9px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <b style={{ fontSize: 13.5, color: 'var(--ink)' }}>{self ? 'Is this you?' : 'Who gets to know you?'}</b>
+        <b style={{ fontSize: 13.5, color: 'var(--ink)' }}>Is this you?</b>
         <span style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12, fontWeight: 700, color: accent, whiteSpace: 'nowrap' }}>abel · nordea</span>
       </div>
     </div>

@@ -1,10 +1,11 @@
 // Active connections routes. Customer side: list, connect, change, pause, new key, disconnect, own apps,
-// and a demo sync for tools. App side (OUT): GET /api/connect/:id with "Authorization: Bearer <key>".
+// and a demo sync. Assistant side: POST /api/connect/:id with "Authorization: Bearer <key>" sends its
+// profile of the customer, which waits for review. Inflow only: there is no way to read the cabinet.
 import type { Express, Request, Response } from 'express';
 import { db } from './db.js';
 import {
-  SCOPES, listApps, listConnections, connect, updateConnection, rotateKey, disconnect,
-  addCustomApp, removeCustomApp, previewForConnection, readWithKey, sendWithKey, trySync, knowsSummary,
+  listApps, listConnections, connect, updateConnection, rotateKey, disconnect,
+  addCustomApp, removeCustomApp, sendWithKey, trySync, knowsSummary,
   listInbox, dropInbox, PROFILE_PROMPT, knowsMarkdown,
 } from './connections.js';
 
@@ -17,13 +18,9 @@ export function registerConnectionsRoutes(app: Express) {
     return userId;
   };
   const view = (userId: string, extra: Record<string, unknown> = {}) => ({
-    scopes: SCOPES,
     apps: listApps(userId),
     // Key hashes never leave the server.
-    connections: listConnections(userId).map(({ keyHash, ...c }) => {
-      const sees = previewForConnection(userId, { keyHash, ...c });
-      return { ...c, hasKey: !!keyHash, sees: sees.length, seesTitles: sees.slice(0, 30).map((e) => e.title) };
-    }),
+    connections: listConnections(userId).map(({ keyHash, ...c }) => ({ ...c, hasKey: !!keyHash })),
     ...extra,
   });
 
@@ -84,19 +81,6 @@ export function registerConnectionsRoutes(app: Express) {
     try {
       const r = await sendWithKey(req.params.id, bearer(req), req.body?.items ?? req.body?.text, req.body?.profile);
       res.status(202).json({ received: r.heard, waitingForCustomer: r.waiting, note: 'Nothing is used until the customer approves it.' });
-    } catch (e) { fail(res, e); }
-  });
-
-  // The connected app reads what the customer allowed. No customer id in the request: the key decides.
-  app.get('/api/connect/:id', (req, res) => {
-    const key = bearer(req);
-    try {
-      const r = readWithKey(req.params.id, key);
-      res.set('Cache-Control', 'no-store').json({
-        app: r.app.name,
-        note: 'Shared by the customer through Nordea Abel. Use only to help this customer.',
-        items: r.entries.map((e) => ({ type: e.type, title: e.title, detail: e.detail, ...(e.target ? { target: e.target } : {}), updatedAt: e.updatedAt })),
-      });
     } catch (e) { fail(res, e); }
   });
 }
