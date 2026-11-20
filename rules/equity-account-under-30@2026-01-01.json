@@ -43,6 +43,7 @@
     "ageLimit": 30
   },
   "message": "Under {ageLimit}, you can open Nordea’s equity savings account for free. Trades and dividends inside it are not taxed until you take money out. What to invest in is a question for a Nordea adviser.",
+  "earns": "Fees on funds or trades if you invest through Nordea.",
   "tests": [
     {
       "name": "17 is too young",

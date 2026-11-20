@@ -50,6 +50,8 @@
   },
   "compute": "aspPlan",
   "message": "ASP pays {interest} % interest plus a {bonus} % bonus, tax-free, when the savings go to your first home. You need {deposits} monthly deposits of {minDeposit}–{maxDeposit} €; start this month and the last one lands in {twentiethDepositMonth}. Your ASP savings need to cover {share} % of your share of the price.",
+  "earns": "The interest margin on your savings, and on a home loan if you later take one with Nordea.",
+  "cta": "Open an ASP account",
   "tests": [
     {
       "name": "eligible at 31",

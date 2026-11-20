@@ -35,6 +35,7 @@
     "endDate": "1 January 2027"
   },
   "message": "PS payments made by {lastDay} can still be deducted in tax, up to {max} € this year. The deduction ends on {endDate}. If your balance is {max} € or less on {endDate}, you can withdraw it in the next two years at the normal capital income tax, so check your balance before paying in more.",
+  "earns": "Nordea earns nothing from this information.",
   "tests": [
     {
       "name": "PS saver in November",

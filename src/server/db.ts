@@ -399,6 +399,7 @@ class Database {
       ...(profile?.offersOff !== undefined ? { offersOff: profile.offersOff } : {}),
       ...(profile?.extraMonthly !== undefined ? { extraMonthly: profile.extraMonthly } : {}),
       ...(profile?.nordeaData ? { nordeaData: profile.nordeaData } : {}),
+      ...(profile?.advice ? { advice: profile.advice } : {}),
     };
   }
 

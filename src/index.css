@@ -811,3 +811,13 @@ span.cam-x{background:none}
 .ncard.notice .nt-t{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
 .ncard.notice .nt-t span{color:var(--ink-2);font-size:13.5px}
 .ncard.notice .nt-go{font-weight:700;color:var(--brand-soft)}
+
+/* v26: recommender cards (question and suggestion) */
+.offer.adv .adv-msg{font-weight:400;font-size:14px;line-height:1.45}
+.offer.adv .adv-why{display:block;font-size:13px}.offer.adv .adv-why ul{margin:6px 0 0;padding-left:18px;line-height:1.45}
+.offer.adv .adv-from{color:var(--muted)}
+.offer.adv .adv-src{font-size:13px}.offer.adv .adv-src a{color:var(--brand)}
+.offer.adv .adv-fold{display:flex;flex-direction:row;padding:12px 14px;justify-content:space-between;align-items:center;width:100%;background:none;border:0;border-top:1px solid var(--line);font:inherit;font-size:13px;text-align:left;cursor:pointer;color:inherit}
+.offer.adv .adv-3 .btn{flex:1}
+.offer.adv .adv-date{flex-wrap:wrap}.offer.adv .adv-date input{flex:1 1 100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit}
+.offer.adv .adv-done{padding:10px 14px 2px}

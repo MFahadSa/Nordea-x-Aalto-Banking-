@@ -37,6 +37,7 @@
     "threshold": 2500
   },
   "message": "If you finish your degree within Kela’s deadline, Kela pays {pct} % of your student loan above {threshold} €. Usually you do not need to apply. Paying the loan back early while you study can lower the amount.",
+  "earns": "Nordea earns nothing from this. Your student loan, if it is with Nordea, earns interest as usual.",
   "tests": [
     {
       "name": "started on the first eligible day",
