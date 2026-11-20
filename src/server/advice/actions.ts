@@ -125,20 +125,25 @@ export function handleAdviceAction(userId: string, card: MessageCard | undefined
   return fail(400, 'Unknown action');
 }
 
-function answer(userId: string, ruleId: string, fact: FactKey, value: boolean | string, shown: string, today: string, where: 'chat' | 'home'): AdviceResult {
+/** Save the customer's answer as a fact in the cabinet (older answers to the same question are archived). */
+export function saveAnswer(userId: string, ruleId: string, fact: FactKey, value: boolean | string, shown: string, how = 'You told Abel'): CabinetEntry {
   const now = new Date().toISOString();
-  // A new answer replaces older answers to the same question (they are archived, not deleted).
   for (const e of db.getCabinetEntries(userId)) {
     if (e.factKey === fact && e.status !== 'archived') db.updateCabinetEntry(e.id, { status: 'archived', updatedAt: now }, { by: 'you' } as any);
   }
   const rule = catalogue().find((r) => r.id === ruleId);
   const entry: CabinetEntry = {
     id: `fact-${fact}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    userId, type: 'fact', title: `${FACTS[fact].label}: ${shown}`, detail: `You told Abel${rule ? `, for “${rule.title}”` : ''}.`,
+    userId, type: 'fact', title: `${FACTS[fact].label}: ${shown}`, detail: `${how}${rule ? `, for “${rule.title}”` : ''}.`,
     source: 'customer', status: 'active', private: false, readableBy: { abel: true, offers: false },
     provenance: { channel: 'app' }, reviewed: true, factKey: fact, factValue: value, createdAt: now, updatedAt: now,
   };
   db.addCabinetEntry(entry, { by: 'you' } as any);
+  return entry;
+}
+
+function answer(userId: string, ruleId: string, fact: FactKey, value: boolean | string, shown: string, today: string, where: 'chat' | 'home'): AdviceResult {
+  const entry = saveAnswer(userId, ruleId, fact, value, shown);
 
   const { ev, rule: live, facts, blocked, calm } = recheck(userId, ruleId, today);
   const base = { ok: true, status: 200, resolved: shown, saved: [entry.id] };

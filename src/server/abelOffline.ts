@@ -49,15 +49,23 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
     const lines = [
       `Exciting! Flats in ${place} 🏡`,
       st ? `For “${st.title}” you have ${eur(st.saved)} of ${eur(st.target)} saved. At ${eur(st.monthlyGoingIn)} a month you’d have about ${eur(st.projectedByTargetDate)} by ${month(st.targetDate)}.` : '',
-      !u.offersOff ? 'Here’s a partner that lists homes for sale.' : 'If you’d like, I can connect you with a Nordea home loan adviser.',
+      'If you’d like, a Nordea home loan adviser can look at it with you.',
     ].filter(Boolean);
     return {
       text: lines.join('\n\n'),
       suggestions: ['How much can I borrow?', 'Am I on track?', 'Talk to a person'],
       usedEntryIds: home ? [home.id] : [],
       topic: 'home_buying',
-      actions: u.offersOff ? [] : [{ name: 'suggestPartnerOffer', args: { partnerId: 'homes' } }],
+      // v28: the homes card (if the words are about looking for a home) is decided by code before this answer.
+      actions: [],
     };
+  }
+
+  // v28: the customer tapped "Yes, move 300 € a month": now the transfer card (nothing moves until confirmed).
+  const mv = t.match(/\b(?:yes,?\s*)?move\s+(\d[\d\s]*)\s*€?\s*(?:a|per|each)\s+(?:month|payday)/);
+  if (mv) {
+    const amount = Number(mv[1].replace(/\s/g, ''));
+    if (amount > 0) return { text: 'Here it is. Nothing moves until you confirm 👇', suggestions: [], usedEntryIds: [], topic: 'saving_plan', actions: [{ name: 'offerTransfer', args: { amountPerMonth: amount } }] };
   }
 
   // Talk to a person.
@@ -90,11 +98,12 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
     const first = fin.goalStatus(userId, goals[0]);
     const offer = !first.onTrack && plan.suggestedExtraMove > 0;
     return {
+      // v28: a question asks for an answer, not a card: the transfer is offered as a quick reply the customer can tap.
       text: parts.join('\n\n') + (offer ? `\n\nWant to move ${eur(plan.suggestedExtraMove)} more each payday?` : ''),
-      suggestions: offer ? [] : ['Plan my next payday', 'Where does my money go?'],
+      suggestions: offer ? [`Yes, move ${plan.suggestedExtraMove} € a month`, 'Plan my next payday'] : ['Plan my next payday', 'Where does my money go?'],
       usedEntryIds: goals.slice(0, 3).map((g) => g.id),
       topic: 'goals',
-      actions: offer ? [{ name: 'offerTransfer', args: { amountPerMonth: plan.suggestedExtraMove } }] : [],
+      actions: [],
     };
   }
 
