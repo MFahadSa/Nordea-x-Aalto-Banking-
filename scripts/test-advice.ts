@@ -180,11 +180,10 @@ check('a second tap on the opened card is refused', (await post('/api/actions', 
 db.cloneUser('alex', 'sara'); db.updateUser('sara', { age: 19, name: 'Sara' } as any);
 plan = [[{ name: 'showOpportunity', args: { ruleId: 'kela-loan-writeoff' } }]];
 const k1 = await chat('sara', 'I just started at Aalto');
-const kq = advCards(k1)[0];
-check('Sara: Kela asks whether she studies at a university first', kq?.data.fact === 'isHigherEducationStudent', advCards(k1));
-const k2 = await post('/api/actions', { userId: 'sara', messageId: kq.messageId, action: 'fact_answer', payload: { value: 'yes' } });
-const kq2 = advCards(k2)[0];
-check('answer "Yes" → the next missing fact is asked at once (a date)', kq2?.type === 'ask_fact' && kq2.data.fact === 'firstStudyPlaceDate' && kq2.data.factType === 'date', advCards(k2));
+const kq2 = advCards(k1)[0];
+// v28: "I just started at Aalto" already says she studies there: that is saved (with Undo), not asked again.
+check('Sara: "I just started at Aalto" is not asked again; the date is asked at once', kq2?.type === 'ask_fact' && kq2.data.fact === 'firstStudyPlaceDate' && kq2.data.factType === 'date', advCards(k1));
+check('…her words are saved as her answer, with Undo, and shown as a note', db.getCabinetEntries('sara').some((e) => e.factKey === 'isHigherEducationStudent' && e.factValue === true && e.status === 'active') && (k1.body.messages || []).some((m: any) => (m.notes || []).some((n: any) => /Studies at a university/i.test(n.text) && n.undoToken)));
 check('a future study date is refused', (await post('/api/actions', { userId: 'sara', messageId: kq2.messageId, action: 'fact_answer', payload: { value: '2099-09-01' } })).status === 400);
 check('a date before 1950 is refused', (await post('/api/actions', { userId: 'sara', messageId: kq2.messageId, action: 'fact_answer', payload: { value: '1900-01-01' } })).status === 400);
 const k3 = await post('/api/actions', { userId: 'sara', messageId: kq2.messageId, action: 'fact_answer', payload: { value: '2026-08-15' } });
@@ -193,17 +192,17 @@ check('the context is complete → the Kela suggestion appears', kc?.type === 'o
 check('her answer shows as a date in words', db.getMessages('sara').find((m) => m.id === kq2.messageId)?.resolved === '15 August 2026');
 
 plan = [[{ name: 'showOpportunity', args: { ruleId: 'gift-limit' } }]];
-const g1 = await chat('sara', 'My parents want to help me with money');
+const g1 = await chat('sara', 'I might need someone to help with cleaning');
 const gq = advCards(g1)[0];
 const g2 = await post('/api/actions', { userId: 'sara', messageId: gq.messageId, action: 'fact_answer', payload: { value: 'notSure' } });
-check('"Not sure": nothing saved as an answer; a pause is recorded', g2.status === 200 && !db.getCabinetEntries('sara').some((e) => e.factKey === 'helpsFamilyWithMoney') && !!db.getUser('sara')?.advice?.skippedFacts?.helpsFamilyWithMoney);
-check('…and that question is not asked again for now', !G.candidatesFor('sara', DEMO_TODAY).list.some((c) => c.ask?.fact === 'helpsFamilyWithMoney'));
+check('"Not sure": nothing saved as an answer; a pause is recorded', gq?.data?.fact === 'paysForHouseholdWork' && g2.status === 200 && !db.getCabinetEntries('sara').some((e) => e.factKey === 'paysForHouseholdWork') && !!db.getUser('sara')?.advice?.skippedFacts?.paysForHouseholdWork, gq);
+check('…and that question is not asked again for now', !G.candidatesFor('sara', DEMO_TODAY).list.some((c) => c.ask?.fact === 'paysForHouseholdWork'));
 
 // Changing an answer: the old one is archived, never two at once (no conflict from our own card).
 db.cloneUser('alex', 'juha'); db.updateUser('juha', { age: 45, name: 'Juha' } as any);
 db.addCabinetEntry({ id: 'juha-goal', userId: 'juha', type: 'goal', goalType: 'home', title: 'Buy a home', detail: '', source: 'customer', status: 'active', private: false, readableBy: { abel: true, offers: true }, provenance: { channel: 'app' }, reviewed: true, createdAt: `${DEMO_TODAY}T08:00:00Z`, updatedAt: `${DEMO_TODAY}T08:00:00Z`, target: { amount: 20000, date: '2028-01-01' } } as any, { by: 'you' } as any);
 plan = [[{ name: 'showOpportunity', args: { ruleId: 'asp-account' } }]];
-const j1 = await chat('juha', 'We want to buy a home');
+const j1 = await chat('juha', 'We are saving to buy a home');
 const jq = advCards(j1)[0];
 const j2 = await post('/api/actions', { userId: 'juha', messageId: jq.messageId, action: 'fact_answer', payload: { value: 'yes' } });
 check('Juha has owned a home: told kindly that ASP does not apply, no further question', j2.status === 200 && /doesn’t apply/.test(j2.body.messages.at(-1).text) && advCards(j2).length === 0, j2.body);
@@ -242,8 +241,9 @@ db.cloneUser('alex', 'mia'); db.updateUser('mia', { age: 33, name: 'Mia' } as an
 const tries: [string, any[][], (r: any) => boolean][] = [
   ['a made-up rule id', [[{ name: 'showOpportunity', args: { ruleId: 'free-money' } }]], (r) => advCards(r).length === 0],
   ['a rule the customer does not qualify for (equity at 33)', [[{ name: 'showOpportunity', args: { ruleId: 'equity-account-under-30' } }]], (r) => advCards(r).length === 0],
-  ['two cards in one step', [[{ name: 'showOpportunity', args: { ruleId: 'gift-limit' } }, { name: 'showOpportunity', args: { ruleId: 'household-credit' } }]], (r) => advCards(r).length === 1],
-  ['a suggestion plus a partner offer', [[{ name: 'showOpportunity', args: { ruleId: 'household-credit' } }, { name: 'suggestPartnerOffer', args: { partnerId: 'homes' } }]], (r) => cardsIn(r).filter((c: any) => ['offer', 'opportunity', 'ask_fact'].includes(c.type)).length === 1],
+  // v28: the AI cannot show cards at all any more (code decides from the words), so these show nothing.
+  ['two cards in one step', [[{ name: 'showOpportunity', args: { ruleId: 'gift-limit' } }, { name: 'showOpportunity', args: { ruleId: 'household-credit' } }]], (r) => advCards(r).length === 0],
+  ['a suggestion plus a partner offer', [[{ name: 'showOpportunity', args: { ruleId: 'household-credit' } }, { name: 'suggestPartnerOffer', args: { partnerId: 'homes' } }]], (r) => cardsIn(r).filter((c: any) => ['offer', 'opportunity', 'ask_fact'].includes(c.type)).length === 0],
 ];
 for (const [name, p, ok] of tries) {
   db.updateUser('mia', { advice: {} } as any);

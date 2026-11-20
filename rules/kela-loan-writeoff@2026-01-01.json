@@ -24,7 +24,7 @@
     ]
   },
   "ask": {
-    "isHigherEducationStudent": "Are you studying at a university or a university of applied sciences?",
+    "isHigherEducationStudent": "Are you studying for a degree at a university or UAS?",
     "firstStudyPlaceDate": "When did you first accept a study place at a university or UAS?"
   },
   "action": "inform",

@@ -105,8 +105,20 @@ let chain: Promise<void> = Promise.resolve();
 let lastError = '';
 let lastSavedAt = '';
 
+/** v28: ids written here but not yet confirmed in Supabase (kept in a small file, so a restart knows). */
+const PENDING = () => path.join(DATA_DIR, 'pipeline-unsynced.json');
+let pending: Set<string> | null = null;
+function unsynced(): Set<string> {
+  if (!pending) { try { pending = new Set(JSON.parse(fs.readFileSync(PENDING(), 'utf-8'))); } catch { pending = new Set(); } }
+  return pending;
+}
+function savePending() { try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(PENDING(), JSON.stringify([...unsynced()])); } catch { /* best effort */ } }
+
 function mirror(recs: Rec[], removeIds: string[] = [], clearAll = false) {
-  if (!mirrorOn() || mirrorOk === false) return;
+  if (!mirrorOn()) return;
+  if (recs.length) { recs.forEach((r) => unsynced().add(r.id)); savePending(); }
+  if (clearAll) { unsynced().clear(); savePending(); }
+  if (mirrorOk === false) return;
   chain = chain.then(async () => {
     if (clearAll) {
       const { error } = await sb().from(TABLE).delete().neq('id', '');
@@ -122,6 +134,9 @@ function mirror(recs: Rec[], removeIds: string[] = [], clearAll = false) {
     }
     lastError = '';
     lastSavedAt = new Date().toISOString();
+    recs.forEach((r) => unsynced().delete(r.id));
+    removeIds.forEach((id) => unsynced().delete(id));
+    savePending();
   }).catch((e) => { lastError = e instanceof Error ? e.message : String(e); console.error('Pipeline: Supabase save failed:', lastError); });
 }
 
@@ -153,7 +168,10 @@ export async function hydratePipeline(): Promise<string> {
     // (a fresh AI Studio container has nothing local, so this is simply "load from Supabase").
     const s = load();
     const remoteIds = new Set(all.map((r) => r.id));
-    const localOnly = [...s.runs.map(recOf('run')), ...s.candidates.map(recOf('candidate')), ...s.cases.map(recOf('case'))].filter((r) => !remoteIds.has(r.id));
+    // v28: only records this server made and never got into Supabase go up. Anything else that is here but not
+    // in Supabase was deleted there (a reset on another copy of the app): it must not come back.
+    const pend = unsynced();
+    const localOnly = [...s.runs.map(recOf('run')), ...s.candidates.map(recOf('candidate')), ...s.cases.map(recOf('case'))].filter((r) => !remoteIds.has(r.id) && pend.has(r.id));
     const merged = [...all, ...localOnly];
     st = {
       runs: merged.filter((r) => r.kind === 'run').map((r) => r.data as PipeRun),

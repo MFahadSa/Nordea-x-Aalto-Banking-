@@ -32,7 +32,7 @@
     ]
   },
   "ask": {
-    "interestedInInvesting": "Are you interested in investing in shares or funds?"
+    "interestedInInvesting": "Would you like to start investing, for example in funds?"
   },
   "action": "inform",
   "regulated": true,
