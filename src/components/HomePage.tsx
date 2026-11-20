@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AppState } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
-import { Icon, Bell, Chevron } from '../ui/icons.js';
-import { nfi, ago } from '../ui/format.js';
+import { Icon, Bell } from '../ui/icons.js';
+import { nfi, eur, ago } from '../ui/format.js';
 import { HELPERS, HELPER_ORDER } from '../ui/helpers.js';
-import { LOGO_WHITE } from '../constants/logos.js';
-import { BAND_BG, RoundActions, NRow, Band, NChev } from './Nordea.js';
+import { BAND_BG, NRow, Band, NChev } from './Nordea.js';
 import { ForYou } from './Advice.js';
 
 interface Props {
@@ -49,34 +48,77 @@ export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame:
         </button>
       </span>
     </div>
-    <img className="nlogo c" src={LOGO_WHITE} alt="Nordea" />
-    <p className="nwelcome">Welcome, {state.user.name}!</p>
-    {/* Pay, Scan invoice and Transfer belong to the existing Nordea app. "Ask Abel" is what this concept adds. */}
-    {/* Abel first: a bar that opens the chat. Pay, Scan invoice and Transfer belong to the existing Nordea app. */}
+    {/* v30: laid out like the bank's own overview: the welcome on the left, quick actions in a card below. */}
+    <h1 className="nwelcome left">Welcome, {state.user.name}!</h1>
+    {/* What this concept adds: a bar that opens the chat with Abel. */}
     <button className="ask-bar" onClick={onAsk}>
       <Icon name="spark" />
       <span>Ask Abel anything…</span>
       <i className="live-dot" aria-hidden="true" />
     </button>
-    <RoundActions
-      actions={[
-        { icon: 'pay', label: 'Pay', onClick: () => onFrame('Payments') },
-        { icon: 'scan', label: 'Scan invoice', onClick: () => onFrame('Scanning invoices') },
-        { icon: 'transfer', label: 'Transfer', onClick: () => onFrame('Transfers') },
-      ]}
-    />
   </header>
+);
+
+/** v30: the bank's own quick actions, in a card as in the Nordea app. They are not part of this concept, and say so before a tap. */
+export const QuickActions: React.FC<{ onFrame: (w: string) => void }> = ({ onFrame }) => (
+  <section className="ncard qa-card" aria-labelledby="qa-h">
+    <div className="qa-h">
+      <h2 id="qa-h">Quick actions</h2>
+      <button className="qa-all" onClick={() => onFrame('Quick actions')}>Show all</button>
+    </div>
+    <div className="qa-row">
+      {[
+        { icon: 'pay', label: 'Pay', what: 'Payments' },
+        { icon: 'scan', label: 'Scan invoice', what: 'Scanning invoices' },
+        { icon: 'transfer', label: 'Transfer', what: 'Transfers' },
+        { icon: 'search', label: 'Search', what: 'Search' },
+      ].map((a) => (
+        <button key={a.label} className="qa" onClick={() => onFrame(a.what)}>
+          <span className="qa-c" aria-hidden="true"><Icon name={a.icon} /></span>
+          <span className="qa-l">{a.label}</span>
+        </button>
+      ))}
+    </div>
+    <p className="qa-note"><b>Concept only</b>These are the bank’s own flows, not part of this demo</p>
+  </section>
 );
 
 export const HomePage: React.FC<Props> = (p) => {
   const { state } = p;
   const [feedAll, setFeedAll] = useState(false);
   const [accOpen, setAccOpen] = useState(false);
+  // v30: the bell takes you to "From Abel", opened and marked (it used to open it off screen).
+  const [fromBell, setFromBell] = useState(false);
+  const abelRef = useRef<HTMLDivElement>(null);
+  const bell = () => {
+    setFeedAll(true);
+    setFromBell(true);
+    requestAnimationFrame(() => abelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+  useEffect(() => {
+    if (!fromBell) return;
+    const t = setTimeout(() => setFromBell(false), 4000);
+    return () => clearTimeout(t);
+  }, [fromBell]);
   const [whyId, setWhyId] = useState<string | null>(null);
   const feed = feedItems(state.entries);
   const acc = state.accounts;
   const available = acc.current.balance + acc.savings.balance + (acc.carFund?.balance || 0);
   const carGoal = state.entries.find((e) => e.goalType === 'car' && e.status !== 'archived');
+
+  const forYou = state.advice?.forYou && p.onAdviceAnswer ? state.advice.forYou : null;
+  const abelCount = feed.length + (forYou ? 1 : 0);
+  const forYouCard = forYou && (
+    <ForYou key={`${forYou.data?.ruleId}-${forYou.type}-${forYou.data?.fact || ''}`} card={forYou} busy={!!p.adviceBusy} inList
+      onAnswer={p.onAdviceAnswer!} onShow={p.onAdviceShow!} onNotNow={p.onAdviceNotNow!} />
+  );
+  const goals = state.goals || [];
+  const mainGoal = goals.find((g) => /flat|home|house|apartment/i.test(g.title)) || goals[0];
+  const accounts = [
+    { name: 'Current account', a: acc.current },
+    { name: 'Savings account', a: acc.savings },
+    ...(acc.carFund && carGoal ? [{ name: 'Car fund', a: acc.carFund }] : []),
+  ];
 
   const card = (e: CabinetEntry) =>
     e.status === 'stale' ? (
@@ -112,7 +154,7 @@ export const HomePage: React.FC<Props> = (p) => {
 
   return (
     <>
-      <HomeHeader state={state} feedCount={feed.length} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onUsers={p.onOpenUsers} onBell={() => setFeedAll(true)} />
+      <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onUsers={p.onOpenUsers} onBell={bell} />
       <div className="nbody">
         {(state.notices || []).map((n) => (
           <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
@@ -122,7 +164,8 @@ export const HomePage: React.FC<Props> = (p) => {
           </button>
         ))}
         {/* The existing Nordea app: shown so Abel sits in a familiar place. Tapping says so. */}
-        <div className="ncard first">
+        <QuickActions onFrame={p.onFrame} />
+        <div className="ncard">
           <button className="nrow2 head" onClick={() => p.onFrame('Payments')}>
             <span className="n-l">
               <span className="n-name b">Payments and e-invoices</span>
@@ -132,38 +175,55 @@ export const HomePage: React.FC<Props> = (p) => {
           </button>
         </div>
         <div className="ncard">
-          <button className="nrow2 head acc-toggle" onClick={() => setAccOpen(!accOpen)} aria-expanded={accOpen}>
+          {/* v30: as in the bank's overview: the first accounts with amounts, then "Showing 2 of 3". */}
+          <button className="nrow2 head" onClick={() => p.onFrame('Accounts')}>
             <span className="n-l">
               <span className="n-name b">Accounts and cards</span>
               <span className="n-sub">Available {nfi(available)}</span>
             </span>
-            <span className="nchev" aria-hidden="true"><Chevron rotate={accOpen ? -90 : 90} /></span>
+            <NChev />
           </button>
-          {accOpen && (
-            <div className="acc-list">
-              <NRow name="Current account" sub={acc.current.iban} amount={nfi(acc.current.balance)} onClick={() => p.onFrame('Accounts')} />
-              <NRow name="Savings account" sub={acc.savings.iban} amount={nfi(acc.savings.balance)} onClick={() => p.onFrame('Accounts')} />
-              {acc.carFund && carGoal && <NRow name="Car fund" sub={acc.carFund.iban} amount={nfi(acc.carFund.balance)} onClick={() => p.onFrame('Accounts')} />}
-              <NRow name="Spent this month" sub="Current account" amount={nfi(state.spentThisMonth)} />
-            </div>
-          )}
+          <div className="acc-list">
+            {(accOpen ? accounts : accounts.slice(0, 2)).map((x) => (
+              <NRow key={x.name} name={x.name} sub={x.a.iban} amount={nfi(x.a.balance)} onClick={() => p.onFrame('Accounts')} />
+            ))}
+            {accOpen && <NRow name="Spent this month" sub="Current account" amount={nfi(state.spentThisMonth)} />}
+            <button className="acc-more" onClick={() => setAccOpen(!accOpen)} aria-expanded={accOpen}>
+              {accOpen ? 'Show less' : accounts.length > 2 ? `Showing 2 of ${accounts.length} accounts · Show all` : 'Show spending this month'}
+            </button>
+          </div>
+        </div>
+        <div className="ncard">
+          <button className="nrow2 head" onClick={() => p.onOpenPage('knows')}>
+            <span className="n-l">
+              <span className="n-name b">Save and invest</span>
+              <span className="n-sub">
+                {mainGoal ? `${mainGoal.title}: ${eur(mainGoal.saved)} of ${eur(mainGoal.target)} · ${goals.length} ${goals.length === 1 ? 'goal' : 'goals'}` : 'Create or view a savings goal'}
+              </span>
+            </span>
+            <NChev />
+          </button>
         </div>
 
-        {feed.length > 0 && (
+        {/* v30: one place for everything from Abel (what Nordea noticed, old goals, and the one question or
+            suggestion). Home shows the first; the rest are one tap away. */}
+        <div ref={abelRef} className={`abel-anchor${fromBell ? ' from-bell' : ''}`}>
+          {abelCount > 0 ? (
+            <Band left={fromBell ? `From Abel · ${abelCount} new` : 'From Abel'} right={fromBell ? 'From the bell' : feedAll || abelCount === 1 ? `${abelCount} for you` : `1 of ${abelCount}`} />
+          ) : fromBell ? (
+            <><Band left="From Abel" /><p className="abel-none">Nothing new from Abel right now.</p></>
+          ) : null}
+        </div>
+        {feedAll ? (
           <>
-            <Band left="From Abel" right={`${feed.length} for you`} />
-            {feedAll ? feed.map(card) : card(feed[0])}
-            {!feedAll && feed.length > 1 && (
-              <button className="nshowall plain" onClick={() => setFeedAll(true)}>
-                Show {feed.length - 1} more
-              </button>
-            )}
+            {feed.map(card)}
+            {forYouCard}
           </>
-        )}
-
-        {state.advice?.forYou && p.onAdviceAnswer && (
-          <ForYou key={`${state.advice.forYou.data?.ruleId}-${state.advice.forYou.type}-${state.advice.forYou.data?.fact || ''}`} card={state.advice.forYou} busy={!!p.adviceBusy}
-            onAnswer={p.onAdviceAnswer} onShow={p.onAdviceShow!} onNotNow={p.onAdviceNotNow!} />
+        ) : feed.length ? card(feed[0]) : forYouCard}
+        {!feedAll && abelCount > 1 && (
+          <button className="nshowall plain" onClick={() => setFeedAll(true)}>
+            See all {abelCount} from Abel
+          </button>
         )}
 
         <div className="ncard">

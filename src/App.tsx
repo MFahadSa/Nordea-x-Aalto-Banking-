@@ -3,7 +3,7 @@ import { PhoneFrame } from './components/PhoneFrame.js';
 import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
 import { HomePage } from './components/HomePage.js';
-import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, DeleteDocSheet, ConfirmSheet } from './components/Pages.js';
+import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, PresenterPage, DeleteDocSheet, ConfirmSheet } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
 import { SuggestSettingSheet } from './components/Advice.js';
 import { adviceHome, adviceShow, adviceSetting, adviceChange } from './services/api.js';
@@ -35,7 +35,7 @@ import {
   deleteChat,
 } from './services/api.js';
 
-type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot';
+type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter';
 
 function initialDark() {
   try {
@@ -345,7 +345,7 @@ export default function App() {
 
   const isCalm = state.user.viewMode === 'calm';
   const tab = (k: Page, icon: string, label: string) => {
-    const on = page === k || (k === 'more' && page === 'privacy') || (k === 'home' && page === 'autopilot');
+    const on = page === k || (k === 'more' && (page === 'privacy' || page === 'presenter')) || (k === 'home' && page === 'autopilot');
     return (
       <button key={k} role="tab" aria-selected={on} onClick={() => goPage(k)}>
         <Icon name={icon} />
@@ -521,6 +521,15 @@ export default function App() {
               onBack={() => goPage('knows')}
               onToggleOffers={async () => { await setOffersOff(state.user.id, !state.user.offersOff); setToast({ message: state.user.offersOff ? 'Partner offers are on' : 'Partner offers are off' }); refresh(); }}
               onRevoke={async (id) => { const r = await revokeShare(id); setToast({ message: r.message }); refresh(); }}
+            />
+          )}
+          {page === 'presenter' && (
+            <PresenterPage
+              state={state}
+              onBack={() => goPage('more')}
+              onUsers={() => setUsersOpen(true)}
+              onReset={async () => { await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
+              onRefresh={() => refresh()}
             />
           )}
           {page === 'autopilot' && (
