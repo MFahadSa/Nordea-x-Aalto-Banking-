@@ -1,4 +1,4 @@
-import type { Conversation, Earning, Share, EntryEvent } from '../types.js';
+import type { Conversation, Earning, Share, EntryEvent, AdviceView } from '../types.js';
 import {
   User,
   CabinetEntry,
@@ -189,6 +189,8 @@ export interface AppState {
   /** Files the customer chose to keep. Info only, never the file itself. */
   documents: DocInfo[];
   today: string;
+  /** v27: Home "For you", "Abel's suggestions" and the setting. */
+  advice?: AdviceView;
 }
 export interface DocInfo { id: string; name: string; kind: 'image' | 'pdf' | 'text'; size: number; createdAt: string; expiresAt: string; conversationId?: string; entries: string[] }
 
@@ -322,3 +324,10 @@ export const decidePipelineItem = (userId: string, id: string, action: 'save' | 
   post(`/api/pipeline/${encodeURIComponent(userId)}/items/${encodeURIComponent(id)}`, { action }).then((r) => j<{ item: PipeItem }>(r));
 export const sendToPipeline = (userId: string, source: PipeSource, input: { signals?: { text: string; kind?: string }[]; text?: string; file?: { mimeType: string; data: string; name?: string }; label?: string }) =>
   post('/api/ingest', { userId, source, ...input }).then((r) => j<{ run: PipeRun; candidates: PipeItem[]; message?: string }>(r));
+
+// v27: Abel's suggestions outside the chat.
+export const adviceHome = (userId: string, ruleId: string, version: string, action: string, payload: Record<string, unknown> = {}) =>
+  post('/api/advice/home', { userId, ruleId, version, action, payload }).then((r) => j<AdviceView & { text: string }>(r));
+export const adviceShow = (userId: string, ruleId: string) => post('/api/advice/show', { userId, ruleId }).then((r) => j<{ conversationId: string }>(r));
+export const adviceSetting = (userId: string, proactive: AdviceView['proactive']) => post('/api/advice/setting', { userId, proactive }).then((r) => j<AdviceView>(r));
+export const adviceChange = (userId: string, ruleId: string, what: 'allow' | 'forget') => post('/api/advice/change', { userId, ruleId, what }).then((r) => j<AdviceView & { text: string }>(r));

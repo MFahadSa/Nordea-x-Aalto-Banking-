@@ -5,6 +5,8 @@ import { AddGoalModal } from './components/AddGoalModal.js';
 import { HomePage } from './components/HomePage.js';
 import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, DeleteDocSheet, ConfirmSheet } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
+import { SuggestSettingSheet } from './components/Advice.js';
+import { adviceHome, adviceShow, adviceSetting, adviceChange } from './services/api.js';
 import { Icon } from './ui/icons.js';
 import { CabinetEntry, ChatMessage, PersonaId, User } from './types.js';
 import {
@@ -147,6 +149,30 @@ export default function App() {
     setMessages([]);
     setChatOpen(true);
   };
+  // v27: Abel's suggestions on Home, in What Abel knows and in Settings. Code on the server does the work.
+  const [adviceBusy, setAdviceBusy] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const adviceRun = async (f: () => Promise<{ text?: string } | unknown>, done?: (r: any) => void) => {
+    if (!state || adviceBusy) return;
+    setAdviceBusy(true);
+    try {
+      const r: any = await f();
+      if (r?.text) setToast({ message: r.text });
+      done?.(r);
+    } catch (e: any) {
+      setToast({ message: e?.message || 'That didn’t work' });
+    } finally {
+      setAdviceBusy(false);
+      refresh();
+    }
+  };
+  const fy = state?.advice?.forYou;
+  const adviceAnswer = (value: string) => fy && adviceRun(() => adviceHome(state!.user.id, String(fy.data?.ruleId), String(fy.data?.version), 'fact_answer', { value, fact: fy.data?.fact }));
+  const adviceNotNow = () => fy && adviceRun(() => adviceHome(state!.user.id, String(fy.data?.ruleId), String(fy.data?.version), 'opp_notnow'));
+  const adviceShowMe = () => fy && adviceRun(() => adviceShow(state!.user.id, String(fy.data?.ruleId)), (r) => r?.conversationId && openConversation(r.conversationId));
+  const adviceChangeRule = (ruleId: string, what: 'allow' | 'forget') => adviceRun(() => adviceChange(state!.user.id, ruleId, what));
+  const adviceProactive = (v: 'ask' | 'sometimes' | 'often') => adviceRun(() => adviceSetting(state!.user.id, v));
+
   const openConversation = async (id: string) => {
     viewRef.current++;
     pendingRef.current = 0;
@@ -433,6 +459,9 @@ export default function App() {
                   }}
                 />
               )}
+              {suggestOpen && state.advice && (
+                <SuggestSettingSheet value={state.advice.proactive} busy={adviceBusy} onPick={adviceProactive} onClose={() => setSuggestOpen(false)} />
+              )}
               {toast && (
                 <div className="toast" role="status">
                   <span>{toast.message}</span>
@@ -460,6 +489,10 @@ export default function App() {
               onWrong={(e) => update(e, { status: 'disputed' })}
               onArchive={archive}
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
+              adviceBusy={adviceBusy}
+              onAdviceAnswer={adviceAnswer}
+              onAdviceShow={adviceShowMe}
+              onAdviceNotNow={adviceNotNow}
             />
           )}
           {page === 'knows' && (
@@ -476,6 +509,8 @@ export default function App() {
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
               onDeleteDoc={setDelDocId}
               onChanged={() => refresh()}
+              adviceBusy={adviceBusy}
+              onAdviceChange={adviceChangeRule}
             />
           )}
           {page === 'privacy' && (
@@ -503,6 +538,7 @@ export default function App() {
               onDark={toggleTheme}
               onReset={async () => { await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
               onRefresh={() => refresh()}
+              onSuggest={() => setSuggestOpen(true)}
             />
           )}
         </PhoneFrame>

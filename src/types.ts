@@ -34,11 +34,36 @@ export interface User {
 
 /** v26: per-customer memory of the recommender. Dates are YYYY-MM-DD. */
 export interface AdviceState {
-  rules?: Record<string, { last: 'asked' | 'shown' | 'seen' | 'notNow' | 'never' | 'accepted'; at: string; until?: string }>;
+  rules?: Record<string, { last: 'asked' | 'shown' | 'seen' | 'notNow' | 'never' | 'accepted'; at: string; until?: string; how?: 'opened' | 'adviser' }>;
   /** "Not sure" answers: that fact is not asked again until the date. */
   skippedFacts?: Record<string, { at: string; until: string }>;
   /** Days a suggestion or question was shown (for the calm-view weekly limit). */
   shownOn?: string[];
+  /** v27: how often Abel brings things up on Home by himself. Missing = 'sometimes'. */
+  proactive?: 'ask' | 'sometimes' | 'often';
+  /** v27: the card on Home now ("For you"), and the day it was picked. */
+  home?: { ruleId: string; at: string; moved?: boolean };
+  /** v27: what a suggestion was based on when it was shown ("Why Abel suggested this"). */
+  seen?: Record<string, { version: string; at: string; where: 'chat' | 'home'; reasons: { text: string; from: string }[]; read: number }>;
+}
+
+/** v27: one row of "Abel's suggestions" and its "Why Abel suggested this" sheet. */
+export interface AdviceHistoryItem {
+  ruleId: string;
+  title: string;
+  status: string;
+  last: 'asked' | 'shown' | 'seen' | 'notNow' | 'never' | 'accepted';
+  at: string;
+  until?: string;
+  can: ('allow' | 'forget')[];
+  why?: { where: 'chat' | 'home'; at: string; reasons: { text: string; from: string }[]; read: number; source: { url: string; label: string }; validFrom: string; earns: string; kindLabel: string };
+  answers: { fact: string; label: string; value: string }[];
+}
+
+export interface AdviceView {
+  proactive: 'ask' | 'sometimes' | 'often';
+  forYou: MessageCard | null;
+  history: AdviceHistoryItem[];
 }
 
 export type CabinetEntryType = 'goal' | 'life_event' | 'preference' | 'fact' | 'observation' | 'blind_spot';

@@ -10,7 +10,7 @@ import type { Rule } from './rules.js';
 
 const KIND: Record<Rule['kind'], string> = { product: 'Nordea product', tax: 'Tax rule', state: 'State benefit' };
 
-function sourceLabel(url: string): string {
+export function sourceLabel(url: string): string {
   const host = new URL(url).hostname.replace(/^www\./, '');
   return host === 'vero.fi' ? 'Finnish Tax Administration'
     : host === 'kela.fi' ? 'Kela'
@@ -19,14 +19,14 @@ function sourceLabel(url: string): string {
     : host;
 }
 
-const day = (d: string) => {
+export const shortDay = (d: string) => {
   const [y, m, dd] = d.split('-').map(Number);
   return `${dd} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].at(m - 1)} ${y}`;
 };
 
 function valueWords(k: FactKey, v: unknown): string {
   if (typeof v === 'boolean') return v ? 'yes' : 'no';
-  if (FACTS[k].type === 'date' && typeof v === 'string') return day(v);
+  if (FACTS[k].type === 'date' && typeof v === 'string') return shortDay(v);
   if (k === 'psBalance' && typeof v === 'number') return `${Math.round(v).toLocaleString('fi-FI').replace(/ /g, ' ')} €`;
   if (k === 'incomeType') return ({ salary: 'salary', pension: 'pension', student_aid: 'student aid', none: 'none' } as Record<string, string>)[String(v)] ?? String(v);
   return String(v);
@@ -58,9 +58,9 @@ export function opportunityCard(c: Candidate, facts: Facts, calm: boolean): Mess
     data: {
       ruleId: r.id, version: r.version, kindLabel: KIND[r.kind], message: c.message,
       reasons: reasons(c.used, facts),
-      source: { url: r.source.url, label: `${sourceLabel(r.source.url)} · checked ${day(r.source.checkedAt)}` },
+      source: { url: r.source.url, label: `${sourceLabel(r.source.url)} · checked ${shortDay(r.source.checkedAt)}` },
       earns: /^nordea earns nothing/i.test(r.earns) ? r.earns : `What Nordea earns: ${r.earns.charAt(0).toLowerCase()}${r.earns.slice(1)}`,
-      action: r.action, regulated: r.regulated, cta: r.cta, calm,
+      action: r.action, regulated: r.regulated, cta: r.cta, calm, validFrom: r.validFrom,
       ...(r.regulated ? { adviceNote: 'Advice on this comes from a person, not from Abel.' } : {}),
     },
   };

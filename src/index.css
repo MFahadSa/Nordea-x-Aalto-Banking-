@@ -8,7 +8,7 @@
 /* Layout: a phone on a quiet stage — status bar, scrolling screen, bottom tab bar; setup is a tap-only flow inside the same frame */
 :root{
   --stage:#E7E9F2; --bg:#F5F6FA; --surface:#FFFFFF; --surface-2:#ECEEF6; --line:#D9DCE9;
-  --ink:#10132B; --ink-2:#434866; --muted:#6B7090;
+  --ink:#10132B; --ink-2:#434866; --muted:#5E6385;
   --brand:#0000A0; --brand-ink:#FFFFFF; --brand-soft:#0000A0; --mint:#0000A0;
   --you:#0E7A69; --you-bg:#DCF0EB; --bank:#B0461F; --bank-bg:#FBE7DE; --grey:#5F6B77; --grey-bg:#E7EBEF;
   --ok:#1C7439; --ok-bg:#DCEFE1; --warn:#8A5D00; --warn-bg:#FBEFD0; --danger:#A9261F;
@@ -821,3 +821,38 @@ span.cam-x{background:none}
 .offer.adv .adv-3 .btn{flex:1}
 .offer.adv .adv-date{flex-wrap:wrap}.offer.adv .adv-date input{flex:1 1 100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit}
 .offer.adv .adv-done{padding:10px 14px 2px}
+
+/* v27: Abel's suggestions outside the chat (Home "For you", Why sheet, setting) */
+.adv-home .adv-eq{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}
+.adv-home .adv-eq .btn{min-height:48px;justify-content:center}
+.adv-home .adv-whybtn{align-self:flex-start;min-height:44px;padding:0 4px}
+.adv-note{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.4;background:var(--surface-2);border-radius:12px;padding:10px 12px;margin:0;color:var(--ink-2)}
+.adv-shield{flex:none;color:#b2532f;margin-top:2px}
+.adv-hdate{display:flex;flex-direction:column;gap:10px}
+.adv-lab{display:flex;flex-direction:column;gap:4px;font-size:13.5px;color:var(--ink-2)}
+.adv-lab input{min-height:48px;font:inherit;font-size:16px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+.adv-sheet{max-height:88%;overflow:auto}
+.adv-sheet .adv-h{display:block;font-size:14.5px;margin-top:6px}
+.adv-sheet .adv-ul{margin:6px 0 4px;padding-left:20px;font-size:14.5px;line-height:1.5}
+.adv-sheet .adv-p{margin:4px 0 6px;font-size:14.5px;line-height:1.5}
+.adv-sheet .adv-p a{color:var(--brand-soft);text-decoration:underline}
+.adv-sheet .adv-from,.adv-sheet .adv-muted{color:var(--ink-2)}
+.adv-sheet .adv-small{font-size:13.5px}
+.adv-opts{margin:4px 0 12px}
+.adv-opts .nrow2{min-height:64px}
+.adv-radio{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid #9aa1ad;display:grid;place-items:center}
+.adv-radio.on{border-color:var(--brand-soft)}
+.adv-radio.on i{width:12px;height:12px;border-radius:50%;background:var(--brand-soft)}
+.calm .adv-home p,.calm .adv-note{font-size:17px}
+
+/* v27 accessibility pass: 48 px targets on the new sheets, and bigger controls in the calm view (older customers) */
+.adv-sheet .btn{min-height:48px}
+.adv-home .adv-whybtn{min-height:48px}
+.adv-sheet .adv-p a{display:inline-block;padding:6px 0}
+.calm .chat-ic{width:48px;height:48px}
+.calm .chat-plus,.calm .chat-mic,.calm .chat-send{width:48px;height:48px}
+.calm .nav button{font-size:13px;min-height:56px}
+.calm .from{font-size:14.5px}
+.calm .nh-bell{min-width:44px;min-height:44px;display:inline-grid;place-items:center}
+.calm .nshowall{min-height:44px}
+.calm .ask-bar{min-height:52px}
