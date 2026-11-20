@@ -28,6 +28,17 @@ export interface User {
     carFund?: { iban: string; balance: number; lastContribution?: string };
   };
   points: number;
+  /** v26: what the recommender showed, asked and was told (cooldowns, "never", "not sure"). */
+  advice?: AdviceState;
+}
+
+/** v26: per-customer memory of the recommender. Dates are YYYY-MM-DD. */
+export interface AdviceState {
+  rules?: Record<string, { last: 'asked' | 'shown' | 'seen' | 'notNow' | 'never' | 'accepted'; at: string; until?: string }>;
+  /** "Not sure" answers: that fact is not asked again until the date. */
+  skippedFacts?: Record<string, { at: string; until: string }>;
+  /** Days a suggestion or question was shown (for the calm-view weekly limit). */
+  shownOn?: string[];
 }
 
 export type CabinetEntryType = 'goal' | 'life_event' | 'preference' | 'fact' | 'observation' | 'blind_spot';
@@ -241,7 +252,11 @@ export interface MessageCard {
     /** v21: a Nordea adviser's question about a case, answered in the card. */
     | 'case_request'
     /** v21: Nordea's decision on a case, with the reason and what was used. */
-    | 'case_decision';
+    | 'case_decision'
+    /** v26: one question Abel asks to complete the context for a rule (see src/server/advice). */
+    | 'ask_fact'
+    /** v26: a suggestion built by code from a rule the customer qualifies for. */
+    | 'opportunity';
   title?: string;
   body?: string;
   data?: Record<string, any>;

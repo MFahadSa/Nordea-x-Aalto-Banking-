@@ -33,6 +33,7 @@
     "ownShare": 150
   },
   "message": "You get {rate} % of the work part of the bill back in tax, up to {max} € a person a year, after an own share of {ownShare} €. Keep invoices that show the work part separately.",
+  "earns": "Nordea earns nothing from this.",
   "tests": [
     {
       "name": "pays for cleaning",

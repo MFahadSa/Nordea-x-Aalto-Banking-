@@ -47,15 +47,22 @@ export interface Rule {
   params: Record<string, number | string>;
   compute?: string;
   message: string;
+  /** "What Nordea earns", in words, shown on every card. No numbers. */
+  earns: string;
+  /** Button label for an in-app offer (required when action is appOffer). */
+  cta?: string;
   tests: RuleTest[];
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isDate = (v: unknown): v is string => typeof v === 'string' && DATE.test(v) && !Number.isNaN(Date.parse(v));
 const OPS: Op[] = ['eq', 'ne', 'gte', 'gt', 'lte', 'lt', 'in'];
-const RULE_KEYS = ['id', 'version', 'title', 'kind', 'validFrom', 'validTo', 'source', 'reviewDays', 'when', 'ask', 'timing', 'action', 'regulated', 'uses', 'params', 'compute', 'message', 'tests', '_note'];
+const RULE_KEYS = ['id', 'version', 'title', 'kind', 'validFrom', 'validTo', 'source', 'reviewDays', 'when', 'ask', 'timing', 'action', 'regulated', 'uses', 'params', 'compute', 'message', 'earns', 'cta', 'tests', '_note'];
 
 /** Values a compute step adds to the message, by name. Kept here so validation knows them. */
+/** Rules whose in-app offer has code that carries it out (src/server/advice/actions.ts). */
+export const ACCEPTS = new Set(['asp-account']);
+
 export const COMPUTE_OUTPUTS: Record<string, string[]> = {
   aspPlan: ['twentiethDepositMonth'],
 };
@@ -128,6 +135,11 @@ export function validateRule(r: any): string[] {
     for (const m of r.message.matchAll(/\{(\w+)\}/g)) if (!known.has(m[1])) e.push(`message: {${m[1]}} has no value`);
     if (/\d/.test(r.message.replace(/\{\w+\}/g, ''))) e.push('message: numbers go in params, never typed in the text');
   }
+  if (typeof r.earns !== 'string' || !r.earns.trim()) e.push('earns: say what Nordea earns (or "Nordea earns nothing from this.")');
+  else if (/\d/.test(r.earns)) e.push('earns: words only, no numbers');
+  if (r.action === 'appOffer' && (typeof r.cta !== 'string' || !r.cta.trim())) e.push('cta: an in-app offer needs its button label');
+  if (r.action !== 'appOffer' && r.cta !== undefined) e.push('cta: only in-app offers have a button label');
+  if (r.action === 'appOffer' && typeof r.id === 'string' && !ACCEPTS.has(r.id)) e.push(`action appOffer: no code handles accepting "${r.id}"`);
   if (!Array.isArray(r.tests) || r.tests.length < 2) e.push('tests: at least two (one yes, one no)');
   else r.tests.forEach((t: any, i: number) => {
     if (typeof t.name !== 'string' || !t.name) e.push(`tests[${i}].name: missing`);

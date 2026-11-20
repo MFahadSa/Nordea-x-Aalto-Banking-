@@ -41,6 +41,7 @@
     "tax": 30
   },
   "message": "The PS tax deduction has ended. Your balance is {max} € or less, so you can withdraw all of it in {years} at the normal capital income tax of {tax} %, without the higher tax.",
+  "earns": "Nordea earns nothing from this information.",
   "tests": [
     {
       "name": "the deduction rule is gone on 1 January",

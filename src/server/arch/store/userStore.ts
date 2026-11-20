@@ -72,6 +72,8 @@ export interface UserProfile {
   offersOff?: boolean;
   extraMonthly?: number;
   nordeaData?: { from: string; at: string; transactions: number; balances: boolean };
+  /** v26: the recommender's memory for this customer (AdviceState in src/types.ts). */
+  advice?: import('../../../types.js').AdviceState;
 }
 
 export function loadProfile(uid: string): UserProfile | null {

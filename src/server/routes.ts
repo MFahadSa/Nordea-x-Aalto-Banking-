@@ -20,6 +20,7 @@ import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } f
 import { XLSX_MIME, csvText } from './fileText.js';
 import { runSelfTest } from './selftest.js';
 import { pipelineStorage, hydratePipeline } from './pipeline/store.js';
+import { handleAdviceAction, type AdviceAction } from './advice/actions.js';
 
 const fmt = (n: number, d = 0) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
@@ -437,6 +438,21 @@ export function registerV14Routes(app: Express) {
         out.push(agentMsg(userId, conv, helper, `Updated ✓ “${updates.title}”${draft.target ? ` is now ${fmt(draft.target.amount)} by ${fmtDay(draft.target.date)}` : ''}. The old version is in its history.`, {
           notes: [{ text: `📌 Updated: ${updates.title}`, undoToken, entryId: old.id }],
         }));
+        break;
+      }
+      // v26: recommender cards (question loop and suggestion buttons). Code only, no model.
+      case 'fact_answer':
+      case 'opp_accept':
+      case 'opp_ok':
+      case 'opp_notnow':
+      case 'opp_never':
+      case 'opp_adviser': {
+        const c = msg.cards?.find((k) => k.type === 'ask_fact' || k.type === 'opportunity');
+        const r = handleAdviceAction(userId, c, action as AdviceAction, payload || {}, fin.DEMO_TODAY);
+        if (!r.ok) return res.status(r.status).json({ error: r.error });
+        db.updateMessage(msg.id, { resolved: r.resolved });
+        // The chat already shows a resolved card's answer as the customer's bubble, so no extra message here.
+        for (const rep of r.replies) out.push(agentMsg(userId, conv, helper, rep.text, rep.cards ? { cards: rep.cards } : {}));
         break;
       }
       default:

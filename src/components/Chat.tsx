@@ -68,6 +68,9 @@ export const Chat: React.FC<Props> = (p) => {
   const h = HELPERS[p.helperId] || HELPERS.abel;
   const [text, setText] = useState('');
   const [caseAns, setCaseAns] = useState<Record<string, string>>({});
+  // v26: recommender cards: which "Why you see this" is open, and typed date answers.
+  const [whyOpen, setWhyOpen] = useState<Record<string, boolean>>({});
+  const [dateAns, setDateAns] = useState<Record<string, string>>({});
   const [attOpen, setAttOpen] = useState(false);
   // "Keep a copy": off by default, so Abel reads a file once and it's gone.
   const [keepCopy, setKeepCopy] = useState(false);
@@ -314,6 +317,66 @@ export const Chat: React.FC<Props> = (p) => {
             {open && <div className="of-act" style={{ paddingBottom: 12 }}><button className="btn primary" onClick={() => act('plan_confirm')}>Yes, set it up</button><button className="btn" onClick={() => act('plan_cancel')}>Cancel</button></div>}
           </div>
         );
+      case 'ask_fact': {
+        // v26: one question that completes the context for a rule. Three equal answers (no nudging).
+        const isDate = d.factType === 'date';
+        return (
+          <div className="offer adv">
+            <div className="of-h sm"><span className="of-logo" style={{ background: 'var(--brand)' }}>?</span><span className="of-n"><b>One question</b><span>So I can check what fits you</span></span></div>
+            <div className="of-b"><b>{d.question}</b></div>
+            {open && !isDate && (
+              <div className="of-act adv-3"><button className="btn" onClick={() => act('fact_answer', { value: 'no' })}>No</button><button className="btn" onClick={() => act('fact_answer', { value: 'yes' })}>Yes</button><button className="btn" onClick={() => act('fact_answer', { value: 'notSure' })}>Not sure</button></div>
+            )}
+            {open && isDate && (
+              <div className="of-act adv-date">
+                <input type="date" aria-label={d.question} value={dateAns[m.id] || ''} max={new Date().toISOString().slice(0, 10)} min="1950-01-01" onChange={(e) => setDateAns({ ...dateAns, [m.id]: e.target.value })} />
+                <button className="btn primary" disabled={!dateAns[m.id]} onClick={() => act('fact_answer', { value: dateAns[m.id] })}>Save</button>
+                <button className="btn" onClick={() => act('fact_answer', { value: 'notSure' })}>Not sure</button>
+              </div>
+            )}
+            {!open && m.resolved && <div className="of-done adv-done">✓ {m.resolved}</div>}
+            <div className="of-fee"><Icon name="shield" /><span>{d.note}</span></div>
+          </div>
+        );
+      }
+      case 'opportunity': {
+        // v26: a suggestion built by code from a rule. Reasons and source fold into one line; the calm
+        // view shows the source openly and keeps the reasons behind "Tell me more" (the approved design).
+        const showWhy = !!whyOpen[m.id];
+        const reasonsBlock = (d.reasons || []).length > 0 && (
+          <div className="of-row adv-why"><b>Why you see this</b><ul>{d.reasons.map((r: any, k: number) => <li key={k}>{r.text} <span className="adv-from">({r.from})</span></li>)}</ul></div>
+        );
+        const sourceRow = <div className="of-row"><div className="of-rt"><span className="adv-src">Source: <a href={d.source?.url} target="_blank" rel="noreferrer">{d.source?.label}</a></span></div></div>;
+        const why = d.calm ? <>{showWhy && reasonsBlock}{sourceRow}</> : showWhy ? <>{reasonsBlock}{sourceRow}</> : null;
+        return (
+          <div className="offer adv">
+            <div className={`of-h${d.calm ? ' sm' : ''}`}><span className="of-logo" style={{ background: 'var(--brand)' }}>{d.action === 'inform' && !d.regulated ? 'i' : 'N'}</span><span className="of-n"><b>{c.title}</b><span>{d.regulated ? `Information · ${d.kindLabel}` : d.kindLabel}</span></span>{!d.calm && <span className="of-tag">For you</span>}</div>
+            <div className="of-b adv-msg">{d.message}</div>
+            {why ?? (
+              <button className="of-row adv-fold" onClick={() => setWhyOpen({ ...whyOpen, [m.id]: true })} aria-expanded={false}><b>Why you see this, and the source</b><span aria-hidden="true">›</span></button>
+            )}
+            <div className="of-fee"><Icon name="shield" /><span>{d.adviceNote ? `${d.adviceNote} ` : ''}{d.earns}</span></div>
+            {open && (
+              <>
+                <div className="of-act">
+                  {d.action === 'appOffer' && <button className="btn primary" onClick={() => act('opp_accept')}>{d.cta}</button>}
+                  {d.regulated && <button className="btn primary" onClick={() => { act('opp_adviser'); p.onOpenHelper('person'); }}>Book an adviser, free</button>}
+                  {d.action === 'inform' && !d.regulated && <button className="btn primary" onClick={() => act('opp_ok')}>Good to know</button>}
+                  {d.action === 'appOffer' ? <button className="btn" onClick={() => act('opp_notnow')}>Not now</button>
+                    : d.regulated ? <button className="btn" onClick={() => act('opp_ok')}>Good to know</button>
+                    : !showWhy ? <button className="btn" onClick={() => setWhyOpen({ ...whyOpen, [m.id]: true })}>Tell me more</button>
+                    : <button className="btn" onClick={() => act('opp_notnow')}>Not now</button>}
+                </div>
+                <div className="of-foot">
+                  {d.action === 'appOffer' && <button className="btn link" onClick={() => { act('opp_adviser'); p.onOpenHelper('person'); }}>Talk to an adviser, free</button>}
+                  <button className="btn link muted" onClick={() => act('opp_never')}>{d.calm ? 'Don’t tell me about this again' : 'Don’t suggest this again'}</button>
+                </div>
+              </>
+            )}
+            {!open && m.resolved && <div className="of-done adv-done">✓ {m.resolved}</div>}
+          </div>
+        );
+      }
       case 'confirm_save':
         return (
           <div className="offer">
