@@ -5,6 +5,7 @@ import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, n0, dayMonth } from '../ui/format.js';
 import { DetailHead, NRow, Band, Toggle, RoundActions, BAND_BG } from './Nordea.js';
 import { HistoryCard } from './HomePage.js';
+import { AdviceList, proactiveName } from './Advice.js';
 
 // ---------------- What Abel knows ----------------
 const DRAWERS: { name: string; has: (e: CabinetEntry) => boolean; icon: string }[] = [
@@ -31,6 +32,9 @@ interface KnowsProps {
   onDeleteDoc: (id: string) => void;
   /** v20: something was saved from the pipeline: reload the app state. */
   onChanged?: () => void;
+  /** v27: "Abel's suggestions": allow again, or change an answer. */
+  adviceBusy?: boolean;
+  onAdviceChange?: (ruleId: string, what: 'allow' | 'forget') => void;
 }
 
 // ---------------- History of one entry ----------------
@@ -307,6 +311,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         )}
         <PipelineWaiting items={pipe} onDecide={decidePipe} />
         <ApprovalWaiting cards={approvals} onDecide={decideApproval} />
+        {p.state.advice && p.onAdviceChange && <AdviceList view={p.state.advice} busy={!!p.adviceBusy} onChange={p.onAdviceChange} />}
         <Band left="Goals" right={state.goals.length + staleGoals.length} />
         {state.goals.length || staleGoals.length ? (
           <div className="ncard flat">
@@ -788,7 +793,7 @@ const DebugToggle: React.FC = () => {
 };
 
 // ---------------- More ----------------
-export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: string) => void; onUsers: () => void; onCalm: () => void; onDark: () => void; onReset: () => Promise<void>; onRefresh?: () => void }> = ({ state, isDark, onPage, onUsers, onCalm, onDark, onReset, onRefresh }) => (
+export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: string) => void; onUsers: () => void; onCalm: () => void; onDark: () => void; onReset: () => Promise<void>; onRefresh?: () => void; onSuggest?: () => void }> = ({ state, isDark, onPage, onUsers, onCalm, onDark, onReset, onRefresh, onSuggest }) => (
   <>
     <DetailHead title="More" />
     <div className="nbody">
@@ -801,6 +806,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="Settings" />
       <div className="ncard flat">
         <NRow name="Calm view" sub="Bigger text, fewer things" right={<Toggle on={state.user.viewMode === 'calm'} onChange={onCalm} label="Calm view" />} />
+        {onSuggest && <NRow name="Suggestions from Abel" sub={proactiveName(state.advice?.proactive)} onClick={onSuggest} />}
         <NRow name="Dark mode" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
       </div>
       <Band left="Demo" />

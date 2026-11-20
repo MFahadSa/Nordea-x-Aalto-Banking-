@@ -9,7 +9,7 @@ import type { AdviceState, CabinetEntry, MessageCard } from '../../types.js';
 import { db } from '../db.js';
 import { FACTS, isFactKey, type FactKey } from './facts.js';
 import { evaluate, liveVersion } from './evaluate.js';
-import { blockReason, catalogue, factsOf, logAdviceRead, remember, rememberNotSure, whoOf, type Candidate } from './guard.js';
+import { blockReason, catalogue, factsOf, logAdviceRead, remember, rememberNotSure, snapshot, whoOf, type Candidate } from './guard.js';
 import { askCard, opportunityCard } from './cards.js';
 
 export type AdviceAction = 'fact_answer' | 'opp_accept' | 'opp_ok' | 'opp_notnow' | 'opp_never' | 'opp_adviser';
@@ -62,7 +62,7 @@ function saveState(userId: string, f: (st: AdviceState | undefined) => AdviceSta
   db.updateUser(userId, { advice: f(u.advice) });
 }
 
-export function handleAdviceAction(userId: string, card: MessageCard | undefined, action: AdviceAction, payload: Record<string, unknown>, today: string): AdviceResult {
+export function handleAdviceAction(userId: string, card: MessageCard | undefined, action: AdviceAction, payload: Record<string, unknown>, today: string, where: 'chat' | 'home' = 'chat'): AdviceResult {
   if (!card || (card.type !== 'ask_fact' && card.type !== 'opportunity')) return fail(400, 'No suggestion or question on this message');
   const d = card.data || {};
   const ruleId = String(d.ruleId || '');
@@ -90,7 +90,7 @@ export function handleAdviceAction(userId: string, card: MessageCard | undefined
       if (raw < '1950-01-01') return fail(400, 'That date is too far back');
       value = raw; shown = dayWords(raw);
     } else return fail(400, 'This question cannot be answered here');
-    return answer(userId, ruleId, fact, value, shown, today);
+    return answer(userId, ruleId, fact, value, shown, today, where);
   }
 
   if (card.type !== 'opportunity') return fail(400, 'Not a suggestion card');
@@ -109,7 +109,7 @@ export function handleAdviceAction(userId: string, card: MessageCard | undefined
       saveState(userId, (st) => remember(st, ruleId, 'never', today));
       return { ok: true, status: 200, resolved: 'Don’t suggest this again', replies: [{ text: 'Done, I won’t suggest this again. If you change your mind, just ask me about it.' }] };
     case 'opp_adviser':
-      saveState(userId, (st) => remember(st, ruleId, 'accepted', today));
+      saveState(userId, (st) => remember(st, ruleId, 'accepted', today, 'adviser'));
       return { ok: true, status: 200, resolved: 'Talk to an adviser', replies: [] };
     case 'opp_accept': {
       if (live.action !== 'appOffer' || !ACCEPT[ruleId]) return fail(400, 'This suggestion has nothing to open in the app');
@@ -118,14 +118,14 @@ export function handleAdviceAction(userId: string, card: MessageCard | undefined
         return { ok: true, status: 200, resolved: 'No longer applies', replies: [{ text: 'Something changed since I showed this, so it no longer applies to you. I’ve closed it.' }] };
       }
       const text = ACCEPT[ruleId](userId);
-      saveState(userId, (st) => remember(st, ruleId, 'accepted', today));
+      saveState(userId, (st) => remember(st, ruleId, 'accepted', today, 'opened'));
       return { ok: true, status: 200, resolved: live.cta || 'Done', replies: [{ text }] };
     }
   }
   return fail(400, 'Unknown action');
 }
 
-function answer(userId: string, ruleId: string, fact: FactKey, value: boolean | string, shown: string, today: string): AdviceResult {
+function answer(userId: string, ruleId: string, fact: FactKey, value: boolean | string, shown: string, today: string, where: 'chat' | 'home'): AdviceResult {
   const now = new Date().toISOString();
   // A new answer replaces older answers to the same question (they are archived, not deleted).
   for (const e of db.getCabinetEntries(userId)) {
@@ -152,7 +152,9 @@ function answer(userId: string, ruleId: string, fact: FactKey, value: boolean | 
   }
   if (ev.status === 'eligible') {
     saveState(userId, (st) => remember(st, ruleId, 'shown', today));
-    return { ...base, replies: [{ text: 'Thanks, saved. Then this could help you:', cards: [opportunityCard(cand, facts, calm)] }] };
+    const card = opportunityCard(cand, facts, calm);
+    snapshot(userId, card, facts, ev.used, where, today);
+    return { ...base, replies: [{ text: 'Thanks, saved. Then this could help you:', cards: [card] }] };
   }
   return { ...base, replies: [{ text: `Thanks, saved. Then “${live.title}” doesn’t apply to you, so I won’t suggest it.` }] };
 }

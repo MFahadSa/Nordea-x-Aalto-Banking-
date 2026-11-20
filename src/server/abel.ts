@@ -15,7 +15,8 @@
 import { db } from './db.js';
 import { readCabinetThroughGateway, previewCabinetForAgent } from './accessGateway.js';
 import { relevantForLoan, isLoanContext } from './pipeline/loan.js';
-import { candidatesFor, remember } from './advice/guard.js';
+import { candidatesFor, remember, snapshot } from './advice/guard.js';
+import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { cardFor } from './advice/cards.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
@@ -562,14 +563,18 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       const ruleId = String(a.ruleId || '');
       if (ctx.offersShown >= 1) return { shown: false, error: 'One card per reply.' };
       const { facts, list } = candidatesFor(ctx.userId, fin.DEMO_TODAY);
-      const c = list.find((x) => x.rule.id === ruleId);
+      // The card already on Home may also be shown here when asked about (same suggestion, not an extra one).
+      const c = list.find((x) => x.rule.id === ruleId) ?? (() => { const h = homeCandidate(ctx.userId, fin.DEMO_TODAY); return h?.rule.id === ruleId ? h : undefined; })();
       if (!c) return { shown: false, error: 'Not available for this customer now. Do not mention it.' };
       const recent = db.getMessages(ctx.userId).filter((m) => m.conversationId === ctx.conversationId).slice(-6);
       if (recent.some((m) => !m.resolved && (m.cards || []).some((k) => (k.type === 'opportunity' || k.type === 'ask_fact') && k.data?.ruleId === ruleId)))
         return { shown: false, error: 'This card is already on screen just above. Refer to it in one short sentence.' };
       const calm = u.viewMode === 'calm';
-      ctx.cards.push(cardFor(c, facts, calm));
+      const shownCard = cardFor(c, facts, calm);
+      ctx.cards.push(shownCard);
       ctx.offersShown++;
+      snapshot(ctx.userId, shownCard, facts, c.used, 'chat', fin.DEMO_TODAY);
+      homeMovedToChat(ctx.userId, ruleId);
       db.updateUser(ctx.userId, { advice: remember(db.getUser(ctx.userId)?.advice, ruleId, c.status === 'ask' ? 'asked' : 'shown', fin.DEMO_TODAY) });
       return { shown: true, note: c.status === 'ask' ? 'A question card is shown below your message. Say in one short sentence why you ask; do not ask the question yourself.' : 'A suggestion card is shown below your message with its numbers and source. Introduce it in one short sentence; do not repeat its numbers or say they qualify.' };
     }

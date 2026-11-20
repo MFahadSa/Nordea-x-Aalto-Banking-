@@ -6,6 +6,7 @@ import { nfi, ago } from '../ui/format.js';
 import { HELPERS, HELPER_ORDER } from '../ui/helpers.js';
 import { LOGO_WHITE } from '../constants/logos.js';
 import { BAND_BG, RoundActions, NRow, Band, NChev } from './Nordea.js';
+import { ForYou } from './Advice.js';
 
 interface Props {
   state: AppState;
@@ -20,6 +21,11 @@ interface Props {
   onWrong: (e: CabinetEntry) => void;
   onArchive: (e: CabinetEntry) => void;
   onKeep: (e: CabinetEntry) => void;
+  /** v27: the Home "For you" card. */
+  adviceBusy?: boolean;
+  onAdviceAnswer?: (value: string) => void;
+  onAdviceShow?: () => void;
+  onAdviceNotNow?: () => void;
 }
 
 /** Things Nordea noticed that wait for the customer, and old goals that look out of date. */
@@ -155,17 +161,22 @@ export const HomePage: React.FC<Props> = (p) => {
           </>
         )}
 
+        {state.advice?.forYou && p.onAdviceAnswer && (
+          <ForYou key={`${state.advice.forYou.data?.ruleId}-${state.advice.forYou.type}-${state.advice.forYou.data?.fact || ''}`} card={state.advice.forYou} busy={!!p.adviceBusy}
+            onAnswer={p.onAdviceAnswer} onShow={p.onAdviceShow!} onNotNow={p.onAdviceNotNow!} />
+        )}
+
         <div className="ncard">
           <div className="nhead-row">
             <div>
               <h3>Abel can help with</h3>
             </div>
           </div>
-          <div className="helpers in-card" role="list">
+          <div className="helpers in-card">
             {HELPER_ORDER.filter((k) => state.user.viewMode !== 'calm' || k === 'abel' || k === 'person').map((k) => {
               const h = HELPERS[k];
               return (
-                <button key={k} className={`helper ${h.cls}`} role="listitem" onClick={() => (k === 'autopilot' ? p.onOpenPage('autopilot') : p.onOpenHelper(k))}>
+                <button key={k} className={`helper ${h.cls}`} onClick={() => (k === 'autopilot' ? p.onOpenPage('autopilot') : p.onOpenHelper(k))}>
                   <span className="h-glyph" aria-hidden="true"><Icon name={h.icon} /></span>
                   <span className="h-ico" aria-hidden="true"><Icon name={h.icon} /></span>
                   <span className="h-name">{h.card}</span>

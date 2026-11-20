@@ -20,7 +20,8 @@ import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } f
 import { XLSX_MIME, csvText } from './fileText.js';
 import { runSelfTest } from './selftest.js';
 import { pipelineStorage, hydratePipeline } from './pipeline/store.js';
-import { handleAdviceAction, type AdviceAction } from './advice/actions.js';
+import { ADVICE_ACTIONS, handleAdviceAction, type AdviceAction } from './advice/actions.js';
+import { adviceView, cardForChat, homeAction, movedToChat, resetRule, setProactive } from './advice/home.js';
 
 const fmt = (n: number, d = 0) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
@@ -80,6 +81,8 @@ export function registerV14Routes(app: Express) {
     }
     const user = db.getUser(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    // v27: Home "For you" and "Abel's suggestions" (picked first, so its logged read is in the counts below).
+    const advice = adviceView(userId, fin.DEMO_TODAY);
     const entries = db.getCabinetEntries(userId);
     const goals = fin.activeGoals(userId).map((g) => fin.goalStatus(userId, g));
     const spentThisMonth = Object.values(fin.monthSpend(userId, fin.CUR_MONTH)).reduce((a, b) => a + b, 0);
@@ -95,7 +98,7 @@ export function registerV14Routes(app: Express) {
       .filter((c) => c.count > 0)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     res.json({
-      user,
+      user: db.getUser(userId),
       entries,
       accounts: fin.accounts(userId),
       goals,
@@ -114,6 +117,7 @@ export function registerV14Routes(app: Express) {
       aiConnected: getProvider().isConfigured(),
       documents: db.getDocuments(userId).map(docInfo),
       today: fin.DEMO_TODAY,
+      advice,
       // v21: what a Nordea adviser sent about a case (a question to answer, or a decision), shown on Home.
       notices: msgs.filter((m) => m.channel === 'staff' && m.conversationId && (m.cards || []).some((c) => (c.type === 'case_request' && !m.resolved) || c.type === 'case_decision'))
         .slice(-3).reverse().map((m) => { const c = (m.cards || []).find((x) => x.type === 'case_request' || x.type === 'case_decision')!; return { id: m.id, conversationId: m.conversationId!, kind: c.type === 'case_request' ? 'question' : 'decision', by: c.data?.by || 'Nordea', text: c.type === 'case_request' ? c.data?.ask : m.text, at: m.createdAt }; }),
@@ -203,6 +207,41 @@ export function registerV14Routes(app: Express) {
     if (done) return res.json({ status: 'done', ...done });
     if (requestState(`arch:${userId}`, `app-${requestId}`).status === 'pending') return res.json({ status: 'pending' });
     res.json({ status: 'unknown' });
+  });
+
+  // v27: Abel's suggestions outside the chat: Home "For you", "Abel's suggestions", the setting.
+  app.get('/api/advice', (req: Request, res: Response) => {
+    const userId = String(req.query.userId || 'lauri');
+    if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });
+    res.json(adviceView(userId, fin.DEMO_TODAY));
+  });
+  app.post('/api/advice/home', (req: Request, res: Response) => {
+    const { userId = 'lauri', ruleId, version, action, payload = {} } = req.body || {};
+    if (!ADVICE_ACTIONS.includes(action)) return res.status(400).json({ error: 'Unknown action' });
+    const r = homeAction(String(userId), String(ruleId || ''), String(version || ''), action, payload || {}, fin.DEMO_TODAY);
+    if (!r.ok) return res.status(r.status).json({ error: r.error, refresh: !!(r as any).refresh });
+    res.json({ text: r.replies.map((x) => x.text).join(' ') || r.resolved || 'Done', ...adviceView(String(userId), fin.DEMO_TODAY) });
+  });
+  app.post('/api/advice/show', (req: Request, res: Response) => {
+    const { userId = 'lauri', ruleId } = req.body || {};
+    const got = cardForChat(String(userId), String(ruleId || ''), fin.DEMO_TODAY);
+    if (!got) return res.status(409).json({ error: 'This changed, so Home was refreshed.', refresh: true });
+    const conv = newConversation(String(userId), 'abel');
+    agentMsg(String(userId), conv.id, 'abel', 'Here it is, with everything it’s based on:', { cards: [got.card] });
+    movedToChat(String(userId), String(ruleId), fin.DEMO_TODAY);
+    res.json({ conversationId: conv.id });
+  });
+  app.post('/api/advice/setting', (req: Request, res: Response) => {
+    const { userId = 'lauri', proactive } = req.body || {};
+    if (!db.getUser(String(userId))) return res.status(404).json({ error: 'Customer not found' });
+    if (!setProactive(String(userId), proactive)) return res.status(400).json({ error: 'Choose one of the three options' });
+    res.json(adviceView(String(userId), fin.DEMO_TODAY));
+  });
+  app.post('/api/advice/change', (req: Request, res: Response) => {
+    const { userId = 'lauri', ruleId, what } = req.body || {};
+    const r = resetRule(String(userId), String(ruleId || ''), what);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ text: r.text, ...adviceView(String(userId), fin.DEMO_TODAY) });
   });
 
   // Buttons on cards. The customer acts; code does the work (no model involved).

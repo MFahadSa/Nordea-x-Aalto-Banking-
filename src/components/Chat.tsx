@@ -547,7 +547,7 @@ export const Chat: React.FC<Props> = (p) => {
 
   return (
     <section className={`chat ${h.cls}`} role="dialog" aria-label={`Chat with ${h.name}`}>
-      <header className="chat-h">
+      <div className="chat-h">
         <span className="bot-av lg" aria-hidden="true"><Icon name={h.icon} /></span>
         <div className="chat-t">
           <b>{h.name}</b>
@@ -559,7 +559,7 @@ export const Chat: React.FC<Props> = (p) => {
         <button className="chat-ic" onClick={p.onClose} aria-label="Close chat" title="Close">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
-      </header>
+      </div>
       <div className="chat-body" id="chat-body" ref={bodyRef} aria-live="polite">
         <div className="chat-date"><span>Today</span></div>
         {items.map((it, n) => {

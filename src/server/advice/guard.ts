@@ -6,10 +6,11 @@
  * to; "not now" waits; "not sure" is not asked again for a while; minors never see regulated
  * topics; partner offers off means no product suggestions; the calm view gets at most one a week.
  */
-import type { AdviceState, User } from '../../types.js';
+import type { AdviceState, MessageCard, User } from '../../types.js';
 import { db } from '../db.js';
-import { FACTS, buildFacts, type Facts } from './facts.js';
-import { evaluateAll, type Evaluation } from './evaluate.js';
+import { FACTS, buildFacts, type Facts, type FactKey } from './facts.js';
+import { reasons } from './cards.js';
+import { evaluate, evaluateAll, type Evaluation } from './evaluate.js';
 import { loadRules, type Rule } from './rules.js';
 
 export const LIMITS = {
@@ -70,13 +71,13 @@ export function blockReason(rule: Rule, ev: Evaluation, st: AdviceState, who: Wh
 }
 
 /** Remember what happened, with the right waiting time. Returns the new state (pure). */
-export function remember(st: AdviceState | undefined, ruleId: string, what: NonNullable<AdviceState['rules']>[string]['last'], today: string): AdviceState {
+export function remember(st: AdviceState | undefined, ruleId: string, what: NonNullable<AdviceState['rules']>[string]['last'], today: string, how?: 'opened' | 'adviser'): AdviceState {
   const next: AdviceState = { ...(st || {}), rules: { ...(st?.rules || {}) } };
   const until = what === 'notNow' ? addDays(today, LIMITS.notNowDays)
     : what === 'seen' ? addDays(today, LIMITS.seenDays)
     : what === 'asked' || what === 'shown' ? addDays(today, LIMITS.repeatDays)
     : undefined;
-  next.rules![ruleId] = { last: what, at: today, ...(until ? { until } : {}) };
+  next.rules![ruleId] = { last: what, at: today, ...(until ? { until } : {}), ...(how ? { how } : {}) };
   if (what === 'asked' || what === 'shown') next.shownOn = [...new Set([...(st?.shownOn || []), today])].sort().slice(-30);
   return next;
 }
@@ -109,6 +110,9 @@ export function factsOf(userId: string, today: string): Facts {
 /** Every recommender check that read the cabinet is a logged read (same list the customer sees). */
 export function logAdviceRead(userId: string, purpose: string, facts: Facts) {
   const ids = [...new Set(Object.values(facts).flatMap((f) => (f.state === 'known' ? f.entryIds || [] : [])))];
+  // The same read again within the hour (Home re-opened, a re-render) is the same read: listed once.
+  const last = db.getAccessLog(userId).filter((l) => l.agentId === 'abel' && /^Abel suggestions/.test(l.purpose)).sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+  if (last && last.purpose === purpose && Date.now() - Date.parse(last.timestamp) < 3600_000 && JSON.stringify([...(last.allowedIds || [])].sort()) === JSON.stringify([...ids].sort())) return;
   db.addAccessLogEntry({
     id: `acc-adv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, timestamp: new Date().toISOString(), userId,
     agentId: 'abel', agentName: 'Abel, your assistant', purpose, itemsReadCount: ids.length, blockedCount: 0,
@@ -121,4 +125,32 @@ export function candidatesFor(userId: string, today: string, purpose = 'Abel sug
   const facts = factsOf(userId, today);
   logAdviceRead(userId, purpose, facts);
   return { facts, ...selectCandidates(catalogue(), facts, u?.advice, whoOf(u), today) };
+}
+
+export function saveAdvice(userId: string, f: (st: AdviceState) => AdviceState) {
+  const u = db.getUser(userId);
+  if (u) db.updateUser(userId, { advice: f({ ...(u.advice || {}) }) });
+}
+
+/** Remember what a suggestion was based on, the moment it is shown. */
+export function snapshot(userId: string, card: MessageCard, facts: Facts, used: FactKey[], where: 'chat' | 'home', today: string) {
+  if (card.type !== 'opportunity') return;
+  const read = new Set(used.flatMap((k) => (facts[k]?.state === 'known' ? facts[k].entryIds || [] : []))).size;
+  saveAdvice(userId, (st: AdviceState) => ({ ...st, seen: { ...(st.seen || {}), [String(card.data!.ruleId)]: { version: String(card.data!.version), at: today, where, reasons: reasons(used, facts), read } } }));
+}
+
+
+/**
+ * v27: Home asks only when one answer is all that is missing: some answer to the question would make the
+ * suggestion apply. (In a chat Abel may ask more, because the customer brought the topic up.)
+ */
+export function oneAnswerAway(c: Candidate, facts: Facts, today: string, rules: Rule[]): boolean {
+  if (c.status === 'eligible') return true;
+  if (c.status !== 'ask' || !c.ask) return false;
+  const k = c.ask.fact;
+  const versions = rules.filter((r) => r.id === c.rule.id);
+  const tries: (boolean | string)[] = FACTS[k].type === 'boolean' ? [true, false]
+    : FACTS[k].type === 'date' ? [0, 30, 120, 365, 730, 1825, 3650].map((d) => addDays(today, -d))
+    : [];
+  return tries.some((v) => evaluate(versions, { ...facts, [k]: { key: k, state: 'known', value: v, from: 'what if' } }, today).status === 'eligible');
 }
