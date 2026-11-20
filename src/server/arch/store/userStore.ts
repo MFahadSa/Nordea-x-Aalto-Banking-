@@ -76,6 +76,7 @@ export interface UserProfile {
   connections?: import('../../../types.js').AppConnection[];
   /** Apps the customer added themselves (shown next to the built-in list). */
   customApps?: import('../../../types.js').ConnectableApp[];
+  profileInbox?: import('../../../types.js').ProfileInboxItem[];
 }
 
 export function loadProfile(uid: string): UserProfile | null {

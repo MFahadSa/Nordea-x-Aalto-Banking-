@@ -9,6 +9,8 @@ import { ABEL_PRIVATE_TOPIC } from './sensitive.js';
 import type { CabinetEntry } from '../types.js';
 
 export const DEFAULT_GROUP = 'About you';
+/** In the full .md view, nothing below this line is read back as profile. */
+export const READ_ONLY_MARK = '<!-- abel:read-only -->';
 /** The name a free description is shown under. */
 export const NOTE_LABEL = 'In my words';
 const NOTE_KEY = 'inmywords';
@@ -75,11 +77,14 @@ function plain(s: string): string {
     .trim();
 }
 
+/** "About me", "About you", "Me", "Personal": all the same first section. */
+const groupName = (g: string) => (/^(about (me|you)|me|personal( info)?|basics?)$/i.test(g.trim()) ? DEFAULT_GROUP : g);
+
 function make(label: string, value: string, group: string): ProfileField | null {
   const l = plain(label).replace(/[:：]\s*$/, '').trim().slice(0, MAX_LABEL);
   const v = plain(value).slice(0, profileKeyOf(l) === NOTE_KEY ? MAX_NOTE : MAX_VALUE);
   if (!l || !v || PLACEHOLDER.test(v) || PLACEHOLDER.test(l) || v.startsWith('//')) return null;
-  return { key: profileKeyOf(l), label: l, value: v, group: plain(group).slice(0, 40) || DEFAULT_GROUP };
+  return { key: profileKeyOf(l), label: l, value: v, group: groupName(plain(group).slice(0, 40)) || DEFAULT_GROUP };
 }
 
 /**
@@ -93,7 +98,10 @@ function make(label: string, value: string, group: string): ProfileField | null 
  * The first line of a field wins when the same key appears twice.
  */
 export function parseProfileMarkdown(raw: string): ProfileField[] {
-  const text = String(raw ?? '').replace(/\r\n?/g, '\n').slice(0, MAX_TEXT);
+  // Everything after the read-only marker (the rest of "What Abel knows" in the .md view) is not profile.
+  const full = String(raw ?? '').replace(/\r\n?/g, '\n').slice(0, MAX_TEXT);
+  const cut = full.indexOf(READ_ONLY_MARK);
+  const text = cut >= 0 ? full.slice(0, cut) : full;
   const out: ProfileField[] = [];
   const seen = new Set<string>();
   const add = (f: ProfileField | null) => {
@@ -136,7 +144,7 @@ export function parseProfileMarkdown(raw: string): ProfileField[] {
     const id = `${group}\u0000note\u0000${v.toLowerCase()}`;
     if (seen.has(id)) return;
     seen.add(id);
-    out.push({ key: NOTE_KEY, label: NOTE_LABEL, value: v, group });
+    out.push({ key: NOTE_KEY, label: NOTE_LABEL, value: v, group: groupName(group) });
   };
 
   let inFence = false;

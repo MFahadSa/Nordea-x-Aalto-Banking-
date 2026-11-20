@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import type { CabinetEntryType, ConnectableApp, ConnectionDirection, ConnectionProtocol } from '../types.js';
 import {
   ConnectionsView, KnowsSummary, fetchConnections, fetchKnowsSummary, connectApp, changeConnection, newConnectionKey,
-  syncConnection, disconnectApp, addOwnApp, removeOwnApp,
+  syncConnection, disconnectApp, addOwnApp, removeOwnApp, fetchProfilePrompt,
 } from '../services/api.js';
 import { KnowsCard } from './KnowsCard.js';
 
-const DEFAULT_SCOPES: CabinetEntryType[] = ['profile', 'goal'];
+/** Reading Abel back is optional: nothing ticked by default. */
+const DEFAULT_SCOPES: CabinetEntryType[] = [];
 const PROTO: Record<ConnectionProtocol, string> = { mcp: 'MCP', a2a: 'A2A' };
 
 const field: React.CSSProperties = {
@@ -50,7 +51,7 @@ const ScopePicker: React.FC<{ scopes: ConnectionsView['scopes']; value: CabinetE
   </div>
 );
 
-export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; onCount?: (n: number) => void; onSynced?: () => void }> = ({ userId, onClose, onCount, onSynced }) => {
+export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; onCount?: (n: number) => void; onSynced?: () => void; onReviewProfile: (text: string, from: string) => void }> = ({ userId, onClose, onCount, onSynced, onReviewProfile }) => {
   const [v, setV] = useState<ConnectionsView | null>(null);
   const [knows, setKnows] = useState<KnowsSummary | null>(null);
   const [err, setErr] = useState('');
@@ -58,6 +59,9 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
   const [dir, setDir] = useState<ConnectionDirection>('out');
   const [opening, setOpening] = useState<string | null>(null);
   const [scopes, setScopes] = useState<CabinetEntryType[]>(DEFAULT_SCOPES);
+  const [canSend, setCanSend] = useState(true);
+  const [prompt, setPrompt] = useState('');
+  const [pasted, setPasted] = useState<Record<string, string>>({});
   const [seeOpen, setSeeOpen] = useState<string | null>(null);
   const [key, setKey] = useState<{ connectionId: string; key: string } | null>(null);
   const [syncMsg, setSyncMsg] = useState<Record<string, string>>({});
@@ -78,6 +82,7 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
   useEffect(() => {
     run(() => fetchConnections(userId));
     fetchKnowsSummary(userId).then(setKnows).catch(() => setKnows(null));
+    fetchProfilePrompt().then(setPrompt).catch(() => setPrompt(''));
   }, [userId]);
 
   const appOf = (id: string) => v?.apps.find((a) => a.id === id);
@@ -97,12 +102,12 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
         </div>
 
         <div className="chips" role="tablist" aria-label="Direction">
-          <button role="tab" aria-selected={dir === 'out'} className={`chip ${dir === 'out' ? 'on' : ''}`} onClick={() => switchDir('out')}>↗ Apps that use Abel</button>
+          <button role="tab" aria-selected={dir === 'out'} className={`chip ${dir === 'out' ? 'on' : ''}`} onClick={() => switchDir('out')}>⇄ AI assistants</button>
           <button role="tab" aria-selected={dir === 'in'} className={`chip ${dir === 'in' ? 'on' : ''}`} onClick={() => switchDir('in')}>↙ Tools that bring info in</button>
         </div>
         <p style={small}>
           {dir === 'out'
-            ? 'An AI app like Claude or Gemini reads what you allow. You get a link and a key to paste into it; the same link works for MCP and A2A, so you don’t pick. Private things are never shared, and every read shows in Who sees it.'
+            ? 'Claude, Gemini and other assistants already remember things about you. Bring that into your Abel profile: you review every line before it’s saved. Letting them read Abel back is optional and off unless you tick it.'
             : 'A tool sends info to Abel. Nothing goes straight into what Abel knows: it waits in “From your inputs”, where you save, keep private or drop each thing.'}
           {' '}<b>Concept demo.</b>{dir === 'in' ? ' Abel doesn’t contact these tools yet; “Try a sync” sends sample info.' : ''}
         </p>
@@ -130,15 +135,33 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
                   </div>
                   {c.direction === 'out' ? (
                     <>
-                      <span className="kicker">May read</span>
+                      <span className="kicker">↙ Bring in what {app.name} knows about you</span>
+                      <p style={small}><b>1.</b> Copy this and ask {app.name}:</p>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}><span style={{ ...mono, fontFamily: 'inherit', fontSize: 12.5, wordBreak: 'normal', overflowWrap: 'anywhere' }} data-testid="profile-prompt">{prompt}</span><Copy text={prompt} label="Copy the question" /></div>
+                      <p style={small}><b>2.</b> Paste {app.name}’s answer here. You see every line before anything is saved.</p>
+                      <textarea style={{ ...field, minHeight: 80, resize: 'vertical' }} aria-label={`${app.name}'s answer`} placeholder={`Paste ${app.name}’s answer`} maxLength={50000}
+                        value={pasted[c.id] || ''} onChange={(e) => setPasted({ ...pasted, [c.id]: e.target.value })} />
+                      <div className="wait-act">
+                        <button className="btn small primary" disabled={!(pasted[c.id] || '').trim()} onClick={() => onReviewProfile(pasted[c.id], app.name)}>Review and add to Profile</button>
+                        {c.canSend && <button className="btn small quiet" disabled={busy || c.status !== 'active'}
+                          onClick={async () => { const r = await run(() => syncConnection(userId, c.id)); if (r?.synced) { setSyncMsg({ ...syncMsg, [c.id]: `${app.name} sent your profile (sample). It waits for you in Profile.` }); onSynced?.(); } }}>
+                          Try: {app.name} sends it (sample)
+                        </button>}
+                      </div>
+                      {syncMsg[c.id] && <p style={{ ...small, color: 'var(--ink)' }} role="status">{syncMsg[c.id]}</p>}
+                      <div className="perm-row">
+                        <button type="button" className="toggle" aria-pressed={!!c.canSend} aria-label={`Allow ${app.name} to send your profile directly`} disabled={busy} onClick={() => run(() => changeConnection(userId, c.id, { canSend: !c.canSend }))}><span className="knob" />{c.canSend ? 'On' : 'Off'}</button>
+                        <span>{app.name} may also send it directly, with the link and key below. It still waits for your review.</span>
+                      </div>
+                      <span className="kicker" style={{ marginTop: 4 }}>↗ Optional: let {app.name} read Abel too</span>
                       <ScopePicker scopes={v.scopes} value={c.scopes} onChange={(s) => run(() => changeConnection(userId, c.id, { scopes: s }))} />
                       <button type="button" className="btn small quiet" style={{ alignSelf: 'flex-start' }} aria-expanded={seeOpen === c.id} onClick={() => setSeeOpen(seeOpen === c.id ? null : c.id)}>
-                        {c.status === 'active' ? `It can see ${c.sees} ${c.sees === 1 ? 'thing' : 'things'}` : 'It can see nothing while paused'} {seeOpen === c.id ? '▴' : '▾'}
+                        {c.status !== 'active' ? 'It can see nothing while paused' : c.scopes.length ? `It can see ${c.sees} ${c.sees === 1 ? 'thing' : 'things'}` : 'It reads nothing from Abel'} {seeOpen === c.id ? '▴' : '▾'}
                       </button>
                       {seeOpen === c.id && (knows
                         ? <KnowsCard data={knows} appName={app.name} scopes={c.scopes} reads={c.status === 'active'} />
                         : c.seesTitles.length ? <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>{c.seesTitles.map((t, i) => <li key={i}>{t}</li>)}</ul> : <p style={small}>Nothing right now.</p>)}
-                      <span className="kicker">Paste into {app.name}</span>
+                      <span className="kicker">Link and key for {app.name} (MCP or A2A)</span>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><span style={mono} data-testid="conn-link">{link(c.id)}</span><Copy text={link(c.id)} label="Copy link" /></div>
                       {showKey ? (
                         <>
@@ -168,7 +191,7 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
               );
             })}
 
-            <span className="kicker" style={{ marginTop: 6 }}>{dir === 'out' ? 'AI apps' : 'Tools'}</span>
+            <span className="kicker" style={{ marginTop: 6 }}>{dir === 'out' ? 'Assistants' : 'Tools'}</span>
             {available.length === 0 && <p style={small}>Everything here is connected.</p>}
             {available.map((app) => (
               <div key={app.id} style={card} data-testid="available-app">
@@ -181,24 +204,29 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
                     {app.endpoint && <p style={{ ...small, marginTop: 4, wordBreak: 'break-all' }}>{app.endpoint}</p>}
                   </div>
                   {opening !== app.id && (
-                    <button className="btn small primary" aria-label={`Connect ${app.name}`} disabled={busy} onClick={() => { setOpening(app.id); setScopes(DEFAULT_SCOPES); }}>Connect</button>
+                    <button className="btn small primary" aria-label={`Connect ${app.name}`} disabled={busy} onClick={() => { setOpening(app.id); setScopes(DEFAULT_SCOPES); setCanSend(true); }}>Connect</button>
                   )}
                 </div>
                 {opening === app.id && (
                   <>
-                    {knows && <KnowsCard data={knows} appName={app.name} scopes={scopes} reads={app.direction === 'out'} />}
+                    {knows && <KnowsCard data={knows} appName={app.name} scopes={scopes} reads={app.direction === 'out' && scopes.length > 0} />}
                     {app.direction === 'out' ? (
                       <>
-                        <span className="kicker">{app.name} may read</span>
+                        <p style={small}>After connecting, you bring in what {app.name} remembers about you. Every line waits for your review.</p>
+                        <div className="perm-row">
+                          <button type="button" className="toggle" aria-pressed={canSend} onClick={() => setCanSend(!canSend)}><span className="knob" />{canSend ? 'On' : 'Off'}</button>
+                          <span>{app.name} may also send it directly</span>
+                        </div>
+                        <span className="kicker">↗ Optional: let {app.name} read Abel too</span>
                         <ScopePicker scopes={v.scopes} value={scopes} onChange={setScopes} />
-                        <p style={small}>The squares fill as you tick. Private things are never included, and you can change this any time.</p>
+                        <p style={small}>Nothing ticked = it reads nothing. The squares fill as you tick; private things are never included.</p>
                       </>
                     ) : (
                       <p style={small}>{app.name} won’t read any of this. What it sends waits for you before Abel can use it.</p>
                     )}
                     <div className="wait-act">
-                      <button className="btn small primary" disabled={busy || (app.direction === 'out' && !scopes.length)}
-                        onClick={async () => { if (await run(() => connectApp(userId, app.id, app.direction === 'out' ? scopes : []))) setOpening(null); }}>Connect {app.name}</button>
+                      <button className="btn small primary" disabled={busy}
+                        onClick={async () => { if (await run(() => connectApp(userId, app.id, app.direction === 'out' ? scopes : [], canSend))) setOpening(null); }}>Connect {app.name}</button>
                       <button className="btn small quiet" onClick={() => setOpening(null)}>Cancel</button>
                     </div>
                   </>
@@ -210,7 +238,7 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
             ))}
 
             {!adding ? (
-              <button className="btn block" onClick={() => setAdding(true)}>{dir === 'out' ? '+ Add another AI app' : '+ Add your own tool'}</button>
+              <button className="btn block" onClick={() => setAdding(true)}>{dir === 'out' ? '+ Add another AI assistant' : '+ Add your own tool'}</button>
             ) : (
               <form style={card} onSubmit={async (e) => {
                 e.preventDefault();
@@ -222,9 +250,9 @@ export const ConnectionsSheet: React.FC<{ userId: string; onClose: () => void; o
                   if (added) { setOpening(added.id); setScopes(DEFAULT_SCOPES); }
                 }
               }}>
-                <b>{dir === 'out' ? 'Another AI app' : 'Your own tool'}</b>
+                <b>{dir === 'out' ? 'Another AI assistant' : 'Your own tool'}</b>
                 <p style={small}>{dir === 'out'
-                  ? 'Just a name. After you connect it, you get a link and a key to paste into it: it connects to Abel, so no address is needed.'
+                  ? 'Just a name. You bring in what it knows by pasting its answer, or it sends it with a link and key. No address needed.'
                   : 'Paste the address of the tool’s MCP server or A2A agent. Abel reads the protocol from it.'}</p>
                 <input style={field} placeholder={dir === 'out' ? 'Name, e.g. My budget bot' : 'Name, e.g. Strava'} aria-label="App name" maxLength={40} value={own.name} onChange={(e) => setOwn({ ...own, name: e.target.value })} />
                 {dir === 'in' && (

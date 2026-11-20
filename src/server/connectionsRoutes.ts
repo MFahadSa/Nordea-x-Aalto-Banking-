@@ -4,7 +4,8 @@ import type { Express, Request, Response } from 'express';
 import { db } from './db.js';
 import {
   SCOPES, listApps, listConnections, connect, updateConnection, rotateKey, disconnect,
-  addCustomApp, removeCustomApp, previewForConnection, readWithKey, trySync, knowsSummary,
+  addCustomApp, removeCustomApp, previewForConnection, readWithKey, sendWithKey, trySync, knowsSummary,
+  listInbox, dropInbox, PROFILE_PROMPT, knowsMarkdown,
 } from './connections.js';
 
 const fail = (res: Response, e: any) => res.status(e?.status || 500).json({ error: String(e?.message || e) });
@@ -29,6 +30,19 @@ export function registerConnectionsRoutes(app: Express) {
   app.get('/api/connections', (req, res) => {
     const userId = who(req, res); if (!userId) return;
     res.json(view(userId));
+  });
+  app.get('/api/connections/prompt', (_req, res) => res.json({ prompt: PROFILE_PROMPT }));
+  app.get('/api/profile/inbox', (req, res) => {
+    const userId = who(req, res); if (!userId) return;
+    res.json({ items: listInbox(userId) });
+  });
+  app.delete('/api/profile/inbox/:id', (req, res) => {
+    const userId = who(req, res); if (!userId) return;
+    try { res.json(dropInbox(userId, req.params.id)); } catch (e) { fail(res, e); }
+  });
+  app.get('/api/knows.md', (req, res) => {
+    const userId = who(req, res); if (!userId) return;
+    res.type('text/markdown; charset=utf-8').send(knowsMarkdown(userId));
   });
   app.get('/api/connections/knows', (req, res) => {
     const userId = who(req, res); if (!userId) return;
@@ -63,10 +77,19 @@ export function registerConnectionsRoutes(app: Express) {
     try { removeCustomApp(userId, req.params.appId); res.json(view(userId)); } catch (e) { fail(res, e); }
   });
 
+  const bearer = (req: Request) => { const a = String(req.headers.authorization || ''); return a.startsWith('Bearer ') ? a.slice(7).trim() : ''; };
+
+  // The connected app sends info back. It waits for the customer; it never goes straight into the cabinet.
+  app.post('/api/connect/:id', async (req, res) => {
+    try {
+      const r = await sendWithKey(req.params.id, bearer(req), req.body?.items ?? req.body?.text, req.body?.profile);
+      res.status(202).json({ received: r.heard, waitingForCustomer: r.waiting, note: 'Nothing is used until the customer approves it.' });
+    } catch (e) { fail(res, e); }
+  });
+
   // The connected app reads what the customer allowed. No customer id in the request: the key decides.
   app.get('/api/connect/:id', (req, res) => {
-    const auth = String(req.headers.authorization || '');
-    const key = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+    const key = bearer(req);
     try {
       const r = readWithKey(req.params.id, key);
       res.set('Cache-Control', 'no-store').json({

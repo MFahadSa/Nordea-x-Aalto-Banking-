@@ -30,10 +30,15 @@ export interface User {
   points: number;
   connections?: AppConnection[];
   customApps?: ConnectableApp[];
+  /** Profiles an AI assistant sent to Abel, waiting for the customer to review in Profile. */
+  profileInbox?: ProfileInboxItem[];
 }
 
+export interface ProfileInboxItem { id: string; appId: string; from: string; text: string; at: string }
+
 export type ConnectionProtocol = 'a2a' | 'mcp';
-/** out: an outside app uses what Abel knows (the cabinet is the server). in: a tool brings info in (it is the server). */
+/** out: an app connected with Abel, two-way: it reads what is allowed and may send info in (Abel is the server).
+ *  in: a tool that only brings info in (the tool is the server). */
 export type ConnectionDirection = 'out' | 'in';
 
 /** An outside app (AI assistant or tool) that can be connected to the cabinet. */
@@ -60,6 +65,8 @@ export interface AppConnection {
   /** OUT only: cabinet entry types it may read. Private entries are never shared, whatever is ticked. */
   scopes: CabinetEntryType[];
   status: 'active' | 'paused';
+  /** OUT only (two-way): may the app send info in? It goes through the airlock and waits for the customer. */
+  canSend?: boolean;
   /** OUT only: hash and last 4 characters of the key (the key itself is shown once and never stored). */
   keyHash?: string;
   keyHint?: string;

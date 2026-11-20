@@ -351,13 +351,13 @@ export interface ConnectionsView {
   connections: (Omit<AppConnection, 'keyHash'> & { hasKey: boolean; sees: number; seesTitles: string[] })[];
   /** Shown once, right after connecting or making a new key. */
   newKey?: { connectionId: string; key: string };
-  synced?: { waiting: number; heard: number };
+  synced?: { waiting: number; heard: number; profile?: boolean };
 }
 const q = (userId: string) => `userId=${encodeURIComponent(userId)}`;
 export const fetchConnections = (userId: string) => fetch(`/api/connections?${q(userId)}`).then((r) => j<ConnectionsView>(r));
-export const connectApp = (userId: string, appId: string, scopes: CabinetEntryType[] = []) =>
-  post('/api/connections', { userId, appId, scopes }).then((r) => j<ConnectionsView>(r));
-export const changeConnection = (userId: string, id: string, body: { scopes?: CabinetEntryType[]; status?: 'active' | 'paused' }) =>
+export const connectApp = (userId: string, appId: string, scopes: CabinetEntryType[] = [], canSend = true) =>
+  post('/api/connections', { userId, appId, scopes, canSend }).then((r) => j<ConnectionsView>(r));
+export const changeConnection = (userId: string, id: string, body: { scopes?: CabinetEntryType[]; status?: 'active' | 'paused'; canSend?: boolean }) =>
   fetch(`/api/connections/${encodeURIComponent(id)}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ userId, ...body }) }).then((r) => j<ConnectionsView>(r));
 export const newConnectionKey = (userId: string, id: string) => post(`/api/connections/${encodeURIComponent(id)}/key`, { userId }).then((r) => j<ConnectionsView>(r));
 export const syncConnection = (userId: string, id: string) => post(`/api/connections/${encodeURIComponent(id)}/sync`, { userId }).then((r) => j<ConnectionsView>(r));
@@ -370,6 +370,11 @@ export const removeOwnApp = (userId: string, appId: string) =>
 export interface KnowsSummary {
   name: string; age?: number; customerSince?: string;
   facts: { label: string; value: string }[];
-  items: { id: string; type: CabinetEntryType; title: string; label: string; private: boolean; fromNordea: boolean; shareable: boolean }[];
+  items: { id: string; type: CabinetEntryType; title: string; detail: string; label: string; private: boolean; fromNordea: boolean; shareable: boolean;
+    source: string; status: string; why?: string; at: string; reviewed: boolean; abelUses: boolean; offers: boolean }[];
 }
 export const fetchKnowsSummary = (userId: string) => fetch(`/api/connections/knows?${q(userId)}`).then((r) => j<KnowsSummary>(r));
+export const fetchProfilePrompt = () => fetch('/api/connections/prompt').then((r) => j<{ prompt: string }>(r)).then((d) => d.prompt);
+export const fetchProfileInbox = (userId: string) => fetch(`/api/profile/inbox?${q(userId)}`).then((r) => j<{ items: import('../types.js').ProfileInboxItem[] }>(r)).then((d) => d.items);
+export const dropProfileInbox = (userId: string, id: string) => fetch(`/api/profile/inbox/${encodeURIComponent(id)}?${q(userId)}`, { method: 'DELETE' }).then((r) => j<{ removed: string }>(r));
+export const fetchKnowsMarkdown = (userId: string) => fetch(`/api/knows.md?${q(userId)}`).then(async (r) => { if (!r.ok) throw new Error('Could not load it'); return r.text(); });

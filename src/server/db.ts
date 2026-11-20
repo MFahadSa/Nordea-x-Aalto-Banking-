@@ -401,6 +401,7 @@ class Database {
       ...(profile?.nordeaData ? { nordeaData: profile.nordeaData } : {}),
       ...(profile?.connections ? { connections: profile.connections } : {}),
       ...(profile?.customApps ? { customApps: profile.customApps } : {}),
+      ...(profile?.profileInbox ? { profileInbox: profile.profileInbox } : {}),
     };
   }
 

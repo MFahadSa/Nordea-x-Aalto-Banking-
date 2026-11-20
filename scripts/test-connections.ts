@@ -37,7 +37,6 @@ const apps = C.listApps(U);
 check('assistants use Abel (out), tools bring info in', apps.filter((a) => a.kind === 'assistant').every((a) => a.direction === 'out') && apps.filter((a) => a.kind === 'tool').every((a) => a.direction === 'in'));
 
 // --- OUT
-check('OUT needs at least one drawer', throws(() => C.connect(U, { appId: 'claude', scopes: [] }), 400));
 const out = C.connect(U, { appId: 'claude', scopes: ['goal', 'profile'] });
 check('OUT connect returns a key once; only hash + hint stored', !!out.key && out.key.startsWith('cab_') && out.connection.keyHash !== out.key && out.connection.keyHint === out.key!.slice(-4) && !JSON.stringify(db.getUser(U)).includes(out.key!));
 check('connecting the same app twice is refused', throws(() => C.connect(U, { appId: 'claude', scopes: ['goal'] }), 409));
@@ -55,6 +54,31 @@ C.updateConnection(U, out.connection.id, { status: 'active', scopes: ['fact'] })
 check('unconfirmed Nordea observations are never read', !C.readWithKey(out.connection.id, out.key!).entries.some((e) => e.source === 'nordea' && !e.reviewed));
 const rot = C.rotateKey(U, out.connection.id);
 check('new key: old key stops working, new one works', throws(() => C.readWithKey(out.connection.id, out.key!), 401) && !!C.readWithKey(out.connection.id, rot.key));
+
+// --- the main way: the assistant's profile comes IN to Abel (pasted or sent), and waits for review
+const g = C.connect(U, { appId: 'gemini' });
+check('an assistant can connect without reading anything', g.connection.scopes.length === 0 && g.connection.canSend === true);
+check('with nothing ticked, reading is refused', throws(() => C.readWithKey(g.connection.id, g.key!), 403));
+const sent = await C.sendWithKey(g.connection.id, g.key!, undefined, '## About me\n- City: Espoo\n- Occupation: Nurse');
+check('a sent profile waits in the inbox, nothing saved yet', sent.waiting === 1 && C.listInbox(U).length === 1 && C.listInbox(U)[0].from === 'Gemini' && !P.getProfileEntries(U).some((e) => e.detail === 'Espoo'));
+await C.sendWithKey(g.connection.id, g.key!, undefined, '- City: Helsinki');
+check('a newer profile from the same app replaces the older one', C.listInbox(U).length === 1 && C.listInbox(U)[0].text.includes('Helsinki'));
+C.updateConnection(U, g.connection.id, { canSend: false });
+let sendOff = false; try { await C.sendWithKey(g.connection.id, g.key!, undefined, '- City: X'); } catch (e: any) { sendOff = e.status === 403; }
+check('sending off: refused', sendOff);
+C.dropInbox(U, C.listInbox(U)[0].id);
+check('dismiss empties the inbox', C.listInbox(U).length === 0);
+C.updateConnection(U, g.connection.id, { canSend: true });
+const demo = await C.trySync(U, g.connection.id);
+check('demo: the assistant "sends" a sample profile to the inbox', demo.profile === true && C.listInbox(U).length === 1 && P.parseProfileMarkdown(C.listInbox(U)[0].text).length >= 4);
+check('the question to copy into the assistant asks for Markdown and no guessing', /Markdown/.test(C.PROFILE_PROMPT) && /guess/.test(C.PROFILE_PROMPT));
+
+// --- the full .md view
+const md = C.knowsMarkdown(U);
+check('.md view: profile first, then a read-only part with the rest', md.indexOf('## ') < md.indexOf(P.READ_ONLY_MARK) && /## Goals/.test(md.split(P.READ_ONLY_MARK)[1]));
+const back = P.parseProfileMarkdown(md);
+check('.md view read back: only the profile part counts (no goals become profile fields)', back.every((f) => !/Buy a flat|Japan/.test(f.value)) && P.previewProfileImport(U, back).every((i) => i.action === 'same'), P.previewProfileImport(U, back).filter((i) => i.action !== 'same'));
+check('card items say where each came from and whether Abel uses it', C.knowsSummary(U).items.every((i) => typeof i.abelUses === 'boolean' && i.at.length === 10 && !!i.source));
 
 // --- IN
 const inn = C.connect(U, { appId: 'gcal' });

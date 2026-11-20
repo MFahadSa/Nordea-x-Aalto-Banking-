@@ -68,6 +68,8 @@ check('free paragraphs become notes, fields still read', prose.filter((x) => x.l
 check('a bare URL is not a field', P.parseProfileMarkdown('https://example.com').length === 0);
 check('field count is capped', P.parseProfileMarkdown(Array.from({ length: 200 }, (_, i) => `- Field${i}: v`).join('\n')).length === 60);
 
+check('"About me" and "About you" are the same section', P.parseProfileMarkdown('## About me\n- City: Espoo')[0].group === P.DEFAULT_GROUP);
+
 // --- 2. preview + apply (merge)
 const U = 'lauri';
 check('a new customer has no profile fields yet', P.getProfileEntries(U).length === 0);

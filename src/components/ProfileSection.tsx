@@ -5,8 +5,10 @@ import { Band } from './Nordea.js';
 import { ConnectionsSheet } from './ConnectionsSheet.js';
 import {
   addProfileField, editProfileField, removeProfileField, previewProfileImport, applyProfileImport,
-  profileExportUrl, undoCabinetAction, ProfileImportItem, fetchConnections,
+  profileExportUrl, undoCabinetAction, ProfileImportItem, fetchConnections, fetchProfileInbox, dropProfileInbox,
 } from '../services/api.js';
+import type { ProfileInboxItem } from '../types.js';
+import { KnowsSheet } from './KnowsSheet.js';
 
 const DEFAULT_GROUP = 'About you';
 const MAX_BYTES = 200_000;
@@ -115,7 +117,7 @@ const AddSheet: React.FC<{ groups: string[]; onClose: () => void; onAdd: (f: { l
 };
 
 /** Bottom sheet for a Markdown import: shows what would be added or changed, saves only what is ticked. */
-const ImportSheet: React.FC<{ userId: string; source: string; items: ProfileImportItem[]; onClose: () => void; onDone: () => void }> = ({ userId, source, items, onClose, onDone }) => {
+const ImportSheet: React.FC<{ userId: string; source: string; items: ProfileImportItem[]; onClose: () => void; onDone: () => void; onSaved?: () => void }> = ({ userId, source, items, onClose, onDone, onSaved }) => {
   const [rows, setRows] = useState(items);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -124,7 +126,7 @@ const ImportSheet: React.FC<{ userId: string; source: string; items: ProfileImpo
   const badge = (r: ProfileImportItem) => (r.action === 'new' ? 'New' : r.action === 'update' ? 'Changes it' : 'Already there');
   const save = async () => {
     setBusy(true); setErr('');
-    try { setResult(await applyProfileImport(userId, picked, source)); onDone(); }
+    try { setResult(await applyProfileImport(userId, picked, source)); onSaved?.(); onDone(); }
     catch (x: any) { setErr(x?.message || 'That didn’t work'); }
     finally { setBusy(false); }
   };
@@ -152,7 +154,7 @@ const ImportSheet: React.FC<{ userId: string; source: string; items: ProfileImpo
           </>
         ) : (
           <>
-            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--muted)' }}>I read “{source}”. Untick anything you’d rather not keep. Nothing is saved until you tap Save.</p>
+            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--muted)' }}>From {source}. Untick anything you’d rather not keep. Nothing is saved until you tap Save.</p>
             <div className="list">
               {rows.map((r, i) => (
                 <label key={`${r.key}-${i}`} className="row" style={{ display: 'flex', flexDirection: 'row', gap: 10, alignItems: 'flex-start', cursor: 'pointer', opacity: r.action === 'same' && !r.on ? 0.65 : 1 }}>
@@ -183,7 +185,17 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
   const groups = [...new Set(fields.map((e) => e.profileGroup || DEFAULT_GROUP))];
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [imp, setImp] = useState<{ source: string; items: ProfileImportItem[] } | null>(null);
+  const [imp, setImp] = useState<{ source: string; items: ProfileImportItem[]; inboxId?: string } | null>(null);
+  const [inbox, setInbox] = useState<ProfileInboxItem[]>([]);
+  const [knowsOpen, setKnowsOpen] = useState(false);
+  const loadInbox = () => fetchProfileInbox(userId).then(setInbox).catch(() => setInbox([]));
+  React.useEffect(() => { loadInbox(); }, [userId, entries.length]);
+  /** Text from an assistant (pasted or sent) or from the .md editor: always through the review preview. */
+  const review = (text: string, from: string, inboxId?: string) => guard(async () => {
+    setBusy(true);
+    try { const r = await previewProfileImport(userId, text, from); setImp({ source: from, items: r.items, inboxId }); }
+    finally { setBusy(false); }
+  });
   const [busy, setBusy] = useState(false);
   const [conns, setConns] = useState(false);
   const [active, setActive] = useState<number | null>(null);
@@ -202,7 +214,7 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
     try {
       const text = await f.text();
       const r = await previewProfileImport(userId, text, f.name);
-      setImp({ source: r.source, items: r.items });
+      setImp({ source: `“${r.source}”`, items: r.items });
     } finally { setBusy(false); }
   });
 
@@ -210,6 +222,18 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
     <>
       <Band left="Profile" right={fields.length} />
       <div className="ncard flat" data-testid="profile-card">
+        {inbox.map((x) => (
+          <div key={x.id} className="nrow2 static wait" data-testid="profile-inbox">
+            <span className="n-l">
+              <span className="n-name"><span className="dotc you" />{x.from} sent what it knows about you</span>
+              <span className="n-sub">Nothing is saved until you review it.</span>
+              <span className="wait-act">
+                <button className="btn small primary" onClick={() => review(x.text, x.from, x.id)}>Review</button>
+                <button className="btn small quiet" onClick={() => guard(async () => { await dropProfileInbox(userId, x.id); loadInbox(); })}>Dismiss</button>
+              </span>
+            </span>
+          </div>
+        ))}
         {fields.length === 0 ? (
           <div className="nempty">
             <span className="ne-art" aria-hidden="true"><Icon name="person" /></span>
@@ -232,6 +256,7 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
         )}
         <div className="wait-act" style={{ padding: '10px 16px 14px', flexWrap: 'wrap' }}>
           <button className="btn small primary" onClick={() => setAdding(true)}>Add</button>
+          <button className="btn small" onClick={() => setKnowsOpen(true)}>See what Abel knows</button>
           <button className="btn small" disabled={busy} onClick={() => file.current?.click()}>{busy ? 'Reading…' : 'Import .md'}</button>
           <button className="btn small" onClick={() => setConns(true)} aria-label="Active connections">
             <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 99, marginRight: 6, background: active ? 'var(--mint, #1aa36b)' : 'var(--line)' }} />
@@ -246,8 +271,10 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
         <AddSheet groups={groups} onClose={() => setAdding(false)}
           onAdd={async (f) => { const r = await addProfileField(userId, f); setAdding(false); onToast(r.created ? '📌 Abel will remember this' : 'You already had that, so I updated it.', r.undoToken); onChanged(); }} />
       )}
-      {conns && <ConnectionsSheet userId={userId} onClose={() => setConns(false)} onCount={setActive} onSynced={onChanged} />}
-      {imp && <ImportSheet userId={userId} source={imp.source} items={imp.items} onClose={() => setImp(null)} onDone={onChanged} />}
+      {conns && <ConnectionsSheet userId={userId} onClose={() => setConns(false)} onCount={setActive} onSynced={() => { onChanged(); loadInbox(); }} onReviewProfile={(text, from) => { setConns(false); review(text, from); }} />}
+      {knowsOpen && <KnowsSheet userId={userId} onClose={() => setKnowsOpen(false)} onChanged={onChanged} onToast={onToast} onReviewProfile={(text) => { setKnowsOpen(false); review(text, 'your edited .md'); }} />}
+      {imp && <ImportSheet userId={userId} source={imp.source} items={imp.items} onClose={() => setImp(null)} onDone={onChanged}
+        onSaved={() => { if (imp.inboxId) dropProfileInbox(userId, imp.inboxId).finally(loadInbox); }} />}
     </>
   );
 };
