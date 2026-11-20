@@ -73,12 +73,15 @@ const FieldRow: React.FC<{
 
 /** Bottom sheet for adding one field by hand. */
 const AddSheet: React.FC<{ groups: string[]; onClose: () => void; onAdd: (f: { label: string; value: string; group: string; private: boolean }) => Promise<void> }> = ({ groups, onClose, onAdd }) => {
-  const [label, setLabel] = useState('');
-  const [value, setValue] = useState('');
+  const [line, setLine] = useState('');
   const [group, setGroup] = useState(DEFAULT_GROUP);
   const [priv, setPriv] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // One box: "Occupation: Nurse". The part before the first colon is the name, the rest is the answer.
+  const m = line.match(/^\s*([^:：]{1,60}?)\s*[:：]\s*(.+?)\s*$/);
+  const label = m?.[1] ?? '';
+  const value = m?.[2] ?? '';
   return (
     <div className="sheet-bg" onClick={onClose} role="presentation">
       <form className="sheet" role="dialog" aria-label="Add to your profile" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '82vh', overflowY: 'auto', gap: 12 }}
@@ -87,10 +90,9 @@ const AddSheet: React.FC<{ groups: string[]; onClose: () => void; onAdd: (f: { l
           <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>Add to your profile</h3>
           <button type="button" className="btn small quiet" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <label><span className="kicker" style={{ display: 'block', marginBottom: 6 }}>What is it? (e.g. Occupation)</span>
-          <input style={input} autoFocus value={label} maxLength={60} onChange={(e) => setLabel(e.target.value)} /></label>
-        <label><span className="kicker" style={{ display: 'block', marginBottom: 6 }}>Your answer (e.g. Nurse)</span>
-          <input style={input} value={value} maxLength={300} onChange={(e) => setValue(e.target.value)} /></label>
+        <label><span className="kicker" style={{ display: 'block', marginBottom: 6 }}>Write it as “name: answer”</span>
+          <input style={input} autoFocus value={line} maxLength={360} placeholder="Occupation: Nurse" aria-label="Profile line" onChange={(e) => { setLine(e.target.value); setErr(''); }} /></label>
+        {line.trim() && !m && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>Add a colon between the name and the answer, like “City: Espoo”.</p>}
         <label><span className="kicker" style={{ display: 'block', marginBottom: 6 }}>Section</span>
           <input style={input} value={group} maxLength={40} list="profile-groups-add" onChange={(e) => setGroup(e.target.value)} />
           <datalist id="profile-groups-add">{[...new Set([DEFAULT_GROUP, 'Work & income', 'Home & family', ...groups])].map((g) => <option key={g} value={g} />)}</datalist></label>
