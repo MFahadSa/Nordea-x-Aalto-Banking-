@@ -246,7 +246,7 @@ export const ProfileSection: React.FC<Props> = ({ userId, entries, onChanged, on
         <AddSheet groups={groups} onClose={() => setAdding(false)}
           onAdd={async (f) => { const r = await addProfileField(userId, f); setAdding(false); onToast(r.created ? '📌 Abel will remember this' : 'You already had that, so I updated it.', r.undoToken); onChanged(); }} />
       )}
-      {conns && <ConnectionsSheet userId={userId} onClose={() => setConns(false)} onCount={setActive} />}
+      {conns && <ConnectionsSheet userId={userId} onClose={() => setConns(false)} onCount={setActive} onSynced={onChanged} />}
       {imp && <ImportSheet userId={userId} source={imp.source} items={imp.items} onClose={() => setImp(null)} onDone={onChanged} />}
     </>
   );

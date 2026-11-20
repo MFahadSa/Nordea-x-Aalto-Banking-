@@ -1,4 +1,4 @@
-import type { AppConnection, ConnectableApp, CabinetEntryType, ConnectionProtocol } from '../types.js';
+import type { AppConnection, ConnectableApp, CabinetEntryType, ConnectionDirection } from '../types.js';
 import type { Conversation, Earning, Share, EntryEvent } from '../types.js';
 import {
   User,
@@ -344,21 +344,32 @@ export const applyProfileImport = (userId: string, items: ProfileImportItem[], s
   post('/api/profile/import/apply', { userId, items, source }).then((r) => j<{ added: number; updated: number; undoTokens: string[] }>(r));
 export const profileExportUrl = (userId: string) => `/api/profile/export?userId=${encodeURIComponent(userId)}`;
 
-// ---------------- Active connections (A2A / MCP, concept demo) ----------------
+// ---------------- Active connections (concept demo) ----------------
 export interface ConnectionsView {
   scopes: { type: CabinetEntryType; label: string }[];
   apps: ConnectableApp[];
-  connections: (AppConnection & { sees: number; seesTitles: string[] })[];
+  connections: (Omit<AppConnection, 'keyHash'> & { hasKey: boolean; sees: number; seesTitles: string[] })[];
+  /** Shown once, right after connecting or making a new key. */
+  newKey?: { connectionId: string; key: string };
+  synced?: { waiting: number; heard: number };
 }
 const q = (userId: string) => `userId=${encodeURIComponent(userId)}`;
 export const fetchConnections = (userId: string) => fetch(`/api/connections?${q(userId)}`).then((r) => j<ConnectionsView>(r));
-export const connectApp = (userId: string, appId: string, protocol: ConnectionProtocol, scopes: CabinetEntryType[]) =>
-  post('/api/connections', { userId, appId, protocol, scopes }).then((r) => j<ConnectionsView>(r));
-export const changeConnection = (userId: string, id: string, body: { scopes?: CabinetEntryType[]; status?: 'active' | 'paused'; protocol?: ConnectionProtocol }) =>
+export const connectApp = (userId: string, appId: string, scopes: CabinetEntryType[] = []) =>
+  post('/api/connections', { userId, appId, scopes }).then((r) => j<ConnectionsView>(r));
+export const changeConnection = (userId: string, id: string, body: { scopes?: CabinetEntryType[]; status?: 'active' | 'paused' }) =>
   fetch(`/api/connections/${encodeURIComponent(id)}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ userId, ...body }) }).then((r) => j<ConnectionsView>(r));
+export const newConnectionKey = (userId: string, id: string) => post(`/api/connections/${encodeURIComponent(id)}/key`, { userId }).then((r) => j<ConnectionsView>(r));
+export const syncConnection = (userId: string, id: string) => post(`/api/connections/${encodeURIComponent(id)}/sync`, { userId }).then((r) => j<ConnectionsView>(r));
 export const disconnectApp = (userId: string, id: string) =>
   fetch(`/api/connections/${encodeURIComponent(id)}?${q(userId)}`, { method: 'DELETE' }).then((r) => j<ConnectionsView>(r));
-export const addOwnApp = (userId: string, body: { name: string; protocol: ConnectionProtocol[]; endpoint: string; description?: string; kind?: 'assistant' | 'tool' }) =>
+export const addOwnApp = (userId: string, body: { name: string; direction: ConnectionDirection; endpoint?: string; description?: string }) =>
   post('/api/connections/apps', { userId, ...body }).then((r) => j<ConnectionsView>(r));
 export const removeOwnApp = (userId: string, appId: string) =>
   fetch(`/api/connections/apps/${encodeURIComponent(appId)}?${q(userId)}`, { method: 'DELETE' }).then((r) => j<ConnectionsView>(r));
+export interface KnowsSummary {
+  name: string; age?: number; customerSince?: string;
+  facts: { label: string; value: string }[];
+  items: { id: string; type: CabinetEntryType; title: string; label: string; private: boolean; fromNordea: boolean; shareable: boolean }[];
+}
+export const fetchKnowsSummary = (userId: string) => fetch(`/api/connections/knows?${q(userId)}`).then((r) => j<KnowsSummary>(r));

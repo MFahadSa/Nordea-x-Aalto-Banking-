@@ -33,30 +33,39 @@ export interface User {
 }
 
 export type ConnectionProtocol = 'a2a' | 'mcp';
+/** out: an outside app uses what Abel knows (the cabinet is the server). in: a tool brings info in (it is the server). */
+export type ConnectionDirection = 'out' | 'in';
 
 /** An outside app (AI assistant or tool) that can be connected to the cabinet. */
 export interface ConnectableApp {
   id: string;
   name: string;
   kind: 'assistant' | 'tool';
+  direction: ConnectionDirection;
   description: string;
-  protocols: ConnectionProtocol[];
+  /** IN only: the protocol read from the tool's address (undefined = checked on first real connection). */
+  protocol?: ConnectionProtocol;
   /** Two letters for the badge (no brand logos). */
   initials: string;
   color: string;
-  /** Added by the customer, with the address they gave. */
+  /** Added by the customer. IN apps have the tool's address. */
   custom?: boolean;
   endpoint?: string;
 }
 
-/** A connection the customer made: which app, over which protocol, and which drawers it may read. */
 export interface AppConnection {
   id: string;
   appId: string;
-  protocol: ConnectionProtocol;
-  /** Cabinet entry types it may read. Private entries are never shared, whatever is ticked. */
+  direction: ConnectionDirection;
+  /** OUT only: cabinet entry types it may read. Private entries are never shared, whatever is ticked. */
   scopes: CabinetEntryType[];
   status: 'active' | 'paused';
+  /** OUT only: hash and last 4 characters of the key (the key itself is shown once and never stored). */
+  keyHash?: string;
+  keyHint?: string;
+  /** IN only: the protocol of the tool. */
+  protocol?: ConnectionProtocol;
+  lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
