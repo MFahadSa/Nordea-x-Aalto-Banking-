@@ -200,6 +200,8 @@ const cmToEntry = (userId: string, e: ArchEntry): CabinetEntry => {
     reviewed: doc?.reviewed ?? true,
     ...(doc?.goalType ? { goalType: doc.goalType } : {}),
     ...(doc?.confirmedAt ? { confirmedAt: doc.confirmedAt } : {}),
+    // v25: a customer's answer to an Abel fact question (the recommender's rules read these).
+    ...(doc?.factKey ? { factKey: doc.factKey, factValue: doc.factValue } : {}),
     createdAt: e.createdAt,
     updatedAt: doc?.updatedAt ?? e.createdAt,
   };

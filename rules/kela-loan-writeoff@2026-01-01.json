@@ -1,0 +1,75 @@
+{
+  "id": "kela-loan-writeoff",
+  "version": "2026-01-01",
+  "title": "Kela pays part of your student loan",
+  "kind": "state",
+  "validFrom": "2026-01-01",
+  "validTo": null,
+  "source": {
+    "url": "https://www.kela.fi/opintolainahyvitys",
+    "checkedAt": "2026-11-20",
+    "owner": "Student customers team (demo)"
+  },
+  "reviewDays": 120,
+  "when": {
+    "all": [
+      {
+        "fact": "isHigherEducationStudent",
+        "eq": true
+      },
+      {
+        "fact": "firstStudyPlaceDate",
+        "gte": "2014-08-01"
+      }
+    ]
+  },
+  "ask": {
+    "isHigherEducationStudent": "Are you studying at a university or a university of applied sciences?",
+    "firstStudyPlaceDate": "When did you first accept a study place at a university or UAS?"
+  },
+  "action": "inform",
+  "regulated": false,
+  "uses": [
+    "abel"
+  ],
+  "params": {
+    "pct": 40,
+    "threshold": 2500
+  },
+  "message": "If you finish your degree within Kela’s deadline, Kela pays {pct} % of your student loan above {threshold} €. Usually you do not need to apply. Paying the loan back early while you study can lower the amount.",
+  "tests": [
+    {
+      "name": "started on the first eligible day",
+      "today": "2026-11-20",
+      "facts": {
+        "isHigherEducationStudent": true,
+        "firstStudyPlaceDate": "2014-08-01"
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "started a day too early",
+      "today": "2026-11-20",
+      "facts": {
+        "isHigherEducationStudent": true,
+        "firstStudyPlaceDate": "2014-07-31"
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "not a student",
+      "today": "2026-11-20",
+      "facts": {
+        "isHigherEducationStudent": false
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "unknown: ask about studies first",
+      "today": "2026-11-20",
+      "facts": {},
+      "expect": "ask:isHigherEducationStudent"
+    }
+  ],
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+}

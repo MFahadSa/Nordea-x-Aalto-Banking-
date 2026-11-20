@@ -1,0 +1,96 @@
+{
+  "id": "ps-account",
+  "version": "2027-01-01",
+  "title": "Withdraw a small PS balance at normal tax",
+  "kind": "tax",
+  "validFrom": "2027-01-01",
+  "validTo": "2029-01-01",
+  "source": {
+    "url": "https://www.nordea.fi/henkiloasiakkaat/palvelumme/saastaminen-sijoittaminen/saastamisen-tilit/ps-tilin-veromuutos.html",
+    "checkedAt": "2026-11-20",
+    "owner": "Pension saving product team (demo)"
+  },
+  "reviewDays": 120,
+  "when": {
+    "all": [
+      {
+        "fact": "hasPsAccount",
+        "eq": true
+      },
+      {
+        "fact": "psBalance",
+        "lte": 5000
+      },
+      {
+        "fact": "psWithdrawalsStarted",
+        "eq": false
+      }
+    ]
+  },
+  "ask": {
+    "psWithdrawalsStarted": "Have you already started regular withdrawals from your PS account?"
+  },
+  "action": "inform",
+  "regulated": false,
+  "uses": [
+    "abel"
+  ],
+  "params": {
+    "max": 5000,
+    "years": "2027 and 2028",
+    "tax": 30
+  },
+  "message": "The PS tax deduction has ended. Your balance is {max} € or less, so you can withdraw all of it in {years} at the normal capital income tax of {tax} %, without the higher tax.",
+  "tests": [
+    {
+      "name": "the deduction rule is gone on 1 January",
+      "today": "2027-01-01",
+      "facts": {
+        "hasPsAccount": true,
+        "psBalance": 5000,
+        "psWithdrawalsStarted": false
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "5 001 € is over the limit",
+      "today": "2027-01-01",
+      "facts": {
+        "hasPsAccount": true,
+        "psBalance": 5001,
+        "psWithdrawalsStarted": false
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "withdrawals already started",
+      "today": "2027-03-01",
+      "facts": {
+        "hasPsAccount": true,
+        "psBalance": 3000,
+        "psWithdrawalsStarted": true
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "unknown: ask",
+      "today": "2027-03-01",
+      "facts": {
+        "hasPsAccount": true,
+        "psBalance": 3000
+      },
+      "expect": "ask:psWithdrawalsStarted"
+    },
+    {
+      "name": "ends after 2028",
+      "today": "2029-01-01",
+      "facts": {
+        "hasPsAccount": true,
+        "psBalance": 3000,
+        "psWithdrawalsStarted": false
+      },
+      "expect": "notLive"
+    }
+  ],
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+}

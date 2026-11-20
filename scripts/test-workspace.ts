@@ -34,11 +34,13 @@ for (const c of g.candidates) E.decide(c.id, c.filter === 'private' ? 'private' 
 
 // The customer's share ("Connect me") for a home loan
 const conv = undefined;
+// The share runs 7 days from whenever the test runs (a fixed date here expired on 20 Nov 2026).
+const UNTIL = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
 const prev = previewCabinetForAgent('lauri', 'adviser');
 const forCase = C.relevantForLoan(prev.allowed);
 check('loan relevance: the flat goal and the viewing in; the car goal and holiday out', forCase.some((e) => /Kalasatama/.test(e.title)) && forCase.some((e) => e.goalType === 'home') && !forCase.some((e) => /car|Japan/i.test(e.title)), forCase.map((e) => e.title));
 check('private items are never in what the adviser may read', !prev.allowed.some((e) => /doctor/i.test(e.title)));
-const share = db.addShare({ id: 'share-t1', userId: 'lauri', agentId: 'adviser', items: forCase.map((e) => e.title), createdAt: new Date().toISOString(), until: '2026-11-19', revoked: false });
+const share = db.addShare({ id: 'share-t1', userId: 'lauri', agentId: 'adviser', items: forCase.map((e) => e.title), createdAt: new Date().toISOString(), until: UNTIL, revoked: false });
 const k = C.openCaseFromHandoff('lauri', conv as any, forCase, share.until, 'Can I get a mortgage pre-approval for a flat?', share.id);
 check('a home-loan case opens with exactly the shared items', k.kind === 'home_loan_preapproval' && k.sharedIds.length === forCase.length);
 
@@ -77,7 +79,7 @@ check('Sanna confirms: decided, both names kept', r2.case.status === 'decided' &
 check('a decided case cannot be decided again', status(() => C.decideCase(k.id, 'kalle', 'declined', 'x')) === '409');
 
 // A second case, then the customer stops that share
-const share2 = db.addShare({ id: 'share-t2', userId: 'lauri', agentId: 'adviser', items: [], createdAt: new Date().toISOString(), until: '2026-11-19', revoked: false });
+const share2 = db.addShare({ id: 'share-t2', userId: 'lauri', agentId: 'adviser', items: [], createdAt: new Date().toISOString(), until: UNTIL, revoked: false });
 const kb = C.openCaseFromHandoff('lauri', undefined as any, forCase, share2.until, 'Talk to a person about a loan', share2.id);
 C.withdrawCasesForShare('lauri', 'share-t2');
 const after = C.caseDetail(kb.id, 'kalle');

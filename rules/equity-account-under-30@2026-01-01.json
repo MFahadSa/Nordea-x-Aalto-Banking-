@@ -1,0 +1,117 @@
+{
+  "id": "equity-account-under-30",
+  "version": "2026-01-01",
+  "title": "Free equity savings account under 30",
+  "kind": "product",
+  "validFrom": "2026-01-01",
+  "validTo": null,
+  "source": {
+    "url": "https://www.nordea.fi/en/personal/our-services/customer-benefits/student.html",
+    "checkedAt": "2026-11-20",
+    "owner": "Investing product team (demo)"
+  },
+  "reviewDays": 180,
+  "when": {
+    "all": [
+      {
+        "fact": "age",
+        "gte": 18
+      },
+      {
+        "fact": "age",
+        "lt": 30
+      },
+      {
+        "fact": "hasEquitySavingsAccount",
+        "eq": false
+      },
+      {
+        "fact": "interestedInInvesting",
+        "eq": true
+      }
+    ]
+  },
+  "ask": {
+    "interestedInInvesting": "Are you interested in investing in shares or funds?"
+  },
+  "action": "inform",
+  "regulated": true,
+  "uses": [
+    "abel"
+  ],
+  "params": {
+    "ageLimit": 30
+  },
+  "message": "Under {ageLimit}, you can open Nordea’s equity savings account for free. Trades and dividends inside it are not taxed until you take money out. What to invest in is a question for a Nordea adviser.",
+  "tests": [
+    {
+      "name": "17 is too young",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 17,
+        "hasEquitySavingsAccount": false,
+        "interestedInInvesting": true
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "18 qualifies",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 18,
+        "hasEquitySavingsAccount": false,
+        "interestedInInvesting": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "29 qualifies",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 29,
+        "hasEquitySavingsAccount": false,
+        "interestedInInvesting": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "30 does not",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 30,
+        "hasEquitySavingsAccount": false,
+        "interestedInInvesting": true
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "over 30: no question asked",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 45,
+        "hasEquitySavingsAccount": false
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "has one already",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 25,
+        "hasEquitySavingsAccount": true,
+        "interestedInInvesting": true
+      },
+      "expect": "notEligible"
+    },
+    {
+      "name": "unknown interest: ask",
+      "today": "2026-11-20",
+      "facts": {
+        "age": 25,
+        "hasEquitySavingsAccount": false
+      },
+      "expect": "ask:interestedInInvesting"
+    }
+  ],
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+}

@@ -1,0 +1,70 @@
+{
+  "id": "household-credit",
+  "version": "2026-01-01",
+  "title": "Household tax credit",
+  "kind": "tax",
+  "validFrom": "2026-01-01",
+  "validTo": "2028-01-01",
+  "source": {
+    "url": "https://www.vero.fi/henkiloasiakkaat/vahennykset/kotitalousvahennys/kotitalousvahennyksen-maara/",
+    "checkedAt": "2026-11-20",
+    "owner": "Tax rules owner (demo)"
+  },
+  "reviewDays": 180,
+  "when": {
+    "all": [
+      {
+        "fact": "paysForHouseholdWork",
+        "eq": true
+      }
+    ]
+  },
+  "ask": {
+    "paysForHouseholdWork": "Do you pay for cleaning, care or renovation work at home?"
+  },
+  "action": "inform",
+  "regulated": false,
+  "uses": [
+    "abel"
+  ],
+  "params": {
+    "rate": 40,
+    "max": 2100,
+    "ownShare": 150
+  },
+  "message": "You get {rate} % of the work part of the bill back in tax, up to {max} € a person a year, after an own share of {ownShare} €. Keep invoices that show the work part separately.",
+  "tests": [
+    {
+      "name": "pays for cleaning",
+      "today": "2026-11-20",
+      "facts": {
+        "paysForHouseholdWork": true
+      },
+      "expect": "eligible"
+    },
+    {
+      "name": "last day of 2027 still applies",
+      "today": "2027-12-31",
+      "facts": {
+        "paysForHouseholdWork": true
+      },
+      "expect": "eligible",
+      "reviewedOn": "2027-12-01"
+    },
+    {
+      "name": "not checked for 2028",
+      "today": "2028-01-01",
+      "facts": {
+        "paysForHouseholdWork": true
+      },
+      "expect": "notLive"
+    },
+    {
+      "name": "unknown: ask",
+      "today": "2026-11-20",
+      "facts": {},
+      "expect": "ask:paysForHouseholdWork"
+    }
+  ],
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+}
