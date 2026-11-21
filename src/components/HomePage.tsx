@@ -35,8 +35,7 @@ export function feedItems(entries: CabinetEntry[]) {
 export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame: (w: string) => void; onAsk: () => void; onUsers: () => void; onBell: () => void }> = ({ state, feedCount, onFrame, onAsk, onUsers, onBell }) => (
   <header className="nhead" style={{ backgroundImage: BAND_BG }}>
     <div className="nhead-top">
-      <span className="concept-tag">Concept · fictional data</span>
-      <span className="nh-right">
+      <span className="nh-right" style={{ marginLeft: 'auto' }}>
         <button className="nh-bell" onClick={onBell} aria-label={`Notifications${feedCount ? ': ' + feedCount : ''}`}>
           <span className="bell">
             <Bell />
@@ -79,7 +78,6 @@ export const QuickActions: React.FC<{ onFrame: (w: string) => void }> = ({ onFra
         </button>
       ))}
     </div>
-    <p className="qa-note"><b>Concept only</b>These are the bank’s own flows, not part of this demo</p>
   </section>
 );
 
