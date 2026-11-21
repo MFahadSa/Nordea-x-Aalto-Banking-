@@ -37,7 +37,9 @@ export function findSimilar(userId: string, c: Candidate): CabinetEntry | undefi
     // "Save for a wedding" is not the same as "Honeymoon (trip right after the wedding)".
     const theirTitle = drop(words(e.title));
     const titleHit = [...titleW].filter((w) => theirTitle.has(w)).length;
-    const sameGoalKind = c.type === 'goal' && e.type === 'goal' && !!c.goalType && c.goalType !== 'other' && c.goalType === e.goalType;
+    // v31: one home, one car, one buffer: the same kind is the same goal. Trips are different: a festival is not a Tallinn trip,
+    // so travel goals need a shared word in their names.
+    const sameGoalKind = c.type === 'goal' && e.type === 'goal' && !!c.goalType && ['home', 'car', 'buffer'].includes(c.goalType) && c.goalType === e.goalType;
     const ok = sameGoalKind || overlap >= 2 || (c.type === e.type && titleHit >= 1);
     if (!ok) continue;
     const score = overlap + titleHit + (sameGoalKind ? 3 : 0) + (c.type === e.type ? 1 : 0);

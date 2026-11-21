@@ -321,6 +321,13 @@ export function registerV14Routes(app: Express) {
           const cur = user.accounts.current.balance;
           if (!(amt > 0) || amt > cur) return res.status(400).json({ error: 'Not enough on the current account' });
           db.updateMessage(msg.id, { resolved: 'Yes, move it now' });
+          // v31: to the car fund when the card says so.
+          if (c.data!.toAccount === 'carFund' && user.accounts.carFund) {
+            db.updateUser(userId, { accounts: { ...user.accounts, current: { ...user.accounts.current, balance: Math.round((cur - amt) * 100) / 100 }, carFund: { ...user.accounts.carFund, balance: Math.round((user.accounts.carFund.balance + amt) * 100) / 100, lastContribution: fin.DEMO_TODAY } }, points: (user.points || 0) + 20 });
+            const car = db.getCabinetEntries(userId).find((e) => e.type === 'goal' && e.goalType === 'car' && e.status !== 'archived');
+            out.push(agentMsg(userId, conv, helper, `Done ✓ ${fmt(amt)} moved to your car fund now. This was a one-time move; nothing repeats.`, { usedEntryIds: car ? [car.id] : [] }));
+            break;
+          }
           db.updateUser(userId, { accounts: { ...user.accounts, current: { ...user.accounts.current, balance: Math.round((cur - amt) * 100) / 100 }, savings: { ...user.accounts.savings, balance: Math.round((user.accounts.savings.balance + amt) * 100) / 100 } }, points: (user.points || 0) + 20 });
           const g1 = fin.primaryGoal(userId);
           out.push(agentMsg(userId, conv, helper, `Done ✓ ${fmt(amt)} moved to ${g1 ? `“${g1.title}”` : 'your savings'} now. This was a one-time move; nothing repeats.`, { usedEntryIds: g1 ? [g1.id] : [] }));

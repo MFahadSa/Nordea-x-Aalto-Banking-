@@ -41,10 +41,20 @@ export function normAmount(v: unknown): number | undefined {
   return n > 0 ? n : undefined;
 }
 /** A goal target only when both the amount and the date are known. */
-export const targetOf = (amount: unknown, date: unknown) => {
+export const targetOf = (amount: unknown, date: unknown, ref?: string) => {
   const a = normAmount(amount), d = normDate(date);
-  return a && d ? { amount: a, date: d } : undefined;
+  return a && d ? { amount: a, date: ref ? notPast(d, ref) : d } : undefined;
 };
+/** v31: a plan's date is never in the past: "a trip in March" read in November is next March. */
+export function notPast(date: string, ref: string): string {
+  let d = date;
+  for (let i = 0; i < 3 && d.slice(0, 7) < ref.slice(0, 7); i++) {
+    const y = Number(d.slice(0, 4)) + 1, md = d.slice(5);
+    // 29 February in a year without it: the 28th.
+    d = md === '02-29' && !(y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? `${y}-02-28` : `${y}-${md}`;
+  }
+  return d;
+}
 export const SAMPLE_CHAT: [string, string][] = [
   ['Lauri', 'Ok so if we say 15k for the wedding, is next summer realistic?'],
   ['Mia', 'If we both put a bit aside, yes. July 2027?'],
@@ -224,7 +234,7 @@ export async function proposeFromContent(
         // The real detail is kept even for private things; the note says why it isn't ticked.
         detail: (() => {
           // "Lisbon in March 2026" with a March 2027 target: the detail follows the target's date.
-          const t = type === 'goal' ? targetOf(x.targetAmount, x.targetDate) : undefined;
+          const t = type === 'goal' ? targetOf(x.targetAmount, x.targetDate, lastChatDate || fin.DEMO_TODAY) : undefined;
           if (!t) return detail.slice(0, 200);
           const mon = new Date(`${t.date}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' });
           return detail.replace(new RegExp(`\\b(${mon}|${mon.slice(0, 3)})\\.?\\s+(\\d{4})\\b`, 'i'), (all, m) => `${m} ${t.date.slice(0, 4)}`).slice(0, 200);
@@ -232,7 +242,7 @@ export async function proposeFromContent(
         note: sensitive ? PRIVATE_NOTE : undefined,
         quote: String(x.quote || '').slice(0, 160),
         sensitive,
-        target: type === 'goal' ? targetOf(x.targetAmount, x.targetDate) : undefined,
+        target: type === 'goal' ? targetOf(x.targetAmount, x.targetDate, lastChatDate || fin.DEMO_TODAY) : undefined,
         goalType: type === 'goal' && ['home', 'car', 'travel', 'buffer', 'other'].includes(x.goalType) ? x.goalType : undefined,
       };
     });
