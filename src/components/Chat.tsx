@@ -680,7 +680,7 @@ export const Chat: React.FC<Props> = (p) => {
         <input type="file" ref={imgRef} accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, f.name); }} />
         <input type="file" ref={camFallbackRef} accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, 'Photo'); }} />
       </div>
-      <p className="chat-foot">Concept · fictional data · notes are saved only with your OK</p>
+      <p className="chat-foot">Concept · fictional data · what you tell Abel is saved, and you can remove it in Abel knows</p>
     </section>
   );
 };

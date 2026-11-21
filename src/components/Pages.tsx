@@ -366,7 +366,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
           <div className="nempty">
             <span className="ne-art" aria-hidden="true"><Icon name="cal" /></span>
             <b>Your goals will appear here</b>
-            <p>Tell Abel what you’re saving for, and he’ll track it with you.</p>
+            <p>Tell Abel what you’re saving for, and Abel will track it with you.</p>
             <button className="nq" onClick={p.onAddGoal}><span className="nq-c"><Icon name="plus" /></span><span className="nq-l">Create</span></button>
           </div>
         )}
@@ -473,12 +473,14 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
 // ---------------- Payday autopilot ----------------
 export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPlan: (text?: string) => void }> = ({ state, onBack, onPlan }) => {
   const pp = state.payPlan;
+  // v31: no salary or pension seen yet (a new customer): say so, instead of a plan full of zeros.
+  const noPay = !pp.nextPayday || !(pp.income > 0);
   return (
     <>
       <DetailHead
         title="Payday autopilot"
-        big={nfi(pp.suggestedExtraMove)}
-        sub={pp.towardsGoal ? `Abel suggests saving this much more for “${pp.towardsGoal}” each payday` : 'Abel suggests saving this much more each payday'}
+        big={noPay ? '–' : nfi(pp.suggestedExtraMove)}
+        sub={noPay ? 'Abel can plan your payday once a salary or pension comes in to this account' : pp.towardsGoal ? `Abel suggests saving this much more for “${pp.towardsGoal}” each payday` : 'Abel suggests saving this much more each payday'}
         onBack={onBack}
         actions={[
           { icon: 'spark', label: 'Plan with Abel', onClick: () => onPlan() },
@@ -487,6 +489,12 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
         ]}
       />
       <div className="nbody">
+        {noPay ? (<>
+        <Band left="Next payday" />
+        <div className="ncard flat">
+          <NRow name="No salary or pension seen yet" sub={`Nothing has come in to this account yet. Already saving: ${nfi(pp.alreadySavingPerMonth)} a month`} />
+        </div>
+        </>) : (<>
         <Band left="Next payday" right={pp.nextPayday ? dayMonth(pp.nextPayday) : undefined} />
         <div className="ncard flat">
           <NRow name="Salary" amount={nfi(pp.income)} />
@@ -495,6 +503,7 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
           <NRow name="Left over" amount={nfi(pp.leftOver)} />
           {pp.towardsGoal && <NRow name="Abel suggests" sub={`To “${pp.towardsGoal}”`} amount={`+${nfi(pp.suggestedExtraMove)}`} />}
         </div>
+        </>)}
         <Band left="Your rules" />
         <div className="ncard flat">
           <NRow name="Always keep" sub="Stays in your current account as a buffer" amount={nfi(pp.keepInCurrentAccount)} />

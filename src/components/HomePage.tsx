@@ -249,7 +249,7 @@ export const HomePage: React.FC<Props> = (p) => {
         </div>
 
         <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} onDelete={p.onDeleteChat} onDeleteAll={p.onDeleteAllChats} />
-        <p className="foot-note">Nothing is used without your OK.</p>
+        <p className="foot-note">You can see and remove what Abel uses in Abel knows.</p>
       </div>
     </>
   );
