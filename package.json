@@ -34,7 +34,8 @@
     "test:customer-id": "node scripts/test-arch-customer-ui.mjs && node scripts/test-customer-id-loader.mjs && tsx scripts/test-customer-id.ts && tsx scripts/test-customer-id-hydrate.ts && tsx scripts/test-customer-id-server.ts && tsx scripts/test-customer-id-fuzz.ts && tsx scripts/test-fail-closed-routes.ts && tsx scripts/test-customer-id-length.ts",
     "test:advice": "tsx scripts/test-intent.ts && tsx scripts/test-advice.ts && tsx scripts/test-advice-home.ts",
     "test:trust": "tsx scripts/test-trust.ts",
-    "test:v31": "tsx scripts/test-v31.ts"
+    "test:v31": "tsx scripts/test-v31.ts",
+    "test:refund": "tsx scripts/test-refund-p1.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

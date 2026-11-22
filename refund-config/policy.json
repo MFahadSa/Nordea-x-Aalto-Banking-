@@ -1,0 +1,99 @@
+{
+  "about": "Refund Tracker policy table (demo). Rows were written and confirmed by the instinct review of 22 Nov 2026; Claude spot-checked FI-1b and FI-2 against the KKV pages the same day. Code only reads this file: no deadline, offset or card-type rule lives in code. A case that matches no row is 'unknown' and goes to a person.",
+  "rows": [
+    {
+      "id": "FI-1",
+      "country": "FI",
+      "cardTypes": ["any"],
+      "reasons": ["change_of_mind"],
+      "kind": "legal_right",
+      "title": "Right to withdraw from an online purchase",
+      "rule": "14-day right of withdrawal for goods bought online. The period starts from the day the buyer receives the goods. The buyer must notify the seller within the period. If the period ends on a non-working day, it extends to the next working day. Exceptions exist (made-to-order or personalised goods, perishables, unsealed sealed audio/video/software, and others).",
+      "requiredFacts": ["deliveryDate", "withdrawalNoticeDate", "exclusionCheck"],
+      "mustEqual": { "exclusionCheck": "none_applies" },
+      "deadline": { "trigger": "deliveryDate", "days": 14, "rollToWorkingDay": true, "label": "Last day to notify the seller" },
+      "abelNote": "The exclusion check needs a data field or a person, never a guess. Headphones must not be auto-classified either way.",
+      "sources": [
+        { "name": "Your Europe: Returns", "url": "https://europa.eu/youreurope/citizens/consumers/shopping/returns/index_en.htm" },
+        { "name": "KKV: Right of withdrawal in online stores", "url": "https://www.kkv.fi/kuluttaja-asiat/verkkokauppa/peruuttamisoikeus-verkkokaupassa/" }
+      ],
+      "sourceReadOn": "2026-11-22",
+      "reviewBy": "2027-02-22"
+    },
+    {
+      "id": "FI-1b",
+      "country": "FI",
+      "cardTypes": ["any"],
+      "reasons": ["refund_not_received"],
+      "kind": "legal_right",
+      "title": "Seller's refund after a withdrawal",
+      "rule": "The seller must refund without delay and no later than 14 days after receiving the notice of withdrawal. The seller may withhold the refund until it has received the goods back or the buyer shows proof of return. How receipt of the notice is counted depends on the method; if the arrival date of a notice is unknown, it counts as received on the seventh day after the notice was sent. A returned parcel by itself is not established as a notice. A late refund earns overdue interest. The refund goes back by the same payment method.",
+      "requiredFacts": ["withdrawalNoticeDate", "withdrawalNoticeMethod", "goodsReceivedOrProofDate"],
+      "deadline": { "trigger": "withdrawalNoticeDate", "days": 14, "rollToWorkingDay": false, "label": "Seller's legal refund deadline" },
+      "abelNote": "In the demo story no withdrawal notice exists and the return parcel alone is not one, so this row cannot run. Abel tracks the shop's own promise instead.",
+      "sources": [
+        { "name": "KKV: Refund of payment when you withdraw from an online purchase", "url": "https://www.kkv.fi/en/consumer-affairs/online-stores/refund-of-payment-when-you-withdraw-from-an-online-purchase/" },
+        { "name": "ECC Finland: Returning goods", "url": "https://www.ecc.fi/en/themes/online-shopping/returning-goods-2/" },
+        { "name": "Directive 2011/83/EU, Article 13", "url": "https://eur-lex.europa.eu/eli/dir/2011/83/2026-09-27/eng" }
+      ],
+      "sourceReadOn": "2026-11-22",
+      "reviewBy": "2027-02-22"
+    },
+    {
+      "id": "FI-2",
+      "country": "FI",
+      "cardTypes": ["credit"],
+      "reasons": ["refund_not_received", "seller_breach"],
+      "kind": "bank_path",
+      "title": "Credit card: the card company shares the seller's liability",
+      "rule": "Finnish consumer law makes the creditor jointly liable with the seller for what the buyer is owed after the seller's breach, capped at what was paid to the creditor. Consumer law sets no deadline for complaining to the creditor, and card-scheme time limits cannot remove the statutory right. General limitation rules can still apply; claim promptly.",
+      "requiredFacts": ["chargeDate", "cardType", "posted", "breachEvidence"],
+      "mustEqual": { "cardType": "credit", "posted": true },
+      "deadline": null,
+      "abelNote": "Abel may say this path exists and that the bank decides the individual case. Never promise the bank will pay, never show a hard legal cutoff, never say the claim never expires.",
+      "sources": [
+        { "name": "KKV: Creditor's liability", "url": "https://www.kkv.fi/en/consumer-affairs/credit-and-payments/creditors-liability/" },
+        { "name": "KKV: Refund of payment when you withdraw from an online purchase", "url": "https://www.kkv.fi/en/consumer-affairs/online-stores/refund-of-payment-when-you-withdraw-from-an-online-purchase/" }
+      ],
+      "sourceReadOn": "2026-11-22",
+      "reviewBy": "2027-02-22"
+    },
+    {
+      "id": "FI-2g",
+      "country": "FI",
+      "cardTypes": ["credit"],
+      "reasons": ["refund_not_received", "seller_breach"],
+      "kind": "bank_guidance",
+      "title": "Nordea's own dispute guidance (bank guidance, not law)",
+      "rule": "Nordea asks customers to dispute within two months of the date the transaction was charged, and the transaction must be posted first.",
+      "requiredFacts": ["chargeDate", "cardType", "posted", "breachEvidence"],
+      "mustEqual": { "cardType": "credit", "posted": true },
+      "deadline": { "trigger": "chargeDate", "months": 2, "rollToWorkingDay": false, "label": "Nordea asks you to dispute by (bank guidance)" },
+      "abelNote": "Show it as 'Nordea asks you to dispute within two months of the charge', labelled bank guidance. Never show this date as a final legal deadline.",
+      "sources": [
+        { "name": "Nordea Finland: When to dispute a transaction", "url": "https://www.nordea.fi/en/personal/our-services/credit-payment-cards/use-cards-safely/card-complaint.html" }
+      ],
+      "sourceReadOn": "2026-11-22",
+      "reviewBy": "2027-02-22"
+    },
+    {
+      "id": "FI-3",
+      "country": "FI",
+      "cardTypes": ["debit"],
+      "reasons": ["refund_not_received", "seller_breach"],
+      "kind": "complaint_path",
+      "title": "Debit card: complaint path through the seller",
+      "rule": "With a debit card, the card company compensates only if it has committed to it in its card terms; the Consumer Protection Act protection does not apply to debit purchases. The buyer's path is a complaint to the seller, then KKV's Complaint Assistant and Consumer Advisory Services, and ultimately the Consumer Disputes Board.",
+      "requiredFacts": ["cardType"],
+      "mustEqual": { "cardType": "debit" },
+      "deadline": null,
+      "abelNote": "Abel says it can't tell whether a bank-side claim applies and shows the seller-complaint path. No blanket refusal, no promise.",
+      "sources": [
+        { "name": "KKV: Who is responsible for a defect", "url": "https://www.kkv.fi/kuluttaja-asiat/tavarat/kuka-vastaa-virheesta/" },
+        { "name": "Nordea Finland: When to dispute a transaction", "url": "https://www.nordea.fi/en/personal/our-services/credit-payment-cards/use-cards-safely/card-complaint.html" }
+      ],
+      "sourceReadOn": "2026-11-22",
+      "reviewBy": "2027-02-22"
+    }
+  ]
+}
