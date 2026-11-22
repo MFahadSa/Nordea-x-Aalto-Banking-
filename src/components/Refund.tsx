@@ -196,7 +196,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
                 <b>{draft.kind === 'reminder' ? 'Reminder to the shop' : draft.kind === 'answer' ? 'Answer to the shop' : 'Message to the shop'}</b>
                 <span className="rf-c-s">To {draft.recipient}</span>
                 <textarea className="rf-draft" value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} rows={9} />
-                {draft.mine && draft.mine !== draft.text && <div className="rf-c-s" style={{ display: 'block', whiteSpace: 'pre-wrap' }}><b>Your earlier words (not sent):</b>{'\n'}{draft.mine}{'\n'}<button className="btn small" onClick={() => setDraft({ ...draft, text: draft.mine!, mine: undefined })}>Use my words</button></div>}
+                {draft.mine && draft.mine !== draft.text && <div className="rf-c-s" style={{ display: 'block', whiteSpace: 'pre-wrap' }}><b>Your earlier words (not sent)</b>{'\n'}Amounts and dates in them may no longer be current. The new draft above is up to date.{'\n\n'}{draft.mine}{'\n'}<button className="btn small" onClick={() => setDraft({ ...draft, text: draft.mine!, mine: undefined })}>Use my words</button></div>}
                 <span className="rf-c-s">Based on: {draft.cites.join(', ')}</span>
                 <button className="btn primary block" disabled={busy || !draft.text.trim()} onClick={sendDraft}>Send this message</button>
                 <button className="btn quiet block" onClick={() => setDraft(null)}>Cancel</button>
