@@ -22,6 +22,7 @@ import { makeChain } from './src/server/llmChain.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
 import { autoDemoOn, loadBundledDemo } from './src/server/demoSeed.js';
 import { resetRefunds } from './src/server/refund/index.js';
+import { registerRefundRoutes } from './src/server/refund/routes.js';
 import { drainRemoteFlushes } from './src/server/arch/store/common.js';
 
 // F-C: the arch stores' hosted write-back is a 250 ms-debounced, fire-and-forget push. Drain
