@@ -194,7 +194,8 @@ export class RefundStore {
   }
 
   // ---------- audit (append-only) ----------
-  private log(caseId: string, kind: AuditKind, by: AuditEntry['by'], detail: string, at = this.clock()) {
+  private log(caseId: string, kind: AuditKind, by: AuditEntry['by'], detail: string, at?: string) {
+    at ??= this.caseClock(caseId);
     const e: AuditEntry = Object.freeze({ seq: ++this.data.seq, caseId, at, kind, by, detail });
     this.data.audit.push(e);
     return e;
@@ -522,7 +523,8 @@ export class RefundStore {
     const lines: string[] = ['Hello,', ''];
     const bought = `my order ${String(f.orderRef)}${f.item ? ` (${String(f.item)})` : ''}, ${eur(L.expectedCents)}${f.chargeDate ? `, paid on ${day(f.chargeDate)}` : ''}`;
     if (kind === 'answer') {
-      lines.push(`Thank you for your reply about ${bought}.`, 'Here is the proof of the return you asked for.');
+      const first = (c.shopMessages ?? []).find((m) => m.direction === 'out');
+      lines.push(`Thank you for your reply to my message${first ? ` of ${day(first.at)}` : ''}.`, 'Here is the proof of the return you asked for.');
       if (f.trackingRef) lines.push(`Parcel tracking reference: ${String(f.trackingRef)}.`);
       if (f.returnSentDate) lines.push(`I sent the parcel back on ${day(f.returnSentDate)}${f.sellerReceivedDate ? `, and the tracking shows you received it on ${day(f.sellerReceivedDate)}` : ''}.`);
     } else if (kind === 'inquiry') {
@@ -539,7 +541,7 @@ export class RefundStore {
     lines.push(kind === 'answer' ? 'Please confirm when I can expect the refund.' : 'Please tell me when I can expect the refund.', '', 'Kind regards,', c.userId.charAt(0).toUpperCase() + c.userId.slice(1));
     const cites = c.evidence.filter((e) => e.copy && (kind === 'answer' ? e.kind === 'return_tracking' : (e.kind === 'card_transaction' || e.kind === 'receipt' || e.kind === 'return_tracking' || e.kind === 'seller_email')));
     const text = lines.join('\n');
-    const basis = crypto.createHash('sha256').update(JSON.stringify({ caseId, kind, text, ids: cites.map((e) => e.recordId), to: String(f.merchant) })).digest('hex').slice(0, 24);
+    const basis = crypto.createHash('sha256').update(JSON.stringify({ caseId, kind, text, ids: cites.map((e) => [e.recordId, e.hash]), to: String(f.merchant), led: [L.expectedCents, L.receivedCents, L.credits.length], promise: c.shopPromiseDate ?? null, last: (c.shopMessages ?? []).length })).digest('hex').slice(0, 24);
     return { kind, basis, recipient: `${String(f.merchant)} customer service`, text, evidenceIds: cites.map((e) => e.recordId), evidenceLabels: [...new Set(cites.map((e) => ({ card_transaction: 'card purchase', receipt: 'order confirmation', return_tracking: 'return tracking', seller_email: 'shop email' } as Record<string, string>)[e.kind] ?? e.kind))] };
   }
   /** The customer approves this exact text. Records the approval, runs the checked (simulated) send, and files the message. */
@@ -579,6 +581,7 @@ export class RefundStore {
     if (kind === 'refuses') this.recordShopDeclined(caseId, 'presenter');
     this.save();
   }
+  private caseClock(caseId: string) { const c = this.data.cases.find((x) => x.id === caseId); return c ? this.caseNow(c) : this.clock(); }
   private caseNow(c: RefundCase) { return c.simulatedToday ? `${c.simulatedToday}T${this.clock().slice(11)}` : this.clock(); }
   /** Simulated time: the date the shop gave has passed. Presenter only. */
   shopDatePasses(caseId: string, today: string) {

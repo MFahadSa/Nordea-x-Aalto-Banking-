@@ -1,5 +1,5 @@
 // Refund Tracker screens. Everything is a demo: fictional credits, nothing is sent to a shop or bank.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '../ui/icons.js';
 import { DetailHead, NRow, Band, NChev } from './Nordea.js';
 
@@ -7,7 +7,7 @@ export interface RCase {
   id: string; state: string; withdrawn: boolean; itemCount: number;
   hasCard?: boolean; merchant?: string; orderRef?: string; item?: string; chargeDate?: string;
   shopDeclinedAt?: string;
-  expected?: number; received?: number; remaining?: number; promiseDate?: string; late?: boolean;
+  expected?: number; received?: number; remaining?: number; promiseDate?: string; asOf?: string; late?: boolean;
   credits?: { eventId: string; amount: number; date: string; currency: string }[];
   flags?: { eventId: string; reason: string; amount?: number; currency?: string; needsReview: boolean; conflicts?: string[] }[];
   needsReview?: number;
@@ -30,7 +30,8 @@ const api = async (url: string, body?: unknown) => {
 export const eur = (n: number) => n.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€';
 const day = (iso?: string) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 const dayShort = (iso?: string) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '');
-const workdaysLate = (from?: string, to = '2026-10-23') => {
+const workdaysLate = (from?: string, to?: string) => {
+  if (!to) return 0;
   if (!from) return 0;
   let n = 0; const d = new Date(from + 'T12:00:00'); const end = new Date(to + 'T12:00:00');
   while (d < end) { d.setDate(d.getDate() + 1); if (d.getDay() % 6 !== 0) n++; }
@@ -80,7 +81,7 @@ export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = 
     </button>
   );
   if (!got && !c.shopDeclinedAt && !(c.received ?? 0) && (!c.promiseDate || !c.late)) return generic;
-  const late = workdaysLate(c.promiseDate);
+  const late = workdaysLate(c.promiseDate, c.asOf);
   return (
     <button className="ncard notice" onClick={onOpen}>
       <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
@@ -98,9 +99,10 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const { v } = useRefund(userId);
   const c = openCase(v);
   const [err, setErr] = useState('');
-  const [draft, setDraft] = useState<{ caseId: string; basis: string; kind: string; recipient: string; text: string; cites: string[] } | null>(null);
+  const [draft, setDraft] = useState<{ mine?: string; caseId: string; basis: string; kind: string; recipient: string; text: string; cites: string[] } | null>(null);
   const caseKey = `${userId}:${c?.id ?? ''}`;
-  useEffect(() => { setDraft(null); setErr(''); }, [caseKey]);
+  const reqKey = useRef(caseKey);
+  useEffect(() => { reqKey.current = caseKey; setDraft(null); setErr(''); }, [caseKey]);
   const [busy, setBusy] = useState(false);
   if (!v || !c) return (<><DetailHead title="Refund" onBack={onBack} /><div className="nbody"><p className="presenter-note">No refund case is open.</p></div></>);
   const full = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
@@ -109,20 +111,30 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const pend = (c.flags || []).some((f) => f.reason === 'provisional') && !full;
   const status = nomatch ? 'not matched yet' : c.shopDeclinedAt && !full ? 'Shop declined' : pend && !partial ? 'refund pending, not counted yet' : full ? 'Refund received' : partial && c.expected != null ? `${eur(c.received!)} of ${eur(c.expected)} received` : c.late ? 'no refund yet, later than promised' : 'waiting for the refund';
   const check = async (eventId: string) => { try { await api(`/api/refund/case/${c.id}/review`, { eventId, outcome: 'checked_fine' }); ping(); } catch (e: any) { setErr(e.message); } };
-  const openDraft = async () => { try { setErr(''); setDraft(await api(`/api/refund/case/${c.id}/shop-draft`)); } catch (e: any) { setErr(e.message); } };
+  // A response only counts if the customer and case are still the ones that asked for it.
+  const openDraft = async () => {
+    const key = caseKey; setErr('');
+    try { const d = await api(`/api/refund/case/${c.id}/shop-draft`); if (reqKey.current === key && d.caseId === c.id) setDraft(d); }
+    catch (e: any) { if (reqKey.current === key) setErr(e.message); }
+  };
   const sendDraft = async () => {
-    if (!draft || busy || draft.caseId !== c.id) return; setBusy(true);
-    try { await api(`/api/refund/case/${c.id}/shop-send`, { text: draft.text, basis: draft.basis }); setDraft(null); ping(); }
+    if (!draft || busy || draft.caseId !== c.id) return; const key = caseKey; const mine = draft.text; setBusy(true);
+    try { await api(`/api/refund/case/${c.id}/shop-send`, { text: draft.text, basis: draft.basis }); if (reqKey.current === key) { setDraft(null); ping(); } }
     catch (e: any) {
-      setErr(e.message);
-      // The facts moved on: show the updated draft, keeping the customer's own edit as a note above it if they changed the words.
-      try { const fresh = await api(`/api/refund/case/${c.id}/shop-draft`); setDraft(fresh); } catch { setDraft(null); }
+      if (reqKey.current === key) {
+        setErr(e.message);
+        if (/changed since this draft/i.test(e.message)) {
+          // The facts moved on. Show the updated draft and keep the customer's own words visible beside it, never silently replaced.
+          try { const fresh = await api(`/api/refund/case/${c.id}/shop-draft`); if (reqKey.current === key && fresh.caseId === c.id) setDraft({ ...fresh, mine: mine }); }
+          catch { /* the old draft stays on screen, unsent */ }
+        }
+      }
     }
     setBusy(false);
   };
   const saveReceipt = async () => { try { await api(`/api/refund/case/${c.id}/save-receipt`, {}); ping(); } catch (e: any) { setErr(e.message); } };
   const assign = async (eventId: string, acceptConflicts: string[]) => { try { await api(`/api/refund/case/${c.id}/assign`, { eventId, acceptConflicts }); ping(); } catch (e: any) { setErr(e.message); } };
-  const late = workdaysLate(c.promiseDate);
+  const late = workdaysLate(c.promiseDate, c.asOf);
   return (
     <>
       <DetailHead title="Refund case" big={c.expected != null ? eur(c.expected) : undefined} sub={`${c.merchant ?? 'the shop'} · ${status}`} onBack={onBack} />
@@ -179,11 +191,12 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
               <NRow key={m.id} name={m.direction === 'out' ? (m.kind === 'reminder' ? 'You sent a reminder' : m.kind === 'answer' ? 'You answered the shop' : 'You wrote to the shop') : `${c.merchant ?? 'The shop'} replied`} sub={m.text} note={dayShort(m.at.slice(0, 10))} chevron={false} />
             ))}
             {c.canWrite && <NRow name={c.canWrite === 'reminder' ? 'Send a reminder?' : c.canWrite === 'answer' ? 'Answer the shop?' : 'Write to the shop?'} sub={c.canWrite === 'answer' ? 'The shop asked for proof of the return. Abel drafts an answer from your return tracking, you check every word.' : c.canWrite === 'reminder' ? "The date the shop gave has passed. Abel drafts it, you check every word." : 'Abel drafts it from what you allowed. You check every word before it goes.'} chevron={false} right={<button className="btn small" onClick={openDraft}>Draft</button>} />}
-            {draft && (
+            {draft && draft.caseId === c.id && (
               <div className="rf-draftbox">
                 <b>{draft.kind === 'reminder' ? 'Reminder to the shop' : draft.kind === 'answer' ? 'Answer to the shop' : 'Message to the shop'}</b>
                 <span className="rf-c-s">To {draft.recipient}</span>
                 <textarea className="rf-draft" value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} rows={9} />
+                {draft.mine && draft.mine !== draft.text && <span className="rf-c-s"><b>Your earlier words (not sent):</b> {draft.mine} <button className="btn small" onClick={() => setDraft({ ...draft, text: draft.mine!, mine: undefined })}>Use my words</button></span>}
                 <span className="rf-c-s">Based on: {draft.cites.join(', ')}</span>
                 <button className="btn primary block" disabled={busy || !draft.text.trim()} onClick={sendDraft}>Send this message</button>
                 <button className="btn quiet block" onClick={() => setDraft(null)}>Cancel</button>

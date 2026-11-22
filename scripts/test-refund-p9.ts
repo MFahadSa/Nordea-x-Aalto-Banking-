@@ -120,7 +120,11 @@ await press('shop_more');
 v = await view();
 check('shop asks for more: allowed return tracking lets the customer answer, and the copy says so', v.shopMessages.length === 2 && v.canWrite === 'answer' && /needs proof of the return/.test(v.explain.lines.join(' ')) && !/do not include it|withdraw/.test(v.explain.lines.join(' ') + v.explain.next) && /answer/i.test(v.explain.next), v.explain);
 const ad = await call('GET', `/api/refund/case/${v.id}/shop-draft`);
-check('the answer cites return tracking and states no received amount', ad.status === 200 && ad.json.kind === 'answer' && /3 Oct/.test(ad.json.text) && !/40,00/.test(ad.json.text) && ad.json.cites.length === 1, ad.json);
+check('the answer cites return tracking and states no received amount', ad.status === 200 && ad.json.kind === 'answer' && /3 Oct/.test(ad.json.text) && !/40,00|89,90|TE-48213|Wireless|paid on/.test(ad.json.text) && ad.json.cites.length === 1, ad.json);
+const tr = refunds().get(v.id).evidence.find((e) => e.kind === 'return_tracking')!;
+const keepHash = tr.hash; const keepFields = tr.copy!.fields; tr.copy!.fields = { ...keepFields, changedAfterDraft: 'x' }; (tr as any).hash = 'changed';
+check('a changed underlying record (same facts) makes the old answer draft stale', (await call('POST', `/api/refund/case/${v.id}/shop-send`, { text: ad.json.text, basis: ad.json.basis })).status === 400 && (await view()).shopMessages.length === 2);
+tr.copy!.fields = keepFields; (tr as any).hash = keepHash;
 const as = await call('POST', `/api/refund/case/${v.id}/shop-send`, { text: ad.json.text, basis: ad.json.basis });
 v = await view();
 check('the answer is sent in the same thread with its own approval and the shop can reply again', as.status === 200 && v.shopMessages.length === 3 && v.shopMessages[2].kind === 'answer' && v.canWrite === null && (await press('shop_agrees')).status === 200);
@@ -136,6 +140,14 @@ check('refusal: reply filed, declined recorded, case open, no write option, no e
 await gone(v.id, 'after a refusal');
 // no credit and no message survive anywhere after the last withdrawal
 check('no case reads anything after withdrawal', (await call('POST', `/api/refund/case/${v.id}/shop-send`, { text: 'x' })).status === 400);
+// clock: after the shop's date passes, the case's own date, credits and audit rows agree
+v = await open();
+await sendFresh(v.id); await press('shop_agrees'); await press('shop_date_passes');
+v = await view();
+await press('arrives');
+const vc = await view(); const au = reloaded().data.audit.filter((a) => a.caseId === v.id);
+check('promise stays 30 Oct, the case date moved past it, late is counted to that date, and later credits and audit rows are not dated before it', v.promiseDate === '2026-10-30' && v.asOf > '2026-10-30' && v.late && vc.credits.slice(-1)[0].date === v.asOf && au.slice(-2).every((a) => a.at.slice(0, 10) >= v.asOf), { asOf: v.asOf, late: v.late, cd: vc.credits.slice(-1)[0]?.date, audit: au.slice(-2).map((a) => a.at) });
+await call('POST', `/api/refund/case/${v.id}/withdraw`, {});
 // stale draft: a credit arrives after the draft was written
 v = await open();
 const sd = await call('GET', `/api/refund/case/${v.id}/shop-draft`);

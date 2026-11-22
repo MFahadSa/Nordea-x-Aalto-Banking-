@@ -77,7 +77,7 @@ function caseViewRaw(s: RefundStore, c: RefundCase): any {
     hasTracking: c.evidence.some((e) => e.kind === 'return_tracking' && !!e.copy), hasReceipt: c.evidence.some((e) => e.kind === 'receipt' && !!e.copy), receiptLabel: c.evidence.find((e) => e.kind === 'receipt' && e.copy)?.label, receiptSavedAt: c.receiptSavedAt,
     hasCard: c.evidence.some((e) => e.kind === 'card_transaction'), merchant: f.merchant, orderRef: f.orderRef, item: f.item, chargeDate: f.chargeDate, deliveryDate: f.deliveryDate, returnSentDate: f.returnSentDate, sellerReceivedDate: f.sellerReceivedDate,
     expected: L ? eur(L.expectedCents) : undefined, received: L ? eur(L.receivedCents) : undefined, remaining: L ? eur(L.expectedCents - L.receivedCents) : undefined,
-    shopDeclinedAt: c.shopDeclinedAt, promiseDate: st.promiseDate, late: st.late, credits, flags, needsReview: st.needsReview.length,
+    asOf: TODAY, shopDeclinedAt: c.shopDeclinedAt, promiseDate: st.promiseDate, late: st.late, credits, flags, needsReview: st.needsReview.length,
     evaluation: { outcome: st.evaluation.outcome },
     log: s.auditFor(c.id).map((a) => ({ seq: a.seq, at: a.at, kind: a.kind, by: a.by, detail: a.detail })),
   };

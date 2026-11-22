@@ -119,6 +119,7 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
     if (last && base) ev = { ...base, eventId: freshId(), reversesEventId: last.eventId, amount: last.cents / 100 };
   }
   if (!ev) return { ok: false, message: 'This credit is not in the demo data' };
+  if (c.simulatedToday) ev = { ...ev, date: c.simulatedToday };
   const result = s.applyCredit(ev, 'presenter');
   s.stampOrigin(ev.eventId, c.id);
   if (key) s.markDemoSent(c.id, key);
