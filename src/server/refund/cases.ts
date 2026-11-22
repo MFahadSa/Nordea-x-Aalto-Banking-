@@ -71,6 +71,7 @@ export interface Ledger {
   /** Credits seen but not counted, with why (provisional, possible duplicate, other currency, ambiguous…). */
   flags: { eventId: string; reason: CreditFlag; date: string }[];
 }
+export type CreditFlagEntry = Ledger['flags'][number];
 export type CreditFlag = 'provisional' | 'possible_duplicate' | 'other_currency' | 'ambiguous_ask_customer' | 'case_with_a_person' | 'reversal_unknown';
 
 /** A credit (or reversal) from the account feed. Its text is never read; only these structured fields. */
@@ -196,7 +197,7 @@ export class RefundStore {
     if (!c.consent.items.includes(recordId)) throw new RefundError(`record ${recordId} is not in the customer's consent`);
     const r = this.sourcesFor(c.userId).find((x) => x.id === recordId);
     if (!r) throw new RefundError(`record ${recordId} not found`);
-    this.log(c.id, 'read', 'system', `Read ${r.label} (consented)`);
+    this.log(c.id, 'read', 'system', `Read ${r.kind.replace(/_/g, ' ')} ${r.id} (consented)`);
     return r;
   }
 
@@ -218,7 +219,7 @@ export class RefundStore {
       const r = this.readRecord(c, id);
       const fields = structuredClone(r.fields);
       c.evidence.push({ recordId: r.id, kind: r.kind, label: r.label, hash: hashCopy(fields, r.text), storedAt: at, copy: { fields, text: r.text } });
-      this.log(c.id, 'evidence', 'system', `Stored ${r.label} with fingerprint ${hashCopy(fields, r.text).slice(0, 12)}…`, at);
+      this.log(c.id, 'evidence', 'system', `Stored ${r.kind.replace(/_/g, ' ')} ${r.id} with fingerprint ${hashCopy(fields, r.text).slice(0, 12)}…`, at);
       for (const [fact, field] of Object.entries(FACT_FIELDS)) {
         if (fields[field] !== undefined && c.facts[fact] === undefined) { c.facts[fact] = fields[field]; c.factSources[fact] = r.id; }
       }
@@ -238,25 +239,52 @@ export class RefundStore {
     if (!MOVES[c.state].includes(to)) throw new RefundError(`not allowed: ${c.state} → ${to}`);
     if (!cause || (cause.kind !== 'event' && cause.kind !== 'approval')) throw new RefundError('a state change needs a validated event or a recorded approval');
     if (NEEDS_APPROVAL[to] && cause.kind !== 'approval') throw new RefundError(`${to} needs a recorded approval`);
-    let approval: Approval | undefined;
-    if (cause.kind === 'approval') {
-      approval = (this.data.approvals ?? []).find((a) => a.id === cause.approvalId);
-      if (!approval) throw new RefundError(`no recorded approval ${cause.approvalId}`);
-      if (approval.caseId !== caseId) throw new RefundError('that approval belongs to another case');
-      if (approval.action !== APPROVAL_FOR[to]) throw new RefundError(`approval ${approval.id} is for ${approval.action}, not ${to}`);
-      if (approval.status !== 'approved') throw new RefundError(`approval ${approval.id} is ${approval.status}`);
-    }
+    // An approval moves the case only through executeApproved: checks, then the (mock) action, then the move.
+    if (cause.kind === 'approval') throw new RefundError('an approved action moves the case only through executeApproved');
     const from = c.state;
     c.state = to;
-    if (approval) approval.status = 'used';
-    this.log(caseId, 'state', by, `${from} → ${to} (${cause.kind === 'approval' ? `approval ${cause.approvalId}` : `${cause.type}: ${cause.ref}`})`);
+    this.log(caseId, 'state', by, `${from} → ${to} (${cause.type}: ${cause.ref})`);
     this.save();
+  }
+
+  /** Test hook: stands in for the mock adapter failing. Never set by the app. */
+  adapterFailure: ((a: Approval) => string | null) | null = null;
+
+  /** Runs one approved outward action. Everything is checked first: the approval (exists, this case, right
+      action, still approved), consent (not withdrawn), evidence (present and unchanged), the fingerprint
+      (recipient, text and evidence as approved) and, when given, the current draft (an edit after approval
+      makes it stale). Then the mock adapter runs: it only writes to the log, nothing is sent. Only when it
+      succeeds is the approval marked used and the case moved. Any refusal or failure changes neither. */
+  executeApproved(approvalId: string, current?: { recipient: string; text: string; evidenceIds: string[] }, by: AuditEntry['by'] = 'customer') {
+    const a = (this.data.approvals ?? []).find((x) => x.id === approvalId);
+    if (!a) throw new RefundError(`no recorded approval ${approvalId}`);
+    const c = this.get(a.caseId);
+    const to: CaseState = a.action === 'seller_inquiry' ? 'seller_contacted' : 'dispute_prepared';
+    if (APPROVAL_FOR[to] !== a.action) throw new RefundError(`approval ${a.id} is for ${a.action}, not ${to}`);
+    if (a.status !== 'approved') throw new RefundError(`approval ${a.id} is ${a.status}`);
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn: nothing can be sent for this case');
+    if (!MOVES[c.state].includes(to)) throw new RefundError(`not allowed: ${c.state} → ${to}`);
+    const ev = a.evidenceIds.map((id) => c.evidence.find((e) => e.recordId === id));
+    if (ev.some((e) => !e || !e.copy)) throw new RefundError('evidence in the approval is no longer stored');
+    if (this.verifyEvidence(c.id).some((x) => !x.ok && a.evidenceIds.includes(x.recordId))) throw new RefundError('evidence changed after it was approved: approve again');
+    if (this.approvalFingerprint(c.id, a) !== a.fingerprint) throw new RefundError('the approved message or evidence changed: approve again');
+    if (current && this.approvalFingerprint(c.id, current) !== a.fingerprint) throw new RefundError('the message was edited after approval: approve again');
+    const failure = this.adapterFailure?.(a) ?? null;
+    if (failure) { this.log(c.id, 'flag', 'system', `Mock ${a.action} did not run (${failure}); nothing sent, nothing changed`); this.save(); throw new RefundError(`mock adapter failed: ${failure}`); }
+    this.log(c.id, 'adapter', 'system', `MOCK ${a.action} to ${a.recipient}: ${a.text.length} characters, evidence ${a.evidenceIds.join(', ')}. Demo only: nothing was sent.`);
+    a.status = 'used';
+    const from = c.state;
+    c.state = to;
+    this.log(c.id, 'state', by, `${from} → ${to} (approval ${a.id}, mock action done)`);
+    this.save();
+    return { approvalId: a.id, state: c.state };
   }
 
   // ---------- facts and drafts ----------
   /** Facts the customer states. Only CUSTOMER_FACTS; each logged. */
   addCustomerFacts(caseId: string, facts: Partial<Record<(typeof CUSTOMER_FACTS)[number], unknown>>) {
     const c = this.get(caseId);
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn: start a new case to continue');
     for (const [k, v] of Object.entries(facts)) {
       if (!(CUSTOMER_FACTS as readonly string[]).includes(k)) throw new RefundError(`the customer can't set ${k}`);
       c.facts[k] = v; c.factSources[k] = 'customer';
@@ -273,19 +301,26 @@ export class RefundStore {
   setDraft(caseId: string, key: string, text: string) {
     if (!(DRAFT_KEYS as readonly string[]).includes(key)) throw new RefundError(`the model may not write ${key}`);
     const c = this.get(caseId);
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn: nothing more is drafted for this case');
     c.drafts[key] = String(text);
     this.log(caseId, 'draft', 'abel', `Draft ${key} updated (${String(text).length} characters)`);
     this.save();
   }
 
   // ---------- consent and evidence ----------
-  /** Withdrawing consent: stop reading, delete stored copies, keep fingerprints and the log. */
+  /** Withdrawing consent (owner's decisions, 22 Nov 2026): Abel stops reading and stops watching for the
+      refund; the stored copies AND the facts taken from them (amount, references, dates, money seen) are
+      deleted; open approvals are revoked; fingerprints and the log are kept. The log names records by kind
+      and id, not by their contents. */
   withdrawConsent(caseId: string) {
     const c = this.get(caseId);
     if (c.consent.withdrawnAt) return;
     c.consent.withdrawnAt = this.clock();
     for (const e of c.evidence) e.copy = null;
-    this.log(caseId, 'consent', 'customer', `Consent withdrawn: ${c.evidence.length} stored copies deleted; fingerprints and this log kept`);
+    const nFacts = Object.keys(c.facts).length;
+    c.facts = {}; c.factSources = {}; c.drafts = {}; c.ledger = undefined;
+    for (const a of this.data.approvals ?? []) if (a.caseId === caseId && a.status === 'approved') a.status = 'revoked';
+    this.log(caseId, 'consent', 'customer', `Consent withdrawn: reading and refund watching stopped; ${c.evidence.length} stored copies and ${nFacts} facts deleted; open approvals revoked; fingerprints and this log kept`);
     this.save();
   }
   /** Re-hashes each stored copy. A mismatch is flagged in the log and returned. */
@@ -329,7 +364,7 @@ export class RefundStore {
     if (ev.kind === 'reversal') return this.reverse(ev, by);
 
     // Which cases does this credit fully match? Partial signals only (same shop, no reference) = ask.
-    const mine = this.casesFor(ev.userId).filter((c) => c.ledger);
+    const mine = this.casesFor(ev.userId).filter((c) => c.ledger && !c.consent.withdrawnAt); // withdrawn: not watched any more
     const sameShop = mine.filter((c) => c.facts.merchantId === ev.merchantId);
     const refOk = (c: RefundCase) => (!!ev.orderRef && ev.orderRef === c.facts.orderRef) || (!!ev.paymentRef && ev.paymentRef === c.facts.paymentRef);
     const linkOk = (c: RefundCase) => !!ev.originalTxId && ev.originalTxId === c.facts.txId;
@@ -351,18 +386,50 @@ export class RefundStore {
 
   /** The customer says which case a held-back credit belongs to (same shop, no reference; or it fit two cases).
       The usual checks still apply: currency, posted, not over the amount owed. */
-  assignCredit(eventId: string, caseId: string): CreditResult {
+  /** What a held-back credit says that does not fit the case (another order number, payment reference or purchase). */
+  creditConflicts(eventId: string, caseId: string): string[] {
+    const h = this.data.events?.[eventId];
+    const c = this.get(caseId);
+    if (!h) return [];
+    const e = h.event, out: string[] = [];
+    if (e.orderRef && c.facts.orderRef && e.orderRef !== c.facts.orderRef) out.push(`order ${e.orderRef}, not ${String(c.facts.orderRef)}`);
+    if (e.paymentRef && c.facts.paymentRef && e.paymentRef !== c.facts.paymentRef) out.push(`payment reference ${e.paymentRef}, not ${String(c.facts.paymentRef)}`);
+    if (e.originalTxId && c.facts.txId && e.originalTxId !== c.facts.txId) out.push('it refers to a different purchase');
+    return out;
+  }
+
+  /** The customer says which case a held-back credit belongs to. If the credit names another order, payment or
+      purchase, it is refused unless the customer has seen those conflicts and confirms (acceptConflicts). */
+  assignCredit(eventId: string, caseId: string, opts: { acceptConflicts?: string[] } = {}): CreditResult {
     const h = this.data.events?.[eventId];
     if (!h) throw new RefundError(`no credit ${eventId}`);
     const ok = h.outcome === 'ambiguous' || (h.outcome === 'flagged' && h.reason === 'ambiguous_ask_customer');
     if (!ok) throw new RefundError(`credit ${eventId} is not waiting for the customer to pick a case`);
     const c = this.get(caseId);
     if (c.userId !== h.event.userId) throw new RefundError('that case belongs to another customer');
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn: this case is not watched any more');
     if (c.facts.merchantId !== h.event.merchantId) throw new RefundError('a credit from another shop cannot be assigned to this case');
+    const conflicts = this.creditConflicts(eventId, caseId);
+    const seen = new Set(opts.acceptConflicts ?? []);
+    if (conflicts.some((x) => !seen.has(x))) throw new RefundError(`this credit does not fit the case: ${conflicts.join('; ')}. Show these to the customer and ask them to confirm`);
     if (h.caseId) { const old = this.data.cases.find((x) => x.id === h.caseId); if (old) this.clearFlag(old, eventId); }
     delete this.data.events![eventId];
-    this.log(caseId, 'fact', 'customer', `Customer said credit ${eventId} is the refund for this case`);
+    this.log(caseId, 'fact', 'customer', conflicts.length
+      ? `Customer confirmed credit ${eventId} is the refund for this case although it says ${conflicts.join('; ')}`
+      : `Customer said credit ${eventId} is the refund for this case`);
     return this.count(c, h.event, 'customer');
+  }
+
+  /** A person (or the customer) has checked a possible duplicate: it leaves "needs a check". Nothing is counted;
+      the credit stays handled, so the same event can never be counted later. */
+  reviewFlag(caseId: string, eventId: string, outcome: 'checked_fine' | 'reported', by: AuditEntry['by'] = 'customer') {
+    const c = this.get(caseId);
+    const f = c.ledger?.flags.find((x) => x.eventId === eventId);
+    if (!f) throw new RefundError(`no open check for ${eventId} on this case`);
+    if (f.reason !== 'possible_duplicate') throw new RefundError(`credit ${eventId} is waiting for ${f.reason}, not a check`);
+    this.clearFlag(c, eventId);
+    this.log(caseId, 'flag', by, outcome === 'checked_fine' ? `Possible duplicate ${eventId} checked: fine, not counted` : `Possible duplicate ${eventId} reported for a closer look; not counted`);
+    this.save();
   }
 
   /** Credits held back only because the case was with a person: look at them again. */
@@ -375,6 +442,11 @@ export class RefundStore {
   /** Records the customer's approval of one exact outward action. Phase 4/5 screens call this. */
   recordApproval(caseId: string, a: { action: ApprovalAction; recipient: string; text: string; evidenceIds: string[] }): Approval {
     const c = this.get(caseId);
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn: nothing can be approved for this case');
+    if (a.action !== 'seller_inquiry' && a.action !== 'dispute_pack') throw new RefundError(`unknown action ${String(a.action)}`);
+    if (!String(a.recipient ?? '').trim()) throw new RefundError('an approval needs the exact recipient');
+    if (!String(a.text ?? '').trim()) throw new RefundError('an approval needs the full message text');
+    if (!Array.isArray(a.evidenceIds) || !a.evidenceIds.length) throw new RefundError('an approval needs the exact evidence list (at least one item)');
     const ev = a.evidenceIds.map((id) => c.evidence.find((e) => e.recordId === id));
     if (ev.some((e) => !e || !e.copy)) throw new RefundError('every evidence item must be stored and not withdrawn');
     if (this.verifyEvidence(caseId).some((x) => !x.ok && a.evidenceIds.includes(x.recordId))) throw new RefundError('evidence changed after it was stored; it cannot be sent');
@@ -452,6 +524,7 @@ export class RefundStore {
   /** Shop promise (from the working-day calendar), lateness, and the policy evaluation. Computed, never stored as text. */
   status(caseId: string, today: string) {
     const c = this.get(caseId);
+    if (c.consent.withdrawnAt) return { state: c.state, withdrawn: true as const, withdrawnAt: c.consent.withdrawnAt, promiseDate: undefined, late: undefined, money: undefined, needsReview: [] as CreditFlagEntry[], evaluation: this.evaluation(caseId, today) };
     const cal = this.cal();
     const f = c.facts;
     const promise = typeof f.promiseFrom === 'string' && typeof f.promiseWorkingDays === 'number'

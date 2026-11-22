@@ -37,20 +37,21 @@ const MSG = { action: 'seller_inquiry' as const, recipient: 'Tuulikki Electronic
 
 // ---------- bug 2: approvals are really checked ----------
 { const s = fresh(); const c = open(s); const other = open(s);
-  check('bug 2: a made-up approval id is refused', throws(() => s.transition(c.id, 'seller_contacted', { kind: 'approval', approvalId: 'not-a-real-approval' }), /no recorded approval/) && s.get(c.id).state === 'watching');
+  check('bug 2: a made-up approval id is refused', throws(() => s.executeApproved('not-a-real-approval'), /no recorded approval/) && s.get(c.id).state === 'watching');
+  check('bug 2: an approval can no longer be passed straight to transition', throws(() => s.transition(c.id, 'seller_contacted', { kind: 'approval', approvalId: 'x' }), /executeApproved/));
   const a = s.recordApproval(c.id, MSG);
   check('recording an approval is logged, with a fingerprint of recipient, text and evidence', /^[0-9a-f]{64}$/.test(a.fingerprint) && s.auditFor(c.id).some((x) => x.kind === 'approval' && x.detail.includes('seller_inquiry')));
-  check('an approval for another case is refused', throws(() => s.transition(other.id, 'seller_contacted', { kind: 'approval', approvalId: a.id }), /another case/));
   const d = s.recordApproval(c.id, { ...MSG, action: 'dispute_pack', recipient: 'Nordea disputes (mock)' });
-  check('a dispute approval cannot move the case to seller_contacted', throws(() => s.transition(c.id, 'seller_contacted', { kind: 'approval', approvalId: d.id }), /dispute_pack/));
+  check('a dispute approval cannot run from "watching" (no auto-escalation)', throws(() => s.executeApproved(d.id), /not allowed/) && s.data.approvals!.find((x) => x.id === d.id)!.status === 'approved');
   const fp = s.approvalFingerprint(c.id, { ...MSG, text: MSG.text + ' edited' });
-  check('editing the text changes the fingerprint (phase 4 compares it before sending)', fp !== a.fingerprint);
+  check('editing the text changes the fingerprint', fp !== a.fingerprint);
   s.revokeApproval(a.id);
-  check('a revoked approval cannot move the case', throws(() => s.transition(c.id, 'seller_contacted', { kind: 'approval', approvalId: a.id }), /revoked/) && s.get(c.id).state === 'watching');
+  check('a revoked approval cannot move the case', throws(() => s.executeApproved(a.id), /revoked/) && s.get(c.id).state === 'watching');
   const b = s.recordApproval(c.id, MSG);
-  s.transition(c.id, 'seller_contacted', { kind: 'approval', approvalId: b.id }, 'customer');
-  check('a valid approval moves the case once', s.get(c.id).state === 'seller_contacted' && s.data.approvals!.find((x) => x.id === b.id)!.status === 'used');
-  check('a used approval cannot be used again', throws(() => s.transition(c.id, 'dispute_prepared', { kind: 'approval', approvalId: b.id }), /used|seller_inquiry/)); }
+  s.executeApproved(b.id, MSG);
+  check('a valid approval runs the mock action and moves the case once', s.get(c.id).state === 'seller_contacted' && s.data.approvals!.find((x) => x.id === b.id)!.status === 'used' && s.auditFor(c.id).some((x) => x.kind === 'adapter' && /MOCK seller_inquiry/.test(x.detail)));
+  check('a used approval cannot be used again', throws(() => s.executeApproved(b.id), /used/));
+  check('an approval only moves its own case (the other case is untouched)', s.get(other.id).state === 'watching'); }
 { const s = fresh(); const c = open(s);
   s.get(c.id).evidence[1].copy!.text += ' (edited)';
   check('evidence changed after storing cannot be put in an approval', throws(() => s.recordApproval(c.id, MSG), /changed/));
