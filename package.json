@@ -35,7 +35,7 @@
     "test:advice": "tsx scripts/test-intent.ts && tsx scripts/test-advice.ts && tsx scripts/test-advice-home.ts",
     "test:trust": "tsx scripts/test-trust.ts",
     "test:v31": "tsx scripts/test-v31.ts",
-    "test:refund": "tsx scripts/test-refund-p1.ts && tsx scripts/test-refund-p2.ts"
+    "test:refund": "tsx scripts/test-refund-p1.ts && tsx scripts/test-refund-p2.ts && tsx scripts/test-refund-p2b.ts && tsx scripts/test-refund-p2c.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
