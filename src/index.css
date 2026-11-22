@@ -909,3 +909,15 @@ span.cam-x{background:none}
 .rf-draft{width:100%;box-sizing:border-box;border:1px solid var(--line,#d5d8e2);border-radius:8px;padding:10px;font:inherit;font-size:14px;line-height:1.4;margin:6px 0;resize:vertical}
 .cf-sheet.tall{max-height:88%;overflow-y:auto}
 .rf-draftbox{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+/* Refund: slim Home row under Quick actions, and the same item in From Abel */
+.ncard.notice.rf-row{display:block;padding:0;border-left:4px solid #b26a00;overflow:hidden}
+.ncard.notice.rf-row.green{border-left-color:#1c7a5a}
+.rf-row-h{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:none;cursor:pointer;padding:14px 16px;font:inherit;color:inherit}
+.rf-row-h .nt-t{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}.rf-row-h .nt-t span{color:var(--ink-2);font-size:13.5px}.rf-row-h .nt-go{font-weight:700;color:var(--brand-soft)}.rf-row-h .nt-ic{width:36px;height:36px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center}.rf-row-h .nt-ic{background:#fdf0dc;color:#b26a00}
+.rf-row.green .rf-row-h .nt-t{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}.rf-row-h .nt-t span{color:var(--ink-2);font-size:13.5px}.rf-row-h .nt-go{font-weight:700;color:var(--brand-soft)}.rf-row-h .nt-ic{width:36px;height:36px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center}.rf-row-h .nt-ic{background:#e2f3ec;color:#1c7a5a}
+.rf-row-d{display:flex;flex-direction:column;gap:12px;padding:0 16px 16px 64px;color:var(--ink-2);font-size:14px}
+.rf-row-b{display:flex;gap:10px;flex-wrap:wrap}
+.rf-abel{display:flex;flex-direction:column;gap:8px;padding:16px;text-align:left}
+.rf-abel>b{font-size:17px}
+.rf-abel>span:not(.rf-tag){color:var(--ink-2);font-size:14.5px}
+.rf-tag{font-size:13px;font-weight:700;color:#b26a00}.rf-tag.green{color:#1c7a5a}

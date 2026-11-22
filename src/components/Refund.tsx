@@ -61,39 +61,65 @@ const openCase = (v: RView | null) => v?.cases.filter((c) => !c.withdrawn).slice
 
 const Demo: React.FC<{ text: string }> = ({ text }) => <p className="rf-demo">{text}</p>;
 
-export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
-  const { v } = useRefund(userId);
+/** What Home and the bell say about the open refund. Every number and date comes from the case. */
+export interface RNotice { key: string; title: string; sub: string; detail: string; tone: 'amber' | 'green' }
+export const refundNotice = (v: RView | null): RNotice | null => {
   const c = openCase(v);
   if (!v || !c) return null;
-  const got = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
-  const generic = (
-    <button className="ncard notice" onClick={onOpen}>
-      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t"><b>{c.needsReview ? 'A credit came in that needs your check' : `Abel is watching for your ${c.merchant ?? 'shop'} refund`}</b><span>{c.needsReview ? 'It is not counted yet. Open the case to answer.' : c.promiseDate ? 'Nothing needs you right now.' : 'No promised date is in the records you allowed, so Abel cannot check if it is late.'}</span></span>
-      <span className="nt-go">Open</span>
-    </button>
-  );
-  if (c.expected == null) return (
-    <button className="ncard notice" onClick={onOpen}>
-      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t"><b>Abel can't match your refund yet</b><span>The records you allowed do not show what was bought or for how much.</span><span className="rf-demo-s">{v.demo}</span></span>
-      <span className="nt-go">Open</span>
-    </button>
-  );
-  if (!got && !c.shopDeclinedAt && !(c.received ?? 0) && (!c.promiseDate || !c.late)) return generic;
+  const shop = c.merchant ?? 'the shop';
+  if (c.expected == null) return { key: `${c.id}:nomatch`, tone: 'amber', title: "Abel can't match your refund yet", sub: 'The records you allowed do not show what was bought or for how much.', detail: 'Open the case to see what Abel could read and what is missing.' };
+  const got = (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
   const late = workdaysLate(c.promiseDate, c.asOf);
+  const money = eur(c.expected);
+  if (got) return { key: `${c.id}:got`, tone: 'green', title: `Your ${shop} refund arrived`, sub: `${money} · counted`, detail: 'The full amount is counted. Open the case to see the credits.' };
+  if (c.shopDeclinedAt) return { key: `${c.id}:declined`, tone: 'amber', title: `The shop declined your ${shop} refund`, sub: `${c.remaining != null ? eur(c.remaining) : 'The refund'} still unpaid · the case stays open`, detail: 'Abel keeps watching. Nothing is sent without you.' };
+  if (c.needsReview) return { key: `${c.id}:review`, tone: 'amber', title: 'A credit came in that needs your check', sub: 'It is not counted yet.', detail: 'Open the case to say whether it is yours.' };
+  if (c.promiseDate && c.late) return { key: `${c.id}:late:${c.asOf}:${c.received ?? 0}`, tone: 'amber', title: `Your ${shop} refund is ${late === 1 ? '1 working day' : `${late} working days`} late`, sub: 'Abel can prepare a reminder for you', detail: `${money} · promised by ${dayShort(c.promiseDate)}. Abel can prepare a reminder for you to approve. Nothing is sent until you say so.` };
+  return { key: `${c.id}:watch`, tone: 'amber', title: `Abel is watching for your ${shop} refund`, sub: c.promiseDate ? `Promised by ${dayShort(c.promiseDate)}` : 'No date from the shop yet', detail: 'Open the case to see where it stands.' };
+};
+const laterSet = new Set<string>();
+
+/** Home: one slim row under Quick actions. Tap to open the detail in place. */
+export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
+  const { v } = useRefund(userId);
+  const [openKey, setOpenKey] = useState('');
+  const n = refundNotice(v);
+  if (!n) return null;
+  const open = openKey === n.key;
   return (
-    <button className="ncard notice" onClick={onOpen}>
-      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t">
-        <b>{got ? `Your ${c.merchant ?? 'the shop'} refund arrived` : c.shopDeclinedAt ? `The shop declined your ${c.merchant ?? 'the shop'} refund` : `Your ${c.merchant ?? 'the shop'} refund is later than the shop promised`}</b>
-        <span>{got ? `${eur(c.expected!)} · simulated credit counted` : c.shopDeclinedAt ? `${c.remaining != null ? eur(c.remaining) : 'The refund'} still unpaid · the case stays open` : `${c.expected != null ? eur(c.expected) : 'Refund'} · promised by ${dayShort(c.promiseDate)} · ${late} working days later`}</span>
-        <span className="rf-demo-s">{v.demo}</span>
-      </span>
-      <span className="nt-go">Open</span>
-    </button>
+    <div className={`ncard notice rf-row ${n.tone}${open ? ' open' : ''}`}>
+      <button className="rf-row-h" aria-expanded={open} onClick={() => setOpenKey(open ? '' : n.key)}>
+        <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
+        <span className="nt-t"><b>{n.title}</b>{!open && <span>{n.sub}</span>}</span>
+        {!open && <span className="nt-go">Open</span>}
+      </button>
+      {open && (
+        <div className="rf-row-d">
+          <span>{n.detail}</span>
+          <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => setOpenKey('')}>Later</button></div>
+        </div>
+      )}
+    </div>
   );
 };
+
+/** The same item as the top card of the bell's From Abel list. Later hides it from the list until something changes. */
+export const RefundAbelCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
+  const { v } = useRefund(userId);
+  const [, bump] = useState(0);
+  const n = refundNotice(v);
+  if (!n || laterSet.has(n.key)) return null;
+  return (
+    <div className="ncard rf-abel">
+      <span className={`rf-tag ${n.tone}`}>Your refund</span>
+      <b>{n.title}</b>
+      <span>{n.detail}</span>
+      <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => { laterSet.add(n.key); bump((x) => x + 1); }}>Later</button></div>
+    </div>
+  );
+};
+/** For the bell badge: is there a refund item in From Abel right now. */
+export const useRefundAbelCount = (userId: string) => { const { v } = useRefund(userId); const n = refundNotice(v); return n && !laterSet.has(n.key) ? 1 : 0; };
 
 export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = ({ userId, onBack }) => {
   const { v } = useRefund(userId);
