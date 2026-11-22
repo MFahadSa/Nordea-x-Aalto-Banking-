@@ -51,6 +51,14 @@ try {
   check('after an unsupported shop the ask is over: naming Tuulikki alone no longer carries the refund', !a.card, a);
   a = await chat('Help me with my Tuulikki refund');
   check('the explicit Tuulikki refund message still shows the card', a.card === 'refund_consent', a);
+  a = await chat('refund'); a = await chat('not Tuulikki', a.cid);
+  check('"not Tuulikki" after the ask does not open the card', !a.card, a);
+  a = await chat('refund'); a = await chat('no thanks, not that one', a.cid);
+  check('declining after the ask opens nothing', !a.card, a);
+  a = await chat("I don't want a Tuulikki refund");
+  check('a negated Tuulikki refund message opens nothing', !a.card, a);
+  a = await chat('forget the Tuulikki refund');
+  check('cancel wording opens nothing', !a.card, a);
   const log = JSON.stringify((await state()));
   check('no case, no read, no evidence after all of this', log === '[]', log);
 } finally { stop(); }

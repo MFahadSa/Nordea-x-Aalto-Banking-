@@ -178,7 +178,7 @@ export function registerV14Routes(app: Express) {
       const a = agentMsg(userId, conv.id, conv.helperId, afterAsk ? REFUND_NO_SHOP : REFUND_ASK, { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
-    if (conv.helperId === 'abel' && /tuulikki/i.test(u.text) && (/refund/i.test(u.text) || afterAsk)) {
+    if (conv.helperId === 'abel' && /tuulikki/i.test(u.text) && !negated.test(u.text) && !/\b(cancel|stop|forget|never ?mind)\b/i.test(u.text) && (/refund/i.test(u.text) || afterAsk)) {
       const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
