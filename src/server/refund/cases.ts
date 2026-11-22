@@ -54,6 +54,8 @@ export interface RefundCase {
   country: string;
   reasons: string[];
   consent: { items: string[]; grantedAt: string; withdrawnAt?: string };
+  /** Set when the shop said no (demo). Only records the fact: no money, no state change, nothing sent. */
+  shopDeclinedAt?: string;
   evidence: EvidenceItem[];
   /** Facts taken from consented records' structured fields, or given by the customer. Never from free text. */
   facts: Record<string, unknown>;
@@ -429,6 +431,16 @@ export class RefundStore {
     if (f.reason !== 'possible_duplicate') throw new RefundError(`credit ${eventId} is waiting for ${f.reason}, not a check`);
     this.clearFlag(c, eventId);
     this.log(caseId, 'flag', by, outcome === 'checked_fine' ? `Possible duplicate ${eventId} checked: fine, not counted` : `Possible duplicate ${eventId} reported for a closer look; not counted`);
+    this.save();
+  }
+
+  /** The shop said no. Recorded only: the case stays as it is, counted credits stay counted, and nothing is sent or started. */
+  recordShopDeclined(caseId: string, by: AuditEntry['by'] = 'system') {
+    const c = this.get(caseId);
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn');
+    if (c.shopDeclinedAt) return;
+    c.shopDeclinedAt = this.clock();
+    this.log(caseId, 'flag', by, 'The shop declined the refund (demo). The case stays open. Nothing was sent and no dispute was started');
     this.save();
   }
 

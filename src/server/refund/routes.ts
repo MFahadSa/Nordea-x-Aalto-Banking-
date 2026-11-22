@@ -47,7 +47,7 @@ export function caseView(s: RefundStore, c: RefundCase) {
     id: c.id, userId: c.userId, state: c.state, withdrawn: false, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length,
     merchant: f.merchant, orderRef: f.orderRef, item: f.item, chargeDate: f.chargeDate, deliveryDate: f.deliveryDate, returnSentDate: f.returnSentDate, sellerReceivedDate: f.sellerReceivedDate,
     expected: L ? eur(L.expectedCents) : undefined, received: L ? eur(L.receivedCents) : undefined, remaining: L ? eur(L.expectedCents - L.receivedCents) : undefined,
-    promiseDate: st.promiseDate, late: st.late, credits, flags, needsReview: st.needsReview.length,
+    shopDeclinedAt: c.shopDeclinedAt, promiseDate: st.promiseDate, late: st.late, credits, flags, needsReview: st.needsReview.length,
     evaluation: { outcome: st.evaluation.outcome },
     log: s.auditFor(c.id).map((a) => ({ seq: a.seq, at: a.at, kind: a.kind, by: a.by, detail: a.detail })),
   };

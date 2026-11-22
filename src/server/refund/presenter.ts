@@ -2,7 +2,7 @@
     Each control reads the case and the credit log, so a press never repeats an event and never skips ahead. */
 import type { CreditEvent, RefundCase, RefundStore } from './cases.js';
 
-export type ControlId = 'partial' | 'arrives' | 'decoy' | 'duplicate' | 'pending' | 'other_currency' | 'no_reference' | 'reversal';
+export type ControlId = 'partial' | 'arrives' | 'decoy' | 'duplicate' | 'pending' | 'other_currency' | 'no_reference' | 'reversal' | 'declined';
 export interface Control { id: ControlId; title: string; label: string; badge?: string; note: string; enabled: boolean }
 
 const PARTS = ['ev-partial-40', 'ev-partial-49-90'];
@@ -22,7 +22,7 @@ export function controls(s: RefundStore, userId: string): { caseId: string | nul
       none('Partial refund', 'partial', 'Needs an open refund case'), none('Refund arrives', 'arrives', 'Needs an open refund case'),
       none('Decoy credit', 'decoy', 'Needs an open refund case'), none('Duplicate credit', 'duplicate', 'Needs an open refund case'),
       none('Pending credit', 'pending', 'Needs an open refund case'), none('Credit in another currency', 'other_currency', 'Needs an open refund case'),
-      none('Credit with no reference', 'no_reference', 'Needs an open refund case'), none('Reversal', 'reversal', 'Needs an open refund case'),
+      none('Credit with no reference', 'no_reference', 'Needs an open refund case'), none('Shop refuses', 'declined', 'Needs an open refund case'), none('Reversal', 'reversal', 'Needs an open refund case'),
     ] };
   }
   const L = c.ledger;
@@ -58,6 +58,9 @@ export function controls(s: RefundStore, userId: string): { caseId: string | nul
     const done = sent(s, evId);
     out.push({ id, title, label: done ? 'Sent' : 'Send', badge: done ? 'Sent' : undefined, note, enabled: !done });
   }
+  const declined = !!c.shopDeclinedAt;
+  out.push({ id: 'declined', title: 'Shop refuses', label: declined ? 'Sent' : 'Send', badge: declined ? 'Sent' : undefined,
+    note: declined ? 'Recorded: the shop declined. Nothing is sent' : full ? 'Already fully refunded' : 'The shop says no. Records it only, no dispute, nothing sent', enabled: !declined && !full });
   const lastCredit = L?.credits.slice(-1)[0];
   out.push({ id: 'reversal', title: 'Reversal', label: 'Send', note: lastCredit ? 'The shop or bank takes back the last counted credit' : 'Nothing counted to take back', enabled: !!lastCredit });
   return { caseId: c.id, controls: out };
@@ -73,6 +76,7 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
   const tmpl = (evId: string) => s.presetsFor(userId).find((e) => e.eventId === evId);
   let ev: CreditEvent | undefined;
   const L = c.ledger!;
+  if (id === 'declined') { s.recordShopDeclined(c.id, 'presenter'); return { ok: true, message: 'The shop declined (recorded only)' }; }
   if (id === 'partial') ev = tmpl(PARTS.find((p) => !sent(s, p))!);
   else if (id === 'arrives') {
     const remaining = L.expectedCents - L.receivedCents;

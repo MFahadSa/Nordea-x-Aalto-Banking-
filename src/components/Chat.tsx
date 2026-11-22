@@ -71,6 +71,7 @@ export const Chat: React.FC<Props> = (p) => {
   // v26: recommender cards: which "Why you see this" is open, and typed date answers.
   const [whyOpen, setWhyOpen] = useState<Record<string, boolean>>({});
   const [dateAns, setDateAns] = useState<Record<string, string>>({});
+  const [rfSel, setRfSel] = useState<Record<string, boolean>>({});
   const [attOpen, setAttOpen] = useState(false);
   // "Keep a copy": off by default, so Abel reads a file once and it's gone.
   const [keepCopy, setKeepCopy] = useState(false);
@@ -301,6 +302,27 @@ export const Chat: React.FC<Props> = (p) => {
     const open = !m.resolved;
     const act = (a: string, payload?: Record<string, unknown>) => p.onAction(m.id, a, payload);
     switch (c.type) {
+      case 'refund_consent': {
+        const items: { id: string; title: string; sub: string }[] = d.items || [];
+        const ids = items.filter((i) => rfSel[`${m.id}:${i.id}`]).map((i) => i.id);
+        return (
+          <div className="offer rf-consent">
+            <p className="rf-c-h"><b>{c.title}</b></p>
+            {items.map((i) => (
+              <label key={i.id} className="rf-tick"><input type="checkbox" disabled={!open} checked={!!rfSel[`${m.id}:${i.id}`]} onChange={(e) => setRfSel({ ...rfSel, [`${m.id}:${i.id}`]: e.target.checked })} />
+                <span><b>{i.title}</b><span className="n-sub">{i.sub}</span></span></label>
+            ))}
+            {open ? (
+              <div className="rf-c-a">
+                <button className="btn primary" disabled={!ids.length} onClick={() => { act('refund_allow', { items: ids }); window.setTimeout(() => window.dispatchEvent(new Event('refund-changed')), 600); }}>{ids.length ? `Allow these ${ids.length}` : 'Allow 0 items'}</button>
+                <button className="btn quiet" onClick={() => act('refund_no')}>Not now</button>
+              </div>
+            ) : <p className="n-sub">{m.resolved}</p>}
+            <p className="rf-c-s"><Icon name="shield" />Abel only reads what you tick. You can withdraw any time.</p>
+            <p className="rf-demo">{d.demo}</p>
+          </div>
+        );
+      }
       case 'offer':
         return (
           <div className="offer">

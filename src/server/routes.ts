@@ -20,6 +20,8 @@ import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } f
 import { XLSX_MIME, csvText } from './fileText.js';
 import { runSelfTest } from './selftest.js';
 import { pipelineStorage, hydratePipeline } from './pipeline/store.js';
+import { refunds } from './refund/index.js';
+import { consentOffer } from './refund/routes.js';
 import { ADVICE_ACTIONS, handleAdviceAction, type AdviceAction } from './advice/actions.js';
 import { adviceView, cardForChat, homeAction, movedToChat, resetRule, setProactive } from './advice/home.js';
 
@@ -161,6 +163,15 @@ export function registerV14Routes(app: Express) {
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
+    // Refund Tracker: asking about the Tuulikki refund shows the consent card. Code answers; nothing is read before the customer allows.
+    if (conv.helperId === 'abel' && /refund/i.test(u.text) && /tuulikki/i.test(u.text)) {
+      const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt && c.state !== 'closed');
+      const offer = consentOffer(refunds(), userId);
+      const a = open || !offer.length
+        ? agentMsg(userId, conv.id, conv.helperId, open ? 'Abel is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
+        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Abel may read. Nothing is sent anywhere.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Abel look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Demo: fictional data, nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
+      return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
+    }
     // His three agents gather what Abel may see for this conversation (User DB via the personal agent,
     // the session's finalised context.md); Abel writes the reply, with cards and the reply checks.
     const shared = await abelSharedContext(userId, conv.id, u.text);
@@ -509,6 +520,23 @@ export function registerV14Routes(app: Express) {
         db.updateMessage(msg.id, { resolved: r.resolved });
         // The chat already shows a resolved card's answer as the customer's bubble, so no extra message here.
         for (const rep of r.replies) out.push(agentMsg(userId, conv, helper, rep.text, rep.cards ? { cards: rep.cards } : {}));
+        break;
+      }
+      case 'refund_allow':
+      case 'refund_no': {
+        const c = card('refund_consent');
+        if (!c) return res.status(400).json({ error: 'No refund card on this message' });
+        if (action === 'refund_no') {
+          db.updateMessage(msg.id, { resolved: 'Not now' });
+          out.push(agentMsg(userId, conv, helper, 'OK. Abel reads nothing for this refund.'));
+          break;
+        }
+        const offered = new Set(((c.data as any).items || []).map((i: any) => i.id));
+        const items = Array.isArray(payload.items) ? payload.items.map(String) : [];
+        if (!items.length || items.some((i: string) => !offered.has(i))) return res.status(400).json({ error: 'Tick at least one offered item' });
+        try { refunds().openCase({ userId, consentItems: items, reasons: ['refund_not_received'], country: 'FI' }); } catch (e: any) { return res.status(400).json({ error: e?.message || 'Could not start' }); }
+        db.updateMessage(msg.id, { resolved: `Allowed ${items.length}` });
+        out.push(agentMsg(userId, conv, helper, 'Done. Abel looks into this refund and watches for it. You can withdraw any time under Abel knows.'));
         break;
       }
       default:
