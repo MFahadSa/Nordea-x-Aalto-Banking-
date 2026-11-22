@@ -11,6 +11,7 @@ export interface RCase {
   credits?: { eventId: string; amount: number; date: string; currency: string }[];
   flags?: { eventId: string; reason: string; amount?: number; currency?: string; needsReview: boolean; conflicts?: string[] }[];
   needsReview?: number;
+  hasReceipt?: boolean; receiptLabel?: string; receiptSavedAt?: string;
 }
 interface ROffer { id: string; kind: string; title: string; sub: string }
 interface RView { cases: RCase[]; offer: ROffer[]; demo: string }
@@ -102,6 +103,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const pend = (c.flags || []).some((f) => f.reason === 'provisional') && !full;
   const status = nomatch ? 'not matched yet' : c.shopDeclinedAt && !full ? 'Shop declined' : pend && !partial ? 'refund pending, not counted yet' : full ? 'Refund received' : partial && c.expected != null ? `${eur(c.received!)} of ${eur(c.expected)} received` : c.late ? 'no refund yet, later than promised' : 'waiting for the refund';
   const check = async (eventId: string) => { try { await api(`/api/refund/case/${c.id}/review`, { eventId, outcome: 'checked_fine' }); ping(); } catch (e: any) { setErr(e.message); } };
+  const saveReceipt = async () => { try { await api(`/api/refund/case/${c.id}/save-receipt`, {}); ping(); } catch (e: any) { setErr(e.message); } };
   const assign = async (eventId: string, acceptConflicts: string[]) => { try { await api(`/api/refund/case/${c.id}/assign`, { eventId, acceptConflicts }); ping(); } catch (e: any) { setErr(e.message); } };
   const late = workdaysLate(c.promiseDate);
   return (
@@ -150,6 +152,14 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
             <NRow name={c.item} sub={`Order ${c.orderRef}${c.hasCard ? ' · credit card' : ''}`} amount={`−${eur(c.expected)}`} note={c.chargeDate ? `Charged ${day(c.chargeDate)}` : undefined} chevron={false} />
           </div>
         </>)}
+        {c.hasReceipt && (<>
+          <Band left="Receipt" />
+          <div className="ncard flat">
+            {c.receiptSavedAt
+              ? <NRow name={<><Icon name="shield" />Receipt saved in Abel knows</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Kept in Abel knows until you withdraw this case, then deleted. The original is untouched.`} chevron={false} />
+              : <NRow name="Keep the receipt?" sub="Save it to Abel knows, in case you need it later. Kept until you withdraw this case, then deleted." chevron={false} right={<button className="btn small" onClick={saveReceipt}>Save</button>} />}
+          </div>
+        </>)}
         {c.promiseDate && (<>
         <Band left="About the dates" />
         <div className="ncard flat"><p className="rf-rules">
@@ -173,6 +183,7 @@ export const RefundKnows: React.FC<{ userId: string }> = ({ userId }) => {
       <div className="ncard flat">
         <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={`Abel may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
           right={<button className="btn small" onClick={() => setAsk(true)}>Withdraw</button>} />
+        {c.receiptSavedAt && <NRow name={<><Icon name="shield" />Saved receipt</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Deleted when you withdraw this case.`} chevron={false} />}
         <NRow name="What withdrawing does" sub="Abel stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Abel did is kept." chevron={false} />
       </div>
       {ask && (

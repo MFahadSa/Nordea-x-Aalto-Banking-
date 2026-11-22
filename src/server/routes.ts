@@ -164,7 +164,25 @@ export function registerV14Routes(app: Express) {
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
     // Refund Tracker: asking about the Tuulikki refund shows the consent card. Code answers; nothing is read before the customer allows.
-    if (conv.helperId === 'abel' && /refund/i.test(u.text) && /tuulikki/i.test(u.text)) {
+    // The demo knows one shop. A short "refund" message with no shop asks which shop, and that question stays open until the customer
+    // names a shop, cancels or changes topic. Only naming Tuulikki then shows the card. A generic reply ("an online shop") asks again,
+    // another named shop is plainly unsupported, and a yes, a no, a cancel or a topic change never opens anything.
+    const REFUND_ASK = 'Which shop is the refund from? Name it and I can look into it.';
+    const REFUND_GENERIC = 'That does not tell me which shop. What is the shop called?';
+    const REFUND_NO_SHOP = 'I cannot look into refunds from that shop in this demo. The demo covers one shop only, which you can name if it applies.';
+    const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent').slice(-1)[0];
+    const afterAsk = [REFUND_ASK, REFUND_GENERIC, REFUND_NO_SHOP].includes(lastAgent?.text ?? '');
+    const other = /\b(balance|spend|spending|pay|salary|afford|track|goal|money|unrelated|yes|yeah|yep|ok|okay|thanks|thank|why|what|whats|how|when|who)\b|\?/i;
+    const negated = /\b(no|nope|not|don't|dont|never|without|cancel|stop|forget|nevermind|drop|quit)\b|never ?mind/i;
+    const generic = /^\s*(an?|the|some|any|my)?\s*(online\s*)?(shop|store|webshop|web shop|retailer|website|merchant|one)\s*\.?\s*$/i;
+    const clean = !other.test(u.text) && !negated.test(u.text);
+    const refundAsk = conv.helperId === 'abel' && !/tuulikki/i.test(u.text) && clean && (
+      (/refund/i.test(u.text) && u.text.length <= 80 && !afterAsk) || (afterAsk && u.text.length <= 40));
+    if (refundAsk) {
+      const a = agentMsg(userId, conv.id, conv.helperId, afterAsk ? (generic.test(u.text) ? REFUND_GENERIC : REFUND_NO_SHOP) : REFUND_ASK, { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
+      return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
+    }
+    if (conv.helperId === 'abel' && /tuulikki/i.test(u.text) && clean && ((/refund/i.test(u.text)) || (afterAsk && u.text.length <= 40))) {
       const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
