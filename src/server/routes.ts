@@ -164,7 +164,20 @@ export function registerV14Routes(app: Express) {
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
     // Refund Tracker: asking about the Tuulikki refund shows the consent card. Code answers; nothing is read before the customer allows.
-    if (conv.helperId === 'abel' && /refund/i.test(u.text) && /tuulikki/i.test(u.text)) {
+    // The demo knows one shop. A short "refund" message with no shop asks which shop; naming Tuulikki next carries the refund intent.
+    // Any other answer gets one more ask, then the chat goes on as normal. Nothing is read or guessed from an unknown shop.
+    const REFUND_ASK = 'Which shop is the refund from? Name it and I can look into it.';
+    const REFUND_ASK2 = 'I can only look into a refund from a shop I know about, and in this demo that is Tuulikki Electronics. Is it that one?';
+    const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent' && m.id !== u.id).slice(-1)[0];
+    const afterAsk = lastAgent?.text === REFUND_ASK, afterAsk2 = lastAgent?.text === REFUND_ASK2;
+    const refundAsk = conv.helperId === 'abel' && !/tuulikki/i.test(u.text) && (
+      (/refund/i.test(u.text) && u.text.length <= 80 && !afterAsk && !afterAsk2) || (afterAsk && u.text.length <= 80 && !/\b(yes|yeah|yep|that one)\b/i.test(u.text)));
+    if (refundAsk) {
+      const a = agentMsg(userId, conv.id, conv.helperId, afterAsk ? REFUND_ASK2 : REFUND_ASK, { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
+      return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
+    }
+    const yesAfter2 = conv.helperId === 'abel' && afterAsk2 && /\b(yes|yeah|yep|that one)\b/i.test(u.text);
+    if (conv.helperId === 'abel' && ((/refund/i.test(u.text) && /tuulikki/i.test(u.text)) || ((afterAsk || afterAsk2) && /tuulikki/i.test(u.text)) || yesAfter2)) {
       const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length

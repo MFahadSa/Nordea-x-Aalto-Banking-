@@ -45,6 +45,7 @@ export function caseView(s: RefundStore, c: RefundCase) {
   const f = c.facts;
   return {
     id: c.id, userId: c.userId, state: c.state, withdrawn: false, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length,
+    hasReceipt: c.evidence.some((e) => e.kind === 'receipt' && !!e.copy), receiptLabel: c.evidence.find((e) => e.kind === 'receipt' && e.copy)?.label, receiptSavedAt: c.receiptSavedAt,
     hasCard: c.evidence.some((e) => e.kind === 'card_transaction'), merchant: f.merchant, orderRef: f.orderRef, item: f.item, chargeDate: f.chargeDate, deliveryDate: f.deliveryDate, returnSentDate: f.returnSentDate, sellerReceivedDate: f.sellerReceivedDate,
     expected: L ? eur(L.expectedCents) : undefined, received: L ? eur(L.receivedCents) : undefined, remaining: L ? eur(L.expectedCents - L.receivedCents) : undefined,
     shopDeclinedAt: c.shopDeclinedAt, promiseDate: st.promiseDate, late: st.late, credits, flags, needsReview: st.needsReview.length,
@@ -80,6 +81,13 @@ export function registerRefundRoutes(app: Express) {
   app.post('/api/refund/case/:id/withdraw', h((req, res) => {
     const id = String(req.params.id);
     s().withdrawConsent(id);
+    res.json({ case: caseView(s(), s().get(id)) });
+  }));
+
+  // Keep the allowed receipt in Abel knows until the case is withdrawn.
+  app.post('/api/refund/case/:id/save-receipt', h((req, res) => {
+    const id = String(req.params.id);
+    s().saveReceipt(id);
     res.json({ case: caseView(s(), s().get(id)) });
   }));
 

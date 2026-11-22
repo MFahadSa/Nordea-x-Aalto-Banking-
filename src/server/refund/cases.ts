@@ -58,6 +58,8 @@ export interface RefundCase {
   shopDeclinedAt?: string;
   /** Demo credits the Presenter sent for this case (control keys). Cleared on withdraw. */
   demoSent?: string[];
+  /** Set when the customer chose to keep an allowed receipt in Abel knows. Cleared with the stored copy on withdrawal. */
+  receiptSavedAt?: string;
   evidence: EvidenceItem[];
   /** Facts taken from consented records' structured fields, or given by the customer. Never from free text. */
   facts: Record<string, unknown>;
@@ -340,6 +342,7 @@ export class RefundStore {
       evs[tomb] = { caseId: h.caseId ?? caseId, outcome: h.outcome, reason: h.reason, event: { eventId: tomb, kind: h.event.kind, amount: 0, currency: '', merchantId: '', status: h.event.status } as CreditEvent };
     }
     c.demoSent = [];
+    delete c.receiptSavedAt;
     c.consent.items = c.consent.items.map((i) => opaqueId('r', i));
     for (const e of c.evidence) e.recordId = opaqueId('r', e.recordId);
     // The log is kept, but record and credit ids inside it become opaque.
@@ -467,6 +470,16 @@ export class RefundStore {
 
   /** Remembers which case the Presenter sent this credit for, so withdrawing that case can scrub the copy. */
   stampOrigin(eventId: string, caseId: string) { const h = this.data.events?.[eventId]; if (h && h.caseId !== caseId) { h.origin = caseId; this.save(); } }
+  /** The customer keeps the receipt they already allowed. Only an allowed, stored receipt can be kept, and it lives and dies with the case. */
+  saveReceipt(caseId: string) {
+    const c = this.get(caseId);
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn: nothing can be saved');
+    const r = c.evidence.find((e) => e.kind === 'receipt' && e.copy);
+    if (!r) throw new RefundError('no receipt was allowed for this case, so there is nothing to save');
+    if (c.receiptSavedAt) return;
+    c.receiptSavedAt = this.clock();
+    this.log(caseId, 'evidence', 'customer', 'Receipt kept in Abel knows until this case is withdrawn');
+  }
   markDemoSent(caseId: string, key: string) { const c = this.get(caseId); (c.demoSent ??= []).includes(key) || c.demoSent.push(key); this.save(); }
   /** The shop said no. Recorded only: the case stays as it is, counted credits stay counted, and nothing is sent or started. */
   recordShopDeclined(caseId: string, by: AuditEntry['by'] = 'system') {
