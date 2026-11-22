@@ -169,7 +169,7 @@ export function registerV14Routes(app: Express) {
     // another named shop is plainly unsupported, and a yes, a no, a cancel or a topic change never opens anything.
     const REFUND_ASK = 'Which shop is the refund from? Name it and I can look into it.';
     const REFUND_GENERIC = 'That does not tell me which shop. What is the shop called?';
-    const REFUND_NO_SHOP = 'I cannot look into refunds from that shop in this demo. The demo covers one shop only, which you can name if it applies.';
+    const REFUND_NO_SHOP = 'I cannot look into refunds from that shop. For now I can look into one shop only, which you can name if it applies.';
     const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent').slice(-1)[0];
     const afterAsk = [REFUND_ASK, REFUND_GENERIC, REFUND_NO_SHOP].includes(lastAgent?.text ?? '');
     const other = /\b(balance|spend|spending|pay|salary|afford|track|goal|money|unrelated|yes|yeah|yep|ok|okay|thanks|thank|why|what|whats|how|when|who)\b|\?/i;
@@ -194,7 +194,7 @@ export function registerV14Routes(app: Express) {
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
         ? agentMsg(userId, conv.id, conv.helperId, open ? 'Nora is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
-        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Nora may read.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Nora look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Demo: fictional data, nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
+        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Nora may read.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Nora look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
     // His three agents gather what Nora may see for this conversation (User DB via the personal agent,
@@ -326,7 +326,7 @@ export function registerV14Routes(app: Express) {
         if (msg.resolved) return res.status(409).json({ error: 'Already bought' });
         if (action === 'offer_view') {
           out.push(userMsg(userId, conv, helper, `${p.view}: ${item.title}`));
-          out.push(agentMsg(userId, conv, helper, `Sent to ${p.name} (demo) ✓ They only get your name and phone number. Nothing Nora knows about you is shared.`));
+          out.push(agentMsg(userId, conv, helper, `Sent to ${p.name} ✓ They only get your name and phone number. Nothing Nora knows about you is shared.`));
           break;
         }
         const fee = fin.partnerFee(p.fee, item.price);
@@ -336,7 +336,7 @@ export function registerV14Routes(app: Express) {
         db.updateUser(userId, { accounts: { ...user.accounts, savings: { ...user.accounts.savings, balance: Math.round((user.accounts.savings.balance + back) * 100) / 100 } } });
         out.push(userMsg(userId, conv, helper, `${p.id === 'homes' ? 'I bought' : p.buy.replace(' (demo)', '')}: ${item.title}`));
         const home = p.id === 'homes' ? db.getCabinetEntries(userId).find((e) => e.goalType === 'home' && e.status === 'active') : undefined;
-        out.push(agentMsg(userId, conv, helper, `${p.id === 'homes' ? 'Congratulations on your new home! 🎉' : 'Done (demo) ✓'}\n\nNordea earned ${fmt(fee)} from ${p.name} for this. As promised, ${fmt(back)} of it goes back to your savings account.`, {
+        out.push(agentMsg(userId, conv, helper, `${p.id === 'homes' ? 'Congratulations on your new home! 🎉' : 'Done ✓'}\n\nNordea earned ${fmt(fee)} from ${p.name} for this. As promised, ${fmt(back)} of it goes back to your savings account.`, {
           suggestions: home ? [`Mark “${home.title}” as done`] : [],
           cards: [{ type: 'info', data: { link: 'privacy', label: 'See what Nordea earned' } }],
         }));

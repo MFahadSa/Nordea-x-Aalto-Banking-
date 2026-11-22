@@ -89,7 +89,7 @@ export function registerRefundRoutes(app: Express) {
   // The customer's refund cases, plus what the consent card would offer for a new one.
   app.get('/api/refund/:uid', h((req, res) => {
     const uid = String(req.params.uid);
-    res.json({ today: DEMO_TODAY, cases: s().data.cases.filter((c) => c.userId === uid).map((c) => caseView(s(), c)), offer: consentOffer(s(), uid), demo: 'Demo: fictional data, nothing is really sent or claimed.' });
+    res.json({ today: DEMO_TODAY, cases: s().data.cases.filter((c) => c.userId === uid).map((c) => caseView(s(), c)), offer: consentOffer(s(), uid), demo: 'Nothing is really sent or claimed.' });
   }));
 
   // The customer ticks records and allows Nora to read them. Only offered records can be ticked.

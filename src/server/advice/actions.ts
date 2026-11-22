@@ -35,7 +35,7 @@ const dayWords = (d: string) => `${Number(d.slice(8))} ${MONTHS.at(Number(d.slic
 const ACCEPT: Record<string, (userId: string) => string> = {
   'asp-account': (userId) => {
     db.upsertBankAccount(userId, 'asp', { type: 'ASP account' });
-    return 'Your ASP account is open (demo) ✓ Make your first monthly deposit this month; I’ll keep count of the deposits for you.';
+    return 'Your ASP account is open ✓ Make your first monthly deposit this month; I’ll keep count of the deposits for you.';
   },
 };
 export const ACCEPT_IDS = Object.keys(ACCEPT);

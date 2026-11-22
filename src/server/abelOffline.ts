@@ -88,7 +88,7 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
 
   // v31: what Nora is and can do.
   if (/\b(are you (a )?(bot|robot|human|real|ai|person)|who are you|what are you)\b/.test(t)) {
-    return { text: 'I’m Nora, an AI assistant in this Nordea concept app. You can talk to a person any time.', suggestions: ['Talk to a person', 'What can you do?'], usedEntryIds: [], topic: 'small_talk' };
+    return { text: 'I’m Nora, an AI assistant in the Nordea app. You can talk to a person any time.', suggestions: ['Talk to a person', 'What can you do?'], usedEntryIds: [], topic: 'small_talk' };
   }
   if (/\b(what can you do|what do you do|how does this work|how do you work|what can i ask)\b|^\s*help\W*$/.test(t)) {
     return { text: 'I can show your balances and where your money goes, check whether something is affordable, track your goals and plan your payday. I can also prepare a move between your own accounts for you to confirm, and connect you with a Nordea adviser.', suggestions: pills, usedEntryIds: [], topic: 'other' };

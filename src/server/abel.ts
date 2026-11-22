@@ -216,7 +216,7 @@ function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[],
     target: e.target,
     private: e.private || undefined,
   }));
-  return `You are Nora, the AI assistant inside the Nordea mobile banking app (a student concept with fictional data).
+  return `You are Nora, the AI assistant inside the Nordea mobile banking app.
 Customer: ${u.name}, ${u.age}. Today is ${fin.DEMO_TODAY}. View: ${calm ? 'CALM (older or data-careful customer)' : 'full'}.
 This chat is with the helper: ${helperId}. Focus: ${HELPER_FOCUS[helperId] || HELPER_FOCUS.abel}
 
@@ -531,7 +531,7 @@ function partnerCard(ctx: TurnCtx, partnerId: string): string {
   db.touchConversation(ctx.conversationId, { offered: [...(conv?.offered || []), p.id] });
   ctx.offersShown++;
   ctx.extraUsed.push(...h.used);
-  return `The app shows ONE partner card below your words: ${p.name}, a fictional partner (${p.kind}), with what Nordea earns and a link to a free Nordea adviser. Mention it in one short sentence; do not offer an adviser yourself and do not invent what the partner does.`;
+  return `The app shows ONE partner card below your words: ${p.name}, a partner (${p.kind}), with what Nordea earns and a link to a free Nordea adviser. Mention it in one short sentence; do not offer an adviser yourself and do not invent what the partner does.`;
 }
 
 /** v28: the one card of this reply, from the customer's words (intent.ts). Returns what the model is told. */

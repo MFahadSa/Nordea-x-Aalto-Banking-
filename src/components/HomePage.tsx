@@ -36,7 +36,6 @@ export function feedItems(entries: CabinetEntry[]) {
 export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame: (w: string) => void; onAsk: () => void; onMore: () => void; onBell: () => void }> = ({ state, feedCount, onFrame, onAsk, onMore, onBell }) => (
   <header className="nhead" style={{ backgroundImage: BAND_BG }}>
     <div className="nhead-top">
-      <span className="concept-chip">Concept · fictional data</span>
       <span className="nh-right" style={{ marginLeft: 'auto' }}>
         <button className="nh-bell nh-ic" onClick={onBell} aria-label={`Notifications${feedCount ? ': ' + feedCount : ''}`}>
           <span className="bell">

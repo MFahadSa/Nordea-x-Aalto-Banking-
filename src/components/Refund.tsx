@@ -267,7 +267,7 @@ export const RefundDemoTools: React.FC<{ userId: string }> = ({ userId }) => {
   const press = async (id: string) => { const r = await api(`/api/refund/${userId}/presenter/${id}`, {}); setMsg(r.message || ''); ping(); };
   return (
     <>
-      <Band left="Refund demo" />
+      <Band left="Refund walkthrough" />
       <div className="ncard flat">
         {(c?.controls || []).map((x) => (
           <NRow key={x.id} name={<>{x.title}{x.badge && <span className="rf-chip">{x.badge}</span>}</>} sub={x.note} chevron={false}

@@ -645,12 +645,12 @@ const ResetRow: React.FC<{ onReset: () => Promise<void> }> = ({ onReset }) => {
   const [ask, setAsk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  if (!ask) return <NRow name="Reset demo data" sub={err ? <span className="ai-bad">{err}</span> : 'Start again'} onClick={() => { setErr(''); setAsk(true); }} />;
+  if (!ask) return <NRow name="Reset the data" sub={err ? <span className="ai-bad">{err}</span> : 'Start again'} onClick={() => { setErr(''); setAsk(true); }} />;
   const go = async () => {
     setBusy(true);
     try { await onReset(); setAsk(false); } catch (e: any) { setErr(`Reset failed: ${e?.message || e}`); setAsk(false); } finally { setBusy(false); }
   };
-  return <NRow name="Reset the demo?" sub="Chats, changes and inputs are deleted, here and in Supabase. The demo customers start again." right={<span style={{ display: 'flex', gap: 6 }}><button className="btn small quiet" onClick={() => setAsk(false)} disabled={busy}>Cancel</button><button className="btn small primary" onClick={go} disabled={busy}>{busy ? 'Resetting…' : 'Reset'}</button></span>} />;
+  return <NRow name="Start again?" sub="Chats, changes and inputs are deleted, here and in Supabase. The customers start again." right={<span style={{ display: 'flex', gap: 6 }}><button className="btn small quiet" onClick={() => setAsk(false)} disabled={busy}>Cancel</button><button className="btn small primary" onClick={go} disabled={busy}>{busy ? 'Resetting…' : 'Reset'}</button></span>} />;
 };
 
 const DbCheck: React.FC = () => {
@@ -689,7 +689,7 @@ const NordeaDataRow: React.FC<{ userId: string; onChanged: () => void }> = ({ us
       done(r.applied.length ? r.applied.map((a) => `Row ${a.rowId}: ${a.result.message}`).join(' ') : 'No new rows in Supabase → nordea_feed.');
     } catch (e: any) { done(String(e?.message || e), true); }
   };
-  const src = s?.info ? `${s.info.from} · ${dayMonth(s.info.at.slice(0, 10))}` : 'The demo’s original data';
+  const src = s?.info ? `${s.info.from} · ${dayMonth(s.info.at.slice(0, 10))}` : 'The original data';
   return (
     <div className="nd-row">
       <NRow name="Nordea account data" sub={`${src} · ${s?.transactions ?? '…'} transactions`} chevron={false} />
@@ -827,7 +827,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
         <NRow name="Dark mode" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
       </div>
       {/* v30: the demo tools live on their own page, so customer settings stay customer settings. */}
-      <Band left="For the demo team" />
+      <Band left="For presenting" />
       <div className="ncard flat">
         <NRow name="Presenter tools" sub="Switch customer, reset, AI and data checks. Not part of the customer app." onClick={() => onPage('presenter')} />
       </div>
@@ -840,10 +840,10 @@ export const PresenterPage: React.FC<{ state: AppState; onBack: () => void; onUs
   <>
     <DetailHead title="Presenter tools" onBack={onBack} />
     <div className="nbody">
-      <p className="presenter-note">These tools are for presenting the concept. Customers don’t see them: they open from More → Presenter tools.</p>
-      <Band left="Demo customer" />
+      <p className="presenter-note">These tools are for presenting. Customers don’t see them: they open from More → Presenter tools.</p>
+      <Band left="Customer" />
       <div className="ncard flat">
-        <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
+        <NRow name="Switch customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
         <ResetRow onReset={onReset} />
       </div>
       <RefundDemoTools userId={state.user.id} />

@@ -607,7 +607,7 @@ export class RefundStore {
     if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn');
     if (c.shopDeclinedAt) return;
     c.shopDeclinedAt = this.clock();
-    this.log(caseId, 'flag', by, 'The shop declined the refund (demo). The case stays open. Nothing was sent and no dispute was started');
+    this.log(caseId, 'flag', by, 'The shop declined the refund. The case stays open. Nothing was sent and no dispute was started');
     this.save();
   }
 
@@ -722,7 +722,7 @@ export class RefundStore {
       return;
     }
     c.balanceCreditedCents = target;
-    this.log(caseId, 'adapter', by, delta > 0 ? 'Counted into the current account (demo balance)' : 'Taken back from the current account after a reversal (demo balance)');
+    this.log(caseId, 'adapter', by, delta > 0 ? 'Counted into the current account' : 'Taken back from the current account after a reversal');
     this.save();
   }
 

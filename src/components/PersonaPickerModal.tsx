@@ -27,12 +27,12 @@ export const PersonaPickerModal: React.FC<Props> = ({
       <div
         className="sheet"
         role="dialog"
-        aria-label="Choose a demo customer"
+        aria-label="Choose a customer"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sec-title" style={{ padding: 0 }}>
           <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)' }}>
-            Choose a demo customer
+            Choose a customer
           </h3>
           <button
             className="btn small quiet"
@@ -45,7 +45,7 @@ export const PersonaPickerModal: React.FC<Props> = ({
         </div>
 
         <p style={{ fontSize: '13.5px', color: 'var(--muted)', margin: 0 }}>
-          For presenting. Each one starts fresh with fictional data.
+          For presenting. Each one starts fresh.
         </p>
 
         <div
@@ -104,7 +104,7 @@ export const PersonaPickerModal: React.FC<Props> = ({
             fontSize: '13.5px',
           }}
         >
-          {sure ? 'Tap again to reset: chats and changes are deleted' : 'Reset demo data'}
+          {sure ? 'Tap again to reset: chats and changes are deleted' : 'Reset the data'}
         </button>
       </div>
     </div>

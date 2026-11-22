@@ -371,12 +371,12 @@ export default function App() {
     setIsDark(next);
     try { localStorage.setItem('abel-theme-choice', next ? 'dark' : 'light'); } catch { /* storage may be blocked */ }
   };
-  const frame = (what: string) => setToast({ message: `${what} is part of the Nordea app. This concept adds Nora.` });
+  const frame = (what: string) => setToast({ message: `${what} is part of the Nordea app. This version adds Nora.` });
 
   return (
     <div className={isCalm ? 'calm' : ''}>
       <div className="stage-top">
-        <span className="stage-t"><b>Nora</b> · Nordea concept{!state.aiConnected && ' · AI not connected'}</span>
+        {!state.aiConnected && <span className="stage-t">AI not connected</span>}
         <button className="theme-chip" onClick={toggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
           <Icon name={isDark ? 'sun' : 'moon'} size={16} />
           {isDark ? 'Light' : 'Dark'}
@@ -450,7 +450,7 @@ export default function App() {
                 users={users}
                 currentUserId={state.user.id}
                 onSelectPersona={(p) => { setPersonaId(p); setUsersOpen(false); setChatOpen(false); setPage('home'); }}
-                onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
+                onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'Data reset' }); }}
               />
               <AddGoalModal
                 isOpen={addGoalOpen}
@@ -542,7 +542,7 @@ export default function App() {
               state={state}
               onBack={() => goPage('more')}
               onUsers={() => setUsersOpen(true)}
-              onReset={async () => { await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
+              onReset={async () => { await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Data reset' }); }}
               onRefresh={() => refresh()}
             />
           )}
@@ -562,14 +562,13 @@ export default function App() {
               onUsers={() => setUsersOpen(true)}
               onCalm={async () => { await updateUserViewMode(state.user.id, isCalm ? 'full' : 'calm'); refresh(); }}
               onDark={toggleTheme}
-              onReset={async () => { await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Demo data reset' }); }}
+              onReset={async () => { await resetDatabase(); setChatOpen(false); refresh(); setToast({ message: 'Data reset' }); }}
               onRefresh={() => refresh()}
               onSuggest={() => setSuggestOpen(true)}
             />
           )}
         </PhoneFrame>
       </div>
-      <p className="foot">Student concept · fictional data and partners</p>
     </div>
   );
 }

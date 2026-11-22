@@ -281,7 +281,7 @@ export const Chat: React.FC<Props> = (p) => {
           <div className="used-list">
             {sup && (
               <p className="used-note">
-                Nora was given {sup.notes} {sup.notes === 1 ? 'note' : 'notes'} you approved{sup.accountData ? ' and your demo account data (balances, salary, spending; fictional)' : ''}. {sup.shared ? ' Also the summary the bank’s helper agents prepared for this chat.' : ''} Nothing else: not your kept files, and nothing you declined or removed.
+                Nora was given {sup.notes} {sup.notes === 1 ? 'note' : 'notes'} you approved{sup.accountData ? ' and your account data (balances, salary, spending)' : ''}. {sup.shared ? ' Also the summary the bank’s helper agents prepared for this chat.' : ''} Nothing else: not your kept files, and nothing you declined or removed.
               </p>
             )}
             {es.length > 0 && <p className="used-note"><b>Nora says it used:</b> (its own report, not a proof)</p>}
@@ -326,7 +326,7 @@ export const Chat: React.FC<Props> = (p) => {
       case 'offer':
         return (
           <div className="offer">
-            <div className="of-h"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>{d.kind} · fictional partner</span></span><span className="of-tag">Partner offer</span></div>
+            <div className="of-h"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>{d.kind} · partner</span></span><span className="of-tag">Partner offer</span></div>
             <div className="of-b"><b>{d.headline}</b></div>
             <div className="of-fee"><Icon name="shield" /><span>{d.feeText}</span></div>
             {open && (
@@ -341,7 +341,7 @@ export const Chat: React.FC<Props> = (p) => {
         const bought = m.resolved?.startsWith('bought:') ? Number(m.resolved.slice(7)) : null;
         return (
           <div className="offer list">
-            <div className="of-h sm"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>Partner offer · fictional</span></span></div>
+            <div className="of-h sm"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>Partner offer</span></span></div>
             {(d.items || []).map((it: any, j: number) => (
               <div className={`of-row${bought === j ? ' bought' : ''}`} key={j}>
                 <div className="of-rt"><span><b>{it.title}</b><span>{it.sub}</span></span><b className="of-p">{eurP(it.price)}{it.per || ''}</b></div>
@@ -510,7 +510,7 @@ export const Chat: React.FC<Props> = (p) => {
             <div className="of-h sm"><span className="of-logo" style={{ background: d.outcome === 'pre_approved' ? 'var(--ok)' : 'var(--bank)' }}><Icon name={d.outcome === 'pre_approved' ? 'check' : 'clock'} /></span><span className="of-n"><b>{d.outcome === 'pre_approved' ? `Pre-approved up to ${eur(d.amount)}` : 'Not pre-approved yet'}</b><span>Home loan · decided by {d.by}</span></span></div>
             <div className="of-row"><div className="of-rt"><span><b>Why</b><span>{d.reason}</span></span></div></div>
             {(d.used || []).length > 0 && <div className="of-row"><div className="of-rt"><span><b>What Nordea used</b><span>{d.used.join(' · ')}</span></span></div></div>}
-            <div className="of-fee"><Icon name="shield" /><span>Only what you shared for this application, plus your Nordea account data. Concept · not a real credit decision.</span></div>
+            <div className="of-fee"><Icon name="shield" /><span>Only what you shared for this application, plus your Nordea account data. Not a real credit decision.</span></div>
           </div>
         );
       case 'info': {
@@ -655,7 +655,7 @@ export const Chat: React.FC<Props> = (p) => {
               <span className="keep-t"><b>Keep a copy</b><span>{keepCopy ? 'Saved in Your documents for 30 days. Delete it any time.' : 'Off: Nora reads the file once, then it’s gone.'}</span></span>
               <span className={`tgl${keepCopy ? ' on' : ''}`} aria-hidden="true"><i /></span>
             </button>
-            <p className="att-note"><Icon name="shield" size={16} /><span>Nora suggests what to remember from it. Nothing is saved without your OK. Use fictional documents only.</span></p>
+            <p className="att-note"><Icon name="shield" size={16} /><span>Nora suggests what to remember from it. Nothing is saved without your OK. Please don’t upload real bank documents.</span></p>
           </div>
         </>
       )}

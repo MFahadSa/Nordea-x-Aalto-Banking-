@@ -524,7 +524,6 @@ body{font-size:16px}
 .nhead{background-color:#0000A0;background-repeat:no-repeat,no-repeat;background-position:right top,0 0;background-size:390px 260px,100% 100%;color:#fff;padding:8px 16px 22px;text-align:center}
 .nhead-top{display:flex;justify-content:space-between;align-items:center}
 .nhead .nh-right{display:flex;gap:10px;align-items:center}
-.concept-chip{font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,.16);padding:3px 10px;border-radius:999px;white-space:nowrap}
 .nh-ic{border:1.5px solid rgba(255,255,255,.75);border-radius:50%;width:34px;height:34px;display:grid;place-items:center;background:none;color:#fff;cursor:pointer;padding:0}
 .nh-ic svg{width:19px;height:19px}
 .nhead .nh-bell{border:0;background:none;color:#fff;cursor:pointer;padding:4px}
