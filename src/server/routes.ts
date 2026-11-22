@@ -21,7 +21,7 @@ import { XLSX_MIME, csvText } from './fileText.js';
 import { runSelfTest } from './selftest.js';
 import { pipelineStorage, hydratePipeline } from './pipeline/store.js';
 import { refunds } from './refund/index.js';
-import { consentOffer } from './refund/routes.js';
+import { consentOffer, caseView, explainCase } from './refund/routes.js';
 import { ADVICE_ACTIONS, handleAdviceAction, type AdviceAction } from './advice/actions.js';
 import { adviceView, cardForChat, homeAction, movedToChat, resetRule, setProactive } from './advice/home.js';
 
@@ -176,6 +176,13 @@ export function registerV14Routes(app: Express) {
     const negated = /\b(no|nope|not|don't|dont|never|without|cancel|stop|forget|nevermind|drop|quit)\b|never ?mind/i;
     const generic = /^\s*(an?|the|some|any|my)?\s*(online\s*)?(shop|store|webshop|web shop|retailer|website|merchant|one)\s*\.?\s*$/i;
     const clean = !other.test(u.text) && !negated.test(u.text);
+    // "Where is my refund": with an open case, Abel answers from the case only.
+    const openRefund = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
+    if (conv.helperId === 'abel' && openRefund && /refund/i.test(u.text) && /\b(where|status|update|any news|how is|how's)\b/i.test(u.text) && u.text.length <= 80 && !negated.test(u.text)) {
+      const ex = explainCase(caseView(refunds(), openRefund));
+      const a = agentMsg(userId, conv.id, conv.helperId, [...ex.lines, ex.next].filter(Boolean).join(' '), { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
+      return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
+    }
     const refundAsk = conv.helperId === 'abel' && !/tuulikki/i.test(u.text) && clean && (
       (/refund/i.test(u.text) && u.text.length <= 80 && !afterAsk) || (afterAsk && u.text.length <= 40));
     if (refundAsk) {
@@ -187,7 +194,7 @@ export function registerV14Routes(app: Express) {
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
         ? agentMsg(userId, conv.id, conv.helperId, open ? 'Abel is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
-        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Abel may read. Nothing is sent anywhere.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Abel look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Demo: fictional data, nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
+        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Abel may read.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Abel look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Demo: fictional data, nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
     // His three agents gather what Abel may see for this conversation (User DB via the personal agent,

@@ -320,7 +320,6 @@ export const Chat: React.FC<Props> = (p) => {
               </div>
             ) : <RefundResolved userId={p.userId} text={m.resolved} caseId={d.caseId} />}
             <p className="rf-c-s"><Icon name="shield" />Abel only reads what you tick. You can withdraw any time.</p>
-            <p className="rf-demo">{d.demo}</p>
           </div>
         );
       }

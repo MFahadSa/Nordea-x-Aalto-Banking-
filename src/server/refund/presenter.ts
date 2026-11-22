@@ -1,9 +1,10 @@
 import crypto from 'crypto';
 /** Refund Tracker: the Presenter's stateful test-credit controls (demo only, fictional credits).
     Each control reads the case and the credit log, so a press never repeats an event and never skips ahead. */
+import { DEMO_TODAY } from '../finance.js';
 import { opaqueId, type CreditEvent, type RefundCase, type RefundStore } from './cases.js';
 
-export type ControlId = 'partial' | 'arrives' | 'decoy' | 'duplicate' | 'pending' | 'other_currency' | 'no_reference' | 'reversal' | 'declined';
+export type ControlId = 'partial' | 'arrives' | 'decoy' | 'duplicate' | 'pending' | 'other_currency' | 'no_reference' | 'reversal' | 'declined' | 'shop_agrees' | 'shop_more' | 'shop_date_passes';
 export interface Control { id: ControlId; title: string; label: string; badge?: string; note: string; enabled: boolean }
 
 const PARTS = ['ev-partial-40', 'ev-partial-49-90'];
@@ -65,6 +66,13 @@ export function controls(s: RefundStore, userId: string): { caseId: string | nul
     const done = sent(c, evId);
     out.push({ id, title, label: done ? 'Sent' : 'Send', badge: done ? 'Sent' : undefined, note, enabled: !done });
   }
+  const lastMsg = (c.shopMessages ?? []).slice(-1)[0];
+  const canReply = !!lastMsg && lastMsg.direction === 'out' && !c.shopDeclinedAt && !full;
+  const replyNote = canReply ? 'Replies to the message you sent' : 'Needs a message sent to the shop first';
+  out.push({ id: 'shop_agrees', title: 'Shop agrees to refund', label: 'Send', note: replyNote, enabled: canReply });
+  out.push({ id: 'shop_more', title: 'Shop asks for more', label: 'Send', note: replyNote, enabled: canReply });
+  const datePass = !!c.shopPromiseDate && c.shopPromiseDate >= DEMO_TODAY && !full;
+  out.push({ id: 'shop_date_passes', title: "Shop's new date passes", label: 'Skip ahead', note: c.shopPromiseDate ? 'Moves time past the date the shop gave' : 'Needs the shop to have given a date', enabled: datePass });
   const declined = !!c.shopDeclinedAt;
   out.push({ id: 'declined', title: 'Shop refuses', label: declined ? 'Sent' : 'Send', badge: declined ? 'Sent' : undefined,
     note: declined ? 'Recorded: the shop declined. Nothing is sent' : full ? 'Already fully refunded' : 'The shop says no. Records it only, no dispute, nothing sent', enabled: !declined && !full });
@@ -89,7 +97,13 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
   let ev: CreditEvent | undefined;
   let key = '';
   const L = c.ledger!;
-  if (id === 'declined') { s.recordShopDeclined(c.id, 'presenter'); return { ok: true, message: 'The shop declined (recorded only)' }; }
+  if (id === 'declined') {
+    if ((c.shopMessages ?? []).slice(-1)[0]?.direction === 'out') s.shopReply(c.id, 'refuses', DEMO_TODAY); else s.recordShopDeclined(c.id, 'presenter');
+    return { ok: true, message: 'The shop declined (recorded only)' };
+  }
+  if (id === 'shop_agrees') { s.shopReply(c.id, 'will_refund', DEMO_TODAY); return { ok: true, message: 'The shop agreed to refund' }; }
+  if (id === 'shop_more') { s.shopReply(c.id, 'needs_more', DEMO_TODAY); return { ok: true, message: 'The shop asked for more' }; }
+  if (id === 'shop_date_passes') { s.shopDatePasses(c.id, DEMO_TODAY); return { ok: true, message: 'The date has passed' }; }
   if (id === 'partial') { const i = sent(c, 'p0') ? 1 : 0; key = `p${i}`; ev = reuse(tmpl(PARTS[i])); }
   else if (id === 'arrives') {
     const remaining = L.expectedCents - L.receivedCents;

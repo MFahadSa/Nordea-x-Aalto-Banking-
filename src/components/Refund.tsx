@@ -11,6 +11,8 @@ export interface RCase {
   credits?: { eventId: string; amount: number; date: string; currency: string }[];
   flags?: { eventId: string; reason: string; amount?: number; currency?: string; needsReview: boolean; conflicts?: string[] }[];
   needsReview?: number;
+  explain?: { lines: string[]; next: string }; canWrite?: 'inquiry' | 'reminder' | null;
+  shopMessages?: { id: string; direction: 'out' | 'in'; at: string; text: string; kind: string }[];
   hasReceipt?: boolean; receiptLabel?: string; receiptSavedAt?: string;
 }
 interface ROffer { id: string; kind: string; title: string; sub: string }
@@ -66,7 +68,7 @@ export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = 
   const generic = (
     <button className="ncard notice" onClick={onOpen}>
       <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t"><b>{c.needsReview ? 'A credit came in that needs your check' : `Abel is watching for your ${c.merchant ?? 'shop'} refund`}</b><span>{c.needsReview ? 'It is not counted yet. Open the case to answer.' : c.promiseDate ? 'Nothing needs you right now.' : 'No promised date is in the records you allowed, so Abel cannot check if it is late.'}</span><span className="rf-demo-s">{v.demo}</span></span>
+      <span className="nt-t"><b>{c.needsReview ? 'A credit came in that needs your check' : `Abel is watching for your ${c.merchant ?? 'shop'} refund`}</b><span>{c.needsReview ? 'It is not counted yet. Open the case to answer.' : c.promiseDate ? 'Nothing needs you right now.' : 'No promised date is in the records you allowed, so Abel cannot check if it is late.'}</span></span>
       <span className="nt-go">Open</span>
     </button>
   );
@@ -96,6 +98,8 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const { v } = useRefund(userId);
   const c = openCase(v);
   const [err, setErr] = useState('');
+  const [draft, setDraft] = useState<{ kind: string; recipient: string; text: string; cites: string[] } | null>(null);
+  const [busy, setBusy] = useState(false);
   if (!v || !c) return (<><DetailHead title="Refund" onBack={onBack} /><div className="nbody"><p className="presenter-note">No refund case is open.</p></div></>);
   const full = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
   const partial = (c.received ?? 0) > 0 && !full;
@@ -103,6 +107,8 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const pend = (c.flags || []).some((f) => f.reason === 'provisional') && !full;
   const status = nomatch ? 'not matched yet' : c.shopDeclinedAt && !full ? 'Shop declined' : pend && !partial ? 'refund pending, not counted yet' : full ? 'Refund received' : partial && c.expected != null ? `${eur(c.received!)} of ${eur(c.expected)} received` : c.late ? 'no refund yet, later than promised' : 'waiting for the refund';
   const check = async (eventId: string) => { try { await api(`/api/refund/case/${c.id}/review`, { eventId, outcome: 'checked_fine' }); ping(); } catch (e: any) { setErr(e.message); } };
+  const openDraft = async () => { try { setErr(''); setDraft(await api(`/api/refund/case/${c.id}/shop-draft`)); } catch (e: any) { setErr(e.message); } };
+  const sendDraft = async () => { if (!draft || busy) return; setBusy(true); try { await api(`/api/refund/case/${c.id}/shop-send`, { text: draft.text }); setDraft(null); ping(); } catch (e: any) { setErr(e.message); } setBusy(false); };
   const saveReceipt = async () => { try { await api(`/api/refund/case/${c.id}/save-receipt`, {}); ping(); } catch (e: any) { setErr(e.message); } };
   const assign = async (eventId: string, acceptConflicts: string[]) => { try { await api(`/api/refund/case/${c.id}/assign`, { eventId, acceptConflicts }); ping(); } catch (e: any) { setErr(e.message); } };
   const late = workdaysLate(c.promiseDate);
@@ -110,12 +116,15 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
     <>
       <DetailHead title="Refund case" big={c.expected != null ? eur(c.expected) : undefined} sub={`${c.merchant ?? 'the shop'} · ${status}`} onBack={onBack} />
       <div className="nbody">
-        <Demo text={v.demo} />
         {err && <p className="rf-err">{err}</p>}
+        {c.explain && c.explain.lines.length > 0 && (<>
+          <Band left="Where things stand" />
+          <div className="ncard flat"><p className="rf-rules">{c.explain.lines.join(' ')}{c.explain.next ? ` ${c.explain.next}` : ''}</p></div>
+        </>)}
         <Band left="Status" />
         <div className="ncard flat">
           {(c.credits || []).map((x) => (
-            <NRow key={x.eventId} name={<><Icon name="check" />Refund received</>} sub={dayShort(x.date)} amount={eur(x.amount)} note={<span className="rf-chip">Simulated credit</span>} chevron={false} />
+            <NRow key={x.eventId} name={<><Icon name="check" />Refund received</>} sub={dayShort(x.date)} amount={eur(x.amount)} chevron={false} />
           ))}
           {(c.flags || []).filter((f) => f.reason === 'possible_duplicate').map((f) => (
             <NRow key={f.eventId} name={<><Icon name="shield" />Another {f.amount != null ? eur(f.amount) : 'credit'} came in</>} sub="Not counted. Needs a check" chevron={false}
@@ -152,6 +161,25 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
             <NRow name={c.item} sub={`Order ${c.orderRef}${c.hasCard ? ' · credit card' : ''}`} amount={`−${eur(c.expected)}`} note={c.chargeDate ? `Charged ${day(c.chargeDate)}` : undefined} chevron={false} />
           </div>
         </>)}
+        {(c.canWrite || (c.shopMessages || []).length > 0) && (<>
+          <Band left="Your shop" />
+          <div className="ncard flat">
+            {(c.shopMessages || []).map((m) => (
+              <NRow key={m.id} name={m.direction === 'out' ? (m.kind === 'reminder' ? 'You sent a reminder' : 'You wrote to the shop') : `${c.merchant ?? 'The shop'} replied`} sub={m.text} note={dayShort(m.at.slice(0, 10))} chevron={false} />
+            ))}
+            {c.canWrite && <NRow name={c.canWrite === 'reminder' ? 'Send a reminder?' : 'Write to the shop?'} sub={c.canWrite === 'reminder' ? "The date the shop gave has passed. Abel drafts it, you check every word." : 'Abel drafts it from what you allowed. You check every word before it goes.'} chevron={false} right={<button className="btn small" onClick={openDraft}>Draft</button>} />}
+            {draft && (
+              <div className="rf-draftbox">
+                <b>{draft.kind === 'reminder' ? 'Reminder to the shop' : 'Message to the shop'}</b>
+                <span className="rf-c-s">To {draft.recipient}</span>
+                <textarea className="rf-draft" value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} rows={9} />
+                <span className="rf-c-s">Based on: {draft.cites.join(', ')}</span>
+                <button className="btn primary block" disabled={busy || !draft.text.trim()} onClick={sendDraft}>Send this message</button>
+                <button className="btn quiet block" onClick={() => setDraft(null)}>Cancel</button>
+              </div>
+            )}
+          </div>
+        </>)}
         {c.hasReceipt && (<>
           <Band left="Receipt" />
           <div className="ncard flat">
@@ -163,7 +191,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
         {c.promiseDate && (<>
         <Band left="About the dates" />
         <div className="ncard flat"><p className="rf-rules">
-          The shop promised {day(c.promiseDate)}. That is the shop's own date, not a legal deadline. Whether a legal deadline applies depends on how and when you cancelled, and on the item. Abel does not decide that and does not contact the shop for you.
+          The shop promised {day(c.promiseDate)}. That is the shop's own date, not a legal deadline. Whether a legal deadline applies depends on how and when you cancelled, and on the item. Abel does not decide that. It writes to the shop only when you approve the words.
         </p></div>
         </>)}
       </div>

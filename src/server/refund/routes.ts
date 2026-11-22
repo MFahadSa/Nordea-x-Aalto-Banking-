@@ -27,9 +27,32 @@ export function consentOffer(s: RefundStore, userId: string) {
 }
 
 const eur = (cents: number) => cents / 100;
+const fmtE = (n: number) => `${n.toFixed(2).replace('.', ',')} €`;
+const fmtD = (d: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d); return m ? `${Number(m[3])} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]}` : d; };
+/** Plain-language state of one case, written by code from the case view only. Used on the case page and in chat. */
+export function explainCase(v: ReturnType<typeof caseView>): { lines: string[]; next: string } {
+  if ((v as any).withdrawn) return { lines: [], next: '' };
+  const c = v as any; const lines: string[] = [];
+  const shop = c.merchant ?? 'the shop';
+  if (c.expected != null) lines.push(`Your ${shop} refund${c.item ? ` for ${c.item}` : ''}: ${fmtE(c.expected)} expected, ${fmtE(c.received ?? 0)} received${(c.remaining ?? 0) > 0 ? `, ${fmtE(c.remaining)} still to come` : ''}.`);
+  else lines.push('The records you allowed do not show what was bought or for how much, so Abel cannot say how much is owed.');
+  if (c.promiseDate) lines.push(`The shop promised it by ${fmtD(c.promiseDate)}.${c.late && (c.remaining ?? 0) > 0 ? ` That was ${c.late.workingDays ?? c.late} working days ago.` : ''}`);
+  else lines.push('No promised date is in the records you allowed, so Abel cannot check if it is late.');
+  if (c.needsReview) lines.push('A credit came in that needs your check before it is counted.');
+  const msgs = c.shopMessages ?? []; const last = msgs[msgs.length - 1];
+  if (last) lines.push(last.direction === 'out' ? `You wrote to ${shop} on ${fmtD(last.at)}. No reply yet.` : last.kind === 'will_refund' ? `${shop} replied that it will refund the rest.` : last.kind === 'needs_more' ? `${shop} replied that it needs proof of the return. The records you allowed do not include it.` : `${shop} replied that it cannot refund the rest.`);
+  if (c.shopDeclinedAt) lines.push('The case stays open and Abel keeps watching.');
+  const next = c.canWrite === 'inquiry' ? 'You can write to the shop from here. Abel drafts it and you approve the exact words.' : c.canWrite === 'reminder' ? "The shop's date has passed. You can send a reminder, and you approve the exact words." : (c.remaining ?? 0) <= 0 && c.expected != null ? 'Nothing more to do.' : last?.direction === 'out' ? 'Waiting for the shop to reply.' : '';
+  return { lines, next };
+}
 
 /** One case, shaped for the screens. Everything the customer sees is computed here from the case, never typed text. */
-export function caseView(s: RefundStore, c: RefundCase) {
+export function caseView(s: RefundStore, c: RefundCase): any {
+  const v = caseViewRaw(s, c);
+  if (!v.withdrawn) v.explain = explainCase(v);
+  return v;
+}
+function caseViewRaw(s: RefundStore, c: RefundCase): any {
   const st = s.status(c.id, DEMO_TODAY);
   if ('withdrawn' in st && st.withdrawn) {
     return { id: c.id, userId: c.userId, state: c.state, withdrawn: true, withdrawnAt: st.withdrawnAt, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length };
@@ -43,7 +66,10 @@ export function caseView(s: RefundStore, c: RefundCase) {
       conflicts: f.reason === 'ambiguous_ask_customer' ? s.creditConflicts(f.eventId, c.id) : [] };
   });
   const f = c.facts;
+  const canWrite = s.canWrite(c.id, DEMO_TODAY);
   return {
+    explain: undefined as unknown as { lines: string[]; next: string },
+    shopMessages: (c.shopMessages ?? []).map((m) => ({ id: m.id, direction: m.direction, at: m.at, text: m.text, kind: m.kind })), canWrite,
     id: c.id, userId: c.userId, state: c.state, withdrawn: false, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length,
     hasReceipt: c.evidence.some((e) => e.kind === 'receipt' && !!e.copy), receiptLabel: c.evidence.find((e) => e.kind === 'receipt' && e.copy)?.label, receiptSavedAt: c.receiptSavedAt,
     hasCard: c.evidence.some((e) => e.kind === 'card_transaction'), merchant: f.merchant, orderRef: f.orderRef, item: f.item, chargeDate: f.chargeDate, deliveryDate: f.deliveryDate, returnSentDate: f.returnSentDate, sellerReceivedDate: f.sellerReceivedDate,
@@ -82,6 +108,17 @@ export function registerRefundRoutes(app: Express) {
     const id = String(req.params.id);
     s().withdrawConsent(id);
     res.json({ case: caseView(s(), s().get(id)) });
+  }));
+
+  // Writing to the shop: the text Abel would send, then the customer's approval of that exact text.
+  app.get('/api/refund/case/:id/shop-draft', h((req, res) => {
+    const m = s().composeShopMessage(String(req.params.id), DEMO_TODAY);
+    res.json({ kind: m.kind, recipient: m.recipient, text: m.text, cites: m.evidenceLabels });
+  }));
+  app.post('/api/refund/case/:id/shop-send', h((req, res) => {
+    const id = String(req.params.id);
+    const r = s().sendShopMessage(id, String(req.body?.text ?? ''), DEMO_TODAY);
+    res.json({ result: r, case: caseView(s(), s().get(id)) });
   }));
 
   // Keep the allowed receipt in Abel knows until the case is withdrawn.
