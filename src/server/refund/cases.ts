@@ -46,7 +46,9 @@ export interface EvidenceItem {
   /** The stored copy; null once consent is withdrawn. */
   copy: { fields: Record<string, unknown>; text: string } | null;
 }
-export interface ShopMessage { id: string; direction: 'out' | 'in'; at: string; text: string; kind: 'inquiry' | 'reminder' | 'will_refund' | 'needs_more' | 'refuses' }
+/** The case's own "today": the demo date, or later after the Presenter skipped ahead past the shop's date. */
+export const caseToday = (c: { simulatedToday?: string }, dflt: string) => c.simulatedToday ?? dflt;
+export interface ShopMessage { id: string; direction: 'out' | 'in'; at: string; text: string; kind: 'inquiry' | 'reminder' | 'answer' | 'will_refund' | 'needs_more' | 'refuses' }
 export interface RefundCase {
   id: string;
   userId: string;
@@ -65,6 +67,8 @@ export interface RefundCase {
   shopMessages?: ShopMessage[];
   /** A new date the shop gave in a reply. It replaces the original promise for the late check. Deleted on withdrawal. */
   shopPromiseDate?: string;
+  /** Set when the Presenter skips time ahead. Deleted on withdrawal. */
+  simulatedToday?: string;
   evidence: EvidenceItem[];
   /** Facts taken from consented records' structured fields, or given by the customer. Never from free text. */
   facts: Record<string, unknown>;
@@ -110,6 +114,8 @@ export interface Approval {
   recipient: string; text: string; evidenceIds: string[];
   /** SHA-256 of recipient + text + the evidence fingerprints at the moment of approval. */
   fingerprint: string;
+  /** The draft snapshot (case, facts, records) the customer saw when approving. */
+  basis?: string;
   status: 'approved' | 'revoked' | 'used';
   at: string;
 }
@@ -347,7 +353,7 @@ export class RefundStore {
       evs[tomb] = { caseId: h.caseId ?? caseId, outcome: h.outcome, reason: h.reason, event: { eventId: tomb, kind: h.event.kind, amount: 0, currency: '', merchantId: '', status: h.event.status } as CreditEvent };
     }
     c.demoSent = [];
-    delete c.receiptSavedAt; delete c.shopMessages; delete c.shopPromiseDate;
+    delete c.receiptSavedAt; delete c.shopMessages; delete c.shopPromiseDate; delete c.simulatedToday;
     c.consent.items = c.consent.items.map((i) => opaqueId('r', i));
     for (const e of c.evidence) e.recordId = opaqueId('r', e.recordId);
     // The log is kept, but record and credit ids inside it become opaque.
@@ -488,14 +494,19 @@ export class RefundStore {
   }
   // ---------- writing to the shop (simulated send after the customer's approval) ----------
   /** Which message the customer can write now, or null. A first message needs money still owed; a reminder needs the shop's new date to have passed. */
-  canWrite(caseId: string, today: string): 'inquiry' | 'reminder' | null {
+  canWrite(caseId: string, today: string): 'inquiry' | 'reminder' | 'answer' | null {
     const c = this.get(caseId);
     if (c.consent.withdrawnAt) return null;
     const L = c.ledger;
     if (!L || L.receivedCents >= L.expectedCents) return null;
     if (!['watching', 'partially_refunded', 'seller_contacted'].includes(c.state) || c.shopDeclinedAt) return null;
-    if (!c.facts.orderRef || !c.evidence.some((e) => e.copy && (e.kind === 'card_transaction' || e.kind === 'receipt'))) return null;
+    if (!c.facts.orderRef) return null;
+    // The recipient must be a shop the allowed records actually name. No guessing a generic shop.
+    if (typeof c.facts.merchant !== 'string' || !c.facts.merchant.trim() || !c.factSources.merchant) return null;
+    const has = (k: string) => c.evidence.some((e) => e.copy && e.kind === k);
     const last = (c.shopMessages ?? []).slice(-1)[0];
+    if (last && last.direction === 'in' && last.kind === 'needs_more') return has('return_tracking') && (c.facts.returnSentDate || c.facts.trackingRef) ? 'answer' : null;
+    if (!has('card_transaction') && !has('receipt')) return null;
     if (!last) return 'inquiry';
     if (last.direction === 'in' && last.kind === 'will_refund' && this.status(caseId, today).late) return 'reminder';
     return null;
@@ -510,7 +521,11 @@ export class RefundStore {
     const day = (d: unknown) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d ?? '')); return m ? `${Number(m[3])} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]} ${m[1]}` : ''; };
     const lines: string[] = ['Hello,', ''];
     const bought = `my order ${String(f.orderRef)}${f.item ? ` (${String(f.item)})` : ''}, ${eur(L.expectedCents)}${f.chargeDate ? `, paid on ${day(f.chargeDate)}` : ''}`;
-    if (kind === 'inquiry') {
+    if (kind === 'answer') {
+      lines.push(`Thank you for your reply about ${bought}.`, 'Here is the proof of the return you asked for.');
+      if (f.trackingRef) lines.push(`Parcel tracking reference: ${String(f.trackingRef)}.`);
+      if (f.returnSentDate) lines.push(`I sent the parcel back on ${day(f.returnSentDate)}${f.sellerReceivedDate ? `, and the tracking shows you received it on ${day(f.sellerReceivedDate)}` : ''}.`);
+    } else if (kind === 'inquiry') {
       lines.push(`I am writing about ${bought}.`);
       if (f.returnSentDate) lines.push(`I sent it back on ${day(f.returnSentDate)}${f.sellerReceivedDate ? ` and you received it on ${day(f.sellerReceivedDate)}` : ''}.`);
       const promise = this.status(caseId, today).promiseDate;
@@ -520,21 +535,26 @@ export class RefundStore {
       lines.push(`I am following up on my message${first ? ` of ${day(first.at)}` : ''} about ${bought}.`);
       if (c.shopPromiseDate) lines.push(`You told me the refund would arrive by ${day(c.shopPromiseDate)}, and that date has passed.`);
     }
-    lines.push(L.receivedCents > 0 ? `So far I have received ${eur(L.receivedCents)}, and ${eur(L.expectedCents - L.receivedCents)} is still unpaid.` : `I have not received any of it yet.`);
-    lines.push('Please tell me when I can expect the refund.', '', 'Kind regards,', c.userId.charAt(0).toUpperCase() + c.userId.slice(1));
-    const cites = c.evidence.filter((e) => e.copy && (e.kind === 'card_transaction' || e.kind === 'receipt' || e.kind === 'return_tracking' || e.kind === 'seller_email'));
-    return { kind, recipient: `${String(f.merchant ?? 'The shop')} customer service`, text: lines.join('\n'), evidenceIds: cites.map((e) => e.recordId), evidenceLabels: [...new Set(cites.map((e) => ({ card_transaction: 'card purchase', receipt: 'order confirmation', return_tracking: 'return tracking', seller_email: 'shop email' } as Record<string, string>)[e.kind] ?? e.kind))] };
+    if (kind !== 'answer') lines.push(L.receivedCents > 0 ? `So far I have received ${eur(L.receivedCents)}, and ${eur(L.expectedCents - L.receivedCents)} is still unpaid.` : `I have not received any of it yet.`);
+    lines.push(kind === 'answer' ? 'Please confirm when I can expect the refund.' : 'Please tell me when I can expect the refund.', '', 'Kind regards,', c.userId.charAt(0).toUpperCase() + c.userId.slice(1));
+    const cites = c.evidence.filter((e) => e.copy && (kind === 'answer' ? e.kind === 'return_tracking' : (e.kind === 'card_transaction' || e.kind === 'receipt' || e.kind === 'return_tracking' || e.kind === 'seller_email')));
+    const text = lines.join('\n');
+    const basis = crypto.createHash('sha256').update(JSON.stringify({ caseId, kind, text, ids: cites.map((e) => e.recordId), to: String(f.merchant) })).digest('hex').slice(0, 24);
+    return { kind, basis, recipient: `${String(f.merchant)} customer service`, text, evidenceIds: cites.map((e) => e.recordId), evidenceLabels: [...new Set(cites.map((e) => ({ card_transaction: 'card purchase', receipt: 'order confirmation', return_tracking: 'return tracking', seller_email: 'shop email' } as Record<string, string>)[e.kind] ?? e.kind))] };
   }
   /** The customer approves this exact text. Records the approval, runs the checked (simulated) send, and files the message. */
-  sendShopMessage(caseId: string, text: string, today: string) {
+  sendShopMessage(caseId: string, text: string, today: string, basis: string) {
     const c = this.get(caseId);
     const body = String(text ?? '').trim();
     if (!body) throw new RefundError('write the message first');
     if (body.length > 2000) throw new RefundError('the message is too long');
     const m = this.composeShopMessage(caseId, today);
+    // The draft was written from the case as it was. If money, dates or records changed since, it must be reviewed again (edits the customer made are kept in the new draft by the screen).
+    if (m.basis !== String(basis ?? '')) throw new RefundError('Things changed since this draft was written. Review the updated draft before sending.');
     const a = this.recordApproval(caseId, { action: 'seller_inquiry', recipient: m.recipient, text: body, evidenceIds: m.evidenceIds });
+    a.basis = m.basis;
     this.executeApproved(a.id, { recipient: m.recipient, text: body, evidenceIds: m.evidenceIds }, 'customer');
-    (c.shopMessages ??= []).push({ id: `sm-${crypto.randomUUID().slice(0, 8)}`, direction: 'out', at: this.clock(), text: body, kind: m.kind });
+    (c.shopMessages ??= []).push({ id: `sm-${crypto.randomUUID().slice(0, 8)}`, direction: 'out', at: this.caseNow(c), text: body, kind: m.kind });
     this.log(caseId, 'adapter', 'customer', 'Message to the shop sent after approval');
     this.save();
     return { kind: m.kind, state: this.get(caseId).state };
@@ -552,19 +572,21 @@ export class RefundStore {
     } as const;
     if (kind === 'will_refund') {
       const cal = this.cal();
-      c.shopPromiseDate = addWorkingDays(today, 5, cal);
+      c.shopPromiseDate = addWorkingDays(caseToday(c, today), 5, cal);
     }
-    (c.shopMessages ??= []).push({ id: `sm-${crypto.randomUUID().slice(0, 8)}`, direction: 'in', at: this.clock(), text: texts[kind], kind });
+    (c.shopMessages ??= []).push({ id: `sm-${crypto.randomUUID().slice(0, 8)}`, direction: 'in', at: this.caseNow(c), text: texts[kind], kind });
     this.log(caseId, 'flag', 'presenter', kind === 'will_refund' ? 'The shop replied: it will refund' : kind === 'needs_more' ? 'The shop replied: it asks for more' : 'The shop replied: it refuses');
     if (kind === 'refuses') this.recordShopDeclined(caseId, 'presenter');
     this.save();
   }
+  private caseNow(c: RefundCase) { return c.simulatedToday ? `${c.simulatedToday}T${this.clock().slice(11)}` : this.clock(); }
   /** Simulated time: the date the shop gave has passed. Presenter only. */
   shopDatePasses(caseId: string, today: string) {
     const c = this.get(caseId);
     if (c.consent.withdrawnAt || !c.shopPromiseDate) throw new RefundError('the shop gave no new date');
-    c.shopPromiseDate = new Date(Date.parse(`${today}T00:00:00Z`) - 2 * 86400000).toISOString().slice(0, 10);
-    this.log(caseId, 'flag', 'presenter', 'The date the shop gave has passed');
+    if (caseToday(c, today) > c.shopPromiseDate) throw new RefundError('that date has already passed');
+    c.simulatedToday = addWorkingDays(c.shopPromiseDate, 1, this.cal());
+    this.log(caseId, 'flag', 'presenter', 'Time moved on: the date the shop gave has passed');
     this.save();
   }
   markDemoSent(caseId: string, key: string) { const c = this.get(caseId); (c.demoSent ??= []).includes(key) || c.demoSent.push(key); this.save(); }

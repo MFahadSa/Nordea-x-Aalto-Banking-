@@ -180,7 +180,7 @@ export function registerV14Routes(app: Express) {
     const openRefund = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
     if (conv.helperId === 'abel' && openRefund && /refund/i.test(u.text) && /\b(where|status|update|any news|how is|how's)\b/i.test(u.text) && u.text.length <= 80 && !negated.test(u.text)) {
       const ex = explainCase(caseView(refunds(), openRefund));
-      const a = agentMsg(userId, conv.id, conv.helperId, [...ex.lines, ex.next].filter(Boolean).join(' '), { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
+      const a = agentMsg(userId, conv.id, conv.helperId, [...ex.lines, ex.next].filter(Boolean).join(' '), { answeredBy: 'bank_code', refundCaseId: openRefund.id, ...(requestId ? { replyToRequestId: requestId } : {}) } as any);
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
     const refundAsk = conv.helperId === 'abel' && !/tuulikki/i.test(u.text) && clean && (

@@ -11,7 +11,7 @@ export interface RCase {
   credits?: { eventId: string; amount: number; date: string; currency: string }[];
   flags?: { eventId: string; reason: string; amount?: number; currency?: string; needsReview: boolean; conflicts?: string[] }[];
   needsReview?: number;
-  explain?: { lines: string[]; next: string }; canWrite?: 'inquiry' | 'reminder' | null;
+  explain?: { lines: string[]; next: string }; canWrite?: 'inquiry' | 'reminder' | 'answer' | null;
   shopMessages?: { id: string; direction: 'out' | 'in'; at: string; text: string; kind: string }[];
   hasReceipt?: boolean; receiptLabel?: string; receiptSavedAt?: string;
 }
@@ -98,7 +98,9 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const { v } = useRefund(userId);
   const c = openCase(v);
   const [err, setErr] = useState('');
-  const [draft, setDraft] = useState<{ kind: string; recipient: string; text: string; cites: string[] } | null>(null);
+  const [draft, setDraft] = useState<{ caseId: string; basis: string; kind: string; recipient: string; text: string; cites: string[] } | null>(null);
+  const caseKey = `${userId}:${c?.id ?? ''}`;
+  useEffect(() => { setDraft(null); setErr(''); }, [caseKey]);
   const [busy, setBusy] = useState(false);
   if (!v || !c) return (<><DetailHead title="Refund" onBack={onBack} /><div className="nbody"><p className="presenter-note">No refund case is open.</p></div></>);
   const full = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
@@ -108,7 +110,16 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const status = nomatch ? 'not matched yet' : c.shopDeclinedAt && !full ? 'Shop declined' : pend && !partial ? 'refund pending, not counted yet' : full ? 'Refund received' : partial && c.expected != null ? `${eur(c.received!)} of ${eur(c.expected)} received` : c.late ? 'no refund yet, later than promised' : 'waiting for the refund';
   const check = async (eventId: string) => { try { await api(`/api/refund/case/${c.id}/review`, { eventId, outcome: 'checked_fine' }); ping(); } catch (e: any) { setErr(e.message); } };
   const openDraft = async () => { try { setErr(''); setDraft(await api(`/api/refund/case/${c.id}/shop-draft`)); } catch (e: any) { setErr(e.message); } };
-  const sendDraft = async () => { if (!draft || busy) return; setBusy(true); try { await api(`/api/refund/case/${c.id}/shop-send`, { text: draft.text }); setDraft(null); ping(); } catch (e: any) { setErr(e.message); } setBusy(false); };
+  const sendDraft = async () => {
+    if (!draft || busy || draft.caseId !== c.id) return; setBusy(true);
+    try { await api(`/api/refund/case/${c.id}/shop-send`, { text: draft.text, basis: draft.basis }); setDraft(null); ping(); }
+    catch (e: any) {
+      setErr(e.message);
+      // The facts moved on: show the updated draft, keeping the customer's own edit as a note above it if they changed the words.
+      try { const fresh = await api(`/api/refund/case/${c.id}/shop-draft`); setDraft(fresh); } catch { setDraft(null); }
+    }
+    setBusy(false);
+  };
   const saveReceipt = async () => { try { await api(`/api/refund/case/${c.id}/save-receipt`, {}); ping(); } catch (e: any) { setErr(e.message); } };
   const assign = async (eventId: string, acceptConflicts: string[]) => { try { await api(`/api/refund/case/${c.id}/assign`, { eventId, acceptConflicts }); ping(); } catch (e: any) { setErr(e.message); } };
   const late = workdaysLate(c.promiseDate);
@@ -165,12 +176,12 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
           <Band left="Your shop" />
           <div className="ncard flat">
             {(c.shopMessages || []).map((m) => (
-              <NRow key={m.id} name={m.direction === 'out' ? (m.kind === 'reminder' ? 'You sent a reminder' : 'You wrote to the shop') : `${c.merchant ?? 'The shop'} replied`} sub={m.text} note={dayShort(m.at.slice(0, 10))} chevron={false} />
+              <NRow key={m.id} name={m.direction === 'out' ? (m.kind === 'reminder' ? 'You sent a reminder' : m.kind === 'answer' ? 'You answered the shop' : 'You wrote to the shop') : `${c.merchant ?? 'The shop'} replied`} sub={m.text} note={dayShort(m.at.slice(0, 10))} chevron={false} />
             ))}
-            {c.canWrite && <NRow name={c.canWrite === 'reminder' ? 'Send a reminder?' : 'Write to the shop?'} sub={c.canWrite === 'reminder' ? "The date the shop gave has passed. Abel drafts it, you check every word." : 'Abel drafts it from what you allowed. You check every word before it goes.'} chevron={false} right={<button className="btn small" onClick={openDraft}>Draft</button>} />}
+            {c.canWrite && <NRow name={c.canWrite === 'reminder' ? 'Send a reminder?' : c.canWrite === 'answer' ? 'Answer the shop?' : 'Write to the shop?'} sub={c.canWrite === 'answer' ? 'The shop asked for proof of the return. Abel drafts an answer from your return tracking, you check every word.' : c.canWrite === 'reminder' ? "The date the shop gave has passed. Abel drafts it, you check every word." : 'Abel drafts it from what you allowed. You check every word before it goes.'} chevron={false} right={<button className="btn small" onClick={openDraft}>Draft</button>} />}
             {draft && (
               <div className="rf-draftbox">
-                <b>{draft.kind === 'reminder' ? 'Reminder to the shop' : 'Message to the shop'}</b>
+                <b>{draft.kind === 'reminder' ? 'Reminder to the shop' : draft.kind === 'answer' ? 'Answer to the shop' : 'Message to the shop'}</b>
                 <span className="rf-c-s">To {draft.recipient}</span>
                 <textarea className="rf-draft" value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} rows={9} />
                 <span className="rf-c-s">Based on: {draft.cites.join(', ')}</span>

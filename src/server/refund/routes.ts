@@ -5,6 +5,8 @@ import { refunds } from './index.js';
 import { RefundError, type RefundCase, type RefundStore } from './cases.js';
 import { controls, press, type ControlId } from './presenter.js';
 import { DEMO_TODAY } from '../finance.js';
+import { caseToday } from './cases.js';
+import { db } from '../db.js';
 
 const h = (fn: (req: Request, res: Response) => unknown) => (req: Request, res: Response) => {
   try { fn(req, res); } catch (e: any) { res.status(e instanceof RefundError ? 400 : (e?.status || 500)).json({ error: e?.message || String(e) }); }
@@ -40,9 +42,9 @@ export function explainCase(v: ReturnType<typeof caseView>): { lines: string[]; 
   else lines.push('No promised date is in the records you allowed, so Abel cannot check if it is late.');
   if (c.needsReview) lines.push('A credit came in that needs your check before it is counted.');
   const msgs = c.shopMessages ?? []; const last = msgs[msgs.length - 1];
-  if (last) lines.push(last.direction === 'out' ? `You wrote to ${shop} on ${fmtD(last.at)}. No reply yet.` : last.kind === 'will_refund' ? `${shop} replied that it will refund the rest.` : last.kind === 'needs_more' ? `${shop} replied that it needs proof of the return. The records you allowed do not include it.` : `${shop} replied that it cannot refund the rest.`);
+  if (last) lines.push(last.direction === 'out' ? `You wrote to ${shop} on ${fmtD(last.at)}. No reply yet.` : last.kind === 'will_refund' ? `${shop} replied that it will refund the rest.` : last.kind === 'needs_more' ? `${shop} replied that it needs proof of the return.${c.canWrite === 'answer' ? '' : c.hasTracking ? ' Your return tracking is allowed but does not show enough to answer with.' : ' The records you allowed do not include it. To add it, withdraw this case and start again, allowing the return tracking too.'}` : `${shop} replied that it cannot refund the rest.`);
   if (c.shopDeclinedAt) lines.push('The case stays open and Abel keeps watching.');
-  const next = c.canWrite === 'inquiry' ? 'You can write to the shop from here. Abel drafts it and you approve the exact words.' : c.canWrite === 'reminder' ? "The shop's date has passed. You can send a reminder, and you approve the exact words." : (c.remaining ?? 0) <= 0 && c.expected != null ? 'Nothing more to do.' : last?.direction === 'out' ? 'Waiting for the shop to reply.' : '';
+  const next = c.canWrite === 'answer' ? 'You can answer with your return tracking. Abel drafts it and you approve the exact words.' : c.canWrite === 'inquiry' ? 'You can write to the shop from here. Abel drafts it and you approve the exact words.' : c.canWrite === 'reminder' ? "The shop's date has passed. You can send a reminder, and you approve the exact words." : (c.remaining ?? 0) <= 0 && c.expected != null ? 'Nothing more to do.' : last?.direction === 'out' ? 'Waiting for the shop to reply.' : '';
   return { lines, next };
 }
 
@@ -53,7 +55,8 @@ export function caseView(s: RefundStore, c: RefundCase): any {
   return v;
 }
 function caseViewRaw(s: RefundStore, c: RefundCase): any {
-  const st = s.status(c.id, DEMO_TODAY);
+  const TODAY = caseToday(c, DEMO_TODAY);
+  const st = s.status(c.id, TODAY);
   if ('withdrawn' in st && st.withdrawn) {
     return { id: c.id, userId: c.userId, state: c.state, withdrawn: true, withdrawnAt: st.withdrawnAt, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length };
   }
@@ -66,12 +69,12 @@ function caseViewRaw(s: RefundStore, c: RefundCase): any {
       conflicts: f.reason === 'ambiguous_ask_customer' ? s.creditConflicts(f.eventId, c.id) : [] };
   });
   const f = c.facts;
-  const canWrite = s.canWrite(c.id, DEMO_TODAY);
+  const canWrite = s.canWrite(c.id, TODAY);
   return {
     explain: undefined as unknown as { lines: string[]; next: string },
     shopMessages: (c.shopMessages ?? []).map((m) => ({ id: m.id, direction: m.direction, at: m.at, text: m.text, kind: m.kind })), canWrite,
     id: c.id, userId: c.userId, state: c.state, withdrawn: false, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length,
-    hasReceipt: c.evidence.some((e) => e.kind === 'receipt' && !!e.copy), receiptLabel: c.evidence.find((e) => e.kind === 'receipt' && e.copy)?.label, receiptSavedAt: c.receiptSavedAt,
+    hasTracking: c.evidence.some((e) => e.kind === 'return_tracking' && !!e.copy), hasReceipt: c.evidence.some((e) => e.kind === 'receipt' && !!e.copy), receiptLabel: c.evidence.find((e) => e.kind === 'receipt' && e.copy)?.label, receiptSavedAt: c.receiptSavedAt,
     hasCard: c.evidence.some((e) => e.kind === 'card_transaction'), merchant: f.merchant, orderRef: f.orderRef, item: f.item, chargeDate: f.chargeDate, deliveryDate: f.deliveryDate, returnSentDate: f.returnSentDate, sellerReceivedDate: f.sellerReceivedDate,
     expected: L ? eur(L.expectedCents) : undefined, received: L ? eur(L.receivedCents) : undefined, remaining: L ? eur(L.expectedCents - L.receivedCents) : undefined,
     shopDeclinedAt: c.shopDeclinedAt, promiseDate: st.promiseDate, late: st.late, credits, flags, needsReview: st.needsReview.length,
@@ -107,17 +110,19 @@ export function registerRefundRoutes(app: Express) {
   app.post('/api/refund/case/:id/withdraw', h((req, res) => {
     const id = String(req.params.id);
     s().withdrawConsent(id);
+    // Status answers Abel wrote in chat from this case carry its amounts and order. They go with the case. The customer's own messages stay.
+    for (const m of db.getMessages(s().get(id).userId)) if ((m as any).refundCaseId === id) db.updateMessage(m.id, { text: 'This refund status was removed when you withdrew the case.', refundCaseId: undefined } as any);
     res.json({ case: caseView(s(), s().get(id)) });
   }));
 
   // Writing to the shop: the text Abel would send, then the customer's approval of that exact text.
   app.get('/api/refund/case/:id/shop-draft', h((req, res) => {
-    const m = s().composeShopMessage(String(req.params.id), DEMO_TODAY);
-    res.json({ kind: m.kind, recipient: m.recipient, text: m.text, cites: m.evidenceLabels });
+    const m = s().composeShopMessage(String(req.params.id), caseToday(s().get(String(req.params.id)), DEMO_TODAY));
+    res.json({ caseId: String(req.params.id), basis: m.basis, kind: m.kind, recipient: m.recipient, text: m.text, cites: m.evidenceLabels });
   }));
   app.post('/api/refund/case/:id/shop-send', h((req, res) => {
     const id = String(req.params.id);
-    const r = s().sendShopMessage(id, String(req.body?.text ?? ''), DEMO_TODAY);
+    const r = s().sendShopMessage(id, String(req.body?.text ?? ''), caseToday(s().get(id), DEMO_TODAY), String(req.body?.basis ?? ''));
     res.json({ result: r, case: caseView(s(), s().get(id)) });
   }));
 
