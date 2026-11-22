@@ -56,6 +56,8 @@ export interface RefundCase {
   consent: { items: string[]; grantedAt: string; withdrawnAt?: string };
   /** Set when the shop said no (demo). Only records the fact: no money, no state change, nothing sent. */
   shopDeclinedAt?: string;
+  /** Demo credits the Presenter sent for this case (control keys). Cleared on withdraw. */
+  demoSent?: string[];
   evidence: EvidenceItem[];
   /** Facts taken from consented records' structured fields, or given by the customer. Never from free text. */
   facts: Record<string, unknown>;
@@ -337,6 +339,7 @@ export class RefundStore {
       delete evs[key];
       evs[tomb] = { caseId: h.caseId, outcome: h.outcome, reason: h.reason, event: { eventId: tomb, kind: h.event.kind, amount: 0, currency: '', merchantId: '', status: h.event.status } as CreditEvent };
     }
+    c.demoSent = [];
     c.consent.items = c.consent.items.map((i) => opaqueId('r', i));
     for (const e of c.evidence) e.recordId = opaqueId('r', e.recordId);
     // The log is kept, but record and credit ids inside it become opaque.
@@ -371,7 +374,11 @@ export class RefundStore {
       person); then it is looked at again. */
   applyCredit(ev: CreditEvent, by: AuditEntry['by'] = 'system'): CreditResult {
     const events = (this.data.events ??= {});
-    const prev = events[ev.eventId] ?? events[opaqueId('h', ev.eventId)];
+    // A credit that belongs to a withdrawn case is final: it is never read again, logged by its raw id or stored again.
+    const gone = events[opaqueId('h', ev.eventId)];
+    if (gone) return { result: 'replay_ignored', caseId: gone.caseId };
+    const prev = events[ev.eventId];
+    if (prev && prev.caseId && this.data.cases.find((x) => x.id === prev.caseId)?.consent.withdrawnAt) return { result: 'replay_ignored', caseId: prev.caseId };
     if (prev) {
       const c = prev.caseId ? this.data.cases.find((x) => x.id === prev.caseId) : undefined;
       const changed = prev.outcome === 'flagged' && c && (
@@ -457,6 +464,7 @@ export class RefundStore {
     this.save();
   }
 
+  markDemoSent(caseId: string, key: string) { const c = this.get(caseId); (c.demoSent ??= []).includes(key) || c.demoSent.push(key); this.save(); }
   /** The shop said no. Recorded only: the case stays as it is, counted credits stay counted, and nothing is sent or started. */
   recordShopDeclined(caseId: string, by: AuditEntry['by'] = 'system') {
     const c = this.get(caseId);

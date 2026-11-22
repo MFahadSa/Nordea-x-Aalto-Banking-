@@ -89,6 +89,32 @@ const dup2 = await call('POST', `${U}/cases`, { consentItems: offer.map((o) => o
 check('a closed (fully refunded) case still blocks a second case until withdrawn', dup2.status === 400, dup2);
 const v2 = (await call('GET', U)).json.cases[0];
 check('case view says whether the card purchase was allowed', typeof v2.hasCard === 'boolean' && v2.hasCard === true);
+// full -> withdraw -> consent again: every Presenter control starts fresh and works, with replay protection on
+resetRefunds(true);
+const allIds = offer.map((o) => o.id);
+await call('POST', `${U}/cases`, { consentItems: allIds });
+await call('POST', `${U}/presenter/partial`); await call('POST', `${U}/presenter/partial`); await call('POST', `${U}/presenter/decoy`);
+let cvA = (await call('GET', U)).json.cases[0];
+await call('POST', `/api/refund/case/${cvA.id}/withdraw`, {});
+await call('POST', `${U}/cases`, { consentItems: allIds });
+let ctl = (await call('GET', `${U}/presenter`)).json.controls as any[];
+check('after a withdraw and a new case, partial and decoy are fresh again', ctl.find((c) => c.id === 'partial').label === 'Send 1st' && ctl.find((c) => c.id === 'decoy').label === 'Send', ctl.map((c) => [c.id, c.label]));
+const pa = await call('POST', `${U}/presenter/arrives`);
+let cvB = (await call('GET', U)).json.cases.find((c: any) => !c.withdrawn);
+check('Refund arrives in the new case really counts', pa.status === 200 && cvB.received === cvB.expected, [pa.json?.result, cvB.received]);
+const pd = await call('POST', `${U}/presenter/decoy`);
+check('a used control in the new case is not silently ignored', pd.status === 200 && pd.json.result && pd.json.result.result !== 'replay_ignored', pd.json?.result);
+// pending -> withdraw -> the same credit posted later is final, not reprocessed, not logged raw
+resetRefunds(true);
+await call('POST', `${U}/cases`, { consentItems: allIds });
+await call('POST', `${U}/presenter/pending`);
+const cvP = (await call('GET', U)).json.cases[0];
+const pendEv = structuredClone(refunds().data.events!['ev-pending'].event);
+await call('POST', `/api/refund/case/${cvP.id}/withdraw`, {});
+const logBefore = refunds().auditFor(cvP.id).length;
+const posted = refunds().applyCredit({ ...pendEv, status: 'posted' }, 'system');
+check('a pending credit that posts after withdrawal is ignored', posted.result === 'replay_ignored', posted);
+check('nothing is relogged or stored under the raw id', refunds().auditFor(cvP.id).length === logBefore && !refunds().data.events!['ev-pending'] && !JSON.stringify(refunds().auditFor(cvP.id)).includes('ev-pending'));
 console.log(`${passed} passed, ${failed} failed`);
 server.close();
 process.exit(failed ? 1 : 0);
