@@ -24,7 +24,7 @@ const MOVES: Record<CaseState, CaseState[]> = {
   watching: ['seller_contacted', 'partially_refunded', 'closed', 'handed_off'],
   seller_contacted: ['dispute_prepared', 'partially_refunded', 'closed', 'handed_off'],
   dispute_prepared: ['partially_refunded', 'closed', 'handed_off'],
-  partially_refunded: ['seller_contacted', 'dispute_prepared', 'closed', 'handed_off'],
+  partially_refunded: ['watching', 'seller_contacted', 'dispute_prepared', 'closed', 'handed_off'], // watching: the only partial was reversed
   closed: ['watching', 'partially_refunded'], // a reversed refund reopens
   handed_off: ['watching'], // a person adds the missing facts
 };
@@ -91,6 +91,18 @@ export interface CreditEvent {
   /** For a reversal: the refund event it takes back. */
   reversesEventId?: string;
 }
+export interface HandledEvent { caseId: string | null; outcome: 'counted' | 'flagged' | 'no_match' | 'ambiguous' | 'reversed'; reason?: CreditFlag; event: CreditEvent }
+export type ApprovalAction = 'seller_inquiry' | 'dispute_pack';
+export interface Approval {
+  id: string; caseId: string; action: ApprovalAction;
+  recipient: string; text: string; evidenceIds: string[];
+  /** SHA-256 of recipient + text + the evidence fingerprints at the moment of approval. */
+  fingerprint: string;
+  status: 'approved' | 'revoked' | 'used';
+  at: string;
+}
+/** The approval each outward state needs. */
+const APPROVAL_FOR: Partial<Record<CaseState, ApprovalAction>> = { seller_contacted: 'seller_inquiry', dispute_prepared: 'dispute_pack' };
 export type CreditResult =
   | { result: 'replay_ignored'; caseId: string | null }
   | { result: 'no_match' }
@@ -103,8 +115,10 @@ export interface AuditEntry { seq: number; caseId: string; at: string; kind: Aud
 
 export interface RefundStoreData {
   cases: RefundCase[]; audit: AuditEntry[]; sources: Record<string, SourceRecord[]>; seq: number;
-  /** Every credit event ever handled: event id → the case it went to (null = matched none). One event, one case at most. */
-  events?: Record<string, string | null>;
+  /** Every credit event ever handled, by event id: where it went and why. One event, one case at most. */
+  events?: Record<string, HandledEvent>;
+  /** Recorded customer approvals for outward actions (phase 4/5 use them; the state gate checks them now). */
+  approvals?: Approval[];
   /** Phase 2: demo feed events the Presenter can send, by user (from the seed). */
   presets?: Record<string, CreditEvent[]>;
 }
@@ -128,13 +142,16 @@ export class RefundError extends Error {}
 
 export class RefundStore {
   data: RefundStoreData = { cases: [], audit: [], sources: {}, seq: 0 };
-  constructor(private file: string | null, private seedDir: string, private policy: () => PolicyRow[], private cal: () => WorkCalendar) {}
+  /** `clock` gives the demo's "now" (ISO date-time) so case dates and the log use the same calendar as the status. */
+  constructor(private file: string | null, private seedDir: string, private policy: () => PolicyRow[], private cal: () => WorkCalendar, private clock: () => string = () => new Date().toISOString()) {}
 
   // ---------- persistence ----------
   load() {
     if (this.file && fs.existsSync(this.file)) {
       this.data = JSON.parse(fs.readFileSync(this.file, 'utf-8'));
       this.data.audit.forEach((a) => Object.freeze(a));
+      // Phase 2 stored only the case id per event; those carry no payload to look at again.
+      for (const [k, v] of Object.entries(this.data.events ?? {})) if (typeof v !== 'object' || v === null) delete this.data.events![k];
     } else this.resetAndSeed(true);
     return this;
   }
@@ -157,7 +174,7 @@ export class RefundStore {
   }
 
   // ---------- audit (append-only) ----------
-  private log(caseId: string, kind: AuditKind, by: AuditEntry['by'], detail: string, at = new Date().toISOString()) {
+  private log(caseId: string, kind: AuditKind, by: AuditEntry['by'], detail: string, at = this.clock()) {
     const e: AuditEntry = Object.freeze({ seq: ++this.data.seq, caseId, at, kind, by, detail });
     this.data.audit.push(e);
     return e;
@@ -190,7 +207,7 @@ export class RefundStore {
     const known = new Set(this.sourcesFor(input.userId).map((r) => r.id));
     const unknownItems = input.consentItems.filter((i) => !known.has(i));
     if (unknownItems.length) throw new RefundError(`unknown records: ${unknownItems.join(', ')}`);
-    const at = input.now ?? new Date().toISOString();
+    const at = input.now ?? this.clock();
     const c: RefundCase = {
       id: `rc-${crypto.randomUUID().slice(0, 8)}`, userId: input.userId, state: 'opened', createdAt: at, country: input.country,
       reasons: [...input.reasons], consent: { items: [...input.consentItems], grantedAt: at }, evidence: [], facts: {}, factSources: {}, drafts: {},
@@ -221,8 +238,17 @@ export class RefundStore {
     if (!MOVES[c.state].includes(to)) throw new RefundError(`not allowed: ${c.state} → ${to}`);
     if (!cause || (cause.kind !== 'event' && cause.kind !== 'approval')) throw new RefundError('a state change needs a validated event or a recorded approval');
     if (NEEDS_APPROVAL[to] && cause.kind !== 'approval') throw new RefundError(`${to} needs a recorded approval`);
+    let approval: Approval | undefined;
+    if (cause.kind === 'approval') {
+      approval = (this.data.approvals ?? []).find((a) => a.id === cause.approvalId);
+      if (!approval) throw new RefundError(`no recorded approval ${cause.approvalId}`);
+      if (approval.caseId !== caseId) throw new RefundError('that approval belongs to another case');
+      if (approval.action !== APPROVAL_FOR[to]) throw new RefundError(`approval ${approval.id} is for ${approval.action}, not ${to}`);
+      if (approval.status !== 'approved') throw new RefundError(`approval ${approval.id} is ${approval.status}`);
+    }
     const from = c.state;
     c.state = to;
+    if (approval) approval.status = 'used';
     this.log(caseId, 'state', by, `${from} → ${to} (${cause.kind === 'approval' ? `approval ${cause.approvalId}` : `${cause.type}: ${cause.ref}`})`);
     this.save();
   }
@@ -237,7 +263,10 @@ export class RefundStore {
       this.log(caseId, 'fact', 'customer', `Customer stated ${k} = ${JSON.stringify(v)}`);
     }
     // A handed-off case can come back once a person/customer supplies the missing facts.
-    if (c.state === 'handed_off' && this.evaluation(caseId).outcome === 'rows') this.transition(caseId, 'watching', { kind: 'event', type: 'facts_added', ref: Object.keys(facts).join(',') });
+    if (c.state === 'handed_off' && this.evaluation(caseId).outcome === 'rows') {
+      this.transition(caseId, 'watching', { kind: 'event', type: 'facts_added', ref: Object.keys(facts).join(',') });
+      this.recheckFlagged(caseId); // credits noted while it was with a person are looked at again
+    }
     this.save();
   }
   /** The model's only write path: draft text. */
@@ -254,7 +283,7 @@ export class RefundStore {
   withdrawConsent(caseId: string) {
     const c = this.get(caseId);
     if (c.consent.withdrawnAt) return;
-    c.consent.withdrawnAt = new Date().toISOString();
+    c.consent.withdrawnAt = this.clock();
     for (const e of c.evidence) e.copy = null;
     this.log(caseId, 'consent', 'customer', `Consent withdrawn: ${c.evidence.length} stored copies deleted; fingerprints and this log kept`);
     this.save();
@@ -277,40 +306,29 @@ export class RefundStore {
 
   /** Handles one credit or reversal from the feed. A credit counts only when the shop, the order or payment
       reference, the link to the original purchase and the currency all match, and it is posted. The amount
-      alone never matches. Each event id is handled once, and goes to at most one case. */
+      alone never matches. Each event goes to at most one case. The same event id arriving again is ignored,
+      unless it was held back for a reason that has since changed (pending → posted, the case is back from a
+      person); then it is looked at again. */
   applyCredit(ev: CreditEvent, by: AuditEntry['by'] = 'system'): CreditResult {
     const events = (this.data.events ??= {});
-    if (ev.eventId in events) {
-      const caseId = events[ev.eventId];
-      if (caseId) this.log(caseId, 'flag', by, `Credit ${ev.eventId} arrived again (same event): ignored, not counted twice`);
-      this.save();
-      return { result: 'replay_ignored', caseId };
+    const prev = events[ev.eventId];
+    if (prev) {
+      const c = prev.caseId ? this.data.cases.find((x) => x.id === prev.caseId) : undefined;
+      const changed = prev.outcome === 'flagged' && c && (
+        (prev.reason === 'provisional' && ev.status === 'posted') ||
+        (prev.reason === 'case_with_a_person' && c.state !== 'handed_off'));
+      if (!changed) {
+        if (prev.caseId) this.log(prev.caseId, 'flag', by, `Credit ${ev.eventId} arrived again (same event): ignored, not counted twice`);
+        this.save();
+        return { result: 'replay_ignored', caseId: prev.caseId };
+      }
+      this.clearFlag(c!, ev.eventId);
+      delete events[ev.eventId];
+      this.log(c!.id, 'flag', by, prev.reason === 'provisional' ? `Credit ${ev.eventId} is now posted: looked at again` : `Credit ${ev.eventId} looked at again now the case is back`);
     }
-    const cents = Math.round(Math.abs(ev.amount) * 100);
-    const flag = (c: RefundCase, reason: CreditFlag, text: string): CreditResult => {
-      events[ev.eventId] = c.id;
-      c.ledger!.flags.push({ eventId: ev.eventId, reason, date: ev.date });
-      this.log(c.id, 'flag', by, text);
-      this.save();
-      return { result: 'flagged', caseId: c.id, reason };
-    };
+    if (ev.kind === 'reversal') return this.reverse(ev, by);
 
-    if (ev.kind === 'reversal') {
-      const c = this.casesFor(ev.userId).find((x) => x.ledger?.credits.some((k) => k.eventId === ev.reversesEventId));
-      if (!c) { events[ev.eventId] = null; this.save(); return { result: 'no_match' }; }
-      const k = c.ledger!.credits.find((x) => x.eventId === ev.reversesEventId)!;
-      c.ledger!.credits = c.ledger!.credits.filter((x) => x !== k);
-      c.ledger!.receivedCents -= k.cents;
-      events[ev.eventId] = c.id;
-      this.log(c.id, 'flag', by, `Refund ${k.eventId} (${(k.cents / 100).toFixed(2)}) was reversed by the shop or bank`);
-      const to: CaseState = c.ledger!.receivedCents > 0 ? 'partially_refunded' : 'watching';
-      if (c.state === 'closed') this.transition(c.id, to, { kind: 'event', type: 'refund_reversed', ref: ev.eventId }, by);
-      else if (c.state === 'partially_refunded' && to === 'watching') this.log(c.id, 'flag', by, 'Nothing counted now; still waiting for the refund');
-      this.save();
-      return { result: 'reversed', caseId: c.id, remainingCents: c.ledger!.expectedCents - c.ledger!.receivedCents, state: this.get(c.id).state };
-    }
-
-    // Which open cases does this credit fully match? Partial signals only (same shop, no reference) = ask.
+    // Which cases does this credit fully match? Partial signals only (same shop, no reference) = ask.
     const mine = this.casesFor(ev.userId).filter((c) => c.ledger);
     const sameShop = mine.filter((c) => c.facts.merchantId === ev.merchantId);
     const refOk = (c: RefundCase) => (!!ev.orderRef && ev.orderRef === c.facts.orderRef) || (!!ev.paymentRef && ev.paymentRef === c.facts.paymentRef);
@@ -318,33 +336,116 @@ export class RefundStore {
     const full = sameShop.filter((c) => refOk(c) && linkOk(c));
     if (!full.length) {
       const near = sameShop.filter((c) => c.state !== 'closed');
-      if (near.length === 1) return flag(near[0], 'ambiguous_ask_customer', `Credit ${ev.eventId} from the same shop has no matching order reference or purchase link: not counted, ask the customer`);
-      events[ev.eventId] = null; this.save();
+      if (near.length === 1) return this.flag(near[0], ev, 'ambiguous_ask_customer', `Credit ${ev.eventId} from the same shop has no matching order reference or purchase link: not counted, ask the customer`, by);
+      events[ev.eventId] = { caseId: null, outcome: 'no_match', event: ev }; this.save();
       return { result: 'no_match' };
     }
     if (full.length > 1) {
-      events[ev.eventId] = null;
+      events[ev.eventId] = { caseId: null, outcome: 'ambiguous', event: ev };
       for (const c of full) this.log(c.id, 'flag', by, `Credit ${ev.eventId} fits more than one case: not counted, ask the customer`);
       this.save();
       return { result: 'ambiguous', caseIds: full.map((c) => c.id) };
     }
-    const c = full[0];
+    return this.count(full[0], ev, by);
+  }
+
+  /** The customer says which case a held-back credit belongs to (same shop, no reference; or it fit two cases).
+      The usual checks still apply: currency, posted, not over the amount owed. */
+  assignCredit(eventId: string, caseId: string): CreditResult {
+    const h = this.data.events?.[eventId];
+    if (!h) throw new RefundError(`no credit ${eventId}`);
+    const ok = h.outcome === 'ambiguous' || (h.outcome === 'flagged' && h.reason === 'ambiguous_ask_customer');
+    if (!ok) throw new RefundError(`credit ${eventId} is not waiting for the customer to pick a case`);
+    const c = this.get(caseId);
+    if (c.userId !== h.event.userId) throw new RefundError('that case belongs to another customer');
+    if (c.facts.merchantId !== h.event.merchantId) throw new RefundError('a credit from another shop cannot be assigned to this case');
+    if (h.caseId) { const old = this.data.cases.find((x) => x.id === h.caseId); if (old) this.clearFlag(old, eventId); }
+    delete this.data.events![eventId];
+    this.log(caseId, 'fact', 'customer', `Customer said credit ${eventId} is the refund for this case`);
+    return this.count(c, h.event, 'customer');
+  }
+
+  /** Credits held back only because the case was with a person: look at them again. */
+  recheckFlagged(caseId: string) {
+    const held = Object.values(this.data.events ?? {}).filter((h) => h.caseId === caseId && h.outcome === 'flagged' && h.reason === 'case_with_a_person');
+    return held.map((h) => this.applyCredit(h.event));
+  }
+
+  // ---------- approvals (the gate for anything outward) ----------
+  /** Records the customer's approval of one exact outward action. Phase 4/5 screens call this. */
+  recordApproval(caseId: string, a: { action: ApprovalAction; recipient: string; text: string; evidenceIds: string[] }): Approval {
+    const c = this.get(caseId);
+    const ev = a.evidenceIds.map((id) => c.evidence.find((e) => e.recordId === id));
+    if (ev.some((e) => !e || !e.copy)) throw new RefundError('every evidence item must be stored and not withdrawn');
+    if (this.verifyEvidence(caseId).some((x) => !x.ok && a.evidenceIds.includes(x.recordId))) throw new RefundError('evidence changed after it was stored; it cannot be sent');
+    const approval: Approval = {
+      id: `ap-${crypto.randomUUID().slice(0, 8)}`, caseId, action: a.action, recipient: a.recipient, text: a.text, evidenceIds: [...a.evidenceIds],
+      fingerprint: this.approvalFingerprint(caseId, a), status: 'approved', at: this.clock(),
+    };
+    (this.data.approvals ??= []).push(approval);
+    this.log(caseId, 'approval', 'customer', `Approved ${a.action} to ${a.recipient} with ${a.evidenceIds.length} evidence items (${approval.fingerprint.slice(0, 12)}…)`);
+    this.save();
+    return approval;
+  }
+  approvalFingerprint(caseId: string, a: { recipient: string; text: string; evidenceIds: string[] }) {
+    const c = this.get(caseId);
+    const hashes = a.evidenceIds.map((id) => c.evidence.find((e) => e.recordId === id)?.hash ?? 'missing');
+    return crypto.createHash('sha256').update(JSON.stringify({ r: a.recipient, t: a.text, e: hashes })).digest('hex');
+  }
+  /** Revoking before the send: the approval can no longer move the case. */
+  revokeApproval(approvalId: string) {
+    const a = (this.data.approvals ?? []).find((x) => x.id === approvalId);
+    if (!a) throw new RefundError(`no approval ${approvalId}`);
+    if (a.status !== 'approved') throw new RefundError(`approval ${approvalId} is already ${a.status}`);
+    a.status = 'revoked';
+    this.log(a.caseId, 'approval', 'customer', `Approval ${approvalId} revoked before sending`);
+    this.save();
+  }
+
+  // ---------- matching helpers ----------
+  private flag(c: RefundCase, ev: CreditEvent, reason: CreditFlag, text: string, by: AuditEntry['by']): CreditResult {
+    this.data.events![ev.eventId] = { caseId: c.id, outcome: 'flagged', reason, event: ev };
+    c.ledger!.flags.push({ eventId: ev.eventId, reason, date: ev.date });
+    this.log(c.id, 'flag', by, text);
+    this.save();
+    return { result: 'flagged', caseId: c.id, reason };
+  }
+  private clearFlag(c: RefundCase, eventId: string) {
+    if (c.ledger) c.ledger.flags = c.ledger.flags.filter((f) => f.eventId !== eventId);
+  }
+  private count(c: RefundCase, ev: CreditEvent, by: AuditEntry['by']): CreditResult {
     const L = c.ledger!;
-    if (ev.currency !== c.facts.currency) return flag(c, 'other_currency', `Credit ${ev.eventId} is in ${ev.currency}, the purchase was in ${String(c.facts.currency)}: not counted`);
-    if (ev.status !== 'posted') return flag(c, 'provisional', `Credit ${ev.eventId} is still pending (provisional): noted, not counted until posted`);
-    if (c.state === 'handed_off') return flag(c, 'case_with_a_person', `Credit ${ev.eventId} arrived while the case is with a person: noted for them, not counted`);
+    const cents = Math.round(Math.abs(ev.amount) * 100);
+    if (ev.currency !== c.facts.currency) return this.flag(c, ev, 'other_currency', `Credit ${ev.eventId} is in ${ev.currency}, the purchase was in ${String(c.facts.currency)}: not counted`, by);
+    if (ev.status !== 'posted') return this.flag(c, ev, 'provisional', `Credit ${ev.eventId} is still pending (provisional): noted, not counted until posted`, by);
+    if (c.state === 'handed_off') return this.flag(c, ev, 'case_with_a_person', `Credit ${ev.eventId} arrived while the case is with a person: noted for them, not counted yet`, by);
     if (L.receivedCents >= L.expectedCents || L.receivedCents + cents > L.expectedCents) {
-      return flag(c, 'possible_duplicate', `Credit ${ev.eventId} (${(cents / 100).toFixed(2)}) would go over the amount owed: possible duplicate, needs review`);
+      return this.flag(c, ev, 'possible_duplicate', `Credit ${ev.eventId} (${(cents / 100).toFixed(2)}) would go over the amount owed: possible duplicate, needs review`, by);
     }
     L.credits.push({ eventId: ev.eventId, cents, date: ev.date });
     L.receivedCents += cents;
-    events[ev.eventId] = c.id;
+    this.data.events![ev.eventId] = { caseId: c.id, outcome: 'counted', event: ev };
     const remaining = L.expectedCents - L.receivedCents;
-    this.log(c.id, 'evidence', by, `Credit ${ev.eventId} matched: ${(cents / 100).toFixed(2)} ${ev.currency} (shop, reference, purchase link, currency, posted). Remaining ${(remaining / 100).toFixed(2)}`);
+    this.log(c.id, 'evidence', by, `Credit ${ev.eventId} matched: ${(cents / 100).toFixed(2)} ${ev.currency}. Remaining ${(remaining / 100).toFixed(2)}`);
     if (remaining === 0) this.transition(c.id, 'closed', { kind: 'event', type: 'refund_matched', ref: ev.eventId }, by);
     else if (c.state !== 'partially_refunded') this.transition(c.id, 'partially_refunded', { kind: 'event', type: 'refund_partial', ref: ev.eventId }, by);
     this.save();
     return { result: 'counted', caseId: c.id, remainingCents: remaining, state: this.get(c.id).state };
+  }
+  private reverse(ev: CreditEvent, by: AuditEntry['by']): CreditResult {
+    const events = this.data.events!;
+    const c = this.casesFor(ev.userId).find((x) => x.ledger?.credits.some((k) => k.eventId === ev.reversesEventId));
+    if (!c) { events[ev.eventId] = { caseId: null, outcome: 'no_match', event: ev }; this.save(); return { result: 'no_match' }; }
+    const L = c.ledger!;
+    const k = L.credits.find((x) => x.eventId === ev.reversesEventId)!;
+    L.credits = L.credits.filter((x) => x !== k);
+    L.receivedCents -= k.cents;
+    events[ev.eventId] = { caseId: c.id, outcome: 'reversed', event: ev };
+    this.log(c.id, 'flag', by, `Refund ${k.eventId} (${(k.cents / 100).toFixed(2)}) was reversed by the shop or bank`);
+    const to: CaseState = L.receivedCents > 0 ? 'partially_refunded' : 'watching';
+    if (c.state !== to && (c.state === 'closed' || c.state === 'partially_refunded')) this.transition(c.id, to, { kind: 'event', type: 'refund_reversed', ref: ev.eventId }, by);
+    this.save();
+    return { result: 'reversed', caseId: c.id, remainingCents: L.expectedCents - L.receivedCents, state: this.get(c.id).state };
   }
 
   // ---------- derived status ----------
@@ -361,7 +462,9 @@ export class RefundStore {
     const waiting = owed && c.state !== 'closed' && c.state !== 'handed_off';
     const late = waiting && promise && today > promise ? { calendarDays: daysBetween(promise, today), workingDays: workingDaysAfter(promise, today, cal) } : undefined;
     const money = L ? { expected: L.expectedCents / 100, received: L.receivedCents / 100, remaining: (L.expectedCents - L.receivedCents) / 100, flags: L.flags } : undefined;
-    return { state: c.state, promiseDate: promise, late, money, evaluation: this.evaluation(caseId, today) };
+    // Shown on the case even when it is closed: a possible duplicate or a credit waiting for the customer's pick.
+    const needsReview = (L?.flags ?? []).filter((f) => f.reason === 'possible_duplicate' || f.reason === 'ambiguous_ask_customer');
+    return { state: c.state, promiseDate: promise, late, money, needsReview, evaluation: this.evaluation(caseId, today) };
   }
   /** The policy evaluation. `breachEvidence` is derived in code: the shop's own written promise (a consented
       shop email) has passed with the case not closed. Flagged for instinct's review in the phase 1 PR. */
