@@ -156,7 +156,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
           <Band left="Receipt" />
           <div className="ncard flat">
             {c.receiptSavedAt
-              ? <NRow name={<><Icon name="shield" />Receipt saved in Abel knows</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Kept in Abel knows until you withdraw this case, then deleted. The original stays with the shop.`} chevron={false} />
+              ? <NRow name={<><Icon name="shield" />Receipt saved in Abel knows</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Kept in Abel knows until you withdraw this case, then deleted. The original is untouched.`} chevron={false} />
               : <NRow name="Keep the receipt?" sub="Save it to Abel knows, in case you need it later. Kept until you withdraw this case, then deleted." chevron={false} right={<button className="btn small" onClick={saveReceipt}>Save</button>} />}
           </div>
         </>)}
@@ -183,6 +183,7 @@ export const RefundKnows: React.FC<{ userId: string }> = ({ userId }) => {
       <div className="ncard flat">
         <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={`Abel may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
           right={<button className="btn small" onClick={() => setAsk(true)}>Withdraw</button>} />
+        {c.receiptSavedAt && <NRow name={<><Icon name="shield" />Saved receipt</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Deleted when you withdraw this case.`} chevron={false} />}
         <NRow name="What withdrawing does" sub="Abel stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Abel did is kept." chevron={false} />
       </div>
       {ask && (

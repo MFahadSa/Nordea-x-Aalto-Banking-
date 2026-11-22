@@ -479,6 +479,7 @@ export class RefundStore {
     if (c.receiptSavedAt) return;
     c.receiptSavedAt = this.clock();
     this.log(caseId, 'evidence', 'customer', 'Receipt kept in Abel knows until this case is withdrawn');
+    this.save();
   }
   markDemoSent(caseId: string, key: string) { const c = this.get(caseId); (c.demoSent ??= []).includes(key) || c.demoSent.push(key); this.save(); }
   /** The shop said no. Recorded only: the case stays as it is, counted credits stay counted, and nothing is sent or started. */

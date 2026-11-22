@@ -164,20 +164,21 @@ export function registerV14Routes(app: Express) {
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
     // Refund Tracker: asking about the Tuulikki refund shows the consent card. Code answers; nothing is read before the customer allows.
-    // The demo knows one shop. A short "refund" message with no shop asks which shop; naming Tuulikki next carries the refund intent.
-    // Any other answer gets one more ask, then the chat goes on as normal. Nothing is read or guessed from an unknown shop.
+    // The demo knows one shop. A short "refund" message with no shop asks which shop. Naming Tuulikki next carries the refund intent.
+    // Any other shop gets a plain "not supported in this demo" and the chat goes on as normal. A yes, a no or a topic change never opens the card.
     const REFUND_ASK = 'Which shop is the refund from? Name it and I can look into it.';
-    const REFUND_ASK2 = 'I can only look into a refund from a shop I know about, and in this demo that is Tuulikki Electronics. Is it that one?';
-    const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent' && m.id !== u.id).slice(-1)[0];
-    const afterAsk = lastAgent?.text === REFUND_ASK, afterAsk2 = lastAgent?.text === REFUND_ASK2;
+    const REFUND_NO_SHOP = 'I cannot look into refunds from that shop in this demo. The demo covers one shop only, which you can name if it applies.';
+    const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent').slice(-1)[0];
+    const afterAsk = lastAgent?.text === REFUND_ASK;
+    const other = /\b(balance|spend|spending|pay|salary|afford|track|goal|money|cancel|stop|never|no|nope|yes|yeah|ok|okay|thanks|why|what|how)\b|\?/i;
+    const negated = /\b(no|not|don't|dont|never|without)\b/i;
     const refundAsk = conv.helperId === 'abel' && !/tuulikki/i.test(u.text) && (
-      (/refund/i.test(u.text) && u.text.length <= 80 && !afterAsk && !afterAsk2) || (afterAsk && u.text.length <= 80 && !/\b(yes|yeah|yep|that one)\b/i.test(u.text)));
+      (/refund/i.test(u.text) && u.text.length <= 80 && !negated.test(u.text) && !afterAsk) || (afterAsk && u.text.length <= 40 && !other.test(u.text)));
     if (refundAsk) {
-      const a = agentMsg(userId, conv.id, conv.helperId, afterAsk ? REFUND_ASK2 : REFUND_ASK, { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
+      const a = agentMsg(userId, conv.id, conv.helperId, afterAsk ? REFUND_NO_SHOP : REFUND_ASK, { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
-    const yesAfter2 = conv.helperId === 'abel' && afterAsk2 && /\b(yes|yeah|yep|that one)\b/i.test(u.text);
-    if (conv.helperId === 'abel' && ((/refund/i.test(u.text) && /tuulikki/i.test(u.text)) || ((afterAsk || afterAsk2) && /tuulikki/i.test(u.text)) || yesAfter2)) {
+    if (conv.helperId === 'abel' && /tuulikki/i.test(u.text) && (/refund/i.test(u.text) || afterAsk)) {
       const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
