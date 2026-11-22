@@ -2,10 +2,10 @@
 // New data can come from a file uploaded in More → Nordea account data, or from a row added to the Supabase
 // table "nordea_feed". Either way:
 //  1. the customer's transactions are replaced (snapshot mode, the default) or merged in (incremental mode)
-//     and the balances updated (Abel's FACTS change at once);
+//     and the balances updated (Nora's FACTS change at once);
 //  2. "Nordea noticed" is worked out again from the new data: new observations are added, changed ones are
 //     updated, and ones the data no longer shows are archived. New or changed observations wait for the
-//     customer to confirm them (until then Abel can't read them, as before).
+//     customer to confirm them (until then Nora can't read them, as before).
 //
 // Data-structuring rules kept here:
 //  - Stable identity: a transaction keeps the same id across re-imports (the bank's own reference when the
@@ -410,7 +410,7 @@ export function refreshObservations(userId: string) {
       res.added.push(o.title);
     } else if (old.title !== o.title || old.detail !== o.detail || (old.status === 'archived' && lastRemovedBy(id) === 'nordea')) {
       // (If the customer removed it themselves, it only comes back when the data says something new.)
-      // Changed: the customer checks it again (Abel can't read it until they do).
+      // Changed: the customer checks it again (Nora can't read it until they do).
       db.updateCabinetEntry(id, { title: o.title, detail: o.detail, why: o.why, status: 'active', reviewed: false, evidence }, { by: 'nordea', how });
       res.updated.push(o.title);
     } else if (!old.evidence || old.evidence.inputsHash !== evidence.inputsHash) {

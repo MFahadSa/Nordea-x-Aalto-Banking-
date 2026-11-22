@@ -4,7 +4,7 @@ import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
 import { RefundCasePage, EVT as REFUND_EVT } from './components/Refund.js';
 import { HomePage } from './components/HomePage.js';
-import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, PresenterPage, DeleteDocSheet, ConfirmSheet } from './components/Pages.js';
+import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, PresenterPage, DeleteDocSheet, ConfirmSheet, PayPage, InvestPage, ServicesPage } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
 import { SuggestSettingSheet } from './components/Advice.js';
 import { adviceHome, adviceShow, adviceSetting, adviceChange } from './services/api.js';
@@ -36,7 +36,7 @@ import {
   deleteChat,
 } from './services/api.js';
 
-type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter' | 'refund';
+type Page = 'home' | 'pay' | 'invest' | 'services' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter' | 'refund';
 
 function initialDark() {
   try {
@@ -158,7 +158,7 @@ export default function App() {
     setMessages([]);
     setChatOpen(true);
   };
-  // v27: Abel's suggestions on Home, in What Abel knows and in Settings. Code on the server does the work.
+  // v27: Nora's suggestions on Home, in What Nora knows and in Settings. Code on the server does the work.
   const [adviceBusy, setAdviceBusy] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const adviceRun = async (f: () => Promise<{ text?: string } | unknown>, done?: (r: any) => void) => {
@@ -332,8 +332,8 @@ export default function App() {
   };
   const confirm = async (e: CabinetEntry) => {
     const r = await confirmObservation(state!.user.id, e.id);
-    // Confirming only confirms: you stay where you are. For a salary change Abel leaves a tip in Recent chats.
-    setToast({ message: r.conversationId ? 'Thanks · +10 points · Abel left you a tip in Recent chats' : 'Thanks · +10 points' });
+    // Confirming only confirms: you stay where you are. For a salary change Nora leaves a tip in Recent chats.
+    setToast({ message: r.conversationId ? 'Thanks · +10 points · Nora left you a tip in Recent chats' : 'Thanks · +10 points' });
     await refresh();
   };
 
@@ -355,7 +355,9 @@ export default function App() {
 
   const isCalm = state.user.viewMode === 'calm';
   const tab = (k: Page, icon: string, label: string) => {
-    const on = page === k || (k === 'more' && (page === 'privacy' || page === 'presenter')) || (k === 'home' && page === 'autopilot');
+    // v31: the five reference tabs. Sub-pages (knows, rewards, more, privacy, presenter, autopilot,
+    // refund) are reached from the person icon, Services or rows, so no tab stays selected on them.
+    const on = page === k || (k === 'services' && page === 'autopilot');
     return (
       <button key={k} role="tab" aria-selected={on} onClick={() => goPage(k)}>
         <Icon name={icon} />
@@ -369,12 +371,12 @@ export default function App() {
     setIsDark(next);
     try { localStorage.setItem('abel-theme-choice', next ? 'dark' : 'light'); } catch { /* storage may be blocked */ }
   };
-  const frame = (what: string) => setToast({ message: `${what} is part of the Nordea app. This concept adds Abel.` });
+  const frame = (what: string) => setToast({ message: `${what} is part of the Nordea app. This concept adds Nora.` });
 
   return (
     <div className={isCalm ? 'calm' : ''}>
       <div className="stage-top">
-        <span className="stage-t"><b>Abel</b> · Nordea concept{!state.aiConnected && ' · AI not connected'}</span>
+        <span className="stage-t"><b>Nora</b> · Nordea concept{!state.aiConnected && ' · AI not connected'}</span>
         <button className="theme-chip" onClick={toggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
           <Icon name={isDark ? 'sun' : 'moon'} size={16} />
           {isDark ? 'Light' : 'Dark'}
@@ -386,11 +388,11 @@ export default function App() {
           statusBarTheme={chatOpen ? 'light' : 'brand'}
           bottom={
             <nav className="nav nav5" role="tablist">
-              {tab('home', 'home', 'Home')}
-              {tab('knows', 'cab', 'Abel knows')}
-              {tab('rewards', 'star', 'Rewards')}
-              {tab('contact', 'contact', 'Contact')}
-              {tab('more', 'more', 'More')}
+              {tab('home', 'home', 'Overview')}
+              {tab('pay', 'paytab', 'Pay')}
+              {tab('invest', 'invest', 'Invest')}
+              {tab('services', 'grid', 'Services')}
+              {tab('contact', 'help', 'Help')}
             </nav>
           }
           overlay={
@@ -426,7 +428,7 @@ export default function App() {
                 <ConfirmSheet
                   kicker="Recent chats"
                   title="Delete this chat?"
-                  body="The messages in this chat are deleted for good. What Abel saved from it stays in “Abel knows”, and kept files stay in Your documents. You can delete those separately."
+                  body="The messages in this chat are deleted for good. What Nora saved from it stays in “Nora knows”, and kept files stay in Your documents. You can delete those separately."
                   yes="Delete chat"
                   onYes={removeChat}
                   onNo={() => setAskDeleteChat(null)}
@@ -436,7 +438,7 @@ export default function App() {
                 <ConfirmSheet
                   kicker="Your chats"
                   title="Delete all your chats?"
-                  body="Every conversation with Abel and the helpers is deleted for good. What Abel knows and Your documents stay, and you can delete those separately."
+                  body="Every conversation with Nora and the helpers is deleted for good. What Nora knows and Your documents stay, and you can delete those separately."
                   yes="Delete my chats"
                   onYes={removeChats}
                   onNo={() => setAskDeleteChats(false)}
@@ -492,7 +494,7 @@ export default function App() {
               onOpenHelper={openHelper}
               onOpenConversation={openConversation}
               onOpenPage={(p) => goPage(p as Page)}
-              onOpenUsers={() => setUsersOpen(true)}
+              onOpenMore={() => goPage('more')}
               onConfirm={confirm}
               onDeleteChat={setAskDeleteChat}
               onDeleteAllChats={() => setAskDeleteChats(true)}
@@ -509,7 +511,7 @@ export default function App() {
             <KnowsPage
               state={state}
               onAddGoal={() => setAddGoalOpen(true)}
-              onTellAbel={() => openHelper('abel')}
+              onTellNora={() => openHelper('abel')}
               onImport={() => doImport({ sample: true })}
               onPrivacy={() => goPage('privacy')}
               onAskAbout={(t) => startChat('abel', t)}
@@ -547,6 +549,9 @@ export default function App() {
           {page === 'autopilot' && (
             <AutopilotPage state={state} onBack={() => goPage('home')} onPlan={(t) => startChat('autopilot', t)} />
           )}
+          {page === 'pay' && <PayPage state={state} onFrame={frame} />}
+          {page === 'invest' && <InvestPage state={state} onAddGoal={() => setAddGoalOpen(true)} onOpenPage={(p) => goPage(p as Page)} onAskAbout={(t) => startChat('abel', t)} />}
+          {page === 'services' && <ServicesPage state={state} onHelper={openHelper} onOpenPage={(p) => goPage(p as Page)} />}
           {page === 'rewards' && <RewardsPage state={state} rewards={rewards} onAsk={() => openHelper('abel')} onUse={setRedeemAsk} onEarn={() => goPage('home')} />}
           {page === 'contact' && <ContactPage state={state} onHelper={openHelper} onOpenConversation={openConversation} onDeleteChat={setAskDeleteChat} onDeleteAllChats={() => setAskDeleteChats(true)} />}
           {page === 'more' && (

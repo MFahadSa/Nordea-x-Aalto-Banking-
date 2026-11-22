@@ -37,7 +37,7 @@ export interface StepResult {
 export interface LlmProvider {
   name: string;
   isConfigured(): boolean;
-  /** One model step. The model must answer with tool calls (Abel always ends with finishReply). */
+  /** One model step. The model must answer with tool calls (Nora always ends with finishReply). */
   step(args: { system: string; turns: Turn[]; tools: ToolDecl[]; temperature?: number; timeoutMs?: number; maxWaitMs?: number; skipMembers?: string[]; signal?: AbortSignal }): Promise<StepResult>;
   /** Can read photos (and scanned PDFs). */
   vision?: boolean;
@@ -59,7 +59,7 @@ let activeModel: string | null = null;
 let lastError: { at: string; message: string; model?: string } | null = null;
 let lastOk: { at: string; model: string } | null = null;
 
-// "Thinking" makes newer models much slower. Abel's job is short replies with tools, so keep it low.
+// "Thinking" makes newer models much slower. Nora's job is short replies with tools, so keep it low.
 // Newer models take thinkingLevel, the 2.5 family takes thinkingBudget; each refuses the other.
 // Try in this order and remember what the model accepted. LLM_THINKING=default leaves it to Google.
 type ThinkMode = 'level' | 'budget' | 'none';

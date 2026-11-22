@@ -65,7 +65,7 @@ const flat = g.candidates.find((c) => /Kalasatama/.test(c.title))!;
 const doc = g.candidates.find((c) => c.filter === 'private')!;
 const saved = E.decide(flat.id, 'save', 'lauri');
 const e1 = db.getCabinetEntry(saved.entryId!);
-check('save: in the cabinet, source glasses, readable by Abel and (for a shared case) the adviser', !!e1 && e1.provenance.channel === 'glasses' && e1.readableBy.abel && e1.readableBy.adviser === true && e1.reviewed === true, e1);
+check('save: in the cabinet, source glasses, readable by Nora and (for a shared case) the adviser', !!e1 && e1.provenance.channel === 'glasses' && e1.readableBy.abel && e1.readableBy.adviser === true && e1.reviewed === true, e1);
 const priv = E.decide(doc.id, 'private', 'lauri');
 const e2 = db.getCabinetEntry(priv.entryId!);
 check('keep private: saved, never for the adviser or offers', !!e2 && e2.private && e2.readableBy.adviser === false && e2.readableBy.offers === false, e2);

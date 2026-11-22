@@ -1,8 +1,8 @@
 /**
- * v27: Abel's suggestions outside the chat.
+ * v27: Nora's suggestions outside the chat.
  * - ForYou: the one Home card (a question to answer right there, or a suggestion to open in a chat).
- * - AdviceList: "Abel's suggestions" in What Abel knows, each opening "Why Abel suggested this".
- * - SuggestSettingSheet: how often Abel brings things up on Home by himself.
+ * - AdviceList: "Nora's suggestions" in What Nora knows, each opening "Why Nora suggested this".
+ * - SuggestSettingSheet: how often Nora brings things up on Home by himself.
  * Everything on these cards was built by code on the server; nothing here is written by the AI.
  */
 import React, { useState } from 'react';
@@ -29,11 +29,11 @@ export interface WhyData {
   answers?: { label: string; value: string }[];
 }
 
-/** "Why Abel suggested this": what it was based on, the rule and its source, what Nordea earns. */
+/** "Why Nora suggested this": what it was based on, the rule and its source, what Nordea earns. */
 export const WhySheet: React.FC<{ data: WhyData; actions?: React.ReactNode; onClose: () => void }> = ({ data, actions, onClose }) => (
   <div className="cf-bg" onClick={onClose}>
-    <div className="cf-sheet adv-sheet" role="dialog" aria-modal="true" aria-label={`Why Abel suggested ${data.title}`} onClick={(e) => e.stopPropagation()}>
-      <span className="kicker">Why Abel suggested this</span>
+    <div className="cf-sheet adv-sheet" role="dialog" aria-modal="true" aria-label={`Why Nora suggested ${data.title}`} onClick={(e) => e.stopPropagation()}>
+      <span className="kicker">Why Nora suggested this</span>
       <h3>{data.title}</h3>
       {data.line && <p className="cf-p">{data.line}</p>}
       {data.reasons.length > 0 && (
@@ -65,7 +65,7 @@ export const WhySheet: React.FC<{ data: WhyData; actions?: React.ReactNode; onCl
           <p className="adv-p">{data.earns.replace(/^What Nordea earns: /, '').replace(/^./, (c) => c.toUpperCase())}</p>
         </>
       )}
-      {data.read != null && <p className="adv-p adv-muted">Abel read {data.read} of your {data.read === 1 ? 'note' : 'notes'} for this check. Every read is listed in Who sees it.</p>}
+      {data.read != null && <p className="adv-p adv-muted">Nora read {data.read} of your {data.read === 1 ? 'note' : 'notes'} for this check. Every read is listed in Who sees it.</p>}
       <div className="btns stack">
         {actions}
         <button className="btn quiet block" onClick={onClose}>Close</button>
@@ -74,14 +74,14 @@ export const WhySheet: React.FC<{ data: WhyData; actions?: React.ReactNode; onCl
   </div>
 );
 
-/** The one Home card. A question is answered right here; a suggestion opens in a chat with Abel. */
+/** The one Home card. A question is answered right here; a suggestion opens in a chat with Nora. */
 export const ForYou: React.FC<{
   card: MessageCard;
   busy: boolean;
   onAnswer: (value: string) => void;
   onShow: () => void;
   onNotNow: () => void;
-  /** v30: shown inside Home's "From Abel" list, which has its own heading. */
+  /** v30: shown inside Home's "From Nora" list, which has its own heading. */
   inList?: boolean;
 }> = ({ card, busy, onAnswer, onShow, onNotNow, inList }) => {
   const [date, setDate] = useState('');
@@ -92,10 +92,10 @@ export const ForYou: React.FC<{
       <>
         {!inList && <Band left="For you" />}
         <div className="card adv-home" aria-busy={busy}>
-          <span className="from bank">One question from Abel</span>
+          <span className="from bank">One question from Nora</span>
           <div>
             <h3>{d.question}</h3>
-            <p>Your answer helps Abel check “{d.forTitle}” for you.</p>
+            <p>Your answer helps Nora check “{d.forTitle}” for you.</p>
           </div>
           {d.factType === 'date' ? (
             <div className="adv-hdate">
@@ -115,7 +115,7 @@ export const ForYou: React.FC<{
               <button className="btn" disabled={busy} onClick={() => onAnswer('notSure')}>Not sure</button>
             </div>
           )}
-          <p className="adv-note"><Shield /><span>Saved in What Abel knows, where you can change or delete it.</span></p>
+          <p className="adv-note"><Shield /><span>Saved in What Nora knows, where you can change or delete it.</span></p>
         </div>
       </>
     );
@@ -137,7 +137,7 @@ export const ForYou: React.FC<{
       </div>
       {why && (
         <WhySheet
-          data={{ title: card.title || '', line: 'Abel picked this for you on Home.', reasons: d.reasons || [], source: d.source, validFrom: d.validFrom, earns: d.earns }}
+          data={{ title: card.title || '', line: 'Nora picked this for you on Home.', reasons: d.reasons || [], source: d.source, validFrom: d.validFrom, earns: d.earns }}
           onClose={() => setWhy(false)}
         />
       )}
@@ -145,14 +145,14 @@ export const ForYou: React.FC<{
   );
 };
 
-/** "Abel's suggestions": what Abel suggested or asked, and what you did. */
+/** "Nora's suggestions": what Nora suggested or asked, and what you did. */
 export const AdviceList: React.FC<{ view: AdviceView; busy: boolean; onChange: (ruleId: string, what: 'allow' | 'forget') => void }> = ({ view, busy, onChange }) => {
   const [open, setOpen] = useState<string | null>(null);
   if (!view.history.length) return null;
   const it = view.history.find((h) => h.ruleId === open);
   return (
     <>
-      <Band left="Abel’s suggestions" right={view.history.length} />
+      <Band left="Nora’s suggestions" right={view.history.length} />
       <div className="ncard flat">
         {view.history.map((h) => <NRow key={h.ruleId} name={h.title} sub={h.status} onClick={() => setOpen(h.ruleId)} />)}
       </div>
@@ -186,13 +186,13 @@ const OPTIONS: { v: AdviceView['proactive']; name: string; sub: string }[] = [
 ];
 export const proactiveName = (v: AdviceView['proactive'] | undefined) => OPTIONS.find((o) => o.v === (v || 'sometimes'))!.name;
 
-/** Settings → Suggestions from Abel. A choice is saved as soon as it is tapped. */
+/** Settings → Suggestions from Nora. A choice is saved as soon as it is tapped. */
 export const SuggestSettingSheet: React.FC<{ value: AdviceView['proactive']; busy: boolean; onPick: (v: AdviceView['proactive']) => void; onClose: () => void }> = ({ value, busy, onPick, onClose }) => (
   <div className="cf-bg" onClick={onClose}>
-    <div className="cf-sheet adv-sheet" role="dialog" aria-modal="true" aria-label="Suggestions from Abel" onClick={(e) => e.stopPropagation()}>
+    <div className="cf-sheet adv-sheet" role="dialog" aria-modal="true" aria-label="Suggestions from Nora" onClick={(e) => e.stopPropagation()}>
       <span className="kicker">Settings</span>
-      <h3>Suggestions from Abel</h3>
-      <p className="cf-p">When you ask Abel about something, he can always tell you what fits. This sets whether he also brings things up on his own.</p>
+      <h3>Suggestions from Nora</h3>
+      <p className="cf-p">When you ask Nora about something, he can always tell you what fits. This sets whether he also brings things up on his own.</p>
       <div className="ncard flat adv-opts" role="radiogroup" aria-label="How often">
         {OPTIONS.map((o) => (
           <button key={o.v} className="nrow2" role="radio" aria-checked={value === o.v} disabled={busy} onClick={() => onPick(o.v)}>

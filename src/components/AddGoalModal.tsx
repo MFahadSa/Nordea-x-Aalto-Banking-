@@ -186,7 +186,7 @@ export const AddGoalModal: React.FC<Props> = ({ isOpen, onClose, userId, onGoalA
           </div>
 
           <p style={{ fontSize: '12.5px', color: 'var(--muted)', margin: '4px 0' }}>
-            📌 You can undo it straight away. Abel will track it with you.
+            📌 You can undo it straight away. Nora will track it with you.
           </p>
 
           <div className="btns" style={{ marginTop: '4px' }}>

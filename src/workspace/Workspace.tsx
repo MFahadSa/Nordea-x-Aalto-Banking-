@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 type Staff = { id: string; name: string; role: string };
-const SRC: Record<string, string> = { glasses: '👓 Smart glasses', whatsapp: '💬 WhatsApp', document: '📄 Document', csv: '📊 Bank data', abel: '🗨️ Abel chat', cloud: '☁️ Personal AI', app: '🗨️ Abel chat', system: '📊 Bank data', staff: '🏦 Nordea' };
+const SRC: Record<string, string> = { glasses: '👓 Smart glasses', whatsapp: '💬 WhatsApp', document: '📄 Document', csv: '📊 Bank data', abel: '🗨️ Nora chat', cloud: '☁️ Personal AI', app: '🗨️ Nora chat', system: '📊 Bank data', staff: '🏦 Nordea' };
 const eur = (n?: number) => (n == null ? '–' : `${Math.round(n).toLocaleString('fi-FI').replace(/ /g, ' ')} €`);
 const when = (iso?: string) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
 const initials = (n: string) => n.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase();
@@ -85,7 +85,7 @@ const Today: React.FC<{ t: any; me: Staff }> = ({ t, me }) => {
       <div className="col" style={{ flex: 1 }}>
         <div><h1>Hello, {me.name.split(' ')[0]}</h1><div className="muted">{ready ? `${ready} ${ready === 1 ? 'case' : 'cases'} ready for you.` : 'No cases ready right now.'}</div></div>
         <div className="card">
-          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}><h2>Cases</h2><span className="muted small">A case opens when a customer taps “Connect me” in Abel</span></div>
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}><h2>Cases</h2><span className="muted small">A case opens when a customer taps “Connect me” in Nora</span></div>
           <div className="list">
             {t.cases.length ? t.cases.map((c: any) => (
               <div className="row" key={c.id}>
@@ -94,7 +94,7 @@ const Today: React.FC<{ t: any; me: Staff }> = ({ t, me }) => {
                 <span className={`chip ${STATUS[c.status]?.[1] || 'grey'}`}>{STATUS[c.status]?.[0] || c.status}</span>
                 <button className={`btn ${c.status === 'open' || c.status === 'waiting_second' ? 'p' : ''}`} onClick={() => go(`/case/${c.id}`)}>Open case</button>
               </div>
-            )) : <div className="empty">No cases yet. In the customer app, ask Abel about a home loan and tap “Connect me”.</div>}
+            )) : <div className="empty">No cases yet. In the customer app, ask Nora about a home loan and tap “Connect me”.</div>}
           </div>
         </div>
       </div>
@@ -165,7 +165,7 @@ const CaseView: React.FC<{ id: string; sid: string; onToast: (s: string) => void
             <div className="card">
               <h2>Questions to the customer</h2>
               {c.requests.map((r: any) => (
-                <div className="req" key={r.id}><b>{r.by}:</b> {r.ask}<div style={{ marginTop: 4 }}>{r.answer ? <><span className="chip you">Answer</span> {r.answer}</> : <span className="muted">Waiting for the answer in Abel…</span>}</div></div>
+                <div className="req" key={r.id}><b>{r.by}:</b> {r.ask}<div style={{ marginTop: 4 }}>{r.answer ? <><span className="chip you">Answer</span> {r.answer}</> : <span className="muted">Waiting for the answer in Nora…</span>}</div></div>
               ))}
             </div>
           )}
@@ -198,12 +198,12 @@ const CaseView: React.FC<{ id: string; sid: string; onToast: (s: string) => void
             <h2 style={{ marginBottom: 4 }}>Missing for a full decision</h2>
             {d.missing.length ? d.missing.map((m: any) => (
               <div className="check" key={m.key}><div className="tick warn">!</div><div style={{ flex: 1 }}>{m.label}<div className="muted small">{m.sub}</div></div>
-                <button className="btn" disabled={!!busy || closed || !d.shareActive} onClick={() => run('ask-' + m.key, () => api(`/api/workspace/cases/${id}/ask`, { staff: sid, ask: m.ask }), 'Asked in the customer’s Abel chat')}>Ask via Abel</button></div>
+                <button className="btn" disabled={!!busy || closed || !d.shareActive} onClick={() => run('ask-' + m.key, () => api(`/api/workspace/cases/${id}/ask`, { staff: sid, ask: m.ask }), 'Asked in the customer’s Nora chat')}>Ask via Nora</button></div>
             )) : <p className="muted">Nothing obvious is missing.</p>}
             {!closed && d.shareActive && (
               <div className="row" style={{ marginTop: 10 }}>
                 <input aria-label="Your own question" placeholder="Ask your own question…" value={ask} onChange={(e) => setAsk(e.target.value)} style={{ flex: 1, border: '1.5px solid var(--line)', borderRadius: 10, padding: '8px 10px' }} />
-                <button className="btn" disabled={!ask.trim() || !!busy} onClick={() => run('ask', () => api(`/api/workspace/cases/${id}/ask`, { staff: sid, ask }).then(() => setAsk('')), 'Asked in the customer’s Abel chat')}>Ask</button>
+                <button className="btn" disabled={!ask.trim() || !!busy} onClick={() => run('ask', () => api(`/api/workspace/cases/${id}/ask`, { staff: sid, ask }).then(() => setAsk('')), 'Asked in the customer’s Nora chat')}>Ask</button>
               </div>
             )}
           </div>
@@ -218,7 +218,7 @@ const CaseView: React.FC<{ id: string; sid: string; onToast: (s: string) => void
           <div className="card">
             <h2 style={{ marginBottom: 10 }}>Decision</h2>
             {c.status === 'decided' ? (
-              <p><span className={`chip ${lastDecision.outcome === 'pre_approved' ? 'ok' : 'warn'}`}>{lastDecision.outcome === 'pre_approved' ? `Pre-approved ${eur(lastDecision.amount)}` : 'Declined'}</span><br /><span className="small">{lastDecision.reason}</span><br /><span className="muted small">By {c.decisions.map((x: any) => x.by).join(' and ')} · sent to the customer in Abel</span></p>
+              <p><span className={`chip ${lastDecision.outcome === 'pre_approved' ? 'ok' : 'warn'}`}>{lastDecision.outcome === 'pre_approved' ? `Pre-approved ${eur(lastDecision.amount)}` : 'Declined'}</span><br /><span className="small">{lastDecision.reason}</span><br /><span className="muted small">By {c.decisions.map((x: any) => x.by).join(' and ')} · sent to the customer in Nora</span></p>
             ) : c.status === 'withdrawn' ? <p className="muted">The customer stopped sharing.</p> : (
               <>
                 {c.status === 'waiting_second' && <p className="small" style={{ marginBottom: 10 }}><span className="chip sel">Waiting for a second approver</span><br />{lastDecision.by} proposed {eur(lastDecision.amount)}. {lastDecision.by.startsWith(staffName(sid)) ? 'Someone else must confirm it.' : 'Confirm with the same amount.'}</p>}
@@ -227,7 +227,7 @@ const CaseView: React.FC<{ id: string; sid: string; onToast: (s: string) => void
                 <div className="field"><label htmlFor="why">Reason the customer will read</label><textarea id="why" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="E.g. Your income and savings support this amount under our rules." /></div>
                 <button className="btn p w" style={{ marginBottom: 8 }} disabled={!!busy || !reason.trim() || !Number(amount)} onClick={() => run('dec', () => api<any>(`/api/workspace/cases/${id}/decide`, { staff: sid, outcome: 'pre_approved', amount: Number(amount), reason }).then((r) => { if (r.needsSecond) onToast('Above the limit: a second approver must confirm'); }), 'Saved')}>{c.status === 'waiting_second' ? 'Confirm as second approver' : 'Pre-approve'}</button>
                 <button className="btn q w" disabled={!!busy || !reason.trim()} onClick={() => run('decl', () => api(`/api/workspace/cases/${id}/decide`, { staff: sid, outcome: 'declined', reason }), 'Declined; the customer sees the reason')}>Decline with reason</button>
-                <p className="muted small" style={{ marginTop: 8 }}>The customer gets the decision and the reason in Abel, with the list of what was used. Above {eur(250000)} a second person must confirm.</p>
+                <p className="muted small" style={{ marginTop: 8 }}>The customer gets the decision and the reason in Nora, with the list of what was used. Above {eur(250000)} a second person must confirm.</p>
               </>
             )}
           </div>

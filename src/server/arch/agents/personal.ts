@@ -1,5 +1,5 @@
 /**
- * The PERSONAL agent (Abel in-app, or the connected external agent). It works for the
+ * The PERSONAL agent (Nora in-app, or the connected external agent). It works for the
  * customer and opens ONLY the User DB (plus the shared bus). It gets cabinet content
  * exclusively as message replies from the Context Memory agent - never by opening cm.db.
  * Boundary pinned by the AC1 source-scan test: this module imports no other agent's store.
@@ -17,15 +17,15 @@ import { codeFloor, makeApprovalId, contentHash, readApproval, validateModelLeve
 import type { ModelLevel } from '../approvalGate.js';
 
 
-/** The goals the personal agent may share (with Abel, the shared document or a chat answer): the customer's
+/** The goals the personal agent may share (with Nora, the shared document or a chat answer): the customer's
  *  own choices in the app apply at the source. A goal they removed (archived), said is wrong (disputed) or
- *  turned off for Abel ("Not used: you turned it off") stays in the User DB but leaves it no further. */
+ *  turned off for Nora ("Not used: you turned it off") stays in the User DB but leaves it no further. */
 export function sharedGoals(u: { goals: Goal[] }): Goal[] {
   return u.goals.filter((g) => g.doc?.status !== 'archived' && g.doc?.status !== 'disputed' && g.doc?.readableBy?.abel !== false);
 }
 
 export const personalLabel = (u: { personalAgent: { mode: string; externalName?: string } }) =>
-  (u.personalAgent.mode === 'external' ? u.personalAgent.externalName || 'External personal agent' : 'Abel');
+  (u.personalAgent.mode === 'external' ? u.personalAgent.externalName || 'External personal agent' : 'Nora');
 
 /** The agent off-switch is coordination state on the bus; the legacy User-DB field still counts. */
 const requireOn = (uid: string) => {
@@ -196,7 +196,7 @@ export async function llmComposeReply(uid: string, question: string, parts: stri
     uid,
     agent: 'personal',
     system: [
-      'You are Abel, the customer\'s personal banking assistant agent. You answer the customer.',
+      'You are Nora, the customer\'s personal banking assistant agent. You answer the customer.',
       'The facts below are rows code selected from your User DB and the shared context; you may read more of YOUR OWN User DB through listMyGoals and listMyFacts. You never see another agent\'s database.',
       'Keep every amount and figure EXACTLY as written in the facts or tool results. Never invent, convert or recompute a number.',
       category === 'General Question'
@@ -356,7 +356,7 @@ export async function llmReviewCycle(uid: string, question: string, parts: strin
   const { result, error } = await runAgentReasoning({
     uid, agent: 'personal',
     system: [
-      'You are Abel, the customer\'s personal banking assistant agent. A cycle just returned to you: the Context Memory and Nordea agents added what they found to the shared context.',
+      'You are Nora, the customer\'s personal banking assistant agent. A cycle just returned to you: the Context Memory and Nordea agents added what they found to the shared context.',
       `This is cycle ${cycle} of at most ${maxCycles}. Decide from the facts below whether you can answer the customer's question now.`,
       'If you can, call finishReview with enough=true. If something specific is missing and another cycle could find it, call finishReview with enough=false and up to 3 short plain topics in gaps (words, no figures).',
       'Do not ask for information the facts already contain. Never invent a figure.',
@@ -398,7 +398,7 @@ export function connectExternalAgent(uid: string, name: string) {
   const u = loadUserDb(uid);
   u.personalAgent = { mode: 'external', externalName: name.trim() || 'External agent', connectedAt: now() };
   saveUserDb(u);
-  appendMessage(uid, { from: 'personal', to: 'user', type: 'inform', summary: `${u.personalAgent.externalName} set as the personal agent (SIMULATED - no live external connection). Abel steps aside; syncs from WhatsApp/calendar/notes/email arrive via the demo endpoint and wait in the airlock for your approval.` });
+  appendMessage(uid, { from: 'personal', to: 'user', type: 'inform', summary: `${u.personalAgent.externalName} set as the personal agent (SIMULATED - no live external connection). Nora steps aside; syncs from WhatsApp/calendar/notes/email arrive via the demo endpoint and wait in the airlock for your approval.` });
   return u.personalAgent;
 }
 
@@ -407,7 +407,7 @@ export function disconnectPersonalAgent(uid: string) {
   const was = personalLabel(u);
   u.personalAgent = { mode: 'abel' };
   saveUserDb(u);
-  appendMessage(uid, { from: 'personal', to: 'user', type: 'inform', summary: `${was} disconnected. Abel is the in-app personal agent again; nothing else was deleted.` });
+  appendMessage(uid, { from: 'personal', to: 'user', type: 'inform', summary: `${was} disconnected. Nora is the in-app personal agent again; nothing else was deleted.` });
   return u.personalAgent;
 }
 
@@ -416,7 +416,7 @@ export function disconnectPersonalAgent(uid: string) {
 export function stageSync(uid: string, source: string, items: { kind: string; text: string }[]) {
   requireOn(uid);
   const u = loadUserDb(uid);
-  if (u.personalAgent.mode !== 'external') throw new ArchError(409, 'No external personal agent is connected, so there is nothing to sync. Direct input to Abel never goes through the airlock.');
+  if (u.personalAgent.mode !== 'external') throw new ArchError(409, 'No external personal agent is connected, so there is nothing to sync. Direct input to Nora never goes through the airlock.');
   if (!items.length) throw new ArchError(400, 'A sync needs at least one item.');
   const bus = loadBus(uid);
   const batch = { id: newId('air'), at: now(), source, items: items.map((i) => ({ id: newId('item'), kind: i.kind, text: i.text })), status: 'pending' as const };
@@ -450,12 +450,12 @@ export function decideAirlock(uid: string, batchId: string, approve: boolean) {
 function handleMessage(uid: string, msg: AgentMessage) {
   const payload = (msg.payload ?? {}) as { roundId?: string; purpose?: string; goalIds?: string[]; control?: string; trigger?: string; question?: string; sessionId?: string } & Record<string, unknown>;
   if (msg.type === 'control' && payload.control === 'abel-facts') {
-    // F10 phase 2 / AC11: the in-app Abel asks for the customer's facts. The personal agent is
+    // F10 phase 2 / AC11: the in-app Nora asks for the customer's facts. The personal agent is
     // the owner of the User DB - it reads it itself and answers by message (provenance kept).
     const u = loadUserDb(uid);
     appendMessage(uid, {
       from: 'personal', to: 'app', type: 'reply',
-      summary: `Personal agent returns ${sharedGoals(u).length} goal${sharedGoals(u).length === 1 ? '' : 's'} and ${u.personalFacts.length} fact${u.personalFacts.length === 1 ? '' : 's'} from the User DB for Abel.`,
+      summary: `Personal agent returns ${sharedGoals(u).length} goal${sharedGoals(u).length === 1 ? '' : 's'} and ${u.personalFacts.length} fact${u.personalFacts.length === 1 ? '' : 's'} from the User DB for Nora.`,
       payload: { inReplyTo: msg.id, from: 'user-db', goals: sharedGoals(u).map((g) => ({ title: g.title, detail: g.detail })), facts: u.personalFacts.map((f) => ({ text: f.text, source: f.source })) },
     });
     updateMessage(uid, msg.id, { status: 'answered' });

@@ -45,7 +45,7 @@ export function askCard(c: Candidate, calm: boolean): MessageCard {
     data: {
       ruleId: c.rule.id, version: c.rule.version, fact, factType: FACTS[fact].type,
       question: c.ask!.question, forTitle: c.rule.title, calm,
-      note: `Asked for: ${c.rule.title}. Your answer is saved in What Abel knows, where you can change or delete it.`,
+      note: `Asked for: ${c.rule.title}. Your answer is saved in What Nora knows, where you can change or delete it.`,
     },
   };
 }
@@ -61,7 +61,7 @@ export function opportunityCard(c: Candidate, facts: Facts, calm: boolean): Mess
       source: { url: r.source.url, label: `${sourceLabel(r.source.url)} · checked ${shortDay(r.source.checkedAt)}` },
       earns: /^nordea earns nothing/i.test(r.earns) ? r.earns : `What Nordea earns: ${r.earns.charAt(0).toLowerCase()}${r.earns.slice(1)}`,
       action: r.action, regulated: r.regulated, cta: r.cta, calm, validFrom: r.validFrom,
-      ...(r.regulated ? { adviceNote: 'Advice on this comes from a person, not from Abel.' } : {}),
+      ...(r.regulated ? { adviceNote: 'Advice on this comes from a person, not from Nora.' } : {}),
     },
   };
 }

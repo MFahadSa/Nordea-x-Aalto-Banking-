@@ -1,4 +1,4 @@
-// What belongs to a home-loan case (no imports, so Abel and the cases module can both use it).
+// What belongs to a home-loan case (no imports, so Nora and the cases module can both use it).
 import type { CabinetEntry } from '../../types.js';
 
 export const LOAN_WORDS = /\b(flat|apartment|home|house|mortgage|loan|kalasatama|deposit)\b/i;

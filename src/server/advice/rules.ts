@@ -35,7 +35,7 @@ export interface Rule {
   /** After this many days without a re-check the rule switches itself off. */
   reviewDays: number;
   when: Condition;
-  /** Questions Abel may ask for missing customer facts, keyed by fact. */
+  /** Questions Nora may ask for missing customer facts, keyed by fact. */
   ask: Partial<Record<FactKey, string>>;
   /** Optional window (inclusive from, exclusive to) when the rule is worth raising. */
   timing?: { from: string; to: string };
@@ -47,7 +47,7 @@ export interface Rule {
   params: Record<string, number | string>;
   compute?: string;
   message: string;
-  /** v29: how it works in plain words (only params), given to Abel when this card is in the chat. */
+  /** v29: how it works in plain words (only params), given to Nora when this card is in the chat. */
   explain?: string;
   /** "What Nordea earns", in words, shown on every card. No numbers. */
   earns: string;
@@ -137,7 +137,7 @@ export function validateRule(r: any): string[] {
     for (const m of r.message.matchAll(/\{(\w+)\}/g)) if (!known.has(m[1])) e.push(`message: {${m[1]}} has no value`);
     if (/\d/.test(r.message.replace(/\{\w+\}/g, ''))) e.push('message: numbers go in params, never typed in the text');
   }
-  // v29: how it works, in plain words, for Abel to explain when asked. Same rules as message: numbers only from params.
+  // v29: how it works, in plain words, for Nora to explain when asked. Same rules as message: numbers only from params.
   if (r.explain !== undefined) {
     if (typeof r.explain !== 'string' || !r.explain.trim()) e.push('explain: words, or leave it out');
     else {

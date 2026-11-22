@@ -51,7 +51,7 @@ const requireAgentOn = (uid: string, a: AgentId) => {
   if (getOff(uid).includes(a)) throw new ArchError(409, `${a} agent is off. Turn it on first.`);
 };
 
-// ---------- Personal agent chat (Abel in-app, or the connected external agent) ----------
+// ---------- Personal agent chat (Nora in-app, or the connected external agent) ----------
 
 // ---------- Chat sessions (F15): one context.md per customer session ----------
 
@@ -377,8 +377,8 @@ function figuresGrounded(reply: string, factSources: string[]): boolean {
 }
 
 /**
- * F10 phase 2 / AC11: shared context for the in-app Abel's main chat. The User DB half comes
- * from the PERSONAL AGENT by message (it owns that DB; the app layer never opens it for Abel).
+ * F10 phase 2 / AC11: shared context for the in-app Nora's main chat. The User DB half comes
+ * from the PERSONAL AGENT by message (it owns that DB; the app layer never opens it for Nora).
  * The context.md half follows the AC2 session rules: only a finalised document stamped with
  * THIS session's id is served; a missing or other-session document triggers a fresh session
  * build round when the agents can run one - and is otherwise simply not served (never wiped,
@@ -389,7 +389,7 @@ export async function abelSharedContext(uid: string, sessionId: string, question
   if (!nordeaFileExists(uid)) return out; // the architecture is not in use for this customer
   const off = getOff(uid);
   if (!off.includes('personal')) {
-    const r = controlRoundTrip(uid, 'personal', 'The in-app Abel asks the personal agent for the customer facts in its own User DB.', { control: 'abel-facts' }) as {
+    const r = controlRoundTrip(uid, 'personal', 'The in-app Nora asks the personal agent for the customer facts in its own User DB.', { control: 'abel-facts' }) as {
       goals?: { title: string; detail: string }[]; facts?: { text: string; source: string }[];
     };
     const bits: string[] = [];
@@ -412,8 +412,8 @@ export async function abelSharedContext(uid: string, sessionId: string, question
     }
     const fresh = loadContext(uid);
     if (fresh && fresh.sessionId === sessionId && fresh.finalisedAt) {
-      // F30: Abel sees ACTIVE rows only - a stale or disputed row must not be served as a
-      // fact (its numbers would also pass the grounding guard). Only Abel's copy is
+      // F30: Nora sees ACTIVE rows only - a stale or disputed row must not be served as a
+      // fact (its numbers would also pass the grounding guard). Only Nora's copy is
       // filtered; the stored document keeps the marks and its history.
       const activeOnly = {
         ...fresh,

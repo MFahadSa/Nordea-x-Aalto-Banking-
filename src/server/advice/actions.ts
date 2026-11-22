@@ -3,7 +3,7 @@
  *
  * The question loop ("complete the context"): an answer is saved in the cabinet with its source,
  * older answers to the same question are archived, and the rule is checked again at once. Then
- * Abel either asks the next missing question, shows the suggestion, or says it doesn't apply.
+ * Nora either asks the next missing question, shows the suggestion, or says it doesn't apply.
  */
 import type { AdviceState, CabinetEntry, MessageCard } from '../../types.js';
 import { db } from '../db.js';
@@ -52,7 +52,7 @@ function recheck(userId: string, ruleId: string, today: string) {
   const mine = st.rules[ruleId];
   if (mine && mine.last !== 'never' && mine.last !== 'accepted') delete st.rules[ruleId];
   const blocked = rule ? blockReason(rule, ev, st, whoOf(u), today) : ev.status;
-  logAdviceRead(userId, `Abel suggestions: checking “${rule?.title ?? ruleId}”`, facts);
+  logAdviceRead(userId, `Nora suggestions: checking “${rule?.title ?? ruleId}”`, facts);
   return { ev, rule, facts, blocked, calm: u?.viewMode === 'calm' };
 }
 
@@ -126,7 +126,7 @@ export function handleAdviceAction(userId: string, card: MessageCard | undefined
 }
 
 /** Save the customer's answer as a fact in the cabinet (older answers to the same question are archived). */
-export function saveAnswer(userId: string, ruleId: string, fact: FactKey, value: boolean | string, shown: string, how = 'You told Abel'): CabinetEntry {
+export function saveAnswer(userId: string, ruleId: string, fact: FactKey, value: boolean | string, shown: string, how = 'You told Nora'): CabinetEntry {
   const now = new Date().toISOString();
   for (const e of db.getCabinetEntries(userId)) {
     if (e.factKey === fact && e.status !== 'archived') db.updateCabinetEntry(e.id, { status: 'archived', updatedAt: now }, { by: 'you' } as any);

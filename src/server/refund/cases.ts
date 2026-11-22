@@ -61,7 +61,7 @@ export interface RefundCase {
   shopDeclinedAt?: string;
   /** Demo credits the Presenter sent for this case (control keys). Cleared on withdraw. */
   demoSent?: string[];
-  /** Set when the customer chose to keep an allowed receipt in Abel knows. Cleared with the stored copy on withdrawal. */
+  /** Set when the customer chose to keep an allowed receipt in Nora knows. Cleared with the stored copy on withdrawal. */
   receiptSavedAt?: string;
   /** The written exchange with the shop (what the customer approved and sent, and the shop's replies). Deleted on withdrawal. */
   shopMessages?: ShopMessage[];
@@ -338,7 +338,7 @@ export class RefundStore {
   }
 
   // ---------- consent and evidence ----------
-  /** Withdrawing consent (owner's decisions, 22 Nov 2026): Abel stops reading and stops watching for the
+  /** Withdrawing consent (owner's decisions, 22 Nov 2026): Nora stops reading and stops watching for the
       refund; the stored copies AND the facts taken from them (amount, references, dates, money seen) are
       deleted; open approvals are revoked; fingerprints and the log are kept. The log names records by kind
       and id, not by their contents. */
@@ -498,7 +498,7 @@ export class RefundStore {
     if (!r) throw new RefundError('no receipt was allowed for this case, so there is nothing to save');
     if (c.receiptSavedAt) return;
     c.receiptSavedAt = this.clock();
-    this.log(caseId, 'evidence', 'customer', 'Receipt kept in Abel knows until this case is withdrawn');
+    this.log(caseId, 'evidence', 'customer', 'Receipt kept in Nora knows until this case is withdrawn');
     this.save();
   }
   // ---------- writing to the shop (simulated send after the customer's approval) ----------

@@ -1,4 +1,4 @@
-// When no AI model can answer (all at their limits, or down), Abel still answers the common questions
+// When no AI model can answer (all at their limits, or down), Nora still answers the common questions
 // from the bank's own code: real numbers, no AI, no "busy" message. Anything else gets a short, honest line
 // with options to tap. Cards (flat search, transfer, adviser) are made by the same code the AI uses.
 import * as fin from './finance.js';
@@ -76,19 +76,19 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
 
   // v31: privacy questions get straight answers.
   if (/\b(delete|remove|forget|erase|wipe)\b.*\b(everything|all)\b|\b(don['’]?t|do not|never|stop)\s+(save|saving|store|storing|keep|keeping|remember)\b/.test(t)) {
-    return { text: 'You decide what I keep. Everything I know about you is in Abel knows: you can remove any note there, and choose what Abel and partner offers may use. I can’t delete it all from this chat in one go.', suggestions: [], usedEntryIds: [], topic: 'other' };
+    return { text: 'You decide what I keep. Everything I know about you is in Nora knows: you can remove any note there, and choose what Nora and partner offers may use. I can’t delete it all from this chat in one go.', suggestions: [], usedEntryIds: [], topic: 'other' };
   }
   if (/\bwhat do you know\b|\bknow about me\b/.test(t)) {
     const list = allowed.filter((e) => e.status === 'active').slice(0, 5).map((e) => `• ${e.title}`);
-    return { text: list.length ? `Here’s some of what I know:\n${list.join('\n')}\n\nYou can see all of it, and remove anything, in Abel knows.` : 'I don’t have any notes about you yet. Anything I keep will show in Abel knows, where you can remove it.', suggestions: [], usedEntryIds: list.length ? allowed.filter((e) => e.status === 'active').slice(0, 5).map((e) => e.id) : [], topic: 'other' };
+    return { text: list.length ? `Here’s some of what I know:\n${list.join('\n')}\n\nYou can see all of it, and remove anything, in Nora knows.` : 'I don’t have any notes about you yet. Anything I keep will show in Nora knows, where you can remove it.', suggestions: [], usedEntryIds: list.length ? allowed.filter((e) => e.status === 'active').slice(0, 5).map((e) => e.id) : [], topic: 'other' };
   }
   if (/\b(data|info|information|privacy)\b/.test(t) && /\b(safe|secure|sell|sold|share|shared|who|see)\b/.test(t) || /\bwho can see\b/.test(t)) {
-    return { text: 'You can check this yourself in Who sees it: it lists each time your notes were read, and what Abel, partner offers and advisers may use. An adviser sees nothing unless you connect, and you can change any of it there.', suggestions: [], usedEntryIds: [], topic: 'other' };
+    return { text: 'You can check this yourself in Who sees it: it lists each time your notes were read, and what Nora, partner offers and advisers may use. An adviser sees nothing unless you connect, and you can change any of it there.', suggestions: [], usedEntryIds: [], topic: 'other' };
   }
 
-  // v31: what Abel is and can do.
+  // v31: what Nora is and can do.
   if (/\b(are you (a )?(bot|robot|human|real|ai|person)|who are you|what are you)\b/.test(t)) {
-    return { text: 'I’m Abel, an AI assistant in this Nordea concept app. You can talk to a person any time.', suggestions: ['Talk to a person', 'What can you do?'], usedEntryIds: [], topic: 'small_talk' };
+    return { text: 'I’m Nora, an AI assistant in this Nordea concept app. You can talk to a person any time.', suggestions: ['Talk to a person', 'What can you do?'], usedEntryIds: [], topic: 'small_talk' };
   }
   if (/\b(what can you do|what do you do|how does this work|how do you work|what can i ask)\b|^\s*help\W*$/.test(t)) {
     return { text: 'I can show your balances and where your money goes, check whether something is affordable, track your goals and plan your payday. I can also prepare a move between your own accounts for you to confirm, and connect you with a Nordea adviser.', suggestions: pills, usedEntryIds: [], topic: 'other' };
@@ -182,7 +182,7 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
 
   // v31: goal changes need the AI; the customer can do it themselves meanwhile.
   if (/\b(forget|remove|delete|drop|change|update|edit|cancel)\b[^.?!]{0,30}\bgoal\b/.test(t)) {
-    return { text: 'I can’t change goals right now. You can edit or remove it yourself in Abel knows, or ask me again in a moment.', suggestions: ['Am I on track?'], usedEntryIds: [], topic: 'goals' };
+    return { text: 'I can’t change goals right now. You can edit or remove it yourself in Nora knows, or ask me again in a moment.', suggestions: ['Am I on track?'], usedEntryIds: [], topic: 'goals' };
   }
 
   // Goals: on track?

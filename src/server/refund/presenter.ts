@@ -30,7 +30,7 @@ export function controls(s: RefundStore, userId: string): { caseId: string | nul
   }
   const L = c.ledger;
   if (!L) {
-    const off = (title: string, id: ControlId): Control => ({ id, title, label: 'Send', note: 'Needs the card purchase to be allowed, so Abel knows the amount', enabled: false });
+    const off = (title: string, id: ControlId): Control => ({ id, title, label: 'Send', note: 'Needs the card purchase to be allowed, so Nora knows the amount', enabled: false });
     return { caseId: c.id, controls: [off('Partial refund', 'partial'), off('Refund arrives', 'arrives'), off('Decoy credit', 'decoy'), off('Duplicate credit', 'duplicate'),
       off('Pending credit', 'pending'), off('Credit in another currency', 'other_currency'), off('Credit with no reference', 'no_reference'), off('Shop refuses', 'declined'), off('Reversal', 'reversal')] };
   }

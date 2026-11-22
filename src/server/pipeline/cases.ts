@@ -1,13 +1,13 @@
 // Nordea cases: the bank side of the pipeline (step 5).
 //
-// A case opens only when the customer taps "Connect me" on Abel's adviser card. It holds EXACTLY the
+// A case opens only when the customer taps "Connect me" on Nora's adviser card. It holds EXACTLY the
 // items the customer shared then, until the share ends (7 days) or they stop it. Staff read those
 // items through the access gateway (every read logged, with its purpose); private items, items the
 // customer turned off, and everything else are never readable for the case.
 //
 // Every number in the workspace is computed here by bank code from the bank's own account data.
 // The AI only writes the draft summary in words, cites the shared items, and is checked by the same
-// number guard as Abel's replies; if it invents a figure twice, a written-by-code summary is used.
+// number guard as Nora's replies; if it invents a figure twice, a written-by-code summary is used.
 import { db } from '../db.js';
 import * as fin from '../finance.js';
 import { readCabinetThroughGateway } from '../accessGateway.js';
@@ -126,7 +126,7 @@ export function caseDetail(caseId: string, sid: string) {
   const missing: { key: string; label: string; sub: string; ask: string }[] = [];
   const partnerIncome = items.some((e) => /\b(mia|partner)\b/i.test(`${e.title} ${e.detail}`) && /\b(salary|income|earns|job)\b/i.test(`${e.title} ${e.detail}`));
   if (/\b(partner|mia|joint|together)\b/i.test(sharedText) && !partnerIncome)
-    missing.push({ key: 'partner', label: 'Partner’s income (joint application)', sub: 'The goal is shared with a partner; their income is not in the case', ask: 'Is this a joint application? If so, could your partner share their income with us through Abel?' });
+    missing.push({ key: 'partner', label: 'Partner’s income (joint application)', sub: 'The goal is shared with a partner; their income is not in the case', ask: 'Is this a joint application? If so, could your partner share their income with us through Nora?' });
   if (!price && !/\b\d{3}\s?000\s?€|€\s?\d{3}\s?000|\d{3}k\b/i.test(sharedText))
     missing.push({ key: 'price', label: 'Price range of the flat', sub: 'No price in what was shared', ask: 'What price range are you looking at for the flat?' });
   const answered = new Set(c.requests.filter((r) => r.answer).map((r) => r.ask));

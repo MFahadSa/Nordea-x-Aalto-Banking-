@@ -11,7 +11,7 @@ export interface User {
   redeemed?: { rewardId: string; title: string; pts: number; at: string }[];
   /** Where the account data last came from (upload or the Supabase feed). Seed data when missing. */
   nordeaData?: { from: string; at: string; transactions: number; balances: boolean };
-  /** Extra monthly saving the customer set up with Abel (simulated standing order). */
+  /** Extra monthly saving the customer set up with Nora (simulated standing order). */
   extraMonthly?: number;
   persona: PersonaId;
   name: string;
@@ -39,15 +39,15 @@ export interface AdviceState {
   skippedFacts?: Record<string, { at: string; until: string }>;
   /** Days a suggestion or question was shown (for the calm-view weekly limit). */
   shownOn?: string[];
-  /** v27: how often Abel brings things up on Home by himself. Missing = 'sometimes'. */
+  /** v27: how often Nora brings things up on Home by himself. Missing = 'sometimes'. */
   proactive?: 'ask' | 'sometimes' | 'often';
   /** v27: the card on Home now ("For you"), and the day it was picked. */
   home?: { ruleId: string; at: string; moved?: boolean };
-  /** v27: what a suggestion was based on when it was shown ("Why Abel suggested this"). */
+  /** v27: what a suggestion was based on when it was shown ("Why Nora suggested this"). */
   seen?: Record<string, { version: string; at: string; where: 'chat' | 'home'; reasons: { text: string; from: string }[]; read: number }>;
 }
 
-/** v27: one row of "Abel's suggestions" and its "Why Abel suggested this" sheet. */
+/** v27: one row of "Nora's suggestions" and its "Why Nora suggested this" sheet. */
 export interface AdviceHistoryItem {
   ruleId: string;
   title: string;
@@ -114,7 +114,7 @@ export interface CabinetEntry {
   };
   reviewed: boolean;
   goalType?: 'home' | 'car' | 'travel' | 'buffer' | 'other';
-  /** v25: a customer's answer to one of Abel's fact questions (see src/server/advice/facts.ts). */
+  /** v25: a customer's answer to one of Nora's fact questions (see src/server/advice/facts.ts). */
   factKey?: string;
   factValue?: boolean | number | string;
   confirmedAt?: string;
@@ -278,11 +278,11 @@ export interface MessageCard {
     | 'case_request'
     /** v21: Nordea's decision on a case, with the reason and what was used. */
     | 'case_decision'
-    /** v26: one question Abel asks to complete the context for a rule (see src/server/advice). */
+    /** v26: one question Nora asks to complete the context for a rule (see src/server/advice). */
     | 'ask_fact'
     /** v26: a suggestion built by code from a rule the customer qualifies for. */
     | 'opportunity'
-    /** Refund Tracker: ask before Abel reads anything for a refund case (kinds only, no amounts). */
+    /** Refund Tracker: ask before Nora reads anything for a refund case (kinds only, no amounts). */
     | 'refund_consent';
   title?: string;
   body?: string;
@@ -302,7 +302,7 @@ export interface ChatMessage {
   text: string;
   /** Set on a refund status answer built from one case, so it is removed when that case is withdrawn. */
   refundCaseId?: string;
-  /** Cabinet entries Abel actually relied on for this reply (checked against what the gateway returned). */
+  /** Cabinet entries Nora actually relied on for this reply (checked against what the gateway returned). */
   usedEntryIds?: string[];
   /** A file or photo the customer sent (a small thumbnail is kept for photos, never the full file). */
   attachment?: {
@@ -326,12 +326,12 @@ export interface ChatMessage {
     category?: 'General Question' | 'Related Question';
     /** The round plan path of THIS reply's round (absent when no round ran for it). */
     plan?: { cm: string; nordea: string; provider?: string };
-    /** The three agents' shared session document was given to Abel for this reply. */
+    /** The three agents' shared session document was given to Nora for this reply. */
     shared?: boolean };
   /** Correlates a customer message with its reply (late pickup, no duplicate resubmit). */
   requestId?: string;
   replyToRequestId?: string;
-  /** Technical reason when Abel couldn't answer (shown small, for debugging the demo). */
+  /** Technical reason when Nora couldn't answer (shown small, for debugging the demo). */
   errorInfo?: string;
   /** Set when the customer tapped a button on this message, so it can't be tapped twice. */
   resolved?: string;
@@ -368,7 +368,7 @@ export interface PartnerManifest {
   initials: string;
   color: string;
   kind: string;
-  /** When Abel may suggest this partner (given to the model as a description). */
+  /** When Nora may suggest this partner (given to the model as a description). */
   when: string;
   cta: string;
   view: string;
@@ -421,18 +421,18 @@ export interface StoredDocument {
   entryIds: string[];
   createdAt: string;
   expiresAt: string;
-  /** The text Abel read from it (kept copies only, deleted with the file), so Abel can answer questions about it. */
+  /** The text Nora read from it (kept copies only, deleted with the file), so Nora can answer questions about it. */
   readText?: string;
 }
 
-/** One change to one thing in What Abel knows. Labels and values only, never chat text. */
+/** One change to one thing in What Nora knows. Labels and values only, never chat text. */
 export interface EntryEvent {
   id: string;
   entryId: string;
   userId: string;
   at: string;
   action: 'added' | 'changed' | 'removed' | 'brought_back' | 'confirmed' | 'marked_wrong' | 'deleted' | 'undone';
-  /** Who made the change: the customer, Abel (from what the customer said) or Nordea (noticed in transactions). */
+  /** Who made the change: the customer, Nora (from what the customer said) or Nordea (noticed in transactions). */
   by: 'you' | 'abel' | 'nordea';
   /** Where it happened, e.g. "In chat", "From payslip.pdf", "Undo". */
   how?: string;

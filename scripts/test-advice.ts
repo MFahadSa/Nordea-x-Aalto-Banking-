@@ -52,7 +52,7 @@ const calmWho = { age: 72, offersOff: false, calm: true };
 const gift = F.factsFrom({ helpsFamilyWithMoney: true });
 const calmShown = G.remember(undefined, 'household-credit', 'shown', T);
 check('calm view: nothing else within 7 days of a shown suggestion, back on day 7', sel(gift, calmShown, calmWho, G.addDays(T, 6)).list.length === 0 && sel(gift, calmShown, calmWho, G.addDays(T, 7)).list.length > 0);
-check('every allowed item reaches Abel (here all six rules), up to the limit of eight', sel(F.factsFrom({ age: 25, hasAspAccount: false, hasPsAccount: true, hasEquitySavingsAccount: false }), undefined, adult, '2026-11-20').list.length === 6, sel(F.factsFrom({ age: 25, hasAspAccount: false, hasPsAccount: true, hasEquitySavingsAccount: false }), undefined, adult, '2026-11-20').list.map((c) => c.rule.id));
+check('every allowed item reaches Nora (here all six rules), up to the limit of eight', sel(F.factsFrom({ age: 25, hasAspAccount: false, hasPsAccount: true, hasEquitySavingsAccount: false }), undefined, adult, '2026-11-20').list.length === 6, sel(F.factsFrom({ age: 25, hasAspAccount: false, hasPsAccount: true, hasEquitySavingsAccount: false }), undefined, adult, '2026-11-20').list.map((c) => c.rule.id));
 check('suggestions come before questions', (() => { const l = sel(F.factsFrom({ age: 31, hasAspAccount: false, everOwnedHalfOfHome: false, savingForHome: true })).list; const i = l.findIndex((c) => c.status === 'ask'); return i === -1 || l.slice(i).every((c) => c.status === 'ask'); })());
 
 // ---------------- Layer 3: generated customers against the invariants ----------------
@@ -129,7 +129,7 @@ const post = async (url: string, body: unknown) => { const r = await fetch(BASE 
 let plan: any[][] = [];
 let replyText = 'Here is something that may help you with that, have a look below.';
 setProvider({ ...mockProvider, async step(args: any) {
-  // Only Abel's turns follow the script; the app's background agents get the normal test AI.
+  // Only Nora's turns follow the script; the app's background agents get the normal test AI.
   if (!args.tools.some((t: any) => t.name === 'showOpportunity')) return (mockProvider as any).step(args);
   const next = plan.shift();
   if (next) return { calls: next.map((c, i) => ({ id: `t${i}${Math.random()}`, name: c.name, args: c.args })) };
@@ -145,7 +145,7 @@ const t1 = await chat('lauri', 'We are saving for a flat with Mia');
 const q1 = advCards(t1)[0];
 check('AI picks ASP: code shows ONE question card', advCards(t1).length === 1 && q1?.type === 'ask_fact' && q1.data.fact === 'everOwnedHalfOfHome', advCards(t1));
 const conv = t1.body.conversationId;
-const logsBefore = db.getAccessLog('lauri').filter((l) => /Abel suggestions/.test(l.purpose)).length;
+const logsBefore = db.getAccessLog('lauri').filter((l) => /Nora suggestions/.test(l.purpose)).length;
 check('checking the rules was a logged read', logsBefore >= 1);
 
 // Bad answers are refused and change nothing.
@@ -159,7 +159,7 @@ check('…and nothing was saved', !db.getCabinetEntries('lauri').some((e) => e.f
 const a1 = await post('/api/actions', { userId: 'lauri', messageId: q1.messageId, action: 'fact_answer', payload: { value: 'no' } });
 const s1 = advCards(a1)[0];
 check('answer "No": saved, his answer shown, and the ASP suggestion follows', a1.status === 200 && db.getMessages('lauri').find((m) => m.id === q1.messageId)?.resolved === 'No' && !a1.body.messages.some((m: any) => m.sender === 'user') && s1?.type === 'opportunity' && s1.data.ruleId === 'asp-account', a1.body);
-check('the answer is in What Abel knows, from him, for Abel only', db.getCabinetEntries('lauri').some((e) => e.factKey === 'everOwnedHalfOfHome' && e.factValue === false && e.source === 'customer' && e.readableBy.abel && !e.readableBy.offers));
+check('the answer is in What Nora knows, from him, for Nora only', db.getCabinetEntries('lauri').some((e) => e.factKey === 'everOwnedHalfOfHome' && e.factValue === false && e.source === 'customer' && e.readableBy.abel && !e.readableBy.offers));
 check('the card explains itself: reasons with sources, official source, what Nordea earns', s1.data.reasons.length >= 3 && s1.data.reasons.every((r: any) => r.from) && /^https:\/\/www\.nordea\.fi/.test(s1.data.source.url) && /Nordea earns/.test(s1.data.earns), s1.data);
 check('the 20th deposit month is computed from the demo date', /May 2028/.test(s1.data.message), s1.data.message);
 const dbl = await post('/api/actions', { userId: 'lauri', messageId: q1.messageId, action: 'fact_answer', payload: { value: 'yes' } });

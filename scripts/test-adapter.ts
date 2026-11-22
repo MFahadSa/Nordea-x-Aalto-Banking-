@@ -65,7 +65,7 @@ check('a non-goal entry written by app code lands in the Context Memory DB', S.l
 check('adapter writes record entry history in the Context Memory DB', S.loadHistory('lauri').some((h) => h.entryId === 'p-adapt-1'));
 
 const roundTrip = db.getCabinetEntry('p-adapt-1');
-check('a written entry reads back through getState mapping with Abel fields intact', roundTrip?.title === 'Adapter preference' && roundTrip?.type === 'preference' && roundTrip?.provenance.channel === 'app');
+check('a written entry reads back through getState mapping with Nora fields intact', roundTrip?.title === 'Adapter preference' && roundTrip?.type === 'preference' && roundTrip?.provenance.channel === 'app');
 
 // --- G2: runtime writes go through the owning agent - an auditable bus control message,
 // the agent performs the store write, and risk is derived by CODE rules, never the caller.
@@ -105,7 +105,7 @@ check('app confirm accepts the queued write (decideProposal) and stores it expli
   && S.loadCmDb('lauri').entries.find((e) => e.id === 'g2-routed-4')?.autoAccepted !== true);
 
 // Bill 03:21 G11: a changed observation queues, and the stored copy is HELD (reviewed=false)
-// until the customer decides - Abel never reads the stale figure as reviewed (v2 hid it).
+// until the customer decides - Nora never reads the stale figure as reviewed (v2 hid it).
 S.putEntry('lauri', { id: 'g11-1', title: 'Car spending', detail: '100 EUR this month', goalIds: [], proposedBy: 'nordea', status: 'active', createdAt: '2026-10-01T00:00:00Z',
   doc: { id: 'g11-1', userId: 'lauri', type: 'observation', title: 'Car spending', detail: '100 EUR this month', source: 'nordea', status: 'active', private: false, readableBy: { abel: true, offers: false }, provenance: { channel: 'system' }, reviewed: true, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z' } });
 db.updateCabinetEntry('g11-1', { title: 'Car spending', detail: '150 EUR this month', reviewed: false }, { by: 'nordea', how: 'Fresh bank data' });

@@ -52,12 +52,12 @@ The simplified picture above is the design goal. Read against this branch today:
 | In the picture | Status on this branch |
 |---|---|
 | **Three agents, three databases** | **Implemented.** Each agent opens only its own database, pinned by a source-scan test; the Context Cabinet never opens another agent's store. |
-| **Personal agent: Abel (default) or an external agent (A2A)** | Abel is the in-app default and runs today. The external-agent mode is **planned, not implemented**: the earlier simulated switch and its sync endpoint were removed, and no external or A2A connection exists. A bank-hosted MCP route is future work. |
+| **Personal agent: Nora (default) or an external agent (A2A)** | Nora is the in-app default and runs today. The external-agent mode is **planned, not implemented**: the earlier simulated switch and its sync endpoint were removed, and no external or A2A connection exists. A bank-hosted MCP route is future work. |
 | **Arrows between the agents** | Logical message flows, not a literal relay. In code they travel as **bus messages** plus the per-session `context.md`; the Cabinet does not sit between the other agents passing data along. |
 | **USE for this answer \| SAVE as memory \| SHARE with Nordea** | **Proposed, not verified.** Today's prototype implements standing review levels and user-card approval modes (see Features); the three-way permission strip in the picture is not built. |
 | **"Same Cabinet and Nordea agent in both modes"** | By design: the in-app chat and the planned external-agent mode would share one Cabinet and one Nordea agent - one banking system, not two. |
 
-**Abel**, the in-app assistant, joins the same pattern: its User DB facts come from the personal agent *by message*, and it reads only the current session's finalised `context.md`. Every figure in an Abel reply must come from code or that context - otherwise the reply is sent back to be fixed.
+**Nora**, the in-app assistant, joins the same pattern: its User DB facts come from the personal agent *by message*, and it reads only the current session's finalised `context.md`. Every figure in an Nora reply must come from code or that context - otherwise the reply is sent back to be fixed.
 
 The implementation view - what actually runs on this branch today:
 
@@ -72,7 +72,7 @@ flowchart TD
     PA -->|"Customer section"| CTX
     CM -->|"Context memory section + finalise stamp"| CTX
     NOR -->|"Nordea section"| CTX
-    APP --> ABEL["💬 Abel chat<br/><code>orchestrator.ts</code> - answers from context.md"]
+    APP --> ABEL["💬 Nora chat<br/><code>orchestrator.ts</code> - answers from context.md"]
 ```
 
 ## 🚀 Quick start
@@ -104,7 +104,7 @@ LLM_PROVIDER=mock npm run dev        # bash (Mac/Linux)
 
 | Page | What it is |
 |---|---|
-| **http://localhost:3000/** | The main Abel app (the banking UI from `main`) |
+| **http://localhost:3000/** | The main Nora app (the banking UI from `main`) |
 | **http://localhost:3000/arch.html** | The three-agent demo: pick a demo customer (`alex`, `eeva` or `lauri`) in the Customer picker and chat - goals are added, changed or removed by telling the personal agent in the chat |
 | **http://localhost:3000/dev-monitor.html** | Read-only developer monitor - on by default on a laptop, off on a hosted copy; `DEV_MONITOR=0` / `1` forces it (same per-OS form as `LLM_PROVIDER` above) |
 
@@ -159,7 +159,7 @@ The developer monitor at **http://localhost:3000/dev-monitor.html** is on by def
 
 </details>
 
-Without `LLM_PROVIDER=mock`, Abel uses Gemini (`GEMINI_API_KEY`) or an OpenAI-compatible
+Without `LLM_PROVIDER=mock`, Nora uses Gemini (`GEMINI_API_KEY`) or an OpenAI-compatible
 provider, as on `main`.
 
 ### Settings worth knowing
@@ -290,17 +290,17 @@ With a provider configured (`GEMINI_API_KEY` or `LLM_PROVIDER=openai`), all thre
 | | Feature | How it works |
 |:-:|---|---|
 | 💬 | **Explain** | Every cabinet item answers "why do you know this?" with its source and the message that proposed it. |
-| ✋ | **Dispute** | The customer can mark an item wrong; from then on it is filtered out of the context Abel receives, so its figures fail Abel's grounding check. The stored document keeps the `[disputed]` mark and the history. |
+| ✋ | **Dispute** | The customer can mark an item wrong; from then on it is filtered out of the context Nora receives, so its figures fail Nora's grounding check. The stored document keeps the `[disputed]` mark and the history. |
 | ↩️ | **Undo** | Automatically stored items can be undone per entry; manually reviewed items are disputed instead, so provenance survives. |
 | ⏸️ | **Park and agent switches** | Parking the cabinet or switching an agent off silences that part of the pipeline without deleting anything. An off switch gates the agent's **reasoning** only - control writes from the app still land in its database. |
 
-#### 💬 Abel, inside the architecture
+#### 💬 Nora, inside the architecture
 
 | | Feature | How it works |
 |:-:|---|---|
-| 📨 | **Facts by message** | Abel's User DB facts come from the personal agent answering an `abel-facts` message - the app layer opens no agent store on this path (pinned by a source-scan test). |
-| 📄 | **Session document only** | Abel receives the current session's finalised `context.md`; a missing or other-session document is rebuilt when possible and otherwise not served. |
-| 🔢 | **Grounded numbers** | Figures from the shared context join the same grounding guard as tool results: a number Abel can't source sends the reply back to be fixed. |
+| 📨 | **Facts by message** | Nora's User DB facts come from the personal agent answering an `abel-facts` message - the app layer opens no agent store on this path (pinned by a source-scan test). |
+| 📄 | **Session document only** | Nora receives the current session's finalised `context.md`; a missing or other-session document is rebuilt when possible and otherwise not served. |
+| 🔢 | **Grounded numbers** | Figures from the shared context join the same grounding guard as tool results: a number Nora can't source sends the reply back to be fixed. |
 
 ## 🛣️ Routes
 
@@ -336,7 +336,7 @@ App-level routes the demo surfaces use (`src/server/routes.ts`, `src/server/devM
 
 | Check | Command | Covers |
 |---|---|---|
-| Architecture tests | `npm run test:arch` | 410 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Abel integration, the G4 LLM planning path (mock provider) and the negative cases |
+| Architecture tests | `npm run test:arch` | 410 assertions: the one-database rule (source scan), per-session documents, reactive rounds, risk rules, permissions, decay, undo, the Nora integration, the G4 LLM planning path (mock provider) and the negative cases |
 | End-to-end | `npm run test:e2e` | 37 checks over a real booted server (incl. requestId dedup + late pickup): a goal shows in all views, a review decision changes what the chat answers from, a bank import updates app + arch + monitor, session and top-up rounds run, and no code reads the old store |
 | Data-layer adapter | `npm run test:adapter` | 44 checks: the old app store as an adapter over the three agent databases, legacy migration, and plumbing separation |
 | Hosted sync | `npm run test:remote` | 36 checks against an in-memory Postgres double: hydrate, flush, failures, and the one-role-per-agent grants |
@@ -375,7 +375,7 @@ src/server/arch/
   agents/       personal.ts · cm.ts · nordea.ts (each opens only its own store)
   store/        userStore · cmStore · nordeaStore · contextStore · busStore (node:sqlite)
                 remote.ts - the hosted Supabase sync (one role URL per store)
-  orchestrator.ts  rounds, sessions, decay maintenance, Abel shared context
+  orchestrator.ts  rounds, sessions, decay maintenance, Nora shared context
   rounds.ts        round engine        dispatcher.ts   bus delivery
   llm.ts           the agents' model runs (tools, step limits, timeouts)
   types.ts         the shared architecture types
@@ -395,7 +395,7 @@ scripts/
   run_python.mjs   runs Python as "python" or "python3", whichever the machine has
 ```
 
-Abel's chat on this branch lives in the three-agent code (`src/server/arch/orchestrator.ts` and the personal agent) and answers from the session's `context.md`; the access gateway (`src/server/accessGateway.ts`) is shared with `main`.
+Nora's chat on this branch lives in the three-agent code (`src/server/arch/orchestrator.ts` and the personal agent) and answers from the session's `context.md`; the access gateway (`src/server/accessGateway.ts`) is shared with `main`.
 
 </details>
 
@@ -420,17 +420,17 @@ Written by AI agents working together on the branch `ai-agent-communications`, w
 </div>
 
 
-## v17: the three agents and Abel together
+## v17: the three agents and Nora together
 
-- **Chat:** the three agents still decide and gather what Abel may see for a conversation
+- **Chat:** the three agents still decide and gather what Nora may see for a conversation
   (`abelSharedContext`: the User DB via the personal agent, the session's finalised context.md).
-  **Abel writes the reply** from that (`abel.ts`), with its cards: save-this, payday plan, adviser
+  **Nora writes the reply** from that (`abel.ts`), with its cards: save-this, payday plan, adviser
   hand-off and the fictional **partner offers** (`partners/*.json`), and its reply checks (sensitive items,
   payments to other people, invented numbers, code in replies). `/arch.html` keeps the agents' own chat.
 - **Data:** a fresh or reset copy loads the bundled fictional customers (`seed/demo`) by itself - AI Studio
   has no terminal for `scripts/load_data.py`. `AUTO_DEMO_DATA=0` turns this off. "Reset demo data" starts the demo again.
 - **Consent:** an item the customer ticked or confirmed lands straight away (the tick is the approval);
-  Nordea's own observations land as "Waiting for you" (hidden from Abel until confirmed) instead of a second queue.
-- **Under each reply:** plain "Abel could see N notes + account data"; timing, model, category and round plan
+  Nordea's own observations land as "Waiting for you" (hidden from Nora until confirmed) instead of a second queue.
+- **Under each reply:** plain "Nora could see N notes + account data"; timing, model, category and round plan
   only with More → Show technical details.
 - "Who sees it" lists the newest reads first again.

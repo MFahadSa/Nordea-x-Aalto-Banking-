@@ -158,8 +158,8 @@ check('offline: partner controls money → kind words, 112, a person', /sorry/i.
 check('offline: lost job → kind words and where they stand', /sorry/i.test(off('i lost my job').text) && /current account/.test(off('i lost my job').text));
 check('offline: stressed → kind words', /sorry it’s weighing on you/.test(off('i feel really stressed about money').text));
 check('offline: "is my data safe?" → Who sees it', /Who sees it/.test(off('is my data safe?').text));
-check('offline: "delete everything you know about me" → Abel knows', /Abel knows/.test(off('delete everything you know about me').text));
-check('offline: "please do not save anything about me" → Abel knows', /Abel knows/.test(off('please do not save anything about me', 'eeva').text));
+check('offline: "delete everything you know about me" → Nora knows', /Nora knows/.test(off('delete everything you know about me').text));
+check('offline: "please do not save anything about me" → Nora knows', /Nora knows/.test(off('please do not save anything about me', 'eeva').text));
 check('offline: "what can you do" → a real list', /balances/.test(off('what can you do').text));
 check('offline: "are you a bot?" → AI assistant', /AI assistant/.test(off('are you a bot?').text));
 check('offline: "what is my pin" → never share', /can’t see or share your PIN/.test(off('what is my pin').text));
@@ -184,7 +184,7 @@ check('offline: "and the car fund?" is not an investment question', !/investment
 check('offline: "did i pay rent" → spending, not "can’t pay bills"', !/can’t pay bills/.test(off('did i pay rent').text));
 check('offline: "what interest does my savings account pay" → not the balances', !/^Current account/.test(off('what interest does my savings account pay').text));
 check('offline: "is there a student account" → not the balances', !/^Current account/.test(off('is there a student account', 'alex').text));
-check('offline: "forget the car goal" → Abel knows, not the goal list', /Abel knows/.test(off('forget the car goal').text));
+check('offline: "forget the car goal" → Nora knows, not the goal list', /Nora knows/.test(off('forget the car goal').text));
 
 server.close();
 console.log(`\nRESULT ${passed}/${passed + failed}`);

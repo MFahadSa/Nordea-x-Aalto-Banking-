@@ -1,7 +1,7 @@
 /**
- * v27: Abel's suggestions outside the chat, and layer 4 of the build plan (12 named test customers).
+ * v27: Nora's suggestions outside the chat, and layer 4 of the build plan (12 named test customers).
  * - Named customers: exactly what each should and must never get, on several dates (pure, every commit).
- * - Home "For you", "Abel's suggestions" and the setting, pressed through the real HTTP routes:
+ * - Home "For you", "Nora's suggestions" and the setting, pressed through the real HTTP routes:
  *   sticky card, weekly limit, "Only when I ask", calm view, offers off, stale cards, double taps,
  *   "Show me" into a chat, "Change my answer", "Allow it again", the audit log, and a reset.
  */
@@ -82,7 +82,7 @@ const get = (url: string) => req('GET', url);
 const post = (url: string, body: unknown) => req('POST', url, body);
 const view = async (u: string) => (await get(`/api/advice?userId=${u}`)).body;
 const home = (u: string, fy: any, action: string, payload: any = {}) => post('/api/advice/home', { userId: u, ruleId: fy.data.ruleId, version: fy.data.version, action, payload: { ...payload, ...(fy.data.fact ? { fact: fy.data.fact } : {}) } });
-const forYouLogs = (u: string) => db.getAccessLog(u).filter((l) => l.purpose === 'Abel suggestions: For you on Home').length;
+const forYouLogs = (u: string) => db.getAccessLog(u).filter((l) => l.purpose === 'Nora suggestions: For you on Home').length;
 
 check('unknown customer: 404', (await get('/api/advice?userId=nobody')).status === 404);
 let v = await view('lauri');
@@ -104,7 +104,7 @@ check('a bad answer is refused (400)', (await home('lauri', q, 'fact_answer', { 
 
 const a1 = await home('lauri', q, 'fact_answer', { value: 'no' });
 check('answering on Home: saved, and the suggestion takes its place', a1.status === 200 && a1.body.forYou?.type === 'opportunity' && a1.body.forYou.data.ruleId === 'asp-account' && /Here’s what fits you/.test(a1.body.text), a1.body);
-check('the answer is in What Abel knows, from the customer', db.getCabinetEntries('lauri').some((e) => e.factKey === 'everOwnedHalfOfHome' && e.factValue === false && e.source === 'customer'));
+check('the answer is in What Nora knows, from the customer', db.getCabinetEntries('lauri').some((e) => e.factKey === 'everOwnedHalfOfHome' && e.factValue === false && e.source === 'customer'));
 check('a double tap on the old question: 409, still one answer', (await home('lauri', q, 'fact_answer', { value: 'no' })).status === 409 && db.getCabinetEntries('lauri').filter((e) => e.factKey === 'everOwnedHalfOfHome' && e.status === 'active').length === 1);
 v = await view('lauri');
 const s1 = v.forYou;
@@ -183,7 +183,7 @@ check('Eeva (calm): the gift question is on Home', v.forYou?.data?.ruleId === 'g
 plan = [[{ name: 'showOpportunity', args: { ruleId: 'gift-limit' } }]];
 const ch = await post('/api/chat', { userId: 'eeva3', text: 'I would like to help my grandchildren' });
 const chCards = (ch.body.messages || []).flatMap((m: any) => m.cards || []).filter((c: any) => c.type === 'ask_fact' || c.type === 'opportunity');
-check('…she asks about it in a chat: Abel can show that same card there, even in the calm view', chCards.length === 1 && chCards[0].data.ruleId === 'gift-limit', ch.body);
+check('…she asks about it in a chat: Nora can show that same card there, even in the calm view', chCards.length === 1 && chCards[0].data.ruleId === 'gift-limit', ch.body);
 check('…and Home stops showing it (one place at a time)', (await view('eeva3')).forYou === null);
 plan = [[{ name: 'showOpportunity', args: { ruleId: 'household-credit' } }]];
 const ch2 = await post('/api/chat', { userId: 'eeva3', text: 'Can someone help me clean?' });

@@ -274,8 +274,8 @@ export function decide(candidateId: string, action: 'save' | 'private' | 'drop',
 
 export const waitingFor = (userId: string) => S.candidates(userId).filter((c) => c.customer === 'waiting' && c.type !== 'observation' && c.via !== 'chat');
 
-// ---------------- the app's own "Import a chat" / file in Abel: recorded in the same pipeline ----------------
-// Abel's import card stays the customer's place to decide; the run and its items are recorded so the
+// ---------------- the app's own "Import a chat" / file in Nora: recorded in the same pipeline ----------------
+// Nora's import card stays the customer's place to decide; the run and its items are recorded so the
 // funnel and the workspace see every input. Returns the candidate id for each proposed item.
 export function recordChatImport(userId: string, label: string, whatsapp: boolean, heard: number, items: { type: string; title: string; detail: string; sensitive?: boolean; duplicateOfId?: string; updates?: boolean; target?: { amount: number; date: string } }[]): string[] {
   const source: PipeSource = whatsapp ? 'whatsapp' : 'document';

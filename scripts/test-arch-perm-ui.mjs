@@ -29,7 +29,7 @@ function extractScript(html) {
 function baseState(level = 'all', mode = 'Review everything') {
   return {
     sessionId: null,
-    agents: { personal: { name: 'Abel', off: false }, cm: { off: false }, nordea: { off: false } },
+    agents: { personal: { name: 'Nora', off: false }, cm: { off: false }, nordea: { off: false } },
     stores: { user: {}, cm: {}, nordea: {} },
     databases: {
       user: { goals: 0, personalFacts: 0 },

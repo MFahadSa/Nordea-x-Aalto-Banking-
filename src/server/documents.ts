@@ -1,5 +1,5 @@
 // "Your documents": files the customer chose to keep ("Keep a copy" when adding a file to chat).
-// By default nothing is kept: Abel reads the file once and only the things the customer ticks are saved.
+// By default nothing is kept: Nora reads the file once and only the things the customer ticks are saved.
 import { db } from './db.js';
 import { StoredDocument } from '../types.js';
 import { supabaseConfigured, supabaseRemote, localFiles, Remote } from './store.js';
@@ -40,7 +40,7 @@ export async function readDocument(d: StoredDocument): Promise<Buffer> {
 
 /**
  * Delete a kept file. With alsoEntries, the things saved from it are deleted for good too
- * (including their history). Without it, they stay in What Abel knows.
+ * (including their history). Without it, they stay in What Nora knows.
  */
 export async function deleteDocument(d: StoredDocument, alsoEntries: boolean) {
   await files().deleteFiles([d.storagePath]);

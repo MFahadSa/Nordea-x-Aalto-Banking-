@@ -1,4 +1,4 @@
-/** v29: money-safety words and steps, shared by Abel's AI path and the offline answers. */
+/** v29: money-safety words and steps, shared by Nora's AI path and the offline answers. */
 // v31: four kinds, each with its own steps (a lost card is not a phishing link). The words come from
 // the customer; code decides, so the steps appear even when the AI is down or misbehaves.
 

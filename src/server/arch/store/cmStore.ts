@@ -179,7 +179,7 @@ export function removeUndoRecord(uid: string, token: string): boolean {
   } finally { db.close(); }
 }
 
-/** Upsert one cabinet entry row (the Abel app writes entries with their full CabinetEntry record). */
+/** Upsert one cabinet entry row (the Nora app writes entries with their full CabinetEntry record). */
 export function putEntry(uid: string, e: ArchEntry) {
   registerCustomer(uid);
   const db = openDb(fileFor(uid, 'cm'), 'cm');

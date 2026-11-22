@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Load data into the Abel app's stores, separately from the app.
+Load data into the Nora app's stores, separately from the app.
 
 The app ships with no data. Whatever this script loads is what the app shows; with nothing loaded the
 app says "No data yet". Every record becomes one row: (kind, id, user_id, data jsonb).
@@ -792,7 +792,7 @@ def tell_app(app_url: str) -> None:
 # ---------------------------------------------------------------- main
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Load CSV / JSON / JSONL / Excel data into the Abel app's Supabase table.",
+    ap = argparse.ArgumentParser(description="Load CSV / JSON / JSONL / Excel data into the Nora app's Supabase table.",
                                  formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__.split("Examples:")[1])
     ap.add_argument("paths", nargs="*", help="files or folders to load")
     ap.add_argument("--kind", help="record kind for every file (default: from the file or sheet name)")

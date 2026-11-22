@@ -43,7 +43,7 @@ Useful options:
   `transactions.csv` ends with lauri's "Japan trip 3 000 € by 2027-06" demo goal rows (2026-05..2026-10: dinners, gear, and a monthly savings transfer) so the goal insight cards have a fresh, well-covered goal to read.
   Optional: `id`, `category` (salary, housing, groceries, restaurants, transport, bills, subscriptions,
   shopping, pharmacy, savings_transfer, savings_transfer_in, pension, other), `account` (current/savings), `description`.
-- **cabinetEntries** (what Abel knows): `title` and `userId`. Optional: `type` (goal, life_event, preference,
+- **cabinetEntries** (what Nora knows): `title` and `userId`. Optional: `type` (goal, life_event, preference,
   fact, observation, blind_spot), `detail`, `status`, `target.amount`, `target.date`, …
 
 Column names in snake_case (`user_id`, `created_at`) become the app's camelCase. Without an `id` column, each

@@ -78,8 +78,8 @@ export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = 
   );
 };
 
-/** The same item as the top card of the bell's From Abel list. Later hides it from the list until something changes. */
-export const RefundAbelCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
+/** The same item as the top card of the bell's From Nora list. Later hides it from the list until something changes. */
+export const RefundNoraCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
   const { v } = useRefund(userId);
   useLaterVersion();
   const n = refundNotice(v as any);
@@ -93,8 +93,8 @@ export const RefundAbelCard: React.FC<{ userId: string; onOpen: () => void }> = 
     </div>
   );
 };
-/** For the bell badge: is there a refund item in From Abel right now. */
-export const useRefundAbelCount = (userId: string) => { const { v } = useRefund(userId); useLaterVersion(); const n = refundNotice(v as any); return n && !laterStore.has(n.key) ? 1 : 0; };
+/** For the bell badge: is there a refund item in From Nora right now. */
+export const useRefundNoraCount = (userId: string) => { const { v } = useRefund(userId); useLaterVersion(); const n = refundNotice(v as any); return n && !laterStore.has(n.key) ? 1 : 0; };
 
 /** Done on a completed case: clears the Home row and the bell item. The case and its log stay. */
 const ackClosed = async (caseId: string) => { try { await api(`/api/refund/case/${caseId}/ack-closed`, {}); ping(); } catch { /* the row stays; the next poll retries the state */ } };
@@ -169,17 +169,17 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
             <NRow name={<><Icon name="shield" />The shop declined the refund</>} sub={`${c.remaining != null ? eur(c.remaining) : 'The refund'} still unpaid. The case stays open. Nothing is sent for you and no dispute is started.`} chevron={false} />
           )}
           {c.expected == null && (
-            <NRow name={<><Icon name="shield" />Abel can't match a refund yet</>} sub="The records you allowed do not show what was bought or for how much. To add more, withdraw this case and start again, allowing the card purchase or the order confirmation too." chevron={false} />
+            <NRow name={<><Icon name="shield" />Nora can't match a refund yet</>} sub="The records you allowed do not show what was bought or for how much. To add more, withdraw this case and start again, allowing the card purchase or the order confirmation too." chevron={false} />
           )}
           {c.expected != null && !full && !c.shopDeclinedAt && (c.credits || []).length === 0 && !(c.flags || []).some((f) => f.reason === 'provisional') && (
-            <NRow name={<><Icon name="clock" />No refund has arrived yet</>} sub={c.promiseDate ? `The shop promised it by ${day(c.promiseDate)}. Abel keeps watching for it.` : 'Abel keeps watching for it.'} chevron={false} />
+            <NRow name={<><Icon name="clock" />No refund has arrived yet</>} sub={c.promiseDate ? `The shop promised it by ${day(c.promiseDate)}. Nora keeps watching for it.` : 'Nora keeps watching for it.'} chevron={false} />
           )}
           {c.expected != null && c.late && c.promiseDate && !full && !c.shopDeclinedAt && (
             <NRow name="Later than promised" sub={<><span className="rf-chip rf-chip-w">{late} working days</span><br />Not counted until the money is booked.</>} chevron={false} />
           )}
           {(c.flags || []).filter((f) => f.reason === 'provisional' && !full).map((f) => (
             <NRow key={f.eventId} name={<><Icon name="clock" />Refund on its way</>} amount={eur(f.amount ?? c.expected!)}
-              sub={<><span className="rf-chip rf-chip-l">Pending, not counted yet</span><br />{eur(f.amount ?? c.expected!)} from {c.merchant ?? 'the shop'} is pending in your account. Abel counts it once it is booked.</>} chevron={false} />
+              sub={<><span className="rf-chip rf-chip-l">Pending, not counted yet</span><br />{eur(f.amount ?? c.expected!)} from {c.merchant ?? 'the shop'} is pending in your account. Nora counts it once it is booked.</>} chevron={false} />
           ))}
         </div>
         {c.item && c.expected != null && (<>
@@ -194,7 +194,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
             {(c.shopMessages || []).map((m) => (
               <NRow key={m.id} name={m.direction === 'out' ? (m.kind === 'reminder' ? 'You sent a reminder' : m.kind === 'answer' ? 'You answered the shop' : 'You wrote to the shop') : `${c.merchant ?? 'The shop'} replied`} sub={m.text} note={dayShort(m.at.slice(0, 10))} chevron={false} />
             ))}
-            {c.canWrite && <NRow name={c.canWrite === 'reminder' ? 'Send a reminder?' : c.canWrite === 'answer' ? 'Answer the shop?' : 'Write to the shop?'} sub={c.canWrite === 'answer' ? 'The shop asked for proof of the return. Abel drafts an answer from your return tracking, you check every word.' : c.canWrite === 'reminder' ? "The date the shop gave has passed. Abel drafts it, you check every word." : 'Abel drafts it from what you allowed. You check every word before it goes.'} chevron={false} right={<button className="btn small" onClick={openDraft}>Draft</button>} />}
+            {c.canWrite && <NRow name={c.canWrite === 'reminder' ? 'Send a reminder?' : c.canWrite === 'answer' ? 'Answer the shop?' : 'Write to the shop?'} sub={c.canWrite === 'answer' ? 'The shop asked for proof of the return. Nora drafts an answer from your return tracking, you check every word.' : c.canWrite === 'reminder' ? "The date the shop gave has passed. Nora drafts it, you check every word." : 'Nora drafts it from what you allowed. You check every word before it goes.'} chevron={false} right={<button className="btn small" onClick={openDraft}>Draft</button>} />}
             {draft && draft.caseId === c.id && (
               <div className="rf-draftbox">
                 <b>{draft.kind === 'reminder' ? 'Reminder to the shop' : draft.kind === 'answer' ? 'Answer to the shop' : 'Message to the shop'}</b>
@@ -212,14 +212,14 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
           <Band left="Receipt" />
           <div className="ncard flat">
             {c.receiptSavedAt
-              ? <NRow name={<><Icon name="shield" />Receipt saved in Abel knows</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Kept in Abel knows until you withdraw this case, then deleted. The original is untouched.`} chevron={false} />
-              : <NRow name="Keep the receipt?" sub="Save it to Abel knows, in case you need it later. Kept until you withdraw this case, then deleted." chevron={false} right={<button className="btn small" onClick={saveReceipt}>Save</button>} />}
+              ? <NRow name={<><Icon name="shield" />Receipt saved in Nora knows</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Kept in Nora knows until you withdraw this case, then deleted. The original is untouched.`} chevron={false} />
+              : <NRow name="Keep the receipt?" sub="Save it to Nora knows, in case you need it later. Kept until you withdraw this case, then deleted." chevron={false} right={<button className="btn small" onClick={saveReceipt}>Save</button>} />}
           </div>
         </>)}
         {c.promiseDate && (<>
         <Band left="About the dates" />
         <div className="ncard flat"><p className="rf-rules">
-          The shop promised {day(c.promiseDate)}. That is the shop's own date, not a legal deadline. Whether a legal deadline applies depends on how and when you cancelled, and on the item. Abel does not decide that. It writes to the shop only when you approve the words.
+          The shop promised {day(c.promiseDate)}. That is the shop's own date, not a legal deadline. Whether a legal deadline applies depends on how and when you cancelled, and on the item. Nora does not decide that. It writes to the shop only when you approve the words.
         </p></div>
         </>)}
       </div>
@@ -237,17 +237,17 @@ export const RefundKnows: React.FC<{ userId: string; onOpen?: () => void }> = ({
     <>
       <Band left="Refund cases" />
       <div className="ncard flat">
-        <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={c.state === 'closed' ? `Refund received in full. Abel may keep reading the ${c.itemCount} records you allowed until you withdraw the case.` : `Abel may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
+        <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={c.state === 'closed' ? `Refund received in full. Nora may keep reading the ${c.itemCount} records you allowed until you withdraw the case.` : `Nora may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
           right={<span className="rf-row-b">{onOpen && <button className="btn small" onClick={onOpen}>Open</button>}<button className="btn small" onClick={() => setAsk(true)}>Withdraw</button></span>} />
         {c.receiptSavedAt && <NRow name={<><Icon name="shield" />Saved receipt</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Deleted when you withdraw this case.`} chevron={false} />}
-        <NRow name="What withdrawing does" sub="Abel stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Abel did is kept." chevron={false} />
+        <NRow name="What withdrawing does" sub="Nora stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Nora did is kept." chevron={false} />
       </div>
       {ask && (
         <div className="cf-bg" onClick={() => setAsk(false)}>
-          <div className="cf-sheet" role="dialog" aria-label="Withdraw Abel's access to this case?" onClick={(e) => e.stopPropagation()}>
+          <div className="cf-sheet" role="dialog" aria-label="Withdraw Nora's access to this case?" onClick={(e) => e.stopPropagation()}>
             <span className="kicker">Refund case</span>
-            <h3>Withdraw Abel's access to this case?</h3>
-            <p className="cf-p">Abel stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Abel did is kept.</p>
+            <h3>Withdraw Nora's access to this case?</h3>
+            <p className="cf-p">Nora stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Nora did is kept.</p>
             <div className="btns stack">
               <button className="btn primary block" onClick={withdraw}>Withdraw and delete</button>
               <button className="btn quiet block" onClick={() => setAsk(false)}>Cancel</button>

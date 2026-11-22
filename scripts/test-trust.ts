@@ -81,7 +81,7 @@ check('C2: 1 237 € for a known 1 236,80 is fine', A.unsupportedNumbers('You pa
 check('C2: 1 273 € for a known 1 236,80 is caught', A.unsupportedNumbers('You pay 1 273 € a month.', [1236.8], [1236.8]).length === 1);
 check('C2: a sum with cents is checked exactly (100,25 + 200,25 = 300,50 ok; 310,50 not)', A.unsupportedNumbers('In all 300,50 €.', [], [100.25, 200.25]).length === 0 && A.unsupportedNumbers('In all 310,50 €.', [], [100.25, 200.25]).length === 1);
 
-// C1: claims of doing what Abel can't.
+// C1: claims of doing what Nora can't.
 for (const t of ['I’m connecting you with an adviser now. Keep your phone nearby.', 'I have blocked your card.', 'An adviser will call you shortly.', 'I’ll set a reminder for the rent.', 'I’ve booked a meeting for Tuesday.', 'We’ve alerted the fraud team.'])
   check(`C1: claim caught: "${t}"`, A.ACTION_CLAIM.test(t));
 for (const t of ['Tap Connect me below to reach a Nordea adviser.', 'You can block the card in the app under Cards.', 'An adviser can help with that.', 'I can’t set reminders, but your phone’s calendar can.', 'Call Nordea’s customer service: the number is on the back of your card.'])
@@ -90,7 +90,7 @@ for (const t of ['Tap Connect me below to reach a Nordea adviser.', 'You can blo
 // Privacy words.
 for (const t of ['I don’t store any of your data.', 'Nothing is saved.', 'I have no memory of past chats.'])
   check(`privacy: wrong claim caught: "${t}"`, A.NOT_STORED_CLAIM.test(t));
-check('privacy: "I keep only what you’ve approved" is fine', !A.NOT_STORED_CLAIM.test('I keep only what you’ve approved in Abel knows.'));
+check('privacy: "I keep only what you’ve approved" is fine', !A.NOT_STORED_CLAIM.test('I keep only what you’ve approved in Nora knows.'));
 
 // Scam words.
 for (const t of ['I think I got scammed', 'I clicked a link in an SMS and typed my codes', 'someone used my card', 'I lost my wallet', 'I didn’t make this payment'])
@@ -213,7 +213,7 @@ check('notes: archiving a goal the customer never named is refused (car goal kep
 script = [{ re: /what do you keep/i, steps: [fr('I don’t store any of your data. Quick replies:\n- Show my notes'), fr('I don’t store any of your data.')] }];
 conv = undefined;
 r = await say('what do you keep about me?');
-check('privacy: no "I don’t store" claim reaches the customer', !/don’t store/.test(r.text) && /approved in Abel knows/.test(r.text), r.text);
+check('privacy: no "I don’t store" claim reaches the customer', !/don’t store/.test(r.text) && /approved in Nora knows/.test(r.text), r.text);
 check('privacy: no "Quick replies" text', !/Quick replies/i.test(r.text), r.text);
 
 // Off-topic: the prompt carries the customer's own wording.

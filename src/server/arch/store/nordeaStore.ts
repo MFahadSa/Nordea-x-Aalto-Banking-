@@ -47,7 +47,7 @@ export function deleteNordeaDb(uid: string) { deleteDbFile(uid, 'nordea'); }
 
 // ---------- G1: the Nordea DB is the one home of the customer's bank data ----------
 
-/** Live account balances (the Abel User.accounts view) belong to the Nordea DB. */
+/** Live account balances (the Nora User.accounts view) belong to the Nordea DB. */
 export function loadBalances(uid: string): User['accounts'] | null {
   if (!fs.existsSync(fileFor(uid, 'nordea'))) return null;
   const db = openDb(fileFor(uid, 'nordea'), 'nordea');

@@ -12,8 +12,8 @@ export const AGENTS: { id: AgentId; name: string; owns: string }[] = [
 ];
 
 export interface Goal { id: string; title: string; detail: string; createdAt: string;
-  /** G1: when this goal came from the Abel app, the full CabinetEntry record. Columns stay
-      authoritative for the arch view (title/detail/createdAt); the Abel-only fields live here. */
+  /** G1: when this goal came from the Nora app, the full CabinetEntry record. Columns stay
+      authoritative for the arch view (title/detail/createdAt); the Nora-only fields live here. */
   doc?: CabinetEntry; }
 export interface PersonalFact { id: string; source: string; text: string; at: string; viaAirlockId: string; }
 export interface PersonalAgentSettings { mode: 'abel' | 'external'; externalName?: string; connectedAt?: string; simulated?: boolean; }
@@ -40,11 +40,11 @@ export interface ArchEntry {
   risk?: 'low' | 'medium' | 'high'; // AC7: code-rule risk level from risk.ts
   approval?: { id: string; level: 0 | 1 | 2 }; // R2: durable user-card approval (id contains the level)
   autoAccepted?: boolean; // AC7: stored automatically under the customer's standing permissions
-  /** G1: 'archived' added for the Abel app's cabinet lifecycle; non-active rows are never served. */
+  /** G1: 'archived' added for the Nora app's cabinet lifecycle; non-active rows are never served. */
   status: 'active' | 'disputed' | 'stale' | 'archived';
-  /** G1: when this entry came from the Abel app, the full CabinetEntry record. The arch columns
+  /** G1: when this entry came from the Nora app, the full CabinetEntry record. The arch columns
       stay authoritative for arch-owned fields (title, detail, status, evidence, goalIds...);
-      Abel-owned fields (type, source, private, readableBy, provenance, target, why, reviewed,
+      Nora-owned fields (type, source, private, readableBy, provenance, target, why, reviewed,
       goalType, confirmedAt, updatedAt) are read from here. */
   doc?: CabinetEntry;
   disputeReason?: string;
