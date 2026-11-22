@@ -69,6 +69,11 @@ export interface RefundCase {
   shopPromiseDate?: string;
   /** Set when the Presenter skips time ahead. Deleted on withdrawal. */
   simulatedToday?: string;
+  /** How much of the counted refund has been moved into the demo account balance. Keeps the balance link
+      idempotent: a reload or a repeated reconcile never moves the same money twice. Deleted on withdrawal. */
+  balanceCreditedCents?: number;
+  /** Set when the customer taps Done on the completed refund. The Home row and bell item clear; the case stays. Deleted on withdrawal. */
+  closedAckedAt?: string;
   evidence: EvidenceItem[];
   /** Facts taken from consented records' structured fields, or given by the customer. Never from free text. */
   facts: Record<string, unknown>;
@@ -163,7 +168,7 @@ export const opaqueId = (prefix: string, id: string) => `${prefix}-${crypto.crea
 export class RefundStore {
   data: RefundStoreData = { cases: [], audit: [], sources: {}, seq: 0 };
   /** `clock` gives the demo's "now" (ISO date-time) so case dates and the log use the same calendar as the status. */
-  constructor(private file: string | null, private seedDir: string, private policy: () => PolicyRow[], private cal: () => WorkCalendar, private clock: () => string = () => new Date().toISOString()) {}
+  constructor(private file: string | null, private seedDir: string, private policy: () => PolicyRow[], private cal: () => WorkCalendar, private clock: () => string = () => new Date().toISOString(), private onBalance?: (userId: string, deltaCents: number) => void) {}
 
   // ---------- persistence ----------
   load() {
@@ -355,6 +360,9 @@ export class RefundStore {
     }
     c.demoSent = [];
     delete c.receiptSavedAt; delete c.shopMessages; delete c.shopPromiseDate; delete c.simulatedToday;
+    // The counter holds the refunded amount in cents, so it goes with the other amounts. Money already
+    // credited to the demo balance stays there; reconcile never touches a withdrawn case.
+    delete c.balanceCreditedCents; delete c.closedAckedAt;
     c.consent.items = c.consent.items.map((i) => opaqueId('r', i));
     for (const e of c.evidence) e.recordId = opaqueId('r', e.recordId);
     // The log is kept, but record and credit ids inside it become opaque.
@@ -673,6 +681,7 @@ export class RefundStore {
     if (remaining === 0) this.transition(c.id, 'closed', { kind: 'event', type: 'refund_matched', ref: ev.eventId }, by);
     else if (c.state !== 'partially_refunded') this.transition(c.id, 'partially_refunded', { kind: 'event', type: 'refund_partial', ref: ev.eventId }, by);
     this.save();
+    this.reconcileBalance(c.id, by);
     return { result: 'counted', caseId: c.id, remainingCents: remaining, state: this.get(c.id).state };
   }
   private reverse(ev: CreditEvent, by: AuditEntry['by']): CreditResult {
@@ -687,8 +696,45 @@ export class RefundStore {
     this.log(c.id, 'flag', by, `Refund ${k.eventId} was reversed by the shop or bank`);
     const to: CaseState = L.receivedCents > 0 ? 'partially_refunded' : 'watching';
     if (c.state !== to && (c.state === 'closed' || c.state === 'partially_refunded')) this.transition(c.id, to, { kind: 'event', type: 'refund_reversed', ref: ev.eventId }, by);
+    // The case is no longer complete: the earlier Done is spent, so Home shows the case again (and the next completion asks for Done again).
+    delete c.closedAckedAt;
     this.save();
+    this.reconcileBalance(c.id, by);
     return { result: 'reversed', caseId: c.id, remainingCents: L.expectedCents - L.receivedCents, state: this.get(c.id).state };
+  }
+
+  /** The counted money and the demo account balance stay in step: a counted credit adds to the current
+      account, a reversal takes it back. The per-case counter makes this idempotent, so a reload, a repeat
+      press or a legacy case counted before this link existed never moves the same money twice.
+      A failed balance write is not swallowed: the counter is left unbumped, so the next reconcile retries. */
+  reconcileBalance(caseId: string, by: AuditEntry['by'] = 'system') {
+    const c = this.get(caseId);
+    if (!this.onBalance) return;
+    // Money credited before a withdrawal stays in the account; a withdrawn case is no longer watched.
+    if (c.consent.withdrawnAt) return;
+    const target = c.ledger?.receivedCents ?? 0;
+    const delta = target - (c.balanceCreditedCents ?? 0);
+    if (!delta) return;
+    try {
+      this.onBalance(c.userId, delta);
+    } catch (e) {
+      console.error(`refund balance link failed for case ${caseId}:`, e instanceof Error ? e.message : e);
+      return;
+    }
+    c.balanceCreditedCents = target;
+    this.log(caseId, 'adapter', by, delta > 0 ? 'Counted into the current account (demo balance)' : 'Taken back from the current account after a reversal (demo balance)');
+    this.save();
+  }
+
+  /** The customer clears the completed case from Home and the bell. The case record, credits and log stay. */
+  acknowledgeClosed(caseId: string) {
+    const c = this.get(caseId);
+    if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn');
+    if (c.state !== 'closed') throw new RefundError('only a fully refunded case can be cleared from Home');
+    if (c.closedAckedAt) return;
+    c.closedAckedAt = this.clock();
+    this.log(caseId, 'state', 'customer', 'Completed refund cleared from Home');
+    this.save();
   }
 
   // ---------- derived status ----------

@@ -73,7 +73,7 @@ function caseViewRaw(s: RefundStore, c: RefundCase): any {
   return {
     explain: undefined as unknown as { lines: string[]; next: string },
     shopMessages: (c.shopMessages ?? []).map((m) => ({ id: m.id, direction: m.direction, at: m.at, text: m.text, kind: m.kind })), canWrite,
-    id: c.id, userId: c.userId, state: c.state, withdrawn: false, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length,
+    id: c.id, userId: c.userId, state: c.state, withdrawn: false, grantedAt: c.consent.grantedAt, itemCount: c.consent.items.length, closedAckedAt: c.closedAckedAt,
     hasTracking: c.evidence.some((e) => e.kind === 'return_tracking' && !!e.copy), hasReceipt: c.evidence.some((e) => e.kind === 'receipt' && !!e.copy), receiptLabel: c.evidence.find((e) => e.kind === 'receipt' && e.copy)?.label, receiptSavedAt: c.receiptSavedAt,
     hasCard: c.evidence.some((e) => e.kind === 'card_transaction'), merchant: f.merchant, orderRef: f.orderRef, item: f.item, chargeDate: f.chargeDate, deliveryDate: f.deliveryDate, returnSentDate: f.returnSentDate, sellerReceivedDate: f.sellerReceivedDate,
     expected: L ? eur(L.expectedCents) : undefined, received: L ? eur(L.receivedCents) : undefined, remaining: L ? eur(L.expectedCents - L.receivedCents) : undefined,
@@ -106,6 +106,13 @@ export function registerRefundRoutes(app: Express) {
   }));
 
   app.get('/api/refund/case/:id', h((req, res) => res.json({ case: caseView(s(), s().get(String(req.params.id))) })));
+
+  // Done on the completed case: the Home row and bell item clear. The case record, credits and log stay.
+  app.post('/api/refund/case/:id/ack-closed', h((req, res) => {
+    const id = String(req.params.id);
+    s().acknowledgeClosed(id);
+    res.json({ case: caseView(s(), s().get(id)) });
+  }));
 
   app.post('/api/refund/case/:id/withdraw', h((req, res) => {
     const id = String(req.params.id);

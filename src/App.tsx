@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PhoneFrame } from './components/PhoneFrame.js';
 import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
-import { RefundCasePage } from './components/Refund.js';
+import { RefundCasePage, EVT as REFUND_EVT } from './components/Refund.js';
 import { HomePage } from './components/HomePage.js';
 import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, PresenterPage, DeleteDocSheet, ConfirmSheet } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
@@ -123,6 +123,14 @@ export default function App() {
     fetchUsers().then(setUsers).catch(() => {});
     fetchRewards().then(setRewards).catch(() => {});
   }, [personaId]);
+
+  // A refund change (a counted credit moves the balance, a completed case clears) refreshes the app state,
+  // so Home shows the new balance without a reload.
+  useEffect(() => {
+    const on = () => refresh();
+    window.addEventListener(REFUND_EVT, on);
+    return () => window.removeEventListener(REFUND_EVT, on);
+  }, [refresh]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');

@@ -6,7 +6,7 @@ import { Icon } from '../ui/icons.js';
 import { DetailHead, NRow, Band, NChev } from './Nordea.js';
 
 export interface RCase {
-  id: string; state: string; withdrawn: boolean; itemCount: number;
+  id: string; state: string; withdrawn: boolean; itemCount: number; closedAckedAt?: string;
   hasCard?: boolean; merchant?: string; orderRef?: string; item?: string; chargeDate?: string;
   shopDeclinedAt?: string;
   expected?: number; received?: number; remaining?: number; promiseDate?: string; asOf?: string; late?: boolean;
@@ -21,7 +21,7 @@ interface ROffer { id: string; kind: string; title: string; sub: string }
 interface RView { cases: RCase[]; offer: ROffer[]; demo: string }
 interface RControl { id: string; title: string; label: string; badge?: string; note: string; enabled: boolean }
 
-const EVT = 'refund-changed';
+export const EVT = 'refund-changed';
 const ping = () => window.dispatchEvent(new Event(EVT));
 const api = async (url: string, body?: unknown) => {
   const r = await fetch(url, body === undefined ? undefined : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -71,7 +71,7 @@ export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = 
       {open && (
         <div className="rf-row-d">
           <span>{n.detail}</span>
-          <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => setOpenKey('')}>Later</button></div>
+          <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button>{n.done ? <button className="btn" onClick={() => ackClosed(n.caseId)}>Done</button> : <button className="btn" onClick={() => setOpenKey('')}>Later</button>}</div>
         </div>
       )}
     </div>
@@ -89,12 +89,15 @@ export const RefundAbelCard: React.FC<{ userId: string; onOpen: () => void }> = 
       <span className={`rf-tag ${n.tone}`}>Your refund</span>
       <b>{n.title}</b>
       <span>{n.detail}</span>
-      <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => laterStore.add(n.key)}>Later</button></div>
+      <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button>{n.done ? <button className="btn" onClick={() => ackClosed(n.caseId)}>Done</button> : <button className="btn" onClick={() => laterStore.add(n.key)}>Later</button>}</div>
     </div>
   );
 };
 /** For the bell badge: is there a refund item in From Abel right now. */
 export const useRefundAbelCount = (userId: string) => { const { v } = useRefund(userId); useLaterVersion(); const n = refundNotice(v as any); return n && !laterStore.has(n.key) ? 1 : 0; };
+
+/** Done on a completed case: clears the Home row and the bell item. The case and its log stay. */
+const ackClosed = async (caseId: string) => { try { await api(`/api/refund/case/${caseId}/ack-closed`, {}); ping(); } catch { /* the row stays; the next poll retries the state */ } };
 
 export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = ({ userId, onBack }) => {
   const { v } = useRefund(userId);
@@ -234,7 +237,7 @@ export const RefundKnows: React.FC<{ userId: string }> = ({ userId }) => {
     <>
       <Band left="Refund cases" />
       <div className="ncard flat">
-        <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={`Abel may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
+        <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={c.state === 'closed' ? `Refund received in full. Abel may keep reading the ${c.itemCount} records you allowed until you withdraw the case.` : `Abel may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
           right={<button className="btn small" onClick={() => setAsk(true)}>Withdraw</button>} />
         {c.receiptSavedAt && <NRow name={<><Icon name="shield" />Saved receipt</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Deleted when you withdraw this case.`} chevron={false} />}
         <NRow name="What withdrawing does" sub="Abel stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Abel did is kept." chevron={false} />
