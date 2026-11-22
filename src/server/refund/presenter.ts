@@ -106,6 +106,7 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
   }
   if (!ev) return { ok: false, message: 'This credit is not in the demo data' };
   const result = s.applyCredit(ev, 'presenter');
+  s.stampOrigin(ev.eventId, c.id);
   if (key) s.markDemoSent(c.id, key);
   return { ok: true, message: `Sent ${ev.eventId}`, eventId: ev.eventId, result };
 }

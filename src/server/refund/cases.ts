@@ -96,7 +96,7 @@ export interface CreditEvent {
   /** For a reversal: the refund event it takes back. */
   reversesEventId?: string;
 }
-export interface HandledEvent { caseId: string | null; outcome: 'counted' | 'flagged' | 'no_match' | 'ambiguous' | 'reversed'; reason?: CreditFlag; event: CreditEvent }
+export interface HandledEvent { caseId: string | null; /** The case a Presenter-sent credit was delivered for, even when it matched none. Used only to scrub on withdrawal. */ origin?: string; outcome: 'counted' | 'flagged' | 'no_match' | 'ambiguous' | 'reversed'; reason?: CreditFlag; event: CreditEvent }
 export type ApprovalAction = 'seller_inquiry' | 'dispute_pack';
 export interface Approval {
   id: string; caseId: string; action: ApprovalAction;
@@ -334,10 +334,10 @@ export class RefundStore {
     // which can name an amount or a shop, is gone.
     const evs = (this.data.events ??= {});
     for (const [key, h] of Object.entries(evs)) {
-      if (h.caseId !== caseId) continue;
+      if (h.caseId !== caseId && h.origin !== caseId) continue;
       const tomb = opaqueId('h', key);
       delete evs[key];
-      evs[tomb] = { caseId: h.caseId, outcome: h.outcome, reason: h.reason, event: { eventId: tomb, kind: h.event.kind, amount: 0, currency: '', merchantId: '', status: h.event.status } as CreditEvent };
+      evs[tomb] = { caseId: h.caseId ?? caseId, outcome: h.outcome, reason: h.reason, event: { eventId: tomb, kind: h.event.kind, amount: 0, currency: '', merchantId: '', status: h.event.status } as CreditEvent };
     }
     c.demoSent = [];
     c.consent.items = c.consent.items.map((i) => opaqueId('r', i));
@@ -378,7 +378,8 @@ export class RefundStore {
     const gone = events[opaqueId('h', ev.eventId)];
     if (gone) return { result: 'replay_ignored', caseId: gone.caseId };
     const prev = events[ev.eventId];
-    if (prev && prev.caseId && this.data.cases.find((x) => x.id === prev.caseId)?.consent.withdrawnAt) return { result: 'replay_ignored', caseId: prev.caseId };
+    const owner = prev ? (prev.caseId ?? prev.origin) : undefined;
+    if (prev && owner && this.data.cases.find((x) => x.id === owner)?.consent.withdrawnAt) return { result: 'replay_ignored', caseId: owner };
     if (prev) {
       const c = prev.caseId ? this.data.cases.find((x) => x.id === prev.caseId) : undefined;
       const changed = prev.outcome === 'flagged' && c && (
@@ -464,6 +465,8 @@ export class RefundStore {
     this.save();
   }
 
+  /** Remembers which case the Presenter sent this credit for, so withdrawing that case can scrub the copy. */
+  stampOrigin(eventId: string, caseId: string) { const h = this.data.events?.[eventId]; if (h && h.caseId !== caseId) { h.origin = caseId; this.save(); } }
   markDemoSent(caseId: string, key: string) { const c = this.get(caseId); (c.demoSent ??= []).includes(key) || c.demoSent.push(key); this.save(); }
   /** The shop said no. Recorded only: the case stays as it is, counted credits stay counted, and nothing is sent or started. */
   recordShopDeclined(caseId: string, by: AuditEntry['by'] = 'system') {

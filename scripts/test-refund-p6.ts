@@ -115,6 +115,27 @@ const logBefore = refunds().auditFor(cvP.id).length;
 const posted = refunds().applyCredit({ ...pendEv, status: 'posted' }, 'system');
 check('a pending credit that posts after withdrawal is ignored', posted.result === 'replay_ignored', posted);
 check('nothing is relogged or stored under the raw id', refunds().auditFor(cvP.id).length === logBefore && !refunds().data.events!['ev-pending'] && !JSON.stringify(refunds().auditFor(cvP.id)).includes('ev-pending'));
+// raw persisted state across withdraw cycles: no processed copy (matched or not) keeps an amount, shop, user or readable id
+{
+  const fsm = await import('node:fs');
+  let clean = true, grew = false, last = -1; const why: unknown[] = [];
+  for (let cyc = 0; cyc < 4; cyc++) {
+    resetRefunds(true);
+    await call('POST', `${U}/cases`, { consentItems: allIds });
+    for (const k of ['partial', 'partial', 'decoy', 'no_reference', 'pending', 'other_currency']) await call('POST', `${U}/presenter/${k}`);
+    await call('POST', `${U}/presenter/arrives`);
+    const live = (await call('GET', U)).json.cases.find((c: any) => !c.withdrawn);
+    await call('POST', `/api/refund/case/${live.id}/withdraw`, {});
+    const evs = Object.entries(refunds().data.events ?? {});
+    const raw = JSON.stringify(refunds().data.events) + JSON.stringify(refunds().data.audit);
+    const bad = evs.filter(([k, h]: any) => !/^h-/.test(k) || h.event.amount !== 0 || h.event.merchantId || h.event.userId || h.origin);
+    if (bad.length || /ev-[a-z]|89[.,]9|Tuulikki|\"amount\":[1-9]/.test(raw)) { clean = false; why.push([cyc, bad.length, raw.slice(0, 200)]); }
+    try { const file = fsm.readFileSync(new URL('../data/refunds.json', import.meta.url), 'utf8'); if (/\"merchantId\":\"[a-z]/.test(file.split('"presets"')[0] ?? '') && /ev-[a-z]/.test(JSON.stringify(JSON.parse(file).events ?? {}))) { clean = false; why.push('file'); } } catch { /* no file written */ }
+    last = evs.length; grew = grew || last > 12;
+  }
+  check('after four cycles no processed credit copy (incl. decoy and no-reference) keeps an amount, shop, user or readable id', clean, why);
+  check('withdrawn copies do not pile up across cycles', !grew, last);
+}
 console.log(`${passed} passed, ${failed} failed`);
 server.close();
 process.exit(failed ? 1 : 0);
