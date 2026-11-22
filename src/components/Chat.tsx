@@ -318,7 +318,7 @@ export const Chat: React.FC<Props> = (p) => {
                 <button className="btn primary" disabled={!ids.length} onClick={() => { act('refund_allow', { items: ids }); }}>{ids.length ? `Allow these ${ids.length}` : 'Allow 0 items'}</button>
                 <button className="btn quiet" onClick={() => act('refund_no')}>Not now</button>
               </div>
-            ) : <RefundResolved userId={p.userId} text={m.resolved} />}
+            ) : <RefundResolved userId={p.userId} text={m.resolved} caseId={d.caseId} />}
             <p className="rf-c-s"><Icon name="shield" />Abel only reads what you tick. You can withdraw any time.</p>
             <p className="rf-demo">{d.demo}</p>
           </div>

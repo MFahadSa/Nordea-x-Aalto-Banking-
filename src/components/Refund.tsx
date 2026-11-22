@@ -5,7 +5,7 @@ import { DetailHead, NRow, Band, NChev } from './Nordea.js';
 
 export interface RCase {
   id: string; state: string; withdrawn: boolean; itemCount: number;
-  merchant?: string; orderRef?: string; item?: string; chargeDate?: string;
+  hasCard?: boolean; merchant?: string; orderRef?: string; item?: string; chargeDate?: string;
   shopDeclinedAt?: string;
   expected?: number; received?: number; remaining?: number; promiseDate?: string; late?: boolean;
   credits?: { eventId: string; amount: number; date: string; currency: string }[];
@@ -34,18 +34,24 @@ const workdaysLate = (from?: string, to = '2026-10-23') => {
   return n;
 };
 
+// One shared fetch per customer, however many screens or old chat cards use it. Only the newest request may set the result,
+// and a result for a customer who was switched away from is dropped.
+const hub = { uid: '', v: null as RView | null, seq: 0, subs: new Set<(v: RView | null) => void>(), timer: 0 as number };
+const refetch = () => {
+  const uid = hub.uid; const mine = ++hub.seq;
+  api(`/api/refund/${uid}`).then((d) => d, () => null).then((d) => { if (mine === hub.seq && uid === hub.uid) { hub.v = d; hub.subs.forEach((f) => f(d)); } });
+};
 export function useRefund(userId: string) {
-  const [v, setV] = useState<RView | null>(null);
-  const load = useCallback(() => api(`/api/refund/${userId}`).then(setV).catch(() => setV(null)), [userId]);
+  const [v, setV] = useState<RView | null>(hub.uid === userId ? hub.v : null);
   useEffect(() => {
-    // A result that arrives after the customer was switched belongs to the old customer and is dropped.
-    let alive = true; setV(null);
-    const run = () => api(`/api/refund/${userId}`).then((d) => { if (alive) setV(d); }).catch(() => { if (alive) setV(null); });
-    run(); window.addEventListener(EVT, run);
-    const t = window.setInterval(() => { if (!document.hidden) run(); }, 3000);
-    return () => { alive = false; window.removeEventListener(EVT, run); window.clearInterval(t); };
+    if (hub.uid !== userId) { hub.uid = userId; hub.v = null; hub.seq++; }
+    setV(hub.v);
+    hub.subs.add(setV);
+    if (hub.subs.size === 1) { window.addEventListener(EVT, refetch); hub.timer = window.setInterval(() => { if (!document.hidden) refetch(); }, 3000); }
+    refetch();
+    return () => { hub.subs.delete(setV); if (hub.subs.size === 0) { window.removeEventListener(EVT, refetch); window.clearInterval(hub.timer); } };
   }, [userId]);
-  return { v, load };
+  return { v, load: refetch };
 }
 const openCase = (v: RView | null) => v?.cases.filter((c) => !c.withdrawn).slice(-1)[0];
 
@@ -56,8 +62,21 @@ export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = 
   const c = openCase(v);
   if (!v || !c) return null;
   const got = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
-  if (!got && !c.late && !c.shopDeclinedAt && !(c.received ?? 0)) return null;
-  if (!c.promiseDate && !got && !c.shopDeclinedAt && !(c.received ?? 0)) return null;
+  const generic = (
+    <button className="ncard notice" onClick={onOpen}>
+      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
+      <span className="nt-t"><b>Abel is watching for your {c.merchant ?? 'shop'} refund</b><span>Nothing is late or needs you right now.</span><span className="rf-demo-s">{v.demo}</span></span>
+      <span className="nt-go">Open</span>
+    </button>
+  );
+  if (c.expected == null) return (
+    <button className="ncard notice" onClick={onOpen}>
+      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
+      <span className="nt-t"><b>Abel can't match your refund yet</b><span>The records you allowed do not show what was bought or for how much.</span><span className="rf-demo-s">{v.demo}</span></span>
+      <span className="nt-go">Open</span>
+    </button>
+  );
+  if (!got && !c.shopDeclinedAt && !(c.received ?? 0) && (!c.promiseDate || !c.late)) return generic;
   const late = workdaysLate(c.promiseDate);
   return (
     <button className="ncard notice" onClick={onOpen}>
@@ -79,8 +98,9 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   if (!v || !c) return (<><DetailHead title="Refund" onBack={onBack} /><div className="nbody"><p className="presenter-note">No refund case is open.</p></div></>);
   const full = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
   const partial = (c.received ?? 0) > 0 && !full;
+  const nomatch = c.expected == null;
   const pend = (c.flags || []).some((f) => f.reason === 'provisional') && !full;
-  const status = c.shopDeclinedAt && !full ? 'Shop declined' : pend && !partial ? 'refund pending, not counted yet' : full ? 'Refund received' : partial && c.expected != null ? `${eur(c.received!)} of ${eur(c.expected)} received` : c.late ? 'no refund yet, later than promised' : 'waiting for the refund';
+  const status = nomatch ? 'not matched yet' : c.shopDeclinedAt && !full ? 'Shop declined' : pend && !partial ? 'refund pending, not counted yet' : full ? 'Refund received' : partial && c.expected != null ? `${eur(c.received!)} of ${eur(c.expected)} received` : c.late ? 'no refund yet, later than promised' : 'waiting for the refund';
   const check = async (eventId: string) => { try { await api(`/api/refund/case/${c.id}/review`, { eventId, outcome: 'checked_fine' }); ping(); } catch (e: any) { setErr(e.message); } };
   const assign = async (eventId: string, acceptConflicts: string[]) => { try { await api(`/api/refund/case/${c.id}/assign`, { eventId, acceptConflicts }); ping(); } catch (e: any) { setErr(e.message); } };
   const late = workdaysLate(c.promiseDate);
@@ -110,10 +130,13 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
           {c.shopDeclinedAt && !full && (
             <NRow name={<><Icon name="shield" />The shop declined the refund</>} sub={`${c.remaining != null ? eur(c.remaining) : 'The refund'} still unpaid. The case stays open. Nothing is sent for you and no dispute is started.`} chevron={false} />
           )}
-          {!full && !c.shopDeclinedAt && (c.credits || []).length === 0 && !(c.flags || []).some((f) => f.reason === 'provisional') && (
+          {c.expected == null && (
+            <NRow name={<><Icon name="shield" />Abel can't match a refund yet</>} sub="The records you allowed do not show what was bought or for how much. Allow the card purchase or the order confirmation, and Abel will know what to look for." chevron={false} />
+          )}
+          {c.expected != null && !full && !c.shopDeclinedAt && (c.credits || []).length === 0 && !(c.flags || []).some((f) => f.reason === 'provisional') && (
             <NRow name={<><Icon name="clock" />No refund has arrived yet</>} sub={c.promiseDate ? `The shop promised it by ${day(c.promiseDate)}. Abel keeps watching for it.` : 'Abel keeps watching for it.'} chevron={false} />
           )}
-          {c.late && c.promiseDate && !full && !c.shopDeclinedAt && (
+          {c.expected != null && c.late && c.promiseDate && !full && !c.shopDeclinedAt && (
             <NRow name="Later than promised" sub={<><span className="rf-chip rf-chip-w">{late} working days</span><br />Not counted until the money is booked.</>} chevron={false} />
           )}
           {(c.flags || []).filter((f) => f.reason === 'provisional' && !full).map((f) => (
@@ -124,7 +147,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
         {c.item && c.expected != null && (<>
           <Band left="Purchase" />
           <div className="ncard flat">
-            <NRow name={c.item} sub={`Order ${c.orderRef} · credit card`} amount={`−${eur(c.expected)}`} note={`Charged ${day(c.chargeDate)}`} chevron={false} />
+            <NRow name={c.item} sub={`Order ${c.orderRef}${c.hasCard ? ' · credit card' : ''}`} amount={`−${eur(c.expected)}`} note={c.chargeDate ? `Charged ${day(c.chargeDate)}` : undefined} chevron={false} />
           </div>
         </>)}
         {c.promiseDate && (<>
@@ -191,8 +214,10 @@ export const RefundDemoTools: React.FC<{ userId: string }> = ({ userId }) => {
 export { NChev };
 
 /** After the customer withdrew, an old "Allowed" answer in the chat must say so. */
-export const RefundResolved: React.FC<{ userId: string; text?: string }> = ({ userId, text }) => {
+export const RefundResolved: React.FC<{ userId: string; text?: string; caseId?: string }> = ({ userId, text, caseId }) => {
   const { v } = useRefund(userId);
-  const active = !!openCase(v);
-  return <p className="n-sub">{text}{v && !active && /^Allowed/.test(text || '') ? ' · access withdrawn' : ''}</p>;
+  // The card is bound to the case it created, so withdrawing that case marks it, whatever the customer allowed later.
+  const mine = v?.cases.find((c) => c.id === caseId);
+  const gone = !!v && /^Allowed/.test(text || '') && (!mine || mine.withdrawn);
+  return <p className="n-sub">{text}{gone ? ' · access withdrawn' : ''}</p>;
 };

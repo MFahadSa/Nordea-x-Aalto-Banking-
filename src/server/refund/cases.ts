@@ -143,6 +143,8 @@ export const hashCopy = (fields: Record<string, unknown>, text: string) =>
 
 export class RefundError extends Error {}
 
+/** A short opaque id for something that must be kept as a marker but must not say what it was. */
+export const opaqueId = (prefix: string, id: string) => `${prefix}-${crypto.createHash('sha256').update(id).digest('hex').slice(0, 10)}`;
 export class RefundStore {
   data: RefundStoreData = { cases: [], audit: [], sources: {}, seq: 0 };
   /** `clock` gives the demo's "now" (ISO date-time) so case dates and the log use the same calendar as the status. */
@@ -207,7 +209,7 @@ export class RefundStore {
   /** Opens a case after the customer's explicit consent to exactly `consentItems`. */
   /** The one way a customer's own action opens a case (chat card and API): at most one open case per customer. */
   openCustomerCase(input: { userId: string; consentItems: string[]; reasons: string[]; country: string }): RefundCase {
-    if (this.data.cases.some((x) => x.userId === input.userId && !x.consent.withdrawnAt && x.state !== 'closed')) throw new RefundError('there is already an open refund case');
+    if (this.data.cases.some((x) => x.userId === input.userId && !x.consent.withdrawnAt)) throw new RefundError('there is already a refund case for this customer: open it, or withdraw it first');
     return this.openCase(input);
   }
   openCase(input: { userId: string; consentItems: string[]; reasons: string[]; country: string; now?: string }): RefundCase {
@@ -326,11 +328,20 @@ export class RefundStore {
     for (const e of c.evidence) { e.copy = null; e.label = `${e.kind.replace(/_/g, ' ')} (deleted)`; }
     // Credit events tied to this case keep only what replay protection needs (the id and how it was handled).
     // The amount, order and payment references and the link to the purchase are removed.
-    for (const h of Object.values(this.data.events ?? {})) {
+    // The event is re-filed under an opaque key (a hash of its id), so a replay is still recognised but the id itself,
+    // which can name an amount or a shop, is gone.
+    const evs = (this.data.events ??= {});
+    for (const [key, h] of Object.entries(evs)) {
       if (h.caseId !== caseId) continue;
-      const e = h.event;
-      h.event = { eventId: e.eventId, kind: e.kind, amount: 0, currency: '', merchantId: '', status: e.status } as CreditEvent;
+      const tomb = opaqueId('h', key);
+      delete evs[key];
+      evs[tomb] = { caseId: h.caseId, outcome: h.outcome, reason: h.reason, event: { eventId: tomb, kind: h.event.kind, amount: 0, currency: '', merchantId: '', status: h.event.status } as CreditEvent };
     }
+    c.consent.items = c.consent.items.map((i) => opaqueId('r', i));
+    for (const e of c.evidence) e.recordId = opaqueId('r', e.recordId);
+    // The log is kept, but record and credit ids inside it become opaque.
+    this.data.audit = this.data.audit.map((a) => a.caseId !== caseId ? a : Object.freeze({ ...a, detail: a.detail.replace(/\b(?:ev|rec)-[A-Za-z0-9-]+/g, (m) => opaqueId('x', m)) }));
+    for (const a of this.data.approvals ?? []) if (a.caseId === caseId) a.evidenceIds = a.evidenceIds.map((i) => opaqueId('r', i));
     const nFacts = Object.keys(c.facts).length;
     c.facts = {}; c.factSources = {}; c.drafts = {}; c.ledger = undefined;
     for (const a of this.data.approvals ?? []) if (a.caseId === caseId) { if (a.status === 'approved') a.status = 'revoked'; a.recipient = ''; a.text = ''; }
@@ -360,14 +371,14 @@ export class RefundStore {
       person); then it is looked at again. */
   applyCredit(ev: CreditEvent, by: AuditEntry['by'] = 'system'): CreditResult {
     const events = (this.data.events ??= {});
-    const prev = events[ev.eventId];
+    const prev = events[ev.eventId] ?? events[opaqueId('h', ev.eventId)];
     if (prev) {
       const c = prev.caseId ? this.data.cases.find((x) => x.id === prev.caseId) : undefined;
       const changed = prev.outcome === 'flagged' && c && (
         (prev.reason === 'provisional' && ev.status === 'posted') ||
         (prev.reason === 'case_with_a_person' && c.state !== 'handed_off'));
       if (!changed) {
-        if (prev.caseId) this.log(prev.caseId, 'flag', by, `Credit ${ev.eventId} arrived again (same event): ignored, not counted twice`);
+        if (prev.caseId) this.log(prev.caseId, 'flag', by, `Credit ${events[ev.eventId] ? ev.eventId : opaqueId('x', ev.eventId)} arrived again (same event): ignored, not counted twice`);
         this.save();
         return { result: 'replay_ignored', caseId: prev.caseId };
       }

@@ -89,7 +89,7 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
     const base = tmpl('ev-refund-full');
     // The first full refund uses the seeded event. Any later one (after a partial, or after a reversal) gets a fresh opaque id,
     // so replay protection is never bypassed and never silently swallows the press.
-    if (base) ev = !sent(s, base.eventId) && L.receivedCents === 0 ? base : { ...base, eventId: `ev-demo-${Object.keys(s.data.events ?? {}).length + 1}-${crypto.randomUUID().slice(0, 6)}`, amount: remaining / 100 };
+    if (base) ev = !sent(s, base.eventId) && L.receivedCents === 0 ? base : { ...base, eventId: `ev-demo-${Object.keys(s.data.events ?? {}).length + 1}-${'k' + crypto.randomUUID().slice(0, 6)}`, amount: remaining / 100 };
   } else if (id === 'decoy') ev = tmpl('ev-decoy-other-shop');
   else if (id === 'duplicate') ev = tmpl('ev-lookalike');
   else if (id === 'pending') ev = tmpl('ev-pending');
@@ -97,7 +97,7 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
   else if (id === 'no_reference') ev = tmpl('ev-no-reference');
   else if (id === 'reversal') {
     const last = L.credits.slice(-1)[0]; const base = tmpl('ev-reversal');
-    if (last && base) ev = { ...base, eventId: `ev-demo-rev-${Object.keys(s.data.events ?? {}).length + 1}-${crypto.randomUUID().slice(0, 6)}`, reversesEventId: last.eventId, amount: last.cents / 100 };
+    if (last && base) ev = { ...base, eventId: `ev-demo-rev-${Object.keys(s.data.events ?? {}).length + 1}-${'k' + crypto.randomUUID().slice(0, 6)}`, reversesEventId: last.eventId, amount: last.cents / 100 };
   }
   if (!ev) return { ok: false, message: 'This credit is not in the demo data' };
   const result = s.applyCredit(ev, 'presenter');

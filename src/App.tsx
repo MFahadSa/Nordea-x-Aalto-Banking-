@@ -232,6 +232,7 @@ export default function App() {
       const fresh = await fetchConversationMessages(conversationId);
       setMessages(fresh);
       refresh();
+      if (action.startsWith('refund_')) window.dispatchEvent(new Event('refund-changed'));
       void res;
     } catch (e: any) {
       setToast({ message: e?.message || 'That didn’t work' });

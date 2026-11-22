@@ -165,7 +165,7 @@ export function registerV14Routes(app: Express) {
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
     // Refund Tracker: asking about the Tuulikki refund shows the consent card. Code answers; nothing is read before the customer allows.
     if (conv.helperId === 'abel' && /refund/i.test(u.text) && /tuulikki/i.test(u.text)) {
-      const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt && c.state !== 'closed');
+      const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
         ? agentMsg(userId, conv.id, conv.helperId, open ? 'Abel is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
@@ -534,8 +534,8 @@ export function registerV14Routes(app: Express) {
         const offered = new Set(((c.data as any).items || []).map((i: any) => i.id));
         const items = Array.isArray(payload.items) ? payload.items.map(String) : [];
         if (!items.length || items.some((i: string) => !offered.has(i))) return res.status(400).json({ error: 'Tick at least one offered item' });
-        try { refunds().openCustomerCase({ userId, consentItems: items, reasons: ['refund_not_received'], country: 'FI' }); } catch (e: any) { return res.status(400).json({ error: e?.message || 'Could not start' }); }
-        db.updateMessage(msg.id, { resolved: `Allowed ${items.length}` });
+        let made: { id: string }; try { made = refunds().openCustomerCase({ userId, consentItems: items, reasons: ['refund_not_received'], country: 'FI' }); } catch (e: any) { return res.status(400).json({ error: e?.message || 'Could not start' }); }
+        db.updateMessage(msg.id, { resolved: `Allowed ${items.length}`, cards: (msg.cards || []).map((x) => x.type === 'refund_consent' ? { ...x, data: { ...(x.data || {}), caseId: made.id } } : x) });
         out.push(agentMsg(userId, conv, helper, 'Done. Abel looks into this refund and watches for it. You can withdraw any time under Abel knows.'));
         break;
       }

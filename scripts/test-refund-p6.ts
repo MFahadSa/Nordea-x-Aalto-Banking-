@@ -47,7 +47,7 @@ for (let mask = 1; mask < 16; mask++) {
   if (v && !v.withdrawn && (hasLedger || enabled === 0)) presenterOk++;
   if (!hasLedger) { const pr = await call('POST', `${U}/presenter/partial`); if (pr.status !== 409) crashes++; }
   await call('POST', `/api/refund/case/${v.id}/withdraw`, {});
-  const dump = (JSON.stringify(refunds().data.cases) + JSON.stringify(refunds().data.events ?? {})).replace(/rec-[a-z0-9-]+/g, 'rec');
+  const dump = (JSON.stringify(refunds().data.cases) + JSON.stringify(refunds().data.events ?? {}));
   if (!/TE-48213|89[.,]9|"amount":(40|49)|JJFI|\bTuulikki\b/i.test(dump)) scrubbed++;
   else console.log('LEFT OVER in combo', mask, (dump.match(/TE-48213|89[.,]9|"amount":(40|49)|JJFI|\bTuulikki\b/i) || [])[0]);
 }
@@ -69,6 +69,26 @@ check('Refund arrives after a reversal counts again (not silently ignored)', ar.
 const ids9 = Object.keys(refunds().data.events ?? {});
 check('presenter-made event ids carry no amount', ids9.filter((i) => i.startsWith('ev-demo-')).every((i) => !/\d{2,}-\d{2}|-\d{4,}/.test(i)), ids9);
 // two approvals-free withdraw keeps approvals clean
+// replay safety survives withdrawal through the opaque tombstone
+resetRefunds(true);
+await call('POST', `${U}/cases`, { consentItems: offer.map((o) => o.id) });
+await call('POST', `${U}/presenter/partial`);
+const first = Object.values((refunds().data.events ?? {}) as Record<string, any>).find((h: any) => h.outcome === 'counted') as any;
+const cid8 = (await call('GET', U)).json.cases[0].id;
+const evCopy = structuredClone(refunds().data.events!['ev-partial-40'].event);
+await call('POST', `/api/refund/case/${cid8}/withdraw`, {});
+check('after withdrawal the readable credit id is gone from the store', !refunds().data.events!['ev-partial-40'] && !JSON.stringify(refunds().data.cases).includes('ev-partial-40') && !Object.keys(refunds().data.events!).some((k) => k.includes('partial')), Object.keys(refunds().data.events!));
+const again = refunds().applyCredit(evCopy, 'system');
+check('the same credit replayed after withdrawal is still ignored', again.result === 'replay_ignored', again);
+check('no readable record or credit id stays in the case log', !refunds().auditFor(cid8).some((a) => /\b(?:ev|rec)-[a-z]/.test(a.detail)), refunds().auditFor(cid8).map((a) => a.detail));
+// a fully refunded case still blocks a second case for the same customer
+resetRefunds(true);
+await call('POST', `${U}/cases`, { consentItems: offer.map((o) => o.id) });
+await call('POST', `${U}/presenter/arrives`);
+const dup2 = await call('POST', `${U}/cases`, { consentItems: offer.map((o) => o.id) });
+check('a closed (fully refunded) case still blocks a second case until withdrawn', dup2.status === 400, dup2);
+const v2 = (await call('GET', U)).json.cases[0];
+check('case view says whether the card purchase was allowed', typeof v2.hasCard === 'boolean' && v2.hasCard === true);
 console.log(`${passed} passed, ${failed} failed`);
 server.close();
 process.exit(failed ? 1 : 0);
