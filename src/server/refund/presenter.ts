@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 /** Refund Tracker: the Presenter's stateful test-credit controls (demo only, fictional credits).
     Each control reads the case and the credit log, so a press never repeats an event and never skips ahead. */
 import type { CreditEvent, RefundCase, RefundStore } from './cases.js';
@@ -26,6 +27,11 @@ export function controls(s: RefundStore, userId: string): { caseId: string | nul
     ] };
   }
   const L = c.ledger;
+  if (!L) {
+    const off = (title: string, id: ControlId): Control => ({ id, title, label: 'Send', note: 'Needs the card purchase to be allowed, so Abel knows the amount', enabled: false });
+    return { caseId: c.id, controls: [off('Partial refund', 'partial'), off('Refund arrives', 'arrives'), off('Decoy credit', 'decoy'), off('Duplicate credit', 'duplicate'),
+      off('Pending credit', 'pending'), off('Credit in another currency', 'other_currency'), off('Credit with no reference', 'no_reference'), off('Shop refuses', 'declined'), off('Reversal', 'reversal')] };
+  }
   const received = L?.receivedCents ?? 0, expected = L?.expectedCents ?? 0, remaining = expected - received;
   const full = !!L && remaining <= 0;
   const out: Control[] = [];
@@ -81,7 +87,9 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
   else if (id === 'arrives') {
     const remaining = L.expectedCents - L.receivedCents;
     const base = tmpl('ev-refund-full');
-    if (base) ev = L.receivedCents === 0 ? base : { ...base, eventId: `ev-remaining-${L.credits.length}-${remaining}`, amount: remaining / 100 };
+    // The first full refund uses the seeded event. Any later one (after a partial, or after a reversal) gets a fresh opaque id,
+    // so replay protection is never bypassed and never silently swallows the press.
+    if (base) ev = !sent(s, base.eventId) && L.receivedCents === 0 ? base : { ...base, eventId: `ev-demo-${Object.keys(s.data.events ?? {}).length + 1}-${crypto.randomUUID().slice(0, 6)}`, amount: remaining / 100 };
   } else if (id === 'decoy') ev = tmpl('ev-decoy-other-shop');
   else if (id === 'duplicate') ev = tmpl('ev-lookalike');
   else if (id === 'pending') ev = tmpl('ev-pending');
@@ -89,7 +97,7 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
   else if (id === 'no_reference') ev = tmpl('ev-no-reference');
   else if (id === 'reversal') {
     const last = L.credits.slice(-1)[0]; const base = tmpl('ev-reversal');
-    if (last && base) ev = { ...base, eventId: `ev-reversal-of-${last.eventId}`, reversesEventId: last.eventId, amount: last.cents / 100 };
+    if (last && base) ev = { ...base, eventId: `ev-demo-rev-${Object.keys(s.data.events ?? {}).length + 1}-${crypto.randomUUID().slice(0, 6)}`, reversesEventId: last.eventId, amount: last.cents / 100 };
   }
   if (!ev) return { ok: false, message: 'This credit is not in the demo data' };
   const result = s.applyCredit(ev, 'presenter');

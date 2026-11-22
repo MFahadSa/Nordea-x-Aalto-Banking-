@@ -534,7 +534,7 @@ export function registerV14Routes(app: Express) {
         const offered = new Set(((c.data as any).items || []).map((i: any) => i.id));
         const items = Array.isArray(payload.items) ? payload.items.map(String) : [];
         if (!items.length || items.some((i: string) => !offered.has(i))) return res.status(400).json({ error: 'Tick at least one offered item' });
-        try { refunds().openCase({ userId, consentItems: items, reasons: ['refund_not_received'], country: 'FI' }); } catch (e: any) { return res.status(400).json({ error: e?.message || 'Could not start' }); }
+        try { refunds().openCustomerCase({ userId, consentItems: items, reasons: ['refund_not_received'], country: 'FI' }); } catch (e: any) { return res.status(400).json({ error: e?.message || 'Could not start' }); }
         db.updateMessage(msg.id, { resolved: `Allowed ${items.length}` });
         out.push(agentMsg(userId, conv, helper, 'Done. Abel looks into this refund and watches for it. You can withdraw any time under Abel knows.'));
         break;

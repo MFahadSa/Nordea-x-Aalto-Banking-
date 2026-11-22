@@ -205,6 +205,11 @@ export class RefundStore {
 
   // ---------- opening ----------
   /** Opens a case after the customer's explicit consent to exactly `consentItems`. */
+  /** The one way a customer's own action opens a case (chat card and API): at most one open case per customer. */
+  openCustomerCase(input: { userId: string; consentItems: string[]; reasons: string[]; country: string }): RefundCase {
+    if (this.data.cases.some((x) => x.userId === input.userId && !x.consent.withdrawnAt && x.state !== 'closed')) throw new RefundError('there is already an open refund case');
+    return this.openCase(input);
+  }
   openCase(input: { userId: string; consentItems: string[]; reasons: string[]; country: string; now?: string }): RefundCase {
     if (!input.consentItems.length) throw new RefundError('a case needs consent to at least one record');
     const known = new Set(this.sourcesFor(input.userId).map((r) => r.id));
@@ -318,10 +323,17 @@ export class RefundStore {
     const c = this.get(caseId);
     if (c.consent.withdrawnAt) return;
     c.consent.withdrawnAt = this.clock();
-    for (const e of c.evidence) e.copy = null;
+    for (const e of c.evidence) { e.copy = null; e.label = `${e.kind.replace(/_/g, ' ')} (deleted)`; }
+    // Credit events tied to this case keep only what replay protection needs (the id and how it was handled).
+    // The amount, order and payment references and the link to the purchase are removed.
+    for (const h of Object.values(this.data.events ?? {})) {
+      if (h.caseId !== caseId) continue;
+      const e = h.event;
+      h.event = { eventId: e.eventId, kind: e.kind, amount: 0, currency: '', merchantId: '', status: e.status } as CreditEvent;
+    }
     const nFacts = Object.keys(c.facts).length;
     c.facts = {}; c.factSources = {}; c.drafts = {}; c.ledger = undefined;
-    for (const a of this.data.approvals ?? []) if (a.caseId === caseId && a.status === 'approved') a.status = 'revoked';
+    for (const a of this.data.approvals ?? []) if (a.caseId === caseId) { if (a.status === 'approved') a.status = 'revoked'; a.recipient = ''; a.text = ''; }
     this.log(caseId, 'consent', 'customer', `Consent withdrawn: reading and refund watching stopped; ${c.evidence.length} stored copies and ${nFacts} facts deleted; open approvals revoked; fingerprints and this log kept`);
     this.save();
   }

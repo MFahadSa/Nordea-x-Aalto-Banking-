@@ -71,7 +71,7 @@ export function registerRefundRoutes(app: Express) {
     if (!items.length) throw new RefundError('tick at least one item');
     const already = s().data.cases.find((c) => c.userId === uid && !c.consent.withdrawnAt && c.state !== 'closed');
     if (already) throw new RefundError('there is already an open refund case');
-    const c = s().openCase({ userId: uid, consentItems: items, reasons: ['refund_not_received'], country: 'FI' });
+    const c = s().openCustomerCase({ userId: uid, consentItems: items, reasons: ['refund_not_received'], country: 'FI' });
     res.status(201).json({ case: caseView(s(), c) });
   }));
 

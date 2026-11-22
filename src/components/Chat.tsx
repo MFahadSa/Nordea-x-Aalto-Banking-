@@ -1,3 +1,4 @@
+import { RefundResolved } from './Refund.js';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChatMessage, CabinetEntry, MessageCard, Share } from '../types.js';
 import { Icon, BotAvatar, Chevron } from '../ui/icons.js';
@@ -314,10 +315,10 @@ export const Chat: React.FC<Props> = (p) => {
             ))}
             {open ? (
               <div className="rf-c-a">
-                <button className="btn primary" disabled={!ids.length} onClick={() => { act('refund_allow', { items: ids }); window.setTimeout(() => window.dispatchEvent(new Event('refund-changed')), 600); }}>{ids.length ? `Allow these ${ids.length}` : 'Allow 0 items'}</button>
+                <button className="btn primary" disabled={!ids.length} onClick={() => { act('refund_allow', { items: ids }); }}>{ids.length ? `Allow these ${ids.length}` : 'Allow 0 items'}</button>
                 <button className="btn quiet" onClick={() => act('refund_no')}>Not now</button>
               </div>
-            ) : <p className="n-sub">{m.resolved}</p>}
+            ) : <RefundResolved userId={p.userId} text={m.resolved} />}
             <p className="rf-c-s"><Icon name="shield" />Abel only reads what you tick. You can withdraw any time.</p>
             <p className="rf-demo">{d.demo}</p>
           </div>
