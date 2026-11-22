@@ -5,7 +5,7 @@
     "agentId": "abel",
     "channel": "app",
     "sender": "agent",
-    "text": "Hi Lauri! 👋 I’m Nora, your banking assistant. Everything I know about you is kept in your Context Cabinet. What would you like to explore today?",
+    "text": "Hi Lauri! I’m Nora, your banking assistant. Everything I know about you is kept in your Context Cabinet. What would you like to explore today?",
     "suggestions": [
       "Am I on track for my flat deposit?",
       "What changed in my spending lately?",

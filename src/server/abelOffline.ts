@@ -256,12 +256,12 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
   // Only a plain thank-you ("thanks, and can I give my grandkids money?" is a question, not a thank-you).
   if (/\b(thanks|thank you|kiitos)\b/.test(t) && !/\?/.test(t) && t.length <= 40) return { text: 'You’re welcome! 💙', suggestions: [], usedEntryIds: [], topic: 'small_talk' };
 
-  if (/\b(bye|goodbye|see you|that['’]?s all|nothing else)\b/.test(t)) return { text: 'Bye for now! 👋 I’m here whenever you need me.', suggestions: [], usedEntryIds: [], topic: 'small_talk' };
+  if (/\b(bye|goodbye|see you|that['’]?s all|nothing else)\b/.test(t)) return { text: 'Bye for now! I’m here whenever you need me.', suggestions: [], usedEntryIds: [], topic: 'small_talk' };
   if (/^\s*(ok|okay|k|cool|great|fine|alright|nice|good)\W*$/.test(t)) return { text: '👍 Anything else I can help with?', suggestions: pills, usedEntryIds: [], topic: 'small_talk' };
 
   // Greetings.
   if (/^\s*(hi|hey|hello|moi|hei|terve|good (morning|evening|day))\b/.test(t)) {
-    return { text: `Hi ${u.name}! 👋 What would you like to look at?`, suggestions: pills, usedEntryIds: [], topic: 'small_talk' };
+    return { text: `Hi ${u.name}! What would you like to look at?`, suggestions: pills, usedEntryIds: [], topic: 'small_talk' };
   }
 
   // Anything else: honest and short, with options.
