@@ -65,7 +65,7 @@ export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = 
   const generic = (
     <button className="ncard notice" onClick={onOpen}>
       <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t"><b>{c.needsReview ? 'A credit came in that needs your check' : `Abel is watching for your ${c.merchant ?? 'shop'} refund`}</b><span>{c.needsReview ? 'It is not counted yet. Open the case to answer.' : c.promiseDate ? 'Nothing needs you right now.' : 'The shop gave no date, so Abel cannot tell if it is late.'}</span><span className="rf-demo-s">{v.demo}</span></span>
+      <span className="nt-t"><b>{c.needsReview ? 'A credit came in that needs your check' : `Abel is watching for your ${c.merchant ?? 'shop'} refund`}</b><span>{c.needsReview ? 'It is not counted yet. Open the case to answer.' : c.promiseDate ? 'Nothing needs you right now.' : 'No promised date is in the records you allowed, so Abel cannot check if it is late.'}</span><span className="rf-demo-s">{v.demo}</span></span>
       <span className="nt-go">Open</span>
     </button>
   );
