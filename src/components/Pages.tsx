@@ -36,6 +36,8 @@ interface KnowsProps {
   /** v27: "Abel's suggestions": allow again, or change an answer. */
   adviceBusy?: boolean;
   onAdviceChange?: (ruleId: string, what: 'allow' | 'forget') => void;
+  /** Opens the refund case page from the Refund cases row (the only way back in after Done clears Home). */
+  onOpenRefundCase?: () => void;
 }
 
 // ---------------- History of one entry ----------------
@@ -313,7 +315,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         <PipelineWaiting items={pipe} onDecide={decidePipe} />
         <ApprovalWaiting cards={approvals} onDecide={decideApproval} />
         {p.state.advice && p.onAdviceChange && <AdviceList view={p.state.advice} busy={!!p.adviceBusy} onChange={p.onAdviceChange} />}
-        <RefundKnows userId={state.user.id} />
+        <RefundKnows userId={state.user.id} onOpen={p.onOpenRefundCase} />
         <Band left="Goals" right={state.goals.length + staleGoals.length} />
         {state.goals.length || staleGoals.length ? (
           <div className="ncard flat">

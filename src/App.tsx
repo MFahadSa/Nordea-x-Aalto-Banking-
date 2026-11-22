@@ -521,6 +521,7 @@ export default function App() {
               onChanged={() => refresh()}
               adviceBusy={adviceBusy}
               onAdviceChange={adviceChangeRule}
+              onOpenRefundCase={() => goPage('refund')}
             />
           )}
           {page === 'privacy' && (

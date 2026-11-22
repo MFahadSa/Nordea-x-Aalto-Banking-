@@ -227,7 +227,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   );
 };
 
-export const RefundKnows: React.FC<{ userId: string }> = ({ userId }) => {
+export const RefundKnows: React.FC<{ userId: string; onOpen?: () => void }> = ({ userId, onOpen }) => {
   const { v } = useRefund(userId);
   const [ask, setAsk] = useState(false);
   const c = openCase(v);
@@ -238,7 +238,7 @@ export const RefundKnows: React.FC<{ userId: string }> = ({ userId }) => {
       <Band left="Refund cases" />
       <div className="ncard flat">
         <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={c.state === 'closed' ? `Refund received in full. Abel may keep reading the ${c.itemCount} records you allowed until you withdraw the case.` : `Abel may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
-          right={<button className="btn small" onClick={() => setAsk(true)}>Withdraw</button>} />
+          right={<span className="rf-row-b">{onOpen && <button className="btn small" onClick={onOpen}>Open</button>}<button className="btn small" onClick={() => setAsk(true)}>Withdraw</button></span>} />
         {c.receiptSavedAt && <NRow name={<><Icon name="shield" />Saved receipt</>} sub={`${c.receiptLabel ?? 'The receipt you allowed'}. Deleted when you withdraw this case.`} chevron={false} />}
         <NRow name="What withdrawing does" sub="Abel stops reading and stops watching for the refund. The copies and the facts taken from them are deleted. The log of what Abel did is kept." chevron={false} />
       </div>
