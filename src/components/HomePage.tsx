@@ -1,3 +1,4 @@
+import { RefundHomeCard } from './Refund.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
@@ -154,6 +155,7 @@ export const HomePage: React.FC<Props> = (p) => {
     <>
       <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onUsers={p.onOpenUsers} onBell={bell} />
       <div className="nbody">
+        <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         {(state.notices || []).map((n) => (
           <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
             <span className="nt-ic" aria-hidden="true"><Icon name={n.kind === 'question' ? 'chat' : 'check'} /></span>

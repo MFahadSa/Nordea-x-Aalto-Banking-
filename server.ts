@@ -22,6 +22,7 @@ import { makeChain } from './src/server/llmChain.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
 import { autoDemoOn, loadBundledDemo } from './src/server/demoSeed.js';
 import { resetRefunds } from './src/server/refund/index.js';
+import { registerRefundRoutes } from './src/server/refund/routes.js';
 import { drainRemoteFlushes } from './src/server/arch/store/common.js';
 
 // F-C: the arch stores' hosted write-back is a 250 ms-debounced, fire-and-forget push. Drain
@@ -350,6 +351,7 @@ registerDevMonitor(app);
 // Three-database architecture (User DB / Context Memory DB / Nordea DB, one agent each): /arch.html
 registerArchRoutes(app);
 registerPipelineRoutes(app);
+registerRefundRoutes(app);
 registerWorkspaceRoutes(app);
 // The Nordea employee workspace (desktop page) and the smart-glasses page.
 app.get(['/workspace', '/workspace/'], (_req, res) => res.redirect('/workspace.html'));

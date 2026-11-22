@@ -281,7 +281,9 @@ export interface MessageCard {
     /** v26: one question Abel asks to complete the context for a rule (see src/server/advice). */
     | 'ask_fact'
     /** v26: a suggestion built by code from a rule the customer qualifies for. */
-    | 'opportunity';
+    | 'opportunity'
+    /** Refund Tracker: ask before Abel reads anything for a refund case (kinds only, no amounts). */
+    | 'refund_consent';
   title?: string;
   body?: string;
   data?: Record<string, any>;

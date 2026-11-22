@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PhoneFrame } from './components/PhoneFrame.js';
 import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
+import { RefundCasePage } from './components/Refund.js';
 import { HomePage } from './components/HomePage.js';
 import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, PresenterPage, DeleteDocSheet, ConfirmSheet } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
@@ -35,7 +36,7 @@ import {
   deleteChat,
 } from './services/api.js';
 
-type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter';
+type Page = 'home' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter' | 'refund';
 
 function initialDark() {
   try {
@@ -231,6 +232,7 @@ export default function App() {
       const fresh = await fetchConversationMessages(conversationId);
       setMessages(fresh);
       refresh();
+      if (action.startsWith('refund_')) window.dispatchEvent(new Event('refund-changed'));
       void res;
     } catch (e: any) {
       setToast({ message: e?.message || 'That didn’t work' });
@@ -523,6 +525,7 @@ export default function App() {
               onRevoke={async (id) => { const r = await revokeShare(id); setToast({ message: r.message }); refresh(); }}
             />
           )}
+          {page === 'refund' && <RefundCasePage userId={state.user.id} onBack={() => goPage('home')} />}
           {page === 'presenter' && (
             <PresenterPage
               state={state}

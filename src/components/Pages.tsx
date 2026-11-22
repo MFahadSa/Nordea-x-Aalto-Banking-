@@ -1,3 +1,4 @@
+import { RefundKnows, RefundDemoTools } from './Refund.js';
 import React, { useEffect, useState } from 'react';
 import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchNordeaData, uploadNordeaData, checkNordeaFeed, pingAi, fetchAiStatus, AiStatus, runSelfTest, CheckResult, DocInfo, documentUrl, fetchHistory, fetchDbStatus, retryDbStatus, DbStatus, ApprovalCard, fetchApprovalCards, decideApprovalCard, PipeItem, fetchPipelineWaiting, decidePipelineItem, SOURCE_NAME } from '../services/api.js';
 import { CabinetEntry, EntryEvent } from '../types.js';
@@ -312,6 +313,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         <PipelineWaiting items={pipe} onDecide={decidePipe} />
         <ApprovalWaiting cards={approvals} onDecide={decideApproval} />
         {p.state.advice && p.onAdviceChange && <AdviceList view={p.state.advice} busy={!!p.adviceBusy} onChange={p.onAdviceChange} />}
+        <RefundKnows userId={state.user.id} />
         <Band left="Goals" right={state.goals.length + staleGoals.length} />
         {state.goals.length || staleGoals.length ? (
           <div className="ncard flat">
@@ -842,6 +844,7 @@ export const PresenterPage: React.FC<{ state: AppState; onBack: () => void; onUs
         <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
         <ResetRow onReset={onReset} />
       </div>
+      <RefundDemoTools userId={state.user.id} />
       <Band left="Other views" />
       <div className="ncard flat">
         <NRow name="Smart glasses" sub="Lauri’s view: inputs go through the pipeline" onClick={() => window.open('/glasses', '_blank', 'noopener')} />
