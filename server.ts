@@ -351,6 +351,7 @@ registerDevMonitor(app);
 // Three-database architecture (User DB / Context Memory DB / Nordea DB, one agent each): /arch.html
 registerArchRoutes(app);
 registerPipelineRoutes(app);
+registerRefundRoutes(app);
 registerWorkspaceRoutes(app);
 // The Nordea employee workspace (desktop page) and the smart-glasses page.
 app.get(['/workspace', '/workspace/'], (_req, res) => res.redirect('/workspace.html'));
