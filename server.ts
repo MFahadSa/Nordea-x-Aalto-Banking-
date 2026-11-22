@@ -21,6 +21,7 @@ import { providerChainMembersFromEnv } from './src/server/llmOpenAI.js';
 import { makeChain } from './src/server/llmChain.js';
 import { deleteAllDocumentFiles } from './src/server/documents.js';
 import { autoDemoOn, loadBundledDemo } from './src/server/demoSeed.js';
+import { resetRefunds } from './src/server/refund/index.js';
 import { drainRemoteFlushes } from './src/server/arch/store/common.js';
 
 // F-C: the arch stores' hosted write-back is a 250 ms-debounced, fire-and-forget push. Drain
@@ -124,6 +125,7 @@ app.post('/api/users/reset', async (req, res) => {
     // Reset = start the demo again: the bundled fictional customers are loaded straight back
     // (AUTO_DEMO_DATA=0 keeps the old behaviour: everything stays deleted).
     const loaded = autoDemoOn() ? await loadBundledDemo() : { ok: true, message: '' };
+    resetRefunds(autoDemoOn()); // refund cases, copies and logs: wiped; the demo story re-seeded
     await db.reload();
     if (!loaded.ok) return res.status(500).json({ error: `Reset, but the demo customers were not loaded: ${loaded.message}` }); // say so, never a silent empty app
     res.json({ message: autoDemoOn() ? 'Demo data reset' : 'All data deleted. Load data again with scripts/load_data.py.' });

@@ -1,0 +1,5 @@
+{
+  "about": "Working-day calendar for the shop's own refund promise (a demo convention, not a legal rule). Weekend days use JavaScript numbering: 0 = Sunday, 6 = Saturday. Holidays are Finnish public holidays the demo knows about; extend before relying on other years.",
+  "weekend": [0, 6],
+  "holidays": ["2026-12-06", "2026-12-24", "2026-12-25", "2026-12-26", "2027-01-01", "2027-01-06"]
+}
