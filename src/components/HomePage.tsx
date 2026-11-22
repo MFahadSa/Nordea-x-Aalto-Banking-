@@ -1,4 +1,4 @@
-import { RefundHomeCard, RefundAbelCard, useRefundAbelCount } from './Refund.js';
+import { RefundHomeCard, RefundNoraCard, useRefundNoraCount } from './Refund.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
@@ -16,7 +16,7 @@ interface Props {
   onDeleteChat?: (id: string) => void;
   onDeleteAllChats?: () => void;
   onOpenPage: (page: string) => void;
-  onOpenUsers: () => void;
+  onOpenMore: () => void;
   onConfirm: (e: CabinetEntry) => void;
   onWrong: (e: CabinetEntry) => void;
   onArchive: (e: CabinetEntry) => void;
@@ -33,27 +33,29 @@ export function feedItems(entries: CabinetEntry[]) {
   return entries.filter((e) => (e.source === 'nordea' && !e.reviewed && e.status === 'active') || e.status === 'stale');
 }
 
-export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame: (w: string) => void; onAsk: () => void; onUsers: () => void; onBell: () => void }> = ({ state, feedCount, onFrame, onAsk, onUsers, onBell }) => (
+export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame: (w: string) => void; onAsk: () => void; onMore: () => void; onBell: () => void }> = ({ state, feedCount, onFrame, onAsk, onMore, onBell }) => (
   <header className="nhead" style={{ backgroundImage: BAND_BG }}>
     <div className="nhead-top">
       <span className="nh-right" style={{ marginLeft: 'auto' }}>
-        <button className="nh-bell" onClick={onBell} aria-label={`Notifications${feedCount ? ': ' + feedCount : ''}`}>
+        <button className="nh-bell nh-ic" onClick={onBell} aria-label={`Notifications${feedCount ? ': ' + feedCount : ''}`}>
           <span className="bell">
             <Bell />
             {feedCount > 0 && <i>{feedCount}</i>}
           </span>
         </button>
-        <button className={`avatar a-${state.user.persona}`} onClick={onUsers} aria-label="Switch demo customer">
-          {state.user.name[0]}
+        {/* v31: like the Nordea app, the person icon opens More (profile, settings, presenter tools).
+            Switching the demo customer stays in More → Presenter tools. */}
+        <button className="nh-ic" onClick={onMore} aria-label="More: your details and settings">
+          <Icon name="person" />
         </button>
       </span>
     </div>
     {/* v30: laid out like the bank's own overview: the welcome on the left, quick actions in a card below. */}
     <h1 className="nwelcome left">Welcome, {state.user.name}!</h1>
-    {/* What this concept adds: a bar that opens the chat with Abel. */}
+    {/* What this concept adds: a bar that opens the chat with Nora. */}
     <button className="ask-bar" onClick={onAsk}>
       <Icon name="spark" />
-      <span>Ask Abel anything…</span>
+      <span>Ask Nora anything…</span>
       <i className="live-dot" aria-hidden="true" />
     </button>
   </header>
@@ -86,7 +88,7 @@ export const HomePage: React.FC<Props> = (p) => {
   const { state } = p;
   const [feedAll, setFeedAll] = useState(false);
   const [accOpen, setAccOpen] = useState(false);
-  // v30: the bell takes you to "From Abel", opened and marked (it used to open it off screen).
+  // v30: the bell takes you to "From Nora", opened and marked (it used to open it off screen).
   const [fromBell, setFromBell] = useState(false);
   const abelRef = useRef<HTMLDivElement>(null);
   const bell = () => {
@@ -106,7 +108,7 @@ export const HomePage: React.FC<Props> = (p) => {
   const carGoal = state.entries.find((e) => e.goalType === 'car' && e.status !== 'archived');
 
   const forYou = state.advice?.forYou && p.onAdviceAnswer ? state.advice.forYou : null;
-  const refundN = useRefundAbelCount(state.user.id);
+  const refundN = useRefundNoraCount(state.user.id);
   const abelCount = feed.length + (forYou ? 1 : 0) + refundN;
   // On Home the refund already has its own row, so the list counts it only once the bell has opened the full list.
   const listCount = abelCount - (feedAll ? 0 : refundN);
@@ -156,7 +158,7 @@ export const HomePage: React.FC<Props> = (p) => {
 
   return (
     <>
-      <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onUsers={p.onOpenUsers} onBell={bell} />
+      <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onMore={p.onOpenMore} onBell={bell} />
       <div className="nbody">
         {(state.notices || []).map((n) => (
           <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
@@ -165,7 +167,7 @@ export const HomePage: React.FC<Props> = (p) => {
             <span className="nt-go">{n.kind === 'question' ? 'Answer' : 'Open'}</span>
           </button>
         ))}
-        {/* The existing Nordea app: shown so Abel sits in a familiar place. Tapping says so. */}
+        {/* The existing Nordea app: shown so Nora sits in a familiar place. Tapping says so. */}
         <QuickActions onFrame={p.onFrame} />
         <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         <div className="ncard">
@@ -197,7 +199,7 @@ export const HomePage: React.FC<Props> = (p) => {
           </div>
         </div>
         <div className="ncard">
-          <button className="nrow2 head" onClick={() => p.onOpenPage('knows')}>
+          <button className="nrow2 head" onClick={() => p.onOpenPage('invest')}>
             <span className="n-l">
               <span className="n-name b">Save and invest</span>
               <span className="n-sub">
@@ -208,32 +210,32 @@ export const HomePage: React.FC<Props> = (p) => {
           </button>
         </div>
 
-        {/* v30: one place for everything from Abel (what Nordea noticed, old goals, and the one question or
+        {/* v30: one place for everything from Nora (what Nordea noticed, old goals, and the one question or
             suggestion). Home shows the first; the rest are one tap away. */}
         <div ref={abelRef} className={`abel-anchor${fromBell ? ' from-bell' : ''}`}>
           {listCount > 0 ? (
-            <Band left={fromBell ? `From Abel · ${listCount} new` : 'From Abel'} right={fromBell ? 'From the bell' : feedAll || listCount === 1 ? `${listCount} for you` : `1 of ${listCount}`} />
+            <Band left={fromBell ? `From Nora · ${listCount} new` : 'From Nora'} right={fromBell ? 'From the bell' : feedAll || listCount === 1 ? `${listCount} for you` : `1 of ${listCount}`} />
           ) : fromBell ? (
-            <><Band left="From Abel" /><p className="abel-none">Nothing new from Abel right now.</p></>
+            <><Band left="From Nora" /><p className="abel-none">Nothing new from Nora right now.</p></>
           ) : null}
         </div>
         {feedAll ? (
           <>
-            <RefundAbelCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
+            <RefundNoraCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
             {feed.map(card)}
             {forYouCard}
           </>
         ) : feed.length ? card(feed[0]) : forYouCard}
         {!feedAll && listCount > 1 && (
           <button className="nshowall plain" onClick={() => setFeedAll(true)}>
-            See all {listCount} from Abel
+            See all {listCount} from Nora
           </button>
         )}
 
         <div className="ncard">
           <div className="nhead-row">
             <div>
-              <h3>Abel can help with</h3>
+              <h3>Nora can help with</h3>
             </div>
           </div>
           <div className="helpers in-card">
@@ -253,7 +255,7 @@ export const HomePage: React.FC<Props> = (p) => {
         </div>
 
         <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} onDelete={p.onDeleteChat} onDeleteAll={p.onDeleteAllChats} />
-        <p className="foot-note">You can see and remove what Abel uses in Abel knows.</p>
+        <p className="foot-note">You can see and remove what Nora uses in Nora knows.</p>
       </div>
     </>
   );
@@ -262,7 +264,7 @@ export const HomePage: React.FC<Props> = (p) => {
 export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: () => void; onOpen: (id: string) => void; onDelete?: (id: string) => void; onDeleteAll?: () => void }> = ({ state, all, onToggle, onOpen, onDelete, onDeleteAll }) => {
   const list = state.conversations;
   const shown = all ? list : list.slice(0, 3);
-  // No chats yet: no empty box (Abel's helpers and "Ask Abel" are right there).
+  // No chats yet: no empty box (Nora's helpers and "Ask Nora" are right there).
   if (!list.length) return null;
   return (
     <div className="ncard">
@@ -293,7 +295,7 @@ export const HistoryCard: React.FC<{ state: AppState; all: boolean; onToggle: ()
           {list.length > 3 && <button className="nshowall" onClick={onToggle}>{all ? 'Show less' : 'Show all'}</button>}
         </>
       ) : (
-        <p className="hist-empty">Your chats with Abel will show up here.</p>
+        <p className="hist-empty">Your chats with Nora will show up here.</p>
       )}
     </div>
   );

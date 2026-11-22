@@ -37,14 +37,14 @@ export function explainCase(v: ReturnType<typeof caseView>): { lines: string[]; 
   const c = v as any; const lines: string[] = [];
   const shop = c.merchant ?? 'the shop';
   if (c.expected != null) lines.push(`Your ${shop} refund${c.item ? ` for ${c.item}` : ''}: ${fmtE(c.expected)} expected, ${fmtE(c.received ?? 0)} received${(c.remaining ?? 0) > 0 ? `, ${fmtE(c.remaining)} still to come` : ''}.`);
-  else lines.push('The records you allowed do not show what was bought or for how much, so Abel cannot say how much is owed.');
+  else lines.push('The records you allowed do not show what was bought or for how much, so Nora cannot say how much is owed.');
   if (c.promiseDate) lines.push(`The shop promised it by ${fmtD(c.promiseDate)}.${c.late && (c.remaining ?? 0) > 0 ? ` That was ${c.late.workingDays ?? c.late} working days ago.` : ''}`);
-  else lines.push('No promised date is in the records you allowed, so Abel cannot check if it is late.');
+  else lines.push('No promised date is in the records you allowed, so Nora cannot check if it is late.');
   if (c.needsReview) lines.push('A credit came in that needs your check before it is counted.');
   const msgs = c.shopMessages ?? []; const last = msgs[msgs.length - 1];
   if (last) lines.push(last.direction === 'out' ? `You wrote to ${shop} on ${fmtD(last.at)}. No reply yet.` : last.kind === 'will_refund' ? `${shop} replied that it will refund the rest.` : last.kind === 'needs_more' ? `${shop} replied that it needs proof of the return.${c.canWrite === 'answer' ? '' : c.hasTracking ? ' Your return tracking is allowed but does not show enough to answer with.' : ' The records you allowed do not include it. To add it, withdraw this case and start again, allowing the return tracking too.'}` : `${shop} replied that it cannot refund the rest.`);
-  if (c.shopDeclinedAt) lines.push('The case stays open and Abel keeps watching.');
-  const next = c.canWrite === 'answer' ? 'You can answer with your return tracking. Abel drafts it and you approve the exact words.' : c.canWrite === 'inquiry' ? 'You can write to the shop from here. Abel drafts it and you approve the exact words.' : c.canWrite === 'reminder' ? "The shop's date has passed. You can send a reminder, and you approve the exact words." : (c.remaining ?? 0) <= 0 && c.expected != null ? 'Nothing more to do.' : last?.direction === 'out' ? 'Waiting for the shop to reply.' : '';
+  if (c.shopDeclinedAt) lines.push('The case stays open and Nora keeps watching.');
+  const next = c.canWrite === 'answer' ? 'You can answer with your return tracking. Nora drafts it and you approve the exact words.' : c.canWrite === 'inquiry' ? 'You can write to the shop from here. Nora drafts it and you approve the exact words.' : c.canWrite === 'reminder' ? "The shop's date has passed. You can send a reminder, and you approve the exact words." : (c.remaining ?? 0) <= 0 && c.expected != null ? 'Nothing more to do.' : last?.direction === 'out' ? 'Waiting for the shop to reply.' : '';
   return { lines, next };
 }
 
@@ -89,10 +89,10 @@ export function registerRefundRoutes(app: Express) {
   // The customer's refund cases, plus what the consent card would offer for a new one.
   app.get('/api/refund/:uid', h((req, res) => {
     const uid = String(req.params.uid);
-    res.json({ today: DEMO_TODAY, cases: s().data.cases.filter((c) => c.userId === uid).map((c) => caseView(s(), c)), offer: consentOffer(s(), uid), demo: 'Demo: fictional data, nothing is really sent or claimed.' });
+    res.json({ today: DEMO_TODAY, cases: s().data.cases.filter((c) => c.userId === uid).map((c) => caseView(s(), c)), offer: consentOffer(s(), uid), demo: 'Nothing is really sent or claimed.' });
   }));
 
-  // The customer ticks records and allows Abel to read them. Only offered records can be ticked.
+  // The customer ticks records and allows Nora to read them. Only offered records can be ticked.
   app.post('/api/refund/:uid/cases', h((req, res) => {
     const uid = String(req.params.uid);
     const items = Array.isArray(req.body?.consentItems) ? req.body.consentItems.map(String) : [];
@@ -117,12 +117,12 @@ export function registerRefundRoutes(app: Express) {
   app.post('/api/refund/case/:id/withdraw', h((req, res) => {
     const id = String(req.params.id);
     s().withdrawConsent(id);
-    // Status answers Abel wrote in chat from this case carry its amounts and order. They go with the case. The customer's own messages stay.
+    // Status answers Nora wrote in chat from this case carry its amounts and order. They go with the case. The customer's own messages stay.
     for (const m of db.getMessages(s().get(id).userId)) if ((m as any).refundCaseId === id) db.updateMessage(m.id, { text: 'This refund status was removed when you withdrew the case.', refundCaseId: undefined } as any);
     res.json({ case: caseView(s(), s().get(id)) });
   }));
 
-  // Writing to the shop: the text Abel would send, then the customer's approval of that exact text.
+  // Writing to the shop: the text Nora would send, then the customer's approval of that exact text.
   app.get('/api/refund/case/:id/shop-draft', h((req, res) => {
     const m = s().composeShopMessage(String(req.params.id), caseToday(s().get(String(req.params.id)), DEMO_TODAY));
     res.json({ caseId: String(req.params.id), basis: m.basis, kind: m.kind, recipient: m.recipient, text: m.text, cites: m.evidenceLabels });
@@ -133,7 +133,7 @@ export function registerRefundRoutes(app: Express) {
     res.json({ result: r, case: caseView(s(), s().get(id)) });
   }));
 
-  // Keep the allowed receipt in Abel knows until the case is withdrawn.
+  // Keep the allowed receipt in Nora knows until the case is withdrawn.
   app.post('/api/refund/case/:id/save-receipt', h((req, res) => {
     const id = String(req.params.id);
     s().saveReceipt(id);

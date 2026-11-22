@@ -7,9 +7,9 @@
   "when": "The customer needs help with moving, movers, packing or a moving van.",
   "cta": "See prices",
   "view": "Ask for a quote",
-  "buy": "Book it (demo)",
+  "buy": "Book it",
   "verb": "booked",
-  "alternative": "Or plan the moving costs with Abel, free",
+  "alternative": "Or plan the moving costs with Nora, free",
   "fee": {
     "type": "flat",
     "value": 40

@@ -33,7 +33,7 @@ export function assessProposalRisk(proposal: AgentMessage): Risk {
 }
 
 /**
- * G2: the same code rules for writes that arrive from the APP (Abel's screens, imports),
+ * G2: the same code rules for writes that arrive from the APP (Nora's screens, imports),
  * applied by the owning agent at write time - never taken from the caller's own claim.
  * The customer's own direct input is observed+low; bank-evidenced aggregates observed+medium;
  * anything else is inferred+high; a sensitive topic is always high (F21).

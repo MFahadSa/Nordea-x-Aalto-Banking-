@@ -31,7 +31,7 @@ resetRefunds(true);
 let r = await call('GET', U);
 check('offer lists the 4 record kinds', r.json.offer.length === 4 && r.json.offer.map((o: any) => o.kind).join() === 'card_transaction,receipt,return_tracking,seller_email');
 check('offer text has no amount, order number or date before consent', !/\d+[.,]\d{2}|TE-\d+|\d{4}/.test(JSON.stringify(r.json.offer.map((o: any) => [o.title, o.sub]))), r.json.offer);
-check('no case yet, demo label present', r.json.cases.length === 0 && /fictional data/.test(r.json.demo));
+check('no case yet, honesty note present', r.json.cases.length === 0 && /nothing is really sent/i.test(r.json.demo));
 const ids = r.json.offer.map((o: any) => o.id);
 // --- presenter before any case: everything off
 let p = await call('GET', `${U}/presenter`);

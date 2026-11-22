@@ -128,7 +128,7 @@ try {
   check('V7: goal edit lands and shows in both views', edit.status === 200 && JSON.stringify(stEdit?.goals).includes('e2e temp goal edited') && JSON.stringify(monEdit?.arch?.goals).includes('e2e temp goal edited'), { tmp: [tmpGoal.status, tmpGoal.json], edit: [edit.status, edit.json], goals: stEdit?.goals });
   const del = await api('POST', `/api/arch/${UID}/goals/${tmpId}/delete`);
   const stDel = (await api('GET', `/api/arch/${UID}/state`)).json;
-  check('V7: goal delete removes it from Abel\'s knowledge (both views)', del.status === 200 && !JSON.stringify(stDel?.goals).includes('e2e temp goal edited') && stDel?.databases?.user?.goals === goalsBefore + 1, stDel?.goals);
+  check('V7: goal delete removes it from Nora\'s knowledge (both views)', del.status === 200 && !JSON.stringify(stDel?.goals).includes('e2e temp goal edited') && stDel?.databases?.user?.goals === goalsBefore + 1, stDel?.goals);
 
   // 2. A review decision on /arch.html changes what the agent's chat answers from
   const preChat = await api('POST', `/api/arch/${UID}/chat`, { text: 'how much have I saved for the car?' });

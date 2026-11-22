@@ -137,7 +137,7 @@ check('the answer survives storage with its key and value', db.getCabinetEntries
 
 answer('lauri', 'everOwnedHalfOfHome', true);
 const l3 = factsFor('lauri');
-check('two answers that disagree are a conflict, and Abel asks again', l3.everOwnedHalfOfHome.state === 'conflict' && E.evaluate(versionsOf('asp-account'), l3, DEMO_TODAY).ask?.fact === 'everOwnedHalfOfHome', l3.everOwnedHalfOfHome);
+check('two answers that disagree are a conflict, and Nora asks again', l3.everOwnedHalfOfHome.state === 'conflict' && E.evaluate(versionsOf('asp-account'), l3, DEMO_TODAY).ask?.fact === 'everOwnedHalfOfHome', l3.everOwnedHalfOfHome);
 
 answer('eeva', 'helpsFamilyWithMoney', true, { createdAt: '2025-09-01T09:00:00.000Z', updatedAt: '2025-09-01T09:00:00.000Z' });
 const e1 = factsFor('eeva');
@@ -150,7 +150,7 @@ const hc = E.evaluate(versionsOf('household-credit'), e2, DEMO_TODAY);
 check('a private answer is never used, and never asked again', e2.paysForHouseholdWork.state === 'hidden' && hc.status === 'notEligible', { fact: e2.paysForHouseholdWork, hc });
 
 answer('eeva', 'interestedInInvesting', true, { readableBy: { abel: false, offers: false } });
-check('an answer Abel may not read stays hidden', factsFor('eeva').interestedInInvesting.state === 'hidden');
+check('an answer Nora may not read stays hidden', factsFor('eeva').interestedInInvesting.state === 'hidden');
 answer('eeva', 'savingForHome', 'yes');
 check('a wrongly typed answer ("yes" for a yes/no) is ignored, not trusted', factsFor('eeva').savingForHome.state === 'unknown');
 answer('eeva', 'healthCondition', true);
@@ -164,7 +164,7 @@ check('Alex (no account history): income is unknown, never "none"', x.incomeType
 // Hidden home goal: no inference from it.
 const goal = db.getCabinetEntries('lauri').find((e) => e.type === 'goal' && e.goalType === 'home')!;
 db.updateCabinetEntry(goal.id, { readableBy: { ...goal.readableBy, abel: false } } as any, { by: 'you' } as any);
-check('a home goal Abel may not read says nothing about saving for a home', factsFor('lauri').savingForHome.state === 'unknown');
+check('a home goal Nora may not read says nothing about saving for a home', factsFor('lauri').savingForHome.state === 'unknown');
 db.updateCabinetEntry(goal.id, { readableBy: { ...goal.readableBy, abel: true } } as any, { by: 'you' } as any);
 
 // Pirkko, 58: a PS account with a balance; a future snapshot is ignored.
@@ -176,7 +176,7 @@ db.addBalanceSnapshot({ id: 'ps2', userId: 'pirkko', accountKey: 'ps', balance: 
 const p26 = factsFor('pirkko', '2026-11-20');
 check('Pirkko: Nordea knows her PS account', p26.hasPsAccount.value === true && E.evaluate(versionsOf('ps-account'), p26, '2026-11-20').status === 'eligible', p26.hasPsAccount);
 const p27 = factsFor('pirkko', '2027-01-05');
-check('Pirkko in January 2027: balance 4 200 € (a later snapshot is ignored), so Abel asks about withdrawals', p27.psBalance.value === 4200 && E.evaluate(versionsOf('ps-account'), p27, '2027-01-05').ask?.fact === 'psWithdrawalsStarted', p27.psBalance);
+check('Pirkko in January 2027: balance 4 200 € (a later snapshot is ignored), so Nora asks about withdrawals', p27.psBalance.value === 4200 && E.evaluate(versionsOf('ps-account'), p27, '2027-01-05').ask?.fact === 'psWithdrawalsStarted', p27.psBalance);
 
 // Sara, 19: student aid paid into Nordea.
 db.cloneUser('alex', 'sara');

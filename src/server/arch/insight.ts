@@ -201,7 +201,7 @@ export function buildGoalCard(goalTitle: string, a: InsightAnalysis, asOfMonth?:
   return { sparse: false, target, text: textParts.join(' '), evidence: evidenceParts.join(' ') };
 }
 
-/** Figure guard for the model path (mirrors the Abel reply guard): every number the model
+/** Figure guard for the model path (mirrors the Nora reply guard): every number the model
  *  writes must be one of the code-computed figures, compared as whole numbers. */
 export function figuresFromText(text: string): number[] {
   const out: number[] = [];

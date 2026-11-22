@@ -83,14 +83,14 @@ export interface ImportItem {
   target?: { amount: number; date: string };
 }
 
-const PRIVATE_NOTE = 'Looks private, so it’s not ticked. If you save it, only Abel can read it, never offers.';
+const PRIVATE_NOTE = 'Looks private, so it’s not ticked. If you save it, only Nora can read it, never offers.';
 
 const SAMPLE_ITEMS: ImportItem[] = [
   { on: true, type: 'goal', title: 'Wedding in summer 2027', detail: 'About 15 000 € by July 2027 · with Mia', quote: 'if we say 15k for the wedding… July 2027?', target: { amount: 15000, date: '2027-07-31' } },
   { on: true, type: 'fact', title: 'Car loan ends in March 2027', detail: 'About 180 € a month freed up', quote: 'my car loan ends in March, that frees up like 180 a month' },
   { on: true, type: 'life_event', title: 'Mia starts a new job in January', detail: 'Household income will change', quote: 'I start at the hospital in January' },
   { on: true, type: 'preference', title: 'Never below 2 000 € in my account', detail: 'A buffer that keeps me calm', quote: 'I never want less than 2000 in the account' },
-  { on: false, sensitive: true, type: 'fact', title: 'Mia’s health costs', detail: 'Knee surgery costs to sort out first', note: 'Looks private, so it’s not ticked. If you save it, only Abel can read it, never offers.', quote: 'I need to sort my knee surgery costs first' },
+  { on: false, sensitive: true, type: 'fact', title: 'Mia’s health costs', detail: 'Knee surgery costs to sort out first', note: 'Looks private, so it’s not ticked. If you save it, only Nora can read it, never offers.', quote: 'I need to sort my knee surgery costs first' },
 ];
 
 function dedupe(userId: string, items: ImportItem[]): ImportItem[] {
@@ -105,7 +105,7 @@ function dedupe(userId: string, items: ImportItem[]): ImportItem[] {
     if (how === 'conflict' || how === 'adds')
       return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, updates: true,
         note: `Changes “${hit.title}”${was}${it.target ? ` to ${fmt(it.target.amount)} by ${monthName(it.target.date)}` : ''}. Tick to update it.` };
-    return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, note: `Already in what Abel knows: “${hit.title}”. Tick to save it as well.` };
+    return { ...it, on: false, duplicateOf: hit.title, duplicateOfId: hit.id, note: `Already in what Nora knows: “${hit.title}”. Tick to save it as well.` };
   });
 }
 
@@ -118,9 +118,9 @@ export interface ProposeResult {
   kind?: string;
   summary?: string;
   amount?: number;
-  /** Why reading failed (shown small under Abel's message, like chat errors). */
+  /** Why reading failed (shown small under Nora's message, like chat errors). */
   errorDetail?: string;
-  /** The text read from the file (for a kept copy, so Abel can answer questions about it later). */
+  /** The text read from the file (for a kept copy, so Nora can answer questions about it later). */
   text?: string;
 }
 

@@ -1,4 +1,4 @@
-/* Abel design system, taken from the v14 prototype (abel-home-v14.html): same tokens, same class names.
+/* Nora design system, taken from the v14 prototype (abel-home-v14.html): same tokens, same class names.
    Noto Sans 400/600/700 is bundled in /public/fonts (no external font request). Light is the default; data-theme="dark" switches. */
 @font-face{font-family:'Noto Sans';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/noto-sans-400.woff2) format('woff2')}
 @font-face{font-family:'Noto Sans';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/noto-sans-600.woff2) format('woff2')}
@@ -524,6 +524,8 @@ body{font-size:16px}
 .nhead{background-color:#0000A0;background-repeat:no-repeat,no-repeat;background-position:right top,0 0;background-size:390px 260px,100% 100%;color:#fff;padding:8px 16px 22px;text-align:center}
 .nhead-top{display:flex;justify-content:space-between;align-items:center}
 .nhead .nh-right{display:flex;gap:10px;align-items:center}
+.nh-ic{border:1.5px solid rgba(255,255,255,.75);border-radius:50%;width:34px;height:34px;display:grid;place-items:center;background:none;color:#fff;cursor:pointer;padding:0}
+.nh-ic svg{width:19px;height:19px}
 .nhead .nh-bell{border:0;background:none;color:#fff;cursor:pointer;padding:4px}
 .nhead .avatar{width:32px;height:32px;font-size:14px;box-shadow:0 0 0 2px rgba(255,255,255,.55);cursor:pointer}
 .nlogo.c{height:30px;margin:14px auto 0}
@@ -688,7 +690,7 @@ span.cam-x{background:none}
 .clamp1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 .row-txt .meta.warn{color:var(--warn)}
 
-/* ---- Goal detail panel (Abel knows → tap a goal) ---- */
+/* ---- Goal detail panel (Nora knows → tap a goal) ---- */
 .goal-more{padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--line);animation:v14in .18s ease}
 .gm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .gm-stats>div{background:var(--surface-2);border-radius:10px;padding:10px 10px 9px;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -764,7 +766,7 @@ span.cam-x{background:none}
 .nd-msg.up{color:var(--ok)}.nd-msg.ai-bad{color:var(--danger)}
 .chat-in .chat-plus,.chat-in .chat-mic{margin-bottom:3px}.chat-in .chat-send{margin-bottom:1px}
 
-/* ---- What Abel knows (summary, waiting items) and Rewards (level bar, data tiles): same fonts and sizes as the rest of the app ---- */
+/* ---- What Nora knows (summary, waiting items) and Rewards (level bar, data tiles): same fonts and sizes as the rest of the app ---- */
 .dh-side{border:0;background:none;color:#fff;font:inherit;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 0}
 .dh-side svg{width:17px;height:17px}
 .kn-head{padding-bottom:18px}
@@ -795,10 +797,10 @@ span.cam-x{background:none}
 .dr-how{font-size:13.5px;color:var(--ink-2);line-height:1.45;margin:10px 2px 0}
 .kn-head .dh-top{display:grid;grid-template-columns:1fr auto 1fr}.kn-head .dh-top b{text-align:center}.kn-head .dh-side{justify-self:end}
 
-/* Quick replies sit under Abel's reply, on the left, so they don't look like your own messages */
+/* Quick replies sit under Nora's reply, on the left, so they don't look like your own messages */
 .qr{justify-content:flex-start!important;align-items:flex-start!important}.qr-b{text-align:left}
 
-/* Home: "Ask Abel anything…" bar above the bank's own buttons */
+/* Home: "Ask Nora anything…" bar above the bank's own buttons */
 .ask-bar{display:flex;align-items:center;gap:10px;width:100%;margin:14px 0 4px;padding:12px 16px;border:0;border-radius:999px;background:#fff;color:#6B7090;font:inherit;font-size:15.5px;cursor:pointer;position:relative;box-shadow:0 2px 8px rgba(0,0,40,.25);text-align:left}
 .ask-bar svg{width:22px;height:22px;color:#0000A0;flex:none}
 .ask-bar .live-dot{position:absolute;right:16px;top:50%;margin-top:-5px;width:10px;height:10px;border-radius:50%;background:#2BB673}
@@ -822,7 +824,7 @@ span.cam-x{background:none}
 .offer.adv .adv-date{flex-wrap:wrap}.offer.adv .adv-date input{flex:1 1 100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit}
 .offer.adv .adv-done{padding:10px 14px 2px}
 
-/* v27: Abel's suggestions outside the chat (Home "For you", Why sheet, setting) */
+/* v27: Nora's suggestions outside the chat (Home "For you", Why sheet, setting) */
 .adv-home .adv-eq{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}
 .adv-home .adv-eq .btn{min-height:48px;justify-content:center}
 .adv-home .adv-whybtn{align-self:flex-start;min-height:44px;padding:0 4px}
@@ -909,7 +911,7 @@ span.cam-x{background:none}
 .rf-draft{width:100%;box-sizing:border-box;border:1px solid var(--line,#d5d8e2);border-radius:8px;padding:10px;font:inherit;font-size:14px;line-height:1.4;margin:6px 0;resize:vertical}
 .cf-sheet.tall{max-height:88%;overflow-y:auto}
 .rf-draftbox{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
-/* Refund: slim Home row under Quick actions, and the same item in From Abel */
+/* Refund: slim Home row under Quick actions, and the same item in From Nora */
 .ncard.notice.rf-row{display:block;padding:0;border-left:4px solid #b26a00;overflow:hidden}
 .ncard.notice.rf-row.green{border-left-color:#1c7a5a}
 .rf-row-h{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:none;cursor:pointer;padding:14px 16px;font:inherit;color:inherit}

@@ -20,7 +20,7 @@ export interface Candidate {
   sensitive?: boolean;
 }
 
-/** The closest active thing Abel already knows that looks like the same thing, if any. */
+/** The closest active thing Nora already knows that looks like the same thing, if any. */
 export function findSimilar(userId: string, c: Candidate): CabinetEntry | undefined {
   // v29: the customer's own name (and the people around them, written in every detail) is not a shared topic.
   const names = new Set(words(String(db.getUser(userId)?.name || '')));

@@ -189,7 +189,7 @@ export interface AppState {
   /** Files the customer chose to keep. Info only, never the file itself. */
   documents: DocInfo[];
   today: string;
-  /** v27: Home "For you", "Abel's suggestions" and the setting. */
+  /** v27: Home "For you", "Nora's suggestions" and the setting. */
   advice?: AdviceView;
 }
 export interface DocInfo { id: string; name: string; kind: 'image' | 'pdf' | 'text'; size: number; createdAt: string; expiresAt: string; conversationId?: string; entries: string[] }
@@ -317,7 +317,7 @@ export interface PipeItem {
   reason: string; filter: 'kept' | 'private' | 'merged'; customer: 'waiting' | 'saved' | 'private' | 'dropped'; entryId?: string; updatesId?: string;
 }
 export interface PipeRun { id: string; source: PipeSource; at: string; label: string; heard: number; kept: number; private: number; dropped: number; merged: number; aiJudged: boolean }
-export const SOURCE_NAME: Record<PipeSource, string> = { glasses: 'Smart glasses', whatsapp: 'WhatsApp', document: 'Document', csv: 'Bank data', abel: 'Abel chat', cloud: 'Personal AI cloud' };
+export const SOURCE_NAME: Record<PipeSource, string> = { glasses: 'Smart glasses', whatsapp: 'WhatsApp', document: 'Document', csv: 'Bank data', abel: 'Nora chat', cloud: 'Personal AI cloud' };
 export const fetchPipelineWaiting = (userId: string): Promise<PipeItem[]> =>
   fetch(`/api/pipeline/${encodeURIComponent(userId)}/waiting`).then((r) => (r.ok ? r.json() : { items: [] })).then((d) => d.items ?? []).catch(() => []);
 export const decidePipelineItem = (userId: string, id: string, action: 'save' | 'private' | 'drop') =>
@@ -325,7 +325,7 @@ export const decidePipelineItem = (userId: string, id: string, action: 'save' | 
 export const sendToPipeline = (userId: string, source: PipeSource, input: { signals?: { text: string; kind?: string }[]; text?: string; file?: { mimeType: string; data: string; name?: string }; label?: string }) =>
   post('/api/ingest', { userId, source, ...input }).then((r) => j<{ run: PipeRun; candidates: PipeItem[]; message?: string }>(r));
 
-// v27: Abel's suggestions outside the chat.
+// v27: Nora's suggestions outside the chat.
 export const adviceHome = (userId: string, ruleId: string, version: string, action: string, payload: Record<string, unknown> = {}) =>
   post('/api/advice/home', { userId, ruleId, version, action, payload }).then((r) => j<AdviceView & { text: string }>(r));
 export const adviceShow = (userId: string, ruleId: string) => post('/api/advice/show', { userId, ruleId }).then((r) => j<{ conversationId: string }>(r));

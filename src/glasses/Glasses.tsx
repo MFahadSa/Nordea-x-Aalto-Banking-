@@ -1,7 +1,7 @@
 // Smart glasses (concept, after coolkowkank's smart-glasses demo): Lauri's first-person view.
 // The glasses' personal agent holds what it sees and hears ON THE DEVICE; nothing leaves until Lauri
 // syncs. A sync sends the signals into the input pipeline (usefulness + privacy filter), and only
-// what looked useful waits in his app for his decision. Questions go to Abel, who answers from what
+// what looked useful waits in his app for his decision. Questions go to Nora, who answers from what
 // Lauri allowed. The right-hand panel is for the presenter: the story steps and the other inputs.
 import React, { useEffect, useRef, useState } from 'react';
 import { MOMENTS, WHATSAPP, PAYSLIP, CALENDAR, BANK_UPDATE, type Moment } from './samples.js';
@@ -75,9 +75,9 @@ export const Glasses: React.FC = () => {
       const r = await post<any>('/api/chat', { userId: UID, helperId: 'abel', text, conversationId: conv, requestId: `glasses-${Date.now()}` });
       setConv(r.conversationId);
       const reply = r.messages?.[r.messages.length - 1]?.text || '…';
-      setBubble({ who: 'Abel · from what you allowed', text: reply });
+      setBubble({ who: 'Nora · from what you allowed', text: reply });
       say(reply);
-    } catch (e: any) { setBubble({ who: 'Abel', text: `I can’t answer right now (${e.message}).` }); } finally { setBusy(''); }
+    } catch (e: any) { setBubble({ who: 'Nora', text: `I can’t answer right now (${e.message}).` }); } finally { setBusy(''); }
   };
 
   const play = (m: Moment) => {
@@ -94,7 +94,7 @@ export const Glasses: React.FC = () => {
     try {
       const r = await post<any>('/api/ingest', { userId: UID, source: 'glasses', label: `Smart glasses · ${buffer.length} signals`, signals: buffer });
       const run = r.run;
-      const text = `${run.heard} heard → ${run.kept} useful${run.private ? ` + ${run.private} private` : ''} · ${run.dropped} dropped${run.merged ? ` · ${run.merged} already known` : ''}. Waiting for you in the app: What Abel knows → From your inputs.${run.aiJudged ? '' : ' (AI unavailable: the rule check decided.)'}${r.stored ? `\n${r.stored.where === 'supabase' ? '✓ ' : '⚠ '}${r.stored.message}` : ''}`;
+      const text = `${run.heard} heard → ${run.kept} useful${run.private ? ` + ${run.private} private` : ''} · ${run.dropped} dropped${run.merged ? ` · ${run.merged} already known` : ''}. Waiting for you in the app: What Nora knows → From your inputs.${run.aiJudged ? '' : ' (AI unavailable: the rule check decided.)'}${r.stored ? `\n${r.stored.where === 'supabase' ? '✓ ' : '⚠ '}${r.stored.message}` : ''}`;
       setRes({ ok: !r.stored || r.stored.ok, text });
       setBubble({ who: 'Personal AI · synced', text: `Sent ${run.kept + run.private} of ${run.heard} things to your app for you to check. The rest stayed here and is gone.` });
       setBuffer([]); setShown([]);
@@ -144,7 +144,7 @@ export const Glasses: React.FC = () => {
         <div className="seen">{shown.map((s, i) => <div key={i} className={`sig k-${s.kind}`}>{s.kind === 'seen' ? '👁 ' : '👂 '}{s.text}</div>)}</div>
         <div className="sub">
           <button className={`rbtn ghost${listening ? ' on' : ''}`} onClick={mic} aria-label="Speak">{listening ? '● Listening' : '🎙'}</button>
-          <input aria-label="Say something or ask Abel" placeholder="Say something, or ask Abel (end with ?)" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') typed(); }} />
+          <input aria-label="Say something or ask Nora" placeholder="Say something, or ask Nora (end with ?)" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') typed(); }} />
           <button className="rbtn" disabled={busy === 'ask'} onClick={typed}>Send</button>
           <button className="rbtn" disabled={!buffer.length || busy === 'sync'} onClick={sync}>{busy === 'sync' ? 'Syncing…' : `Sync to my Cabinet${buffer.length ? ` (${buffer.length})` : ''}`}</button>
         </div>
@@ -152,7 +152,7 @@ export const Glasses: React.FC = () => {
       <aside className="panel" aria-label="Demo steps">
         <h2>Demo steps</h2>
         <h3>From what Lauri sees to what Nordea approves</h3>
-        <div className="legend"><span><i style={{ background: '#4CC4AF' }} />seen</span><span><i style={{ background: '#F0C25A' }} />heard</span><span><label><input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} /> Abel speaks</label></span></div>
+        <div className="legend"><span><i style={{ background: '#4CC4AF' }} />seen</span><span><i style={{ background: '#F0C25A' }} />heard</span><span><label><input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} /> Nora speaks</label></span></div>
         {MOMENTS.map((m, i) => (
           <button key={m.id} className={`step${done[m.id] ? ' done' : ''}`} onClick={() => play(m)} disabled={!!busy}>
             <span className="n">{i + 1}</span><span><b>{m.title}</b><span className="s">{m.sub}</span></span>
@@ -161,7 +161,7 @@ export const Glasses: React.FC = () => {
         <button className={`step${done.sync ? ' done' : ''}`} onClick={sync} disabled={!buffer.length || !!busy}>
           <span className="n">{MOMENTS.length + 1}</span><span><b>Sync to my Context Cabinet</b><span className="s">The filter keeps only what is useful; private things are marked.</span></span>
         </button>
-        <a className="step" href="/" target="_blank" rel="noopener"><span className="n">{MOMENTS.length + 2}</span><span><b>In the app: decide, then ask Abel about a pre-approval</b><span className="s">What Abel knows → From your inputs → Save. Then Abel → “Can I get a mortgage pre-approval?” → Connect me.</span></span></a>
+        <a className="step" href="/" target="_blank" rel="noopener"><span className="n">{MOMENTS.length + 2}</span><span><b>In the app: decide, then ask Nora about a pre-approval</b><span className="s">What Nora knows → From your inputs → Save. Then Nora → “Can I get a mortgage pre-approval?” → Connect me.</span></span></a>
         <a className="step" href="/workspace" target="_blank" rel="noopener"><span className="n">{MOMENTS.length + 3}</span><span><b>Nordea workspace: Kalle decides</b><span className="s">Only what Lauri shared · numbers by bank code · second approver above 250 000 €.</span></span></a>
         <h2 style={{ marginTop: 8 }}>Other inputs</h2>
         <button className={`step${done.wa ? ' done' : ''}`} disabled={!!busy} onClick={() => send('wa', { source: 'whatsapp', label: 'WhatsApp Chat with Mia.txt', text: WHATSAPP })}><span className="n">💬</span><span><b>WhatsApp chat with Mia</b><span className="s">5 messages: plans, a car loan ending, small talk.</span></span></button>

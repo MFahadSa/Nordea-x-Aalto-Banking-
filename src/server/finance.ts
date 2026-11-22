@@ -1,4 +1,4 @@
-// Every number Abel (or the app) shows is computed here from the synthetic data.
+// Every number Nora (or the app) shows is computed here from the synthetic data.
 // The language model never invents figures: it calls tools that use these functions.
 import { db } from './db.js';
 import { CabinetEntry, Transaction } from '../types.js';
@@ -139,7 +139,7 @@ export function goalStatus(userId: string, goal: CabinetEntry) {
   };
 }
 
-/** Payday autopilot: what comes in, what goes out, what Abel would suggest moving. Suggest only. */
+/** Payday autopilot: what comes in, what goes out, what Nora would suggest moving. Suggest only. */
 export function payPlan(userId: string, buffer = 500) {
   const sal = salaryInfo(userId);
   const sp = spending(userId, 3) as { averagePerMonthTotal: number };
@@ -158,7 +158,7 @@ export function payPlan(userId: string, buffer = 500) {
     keepInCurrentAccount: buffer,
     suggestedExtraMove: move,
     towardsGoal: goal ? goal.title : null,
-    rule: 'Abel only suggests. Nothing moves without the customer confirming.',
+    rule: 'Nora only suggests. Nothing moves without the customer confirming.',
   };
 }
 

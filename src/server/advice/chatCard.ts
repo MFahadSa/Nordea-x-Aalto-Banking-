@@ -51,7 +51,7 @@ export function ruleCardFor(userId: string, conversationId: string, intent: Inte
   for (const [k, v] of implied) {
     if (!ev.used.includes(k) || (facts[k].state === 'known' && facts[k].value === v)) continue;
     const e = saveAnswer(userId, rule.id, k, v, v ? 'Yes' : 'No', 'You said it in a chat');
-    notes.push({ text: `📌 Abel will remember this: ${e.title}`, undoToken: undo(e.id, e.title), entryId: e.id });
+    notes.push({ text: `📌 Nora will remember this: ${e.title}`, undoToken: undo(e.id, e.title), entryId: e.id });
   }
   if (notes.length) {
     facts = factsOf(userId, today);
@@ -59,7 +59,7 @@ export function ruleCardFor(userId: string, conversationId: string, intent: Inte
     rule = versions.find((r) => r.version === ev.version);
     if (!rule || blockReason(rule, ev, stNoWait, whoOf(u), today)) return null;
   }
-  logAdviceRead(userId, `Abel suggestions: checking “${rule.title}” (you asked about it)`, facts);
+  logAdviceRead(userId, `Nora suggestions: checking “${rule.title}” (you asked about it)`, facts);
   const card = cardFor({ ...ev, rule }, facts, u.viewMode === 'calm');
   db.updateUser(userId, { advice: remember(db.getUser(userId)?.advice, rule.id, ev.status === 'ask' ? 'asked' : 'shown', today) });
   snapshot(userId, card, facts, ev.used, 'chat', today);
@@ -71,7 +71,7 @@ export function ruleCardFor(userId: string, conversationId: string, intent: Inte
   return { card, describe: ex ? `${describe} ${ex}` : describe, notes };
 }
 
-/** v29: the rule's own plain explanation (numbers from its params), for Abel when the customer asks how it works. */
+/** v29: the rule's own plain explanation (numbers from its params), for Nora when the customer asks how it works. */
 export function explainFor(ruleId: string, today: string): string {
   const versions = catalogue().filter((r) => r.id === ruleId && r.validFrom <= today && (!r.validTo || r.validTo >= today));
   const r = versions.sort((a, b) => b.version.localeCompare(a.version))[0];

@@ -8,9 +8,9 @@ import { CabinetEntry } from '../types.js';
 
 export const RULES = {
   sharedPerNote: 5,
-  /** Points per read, by who read. Abel reads on every reply, so it earns little, with a daily cap. */
+  /** Points per read, by who read. Nora reads on every reply, so it earns little, with a daily cap. */
   used: {
-    abel: { points: 1, dailyCap: 10, label: 'Abel read your notes to answer you' },
+    abel: { points: 1, dailyCap: 10, label: 'Nora read your notes to answer you' },
     offers: { points: 3, dailyCap: 15, label: 'A partner offer was tailored with notes you allowed' },
     adviser: { points: 10, dailyCap: 20, label: 'Your adviser read what you shared' },
   } as Record<string, { points: number; dailyCap: number; label: string }>,
@@ -47,7 +47,7 @@ export function rewardRead(userId: string, agentId: string, allowed: CabinetEntr
   if (add) db.updateUser(userId, { points: (user.points || 0) + add });
 }
 
-const AGENT_NAME: Record<string, string> = { abel: 'Abel', offers: 'Partner offers', adviser: 'Nordea adviser' };
+const AGENT_NAME: Record<string, string> = { abel: 'Nora', offers: 'Partner offers', adviser: 'Nordea adviser' };
 
 /** What the Rewards page shows. */
 export function summary(userId: string) {

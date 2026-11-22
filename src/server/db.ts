@@ -70,7 +70,7 @@ export interface DatabaseState {
   bankAccounts: BankAccount[];
 }
 
-/** Who changed something in What Abel knows, and where. Recorded in the entry's history. */
+/** Who changed something in What Nora knows, and where. Recorded in the entry's history. */
 export interface ChangeMeta {
   by?: EntryEvent['by'];
   how?: string;
@@ -145,9 +145,9 @@ export function migrateLegacyState(state: DatabaseState): DatabaseState {
   return state;
 }
 
-// ---------- Mapping between the Abel CabinetEntry record and the arch store rows ----------
+// ---------- Mapping between the Nora CabinetEntry record and the arch store rows ----------
 // Each field has ONE authoritative home: arch-owned fields (title, detail, status, evidence,
-// goalIds, proposedBy...) live in the store columns; Abel-owned fields (type, source, private,
+// goalIds, proposedBy...) live in the store columns; Nora-owned fields (type, source, private,
 // readableBy, provenance, target, why, reviewed, goalType, confirmedAt, updatedAt) live in the
 // row's `doc` JSON. The two views are merged on read, split on write.
 
@@ -200,7 +200,7 @@ const cmToEntry = (userId: string, e: ArchEntry): CabinetEntry => {
     reviewed: doc?.reviewed ?? true,
     ...(doc?.goalType ? { goalType: doc.goalType } : {}),
     ...(doc?.confirmedAt ? { confirmedAt: doc.confirmedAt } : {}),
-    // v25: a customer's answer to an Abel fact question (the recommender's rules read these).
+    // v25: a customer's answer to an Nora fact question (the recommender's rules read these).
     ...(doc?.factKey ? { factKey: doc.factKey, factValue: doc.factValue } : {}),
     createdAt: e.createdAt,
     updatedAt: doc?.updatedAt ?? e.createdAt,
@@ -425,10 +425,10 @@ class Database {
     const goals = loadUserDb(userId).goals.map((g) => goalToEntry(userId, g));
     // A Nordea observation whose new version waits in the queue (G11, held copy) is SHOWN with the
     // waiting wording, still unreviewed - so "Waiting for you" asks about what Nordea noticed now, and
-    // the access gateway keeps it from Abel until the customer confirms (unreviewed Nordea items are blocked).
+    // the access gateway keeps it from Nora until the customer confirms (unreviewed Nordea items are blocked).
     // The personal agent's "Customer goal: <title>" card is the agents' copy of a goal the customer already
-    // sees (and Abel already reads) as the goal itself. In the app it is left out while that goal exists, so
-    // Abel never sees two of one goal - "delete my goal" then removes the real goal, not the copy.
+    // sees (and Nora already reads) as the goal itself. In the app it is left out while that goal exists, so
+    // Nora never sees two of one goal - "delete my goal" then removes the real goal, not the copy.
     // The copy stays in the Context Memory DB for the agents (and /arch.html).
     const goalIds = new Set(goals.map((g) => g.id));
     const isGoalCopy = (e: ArchEntry) => e.proposedBy === 'personal' && /^Customer goal: /.test(e.title) && e.goalIds.length > 0 && e.goalIds.every((g) => goalIds.has(g));
@@ -642,7 +642,7 @@ class Database {
     // went with them; a leftover legacy file is the migration's business, not deleted here.
   }
 
-  /** Delete one chat: its messages and the conversation. Kept documents and what Abel knows stay. */
+  /** Delete one chat: its messages and the conversation. Kept documents and what Nora knows stay. */
   public deleteConversation(userId: string, id: string) {
     const c = this.getConversation(id);
     if (!c || c.userId !== userId) return 0;
@@ -652,7 +652,7 @@ class Database {
     return msgs.length;
   }
 
-  /** "Delete my chats": every conversation and message of this customer. What Abel knows stays. */
+  /** "Delete my chats": every conversation and message of this customer. What Nora knows stays. */
   public deleteChats(userId: string) {
     const n = this.getMessages(userId).length;
     deleteAppRows(userId, 'app_messages', this.getMessages(userId).map((m) => m.id));

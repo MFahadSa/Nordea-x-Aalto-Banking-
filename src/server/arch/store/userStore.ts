@@ -54,14 +54,14 @@ export function saveUserDb(d: UserDb) {
 
 export function deleteUserDb(uid: string) { deleteDbFile(uid, 'user'); }
 
-/** G1: goals created before the Abel record column existed get it added in place. */
+/** G1: goals created before the Nora record column existed get it added in place. */
 function ensureDocColumn(db: ReturnType<typeof openDb>) {
   applyMigrations(db, 'user');
 }
 
-// ---------- G1: the Abel app's customer profile and settings live in the User DB ----------
+// ---------- G1: the Nora app's customer profile and settings live in the User DB ----------
 
-/** The profile and settings half of the Abel User record (bank data and rewards live elsewhere). */
+/** The profile and settings half of the Nora User record (bank data and rewards live elsewhere). */
 export interface UserProfile {
   persona?: string;
   name?: string;
@@ -116,7 +116,7 @@ export function removeStoredDocument(uid: string, id: string) {
   try { db.prepare('DELETE FROM documents WHERE id = ?').run(id); } finally { db.close(); }
 }
 
-/** Upsert one goal row (the Abel app writes goals with their full CabinetEntry record). */
+/** Upsert one goal row (the Nora app writes goals with their full CabinetEntry record). */
 export function putGoal(uid: string, goal: Goal) {
   registerCustomer(uid);
   const db = openDb(fileFor(uid, 'user'), 'user');

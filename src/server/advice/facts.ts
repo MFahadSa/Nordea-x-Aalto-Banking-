@@ -47,7 +47,7 @@ export interface Fact {
 }
 export type Facts = Record<FactKey, Fact>;
 
-/** A customer's answer is trusted for this long; after that Abel asks again. */
+/** A customer's answer is trusted for this long; after that Nora asks again. */
 export const ANSWER_MAX_AGE_DAYS = 365;
 
 export interface FactInputs {

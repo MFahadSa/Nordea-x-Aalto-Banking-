@@ -30,7 +30,7 @@ export function controls(s: RefundStore, userId: string): { caseId: string | nul
   }
   const L = c.ledger;
   if (!L) {
-    const off = (title: string, id: ControlId): Control => ({ id, title, label: 'Send', note: 'Needs the card purchase to be allowed, so Abel knows the amount', enabled: false });
+    const off = (title: string, id: ControlId): Control => ({ id, title, label: 'Send', note: 'Needs the card purchase to be allowed, so Nora knows the amount', enabled: false });
     return { caseId: c.id, controls: [off('Partial refund', 'partial'), off('Refund arrives', 'arrives'), off('Decoy credit', 'decoy'), off('Duplicate credit', 'duplicate'),
       off('Pending credit', 'pending'), off('Credit in another currency', 'other_currency'), off('Credit with no reference', 'no_reference'), off('Shop refuses', 'declined'), off('Reversal', 'reversal')] };
   }
@@ -118,7 +118,7 @@ export function press(s: RefundStore, userId: string, id: ControlId): { ok: bool
     const last = L.credits.slice(-1)[0]; const base = tmpl('ev-reversal');
     if (last && base) ev = { ...base, eventId: freshId(), reversesEventId: last.eventId, amount: last.cents / 100 };
   }
-  if (!ev) return { ok: false, message: 'This credit is not in the demo data' };
+  if (!ev) return { ok: false, message: 'This credit is not in the data' };
   if (c.simulatedToday) ev = { ...ev, date: c.simulatedToday };
   const result = s.applyCredit(ev, 'presenter');
   s.stampOrigin(ev.eventId, c.id);

@@ -1,7 +1,7 @@
 /**
  * G16 live evidence run (local evidence driver, committed): one session with the REAL provider
  * (Gemini, free tier) instead of the mock. Mirrors Bill's G16 ask:
- *   Abel goal -> V3 round A (user change) -> bank import -> decay round B;
+ *   Nora goal -> V3 round A (user change) -> bank import -> decay round B;
  *   each agent prompt must hold only its own DB data; code still owns numbers/risk;
  *   logged via the same state DEV_MONITOR serves (archState) + bus message ids.
  * Every model step's system+turns is recorded to $CABINET_DATA_DIR/prompts.jsonl for the
@@ -66,7 +66,7 @@ const importViaNordeaAgent = (txs: typeof TX_BASE) => {
 importViaNordeaAgent(TX_BASE);
 
 if (STAGE === 'a') {
-// 1) Abel goal (user change) -> round A
+// 1) Nora goal (user change) -> round A
 A.addGoalDirect(UID, 'Save for a car', '12 000 EUR');
 line('goal added: ' + JSON.stringify(S.loadUserDb(UID).goals.map((g) => g.title)));
 const roundA = await A.contribute(UID);
@@ -83,7 +83,7 @@ importViaNordeaAgent([...TX_BASE,
 const imp = A.applyBankImportToArch(UID);
 line(`IMPORT updated=${imp.updated} staleFlags=${JSON.stringify(imp.staleFlags)}`);
 
-// 3) Abel chat question (session round + model reply)
+// 3) Nora chat question (session round + model reply)
 const chat1 = await A.chat(UID, 'how much did I spend on my car?', 'g16-sess-1');
 line(`CHAT source=${chat1.source} provider=${chat1.provider} plan=${JSON.stringify(chat1.plan)}`);
 line(`CHAT reply: ${chat1.reply.slice(0, 200)}`);

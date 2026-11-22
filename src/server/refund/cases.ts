@@ -61,7 +61,7 @@ export interface RefundCase {
   shopDeclinedAt?: string;
   /** Demo credits the Presenter sent for this case (control keys). Cleared on withdraw. */
   demoSent?: string[];
-  /** Set when the customer chose to keep an allowed receipt in Abel knows. Cleared with the stored copy on withdrawal. */
+  /** Set when the customer chose to keep an allowed receipt in Nora knows. Cleared with the stored copy on withdrawal. */
   receiptSavedAt?: string;
   /** The written exchange with the shop (what the customer approved and sent, and the shop's replies). Deleted on withdrawal. */
   shopMessages?: ShopMessage[];
@@ -338,7 +338,7 @@ export class RefundStore {
   }
 
   // ---------- consent and evidence ----------
-  /** Withdrawing consent (owner's decisions, 22 Nov 2026): Abel stops reading and stops watching for the
+  /** Withdrawing consent (owner's decisions, 22 Nov 2026): Nora stops reading and stops watching for the
       refund; the stored copies AND the facts taken from them (amount, references, dates, money seen) are
       deleted; open approvals are revoked; fingerprints and the log are kept. The log names records by kind
       and id, not by their contents. */
@@ -498,7 +498,7 @@ export class RefundStore {
     if (!r) throw new RefundError('no receipt was allowed for this case, so there is nothing to save');
     if (c.receiptSavedAt) return;
     c.receiptSavedAt = this.clock();
-    this.log(caseId, 'evidence', 'customer', 'Receipt kept in Abel knows until this case is withdrawn');
+    this.log(caseId, 'evidence', 'customer', 'Receipt kept in Nora knows until this case is withdrawn');
     this.save();
   }
   // ---------- writing to the shop (simulated send after the customer's approval) ----------
@@ -607,7 +607,7 @@ export class RefundStore {
     if (c.consent.withdrawnAt) throw new RefundError('consent was withdrawn');
     if (c.shopDeclinedAt) return;
     c.shopDeclinedAt = this.clock();
-    this.log(caseId, 'flag', by, 'The shop declined the refund (demo). The case stays open. Nothing was sent and no dispute was started');
+    this.log(caseId, 'flag', by, 'The shop declined the refund. The case stays open. Nothing was sent and no dispute was started');
     this.save();
   }
 
@@ -722,7 +722,7 @@ export class RefundStore {
       return;
     }
     c.balanceCreditedCents = target;
-    this.log(caseId, 'adapter', by, delta > 0 ? 'Counted into the current account (demo balance)' : 'Taken back from the current account after a reversal (demo balance)');
+    this.log(caseId, 'adapter', by, delta > 0 ? 'Counted into the current account' : 'Taken back from the current account after a reversal');
     this.save();
   }
 

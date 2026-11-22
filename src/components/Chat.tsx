@@ -74,7 +74,7 @@ export const Chat: React.FC<Props> = (p) => {
   const [dateAns, setDateAns] = useState<Record<string, string>>({});
   const [rfSel, setRfSel] = useState<Record<string, boolean>>({});
   const [attOpen, setAttOpen] = useState(false);
-  // "Keep a copy": off by default, so Abel reads a file once and it's gone.
+  // "Keep a copy": off by default, so Nora reads a file once and it's gone.
   const [keepCopy, setKeepCopy] = useState(false);
   const [usedOpen, setUsedOpen] = useState<string | null>(null);
   const [impShow, setImpShow] = useState<string | null>(null);
@@ -256,9 +256,9 @@ export const Chat: React.FC<Props> = (p) => {
     const sup = m.supplied;
     if (!sup && !es.length) return null;
     const open = usedOpen === m.id;
-    // Plain for the customer: what Abel could see. The technical stamp (timing, model, category,
+    // Plain for the customer: what Nora could see. The technical stamp (timing, model, category,
     // round plan) only shows with the debug switch on (More → Show technical details).
-    const seeLine = sup ? `Abel could see ${sup.notes} ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ' + account data' : ''}` : '';
+    const seeLine = sup ? `Nora could see ${sup.notes} ${sup.notes === 1 ? 'note' : 'notes'}${sup.accountData ? ' + account data' : ''}` : '';
     const tm = p.timings?.[m.id];
     const tech = debug && sup ? [
       tm ? `${(tm.ms / 1000).toFixed(tm.ms < 10000 ? 1 : 0)} s${tm.late ? ', picked up late' : ''}` : '',
@@ -269,7 +269,7 @@ export const Chat: React.FC<Props> = (p) => {
     ].filter(Boolean).join(' · ') : '';
     const label = sup
       ? [seeLine, tech].filter(Boolean).join(' · ')
-      : `Abel says it used ${es.length} ${es.length === 1 ? 'thing' : 'things'}`;
+      : `Nora says it used ${es.length} ${es.length === 1 ? 'thing' : 'things'}`;
     return (
       <>
         <button className="used-l" onClick={() => setUsedOpen(open ? null : m.id)} aria-expanded={open}>
@@ -281,14 +281,14 @@ export const Chat: React.FC<Props> = (p) => {
           <div className="used-list">
             {sup && (
               <p className="used-note">
-                Abel was given {sup.notes} {sup.notes === 1 ? 'note' : 'notes'} you approved{sup.accountData ? ' and your demo account data (balances, salary, spending; fictional)' : ''}. {sup.shared ? ' Also the summary the bank’s helper agents prepared for this chat.' : ''} Nothing else: not your kept files, and nothing you declined or removed.
+                Nora was given {sup.notes} {sup.notes === 1 ? 'note' : 'notes'} you approved{sup.accountData ? ' and your account data (balances, salary, spending)' : ''}. {sup.shared ? ' Also the summary the bank’s helper agents prepared for this chat.' : ''} Nothing else: not your kept files, and nothing you declined or removed.
               </p>
             )}
-            {es.length > 0 && <p className="used-note"><b>Abel says it used:</b> (its own report, not a proof)</p>}
+            {es.length > 0 && <p className="used-note"><b>Nora says it used:</b> (its own report, not a proof)</p>}
             {es.map((e) => (
               <div className="used-i" key={e.id}>
                 <span className={`dotc ${e.source === 'nordea' ? 'bank' : 'you'}`} />
-                <span className="used-t"><b>{e.title}</b><span>{e.source === 'nordea' ? 'Nordea noticed · you confirmed' : e.source === 'document' ? 'From a document you imported' : 'You told Abel'}</span></span>
+                <span className="used-t"><b>{e.title}</b><span>{e.source === 'nordea' ? 'Nordea noticed · you confirmed' : e.source === 'document' ? 'From a document you imported' : 'You told Nora'}</span></span>
                 <button className="btn link" onClick={() => p.onEditEntry(e.id)}>Edit</button>
               </div>
             ))}
@@ -319,14 +319,14 @@ export const Chat: React.FC<Props> = (p) => {
                 <button className="btn quiet" onClick={() => act('refund_no')}>Not now</button>
               </div>
             ) : <RefundResolved userId={p.userId} text={m.resolved} caseId={d.caseId} />}
-            <p className="rf-c-s"><Icon name="shield" />Abel only reads what you tick. You can withdraw any time.</p>
+            <p className="rf-c-s"><Icon name="shield" />Nora only reads what you tick. You can withdraw any time.</p>
           </div>
         );
       }
       case 'offer':
         return (
           <div className="offer">
-            <div className="of-h"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>{d.kind} · fictional partner</span></span><span className="of-tag">Partner offer</span></div>
+            <div className="of-h"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>{d.kind} · partner</span></span><span className="of-tag">Partner offer</span></div>
             <div className="of-b"><b>{d.headline}</b></div>
             <div className="of-fee"><Icon name="shield" /><span>{d.feeText}</span></div>
             {open && (
@@ -341,7 +341,7 @@ export const Chat: React.FC<Props> = (p) => {
         const bought = m.resolved?.startsWith('bought:') ? Number(m.resolved.slice(7)) : null;
         return (
           <div className="offer list">
-            <div className="of-h sm"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>Partner offer · fictional</span></span></div>
+            <div className="of-h sm"><span className="of-logo" style={{ background: d.color }}>{d.initials}</span><span className="of-n"><b>{d.name}</b><span>Partner offer</span></span></div>
             {(d.items || []).map((it: any, j: number) => (
               <div className={`of-row${bought === j ? ' bought' : ''}`} key={j}>
                 <div className="of-rt"><span><b>{it.title}</b><span>{it.sub}</span></span><b className="of-p">{eurP(it.price)}{it.per || ''}</b></div>
@@ -476,7 +476,7 @@ export const Chat: React.FC<Props> = (p) => {
         return (
           <div className="offer">
             <div className="of-h sm"><span className="of-logo" style={{ background: 'var(--brand)' }}><Icon name="cab" /></span><span className="of-n"><b>{c.title}</b><span>Please choose</span></span></div>
-            <div className="of-row"><div className="of-rt"><span><b>Abel knows</b><span>{ex.title}{ex.target ? ` · ${tgt(ex.target)}` : ex.detail ? ` · ${ex.detail}` : ''}</span></span></div></div>
+            <div className="of-row"><div className="of-rt"><span><b>Nora knows</b><span>{ex.title}{ex.target ? ` · ${tgt(ex.target)}` : ex.detail ? ` · ${ex.detail}` : ''}</span></span></div></div>
             <div className="of-row"><div className="of-rt"><span><b>You just said</b><span>{dr.title}{dr.target ? ` · ${tgt(dr.target)}` : dr.detail ? ` · ${dr.detail}` : ''}</span></span></div></div>
             <div className="of-fee"><Icon name="shield" /><span>{d.how === 'conflict' ? 'Updating keeps the old version in its history, and you can undo it.' : 'Nothing is saved until you choose.'}</span></div>
             {open && (
@@ -510,14 +510,14 @@ export const Chat: React.FC<Props> = (p) => {
             <div className="of-h sm"><span className="of-logo" style={{ background: d.outcome === 'pre_approved' ? 'var(--ok)' : 'var(--bank)' }}><Icon name={d.outcome === 'pre_approved' ? 'check' : 'clock'} /></span><span className="of-n"><b>{d.outcome === 'pre_approved' ? `Pre-approved up to ${eur(d.amount)}` : 'Not pre-approved yet'}</b><span>Home loan · decided by {d.by}</span></span></div>
             <div className="of-row"><div className="of-rt"><span><b>Why</b><span>{d.reason}</span></span></div></div>
             {(d.used || []).length > 0 && <div className="of-row"><div className="of-rt"><span><b>What Nordea used</b><span>{d.used.join(' · ')}</span></span></div></div>}
-            <div className="of-fee"><Icon name="shield" /><span>Only what you shared for this application, plus your Nordea account data. Concept · not a real credit decision.</span></div>
+            <div className="of-fee"><Icon name="shield" /><span>Only what you shared for this application, plus your Nordea account data. Not a real credit decision.</span></div>
           </div>
         );
       case 'info': {
         if (d.shareId) {
           const s = p.shares.find((x) => x.id === d.shareId);
           if (!s) return null;
-          return s.revoked ? <span>Sharing stopped. The adviser can’t see what Abel knows any more.</span> : <span>🔗 Shared once with your adviser, until {dayMonth(s.until)}. <button className="btn link" onClick={() => p.onRevoke(s.id)}>Stop sharing now</button></span>;
+          return s.revoked ? <span>Sharing stopped. The adviser can’t see what Nora knows any more.</span> : <span>🔗 Shared once with your adviser, until {dayMonth(s.until)}. <button className="btn link" onClick={() => p.onRevoke(s.id)}>Stop sharing now</button></span>;
         }
         if (d.link) return <button className="btn small" onClick={() => p.onOpenPage(d.link)}>{d.label}</button>;
         return null;
@@ -546,7 +546,7 @@ export const Chat: React.FC<Props> = (p) => {
             <button className="btn link" onClick={() => p.onDeleteDoc(doc.id)}>Delete</button>
           </span>
         ) : (
-          <span className="att-kept muted">{at.documentId || at.deleted ? 'Copy deleted' : 'Not kept · Abel read it once'}</span>
+          <span className="att-kept muted">{at.documentId || at.deleted ? 'Copy deleted' : 'Not kept · Nora read it once'}</span>
         );
         items.push({
           who: 'me',
@@ -584,10 +584,10 @@ export const Chat: React.FC<Props> = (p) => {
       });
     });
     richCards.forEach((x) => items.push({ who: 'bot', key: `${m.id}-c${x.ci}`, node: x.node, rich: true }));
-    if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">Quick answer from your account data · Abel’s AI is taking a short break</span> });
+    if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">Quick answer from your account data · Nora’s AI is taking a short break</span> });
     if (m.errorInfo && debug) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
-    // "Abel could see …" only under Abel's latest reply, so it isn't repeated down the whole chat.
+    // "Nora could see …" only under Nora's latest reply, so it isn't repeated down the whole chat.
     if (lastBot && m.id === latestAgentId) lastBot.after = usedLine(m);
     if (m.resolved && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
   });
@@ -623,7 +623,7 @@ export const Chat: React.FC<Props> = (p) => {
             <div key={it.key} className={`mrow bot${pop}${first ? ' gstart' : ''}${it.rich ? ' wide' : ''}`}>
               {lastG ? <BotAvatar /> : <span className="av-sp" />}
               <div className="mcol">
-                {first && <span className="mname">Abel</span>}
+                {first && <span className="mname">Nora</span>}
                 <div className={it.rich ? 'rich' : 'bub'}>{it.node}</div>
                 {it.after}
               </div>
@@ -631,7 +631,7 @@ export const Chat: React.FC<Props> = (p) => {
           );
         })}
         {p.waiting && (
-          <div className="mrow bot pop gstart"><BotAvatar /><div className="mcol"><div className="bub typing" aria-label="Abel is typing"><i /><i /><i /></div></div></div>
+          <div className="mrow bot pop gstart"><BotAvatar /><div className="mcol"><div className="bub typing" aria-label="Nora is typing"><i /><i /><i /></div></div></div>
         )}
         {pills && (
           <div className={`qr pop${p.waiting ? ' busy' : ''}`}>
@@ -652,10 +652,10 @@ export const Chat: React.FC<Props> = (p) => {
               <button className="att-t" onClick={() => { setAttOpen(false); p.onImport({ sample: true }); }}><span className="att-c"><Icon name="contact" size={22} /></span>Sample chat</button>
             </div>
             <button className="keep-row" role="switch" aria-checked={keepCopy} onClick={() => setKeepCopy(!keepCopy)}>
-              <span className="keep-t"><b>Keep a copy</b><span>{keepCopy ? 'Saved in Your documents for 30 days. Delete it any time.' : 'Off: Abel reads the file once, then it’s gone.'}</span></span>
+              <span className="keep-t"><b>Keep a copy</b><span>{keepCopy ? 'Saved in Your documents for 30 days. Delete it any time.' : 'Off: Nora reads the file once, then it’s gone.'}</span></span>
               <span className={`tgl${keepCopy ? ' on' : ''}`} aria-hidden="true"><i /></span>
             </button>
-            <p className="att-note"><Icon name="shield" size={16} /><span>Abel suggests what to remember from it. Nothing is saved without your OK. Use fictional documents only.</span></p>
+            <p className="att-note"><Icon name="shield" size={16} /><span>Nora suggests what to remember from it. Nothing is saved without your OK. Please don’t upload real bank documents.</span></p>
           </div>
         </>
       )}
@@ -702,7 +702,7 @@ export const Chat: React.FC<Props> = (p) => {
         <input type="file" ref={imgRef} accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, f.name); }} />
         <input type="file" ref={camFallbackRef} accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f, 'Photo'); }} />
       </div>
-      <p className="chat-foot">What you tell Abel is saved, and you can remove it in Abel knows</p>
+      <p className="chat-foot">What you tell Nora is saved, and you can remove it in Nora knows</p>
     </section>
   );
 };

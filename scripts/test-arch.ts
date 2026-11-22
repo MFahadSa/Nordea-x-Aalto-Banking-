@@ -2,8 +2,8 @@
  * Tests for the three-database architecture (User DB / Context Memory DB / Nordea DB).
  * Covers the five design decisions:
  *  1. The Context Memory DB owns the cabinet; only the CM agent writes it.
- *  2. Abel in-app vs connected external personal agent, connect/disconnect swaps the role.
- *  3. The sync airlock gates ONLY personal-agent sync ingestion - never direct input to Abel.
+ *  2. Nora in-app vs connected external personal agent, connect/disconnect swaps the role.
+ *  3. The sync airlock gates ONLY personal-agent sync ingestion - never direct input to Nora.
  *  4. The cabinet is shared context, advisory, in its own DB.
  *  5. Goal-filtered contributions, merge review, explain/dispute, separate off/disconnect/delete, guardrails.
  */
@@ -44,7 +44,7 @@ check('direct goal input creates no airlock batch', S.loadBus(UID).airlock.lengt
 
 let threw = '';
 try { A.stageSync(UID, 'whatsapp', [{ kind: 'note', text: 'mom asked about the car fund' }]); } catch (e) { threw = (e as Error).message; }
-check('sync is refused while Abel is the personal agent (nothing connected)', threw.includes('No external personal agent'), threw);
+check('sync is refused while Nora is the personal agent (nothing connected)', threw.includes('No external personal agent'), threw);
 
 A.connectExternalAgent(UID, 'Meta Muse');
 check('connect swaps the personal agent role', S.loadUserDb(UID).personalAgent.mode === 'external');
@@ -59,7 +59,7 @@ A.decideAirlock(UID, batch2.id, false);
 check('rejecting the airlock discards the items', S.loadUserDb(UID).personalFacts.length === 1);
 
 A.disconnectPersonalAgent(UID);
-check('disconnect returns Abel as the in-app personal agent', S.loadUserDb(UID).personalAgent.mode === 'abel');
+check('disconnect returns Nora as the in-app personal agent', S.loadUserDb(UID).personalAgent.mode === 'abel');
 
 // --- Decision 5: goal-filtered contribution -> merge review -> explain/dispute
 const decideFirstNordea = (uid: string) => A.decideProposal(uid, A.reviewQueue(uid).find((m) => m.from === 'nordea')!.id, true); // G3: the reactive round may already have proposed
@@ -370,12 +370,12 @@ check('AC1: the insight builder is pure shared infra - no agent store, no bus, n
 check('AC1: the dispatcher and round engine open no agent store at all',
   !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/dispatcher.ts')) && !/(userStore|cmStore|nordeaStore)/.test(readSrc('../src/server/arch/rounds.ts')));
 
-// --- AC11 (v17, owner of the app repo): the in-app chat is Abel again, fed by the three agents.
-// The agents gather what Abel may see (User DB via the personal agent, the session's finalised
-// context.md) through abelSharedContext; Abel itself never opens an agent store.
+// --- AC11 (v17, owner of the app repo): the in-app chat is Nora again, fed by the three agents.
+// The agents gather what Nora may see (User DB via the personal agent, the session's finalised
+// context.md) through abelSharedContext; Nora itself never opens an agent store.
 const abelSrc = readSrc('../src/server/abel.ts');
 check('AC11: abel.ts opens no agent store directly (it gets the shared context by message)',
-  !/arch\/store\/(userStore|cmStore|nordeaStore|common)/.test(abelSrc) && /AbelSharedContext/.test(abelSrc));
+  !/arch\/store\/(userStore|cmStore|nordeaStore|common)/.test(abelSrc) && /NoraSharedContext/.test(abelSrc));
 
 // --- AC6: a contribution runs as a real build round: open -> contributions -> done -> finalise -> stored
 const UID9 = 'rounduser';
@@ -535,18 +535,18 @@ const reactDoc = S.loadContext(UID50)!;
 check('G3: the reactive round wrote the customer + nordea sections with evidence', reactDoc.sections.customer.rows.some((r) => r.title === 'Save for a car') && reactDoc.sections.nordea.rows.some((r) => typeof r.evidence?.total === 'number'));
 check('G3: the reactive round leaves the goal-matching proposal pending review (consent path unchanged)', A.reviewQueue(UID50).some((m) => m.from === 'nordea' && ((m.payload as { transactionIds?: string[] }).transactionIds ?? []).length === 2));
 
-// --- G7/V2: goal edit + delete on /arch.html go through the personal agent and update Abel's knowledge
+// --- G7/V2: goal edit + delete on /arch.html go through the personal agent and update Nora's knowledge
 const UID51 = 'goaledit';
 S.saveNordeaDb({ userId: UID51, accounts: [], transactions: [{ id: 'g1', userId: UID51, date: '2026-10-01', category: 'transport', amount: -100, account: 'current', description: 'Fuel for the car' }] });
 const g51 = A.addGoalDirect(UID51, 'Save for a car');
 A.appWrites.updateGoal(UID51, g51.id, { title: 'Save for a boat' });
 check('G7: editing a goal on /arch.html updates the User DB through the personal agent', S.loadUserDb(UID51).goals[0]?.title === 'Save for a boat');
 check('G7: the edit is reactive - a user-change round runs', R.loadLatestRound(UID51)?.trigger === 'user-change', R.loadLatestRound(UID51)?.trigger);
-check('G7: Abel\'s shared context carries the edited goal', ((await A.abelSharedContext(UID51, 'conv-g51', 'boat')).userDbFacts ?? '').includes('Save for a boat'), (await A.abelSharedContext(UID51, 'conv-g51', 'boat')).userDbFacts);
+check('G7: Nora\'s shared context carries the edited goal', ((await A.abelSharedContext(UID51, 'conv-g51', 'boat')).userDbFacts ?? '').includes('Save for a boat'), (await A.abelSharedContext(UID51, 'conv-g51', 'boat')).userDbFacts);
 A.appWrites.removeGoal(UID51, g51.id);
 check('G7: deleting a goal removes it from the User DB', S.loadUserDb(UID51).goals.length === 0);
 check('G7: the delete is reactive too', R.loadLatestRound(UID51)?.trigger === 'user-change', R.loadLatestRound(UID51)?.trigger);
-check('G7: the deleted goal leaves Abel\'s knowledge', !((await A.abelSharedContext(UID51, 'conv-g51b', 'boat')).userDbFacts ?? '').includes('Save for a boat'));
+check('G7: the deleted goal leaves Nora\'s knowledge', !((await A.abelSharedContext(UID51, 'conv-g51b', 'boat')).userDbFacts ?? '').includes('Save for a boat'));
 check('G12: deleting a goal withdraws its pending proposals (any agent)', !S.loadBus(UID51).messages.some((m) => m.type === 'propose' && m.status === 'pending' && ((m.payload as { goalIds?: string[] } | undefined)?.goalIds ?? []).includes(g51.id)), JSON.stringify(S.loadBus(UID51).messages.filter((m) => m.type === 'propose' && m.status === 'pending').map((m) => [m.from, m.summary, (m.payload as { goalIds?: string[] } | undefined)?.goalIds])) + ' gid=' + g51.id);
 
 // --- G4/V4: LLM-driven planning (mock provider) - the model proposes, code checks and writes
@@ -1326,8 +1326,8 @@ check('F28: under review-everything the notice still says the refresh waits in m
 const SENS = await import('../src/server/sensitive.js');
 check('F23: plain loan/debt talk is NOT high risk in the AC7 rule', ['pay off my student loan debt', 'mortgage and car loan repayment'].every((t) => RK.assessProposalRisk(fakeMsg('nordea', { transactionIds: ['t1'], total: 10 }, t)) === 'medium'));
 check('F23: debt DISTRESS is still high risk', ['debt collector payment', 'arrears piling up', "can't pay my bills", 'bankruptcy filing'].every((t) => RK.assessProposalRisk(fakeMsg('nordea', { transactionIds: ['t1'], total: 10 }, t)) === 'high'));
-check('F23: Abel keeps its narrow guard - a loan goal still saves without the private tap', !SENS.ABEL_PRIVATE_TOPIC.test('pay off my student loan debt') && !SENS.ABEL_PRIVATE_TOPIC.test('monthly mortgage payment'));
-check('F23: Abel still guards the genuinely private topics', ['cancer treatment fund', 'therapy sessions', 'gambling recovery'].every((t) => SENS.ABEL_PRIVATE_TOPIC.test(t)));
+check('F23: Nora keeps its narrow guard - a loan goal still saves without the private tap', !SENS.ABEL_PRIVATE_TOPIC.test('pay off my student loan debt') && !SENS.ABEL_PRIVATE_TOPIC.test('monthly mortgage payment'));
+check('F23: Nora still guards the genuinely private topics', ['cancer treatment fund', 'therapy sessions', 'gambling recovery'].every((t) => SENS.ABEL_PRIVATE_TOPIC.test(t)));
 check('F23: the import helper uses the narrow ABEL_PRIVATE_TOPIC, not the wide risk list', fs.readFileSync(new URL('../src/server/importPropose.ts', import.meta.url), 'utf-8').includes('ABEL_PRIVATE_TOPIC') && !fs.readFileSync(new URL('../src/server/importPropose.ts', import.meta.url), 'utf-8').includes('SENSITIVE_TOPIC as SENSITIVE'));
 
 
@@ -1416,7 +1416,7 @@ const goneRound2 = await A.contribute(UID28);
 check('F25: removing the goal flags the Nordea-side entry on it stale too', S.loadCmDb(UID28).entries.find((e) => e.id === nordeaOnGoal.id)?.status === 'stale' && goneRound2.staleFlags.some((f) => f.entryId === nordeaOnGoal.id && f.reason === 'goal-removed'), JSON.stringify(goneRound2.staleFlags));
 
 
-// --- F10 phase 2 / AC11: the in-app Abel reads user.db VIA the personal agent and context.md by session rules.
+// --- F10 phase 2 / AC11: the in-app Nora reads user.db VIA the personal agent and context.md by session rules.
 const shared27 = await A.abelSharedContext(UID27, 'conv-abel-1', 'laptop');
 check('F10p2: User DB facts come from the personal agent by message, with provenance', !!shared27.userDbFacts && shared27.userDbFacts.includes('Save for a laptop') && shared27.provenance.some((p) => p.includes('user-db via the personal agent')), JSON.stringify(shared27).slice(0, 140));
 check('F10p2: a fresh session gets its own FINALISED document, stamped with its exact session id', !!shared27.sharedContext && S.loadContext(UID27)?.sessionId === 'conv-abel-1' && !!S.loadContext(UID27)?.finalisedAt, (shared27.sharedContext ?? '').slice(0, 80));
@@ -1448,25 +1448,25 @@ check('F10p2: an UNFINALISED document is never served, even for the matching ses
 // Parked negative: parking the cabinet silences the document half only.
 A.parkCabinet(UID27, true);
 const parkedShared = await A.abelSharedContext(UID27, 'conv-abel-2', 'laptop');
-check('F10p2: a parked cabinet serves no document; the customer\'s own User DB facts still reach Abel', !parkedShared.sharedContext && !!parkedShared.userDbFacts);
+check('F10p2: a parked cabinet serves no document; the customer\'s own User DB facts still reach Nora', !parkedShared.sharedContext && !!parkedShared.userDbFacts);
 
-// --- F30: stale and disputed rows never reach Abel as facts (only Abel's copy is filtered).
+// --- F30: stale and disputed rows never reach Nora as facts (only Nora's copy is filtered).
 const UID33 = 'abeldisp';
 S.saveNordeaDb({ userId: UID33, accounts: [], transactions: [{ id: 'dd1', userId: UID33, date: '2026-10-01', category: 'transport', amount: -1234, account: 'current', description: 'Fuel for the car' }] });
 A.addGoalDirect(UID33, 'Save for a car');
 A.setStandingPermissions(UID33, 'high', 'High risk mode');
 await A.contribute(UID33);
-check('F30 setup: the active aggregate reaches Abel', ((await A.abelSharedContext(UID33, 'f30-s1', 'car')).sharedContext ?? '').includes('1234 EUR'));
+check('F30 setup: the active aggregate reaches Nora', ((await A.abelSharedContext(UID33, 'f30-s1', 'car')).sharedContext ?? '').includes('1234 EUR'));
 S.saveNordeaDb({ userId: UID33, accounts: [], transactions: [{ id: 'dd2', userId: UID33, date: '2026-10-02', category: 'transport', amount: -999, account: 'current', description: 'Car wash' }] });
 await A.contribute(UID33); // churn: the 1234 entry goes stale, the refreshed 999 is stored automatically
 const f30Active = S.loadCmDb(UID33).entries.find((e) => e.status === 'active' && e.proposedBy === 'nordea')!;
 A.disputeEntry(UID33, f30Active.id, 'not mine');
 S.saveNordeaDb({ userId: UID33, accounts: [], transactions: [{ id: 'dd3', userId: UID33, date: '2026-10-03', category: 'transport', amount: -50, account: 'current', description: 'Parking' }] });
 const f30 = await A.abelSharedContext(UID33, 'f30-s2', 'car');
-check('F30: the stale figure and the disputed figure are both absent from the context Abel receives', !(f30.sharedContext ?? '').includes('1234 EUR') && !(f30.sharedContext ?? '').includes('999 EUR'), (f30.sharedContext ?? '').slice(0, 200));
-check('F30: the fresh bank figure still reaches Abel (filtering drops marks, not data)', (f30.sharedContext ?? '').includes('50 EUR'));
+check('F30: the stale figure and the disputed figure are both absent from the context Nora receives', !(f30.sharedContext ?? '').includes('1234 EUR') && !(f30.sharedContext ?? '').includes('999 EUR'), (f30.sharedContext ?? '').slice(0, 200));
+check('F30: the fresh bank figure still reaches Nora (filtering drops marks, not data)', (f30.sharedContext ?? '').includes('50 EUR'));
 const f30Doc = S.loadContext(UID33)!;
-check("F30: the STORED document still records the marks - only Abel's copy is filtered", f30Doc.sections.memory.rows.some((r) => r.status === 'stale' && r.detail.includes('1234')) && f30Doc.sections.memory.rows.some((r) => r.status === 'disputed' && r.detail.includes('999')), f30Doc.sections.memory.rows.map((r) => `${r.status}:${r.detail.slice(0, 40)}`).join(' | '));
+check("F30: the STORED document still records the marks - only Nora's copy is filtered", f30Doc.sections.memory.rows.some((r) => r.status === 'stale' && r.detail.includes('1234')) && f30Doc.sections.memory.rows.some((r) => r.status === 'disputed' && r.detail.includes('999')), f30Doc.sections.memory.rows.map((r) => `${r.status}:${r.detail.slice(0, 40)}`).join(' | '));
 
 
 // The main-chat path itself (F10p2, arch form): the personal agent's model composes the
@@ -1488,15 +1488,15 @@ check("F30: the STORED document still records the marks - only Abel's copy is fi
     !!compose && compose.prompt.includes('Shared context (via the Context Memory agent)') && /car/i.test(compose.prompt), (compose?.prompt ?? '(no compose call)').slice(0, 160));
 }
 const routesSrc2 = readSrc('../src/server/routes.ts');
-check('G30 slice 3 (v17): /api/chat = the agents\' shared context for this conversation, then Abel writes the reply; conversation id IS the session id', /abelSharedContext\(userId, conv\.id, u\.text\)/.test(routesSrc2) && /abelTurn\(userId, conv\.id, conv\.helperId, u\.text, shared\)/.test(routesSrc2));
+check('G30 slice 3 (v17): /api/chat = the agents\' shared context for this conversation, then Nora writes the reply; conversation id IS the session id', /abelSharedContext\(userId, conv\.id, u\.text\)/.test(routesSrc2) && /abelTurn\(userId, conv\.id, conv\.helperId, u\.text, shared\)/.test(routesSrc2));
 
 
-// --- F10 phase 2, Bill's condition: the Abel shared-context path reads context.md only -
-// user.db facts arrive BY MESSAGE from the personal agent; cm.db/nordea.db/user.db are never opened for Abel.
+// --- F10 phase 2, Bill's condition: the Nora shared-context path reads context.md only -
+// user.db facts arrive BY MESSAGE from the personal agent; cm.db/nordea.db/user.db are never opened for Nora.
 const orchSrc = readSrc('../src/server/arch/orchestrator.ts');
 const fnStart = orchSrc.indexOf('export async function abelSharedContext');
 const fnBody = orchSrc.slice(fnStart, orchSrc.indexOf('\n}\n', fnStart) + 3);
-check('F10p2: the Abel path opens no agent store at all - only the shared context.md and bus messages',
+check('F10p2: the Nora path opens no agent store at all - only the shared context.md and bus messages',
   !/loadUserDb|loadCmDb|loadNordeaDb|userStore|cmStore|nordeaStore/.test(fnBody) && fnBody.includes('loadContext') && fnBody.includes("controlRoundTrip(uid, 'personal'"), '');
 check('F10p2 (v19): the personal agent answers abel-facts from its own User DB, only goals the customer still allows (sharedGoals)',
   personalSrc.includes("control === 'abel-facts'") && /goals: sharedGoals\(u\)\.map/.test(personalSrc));
@@ -1524,7 +1524,7 @@ check('F10p2 (v19): the personal agent answers abel-facts from its own User DB, 
 const appSrcQ = readSrc('../src/App.tsx'), apiSrcQ = readSrc('../src/services/api.ts'), routesSrcQ = readSrc('../src/server/routes.ts'), chatSrcQ = readSrc('../src/components/Chat.tsx'), archHtmlQ = readSrc('../public/arch.html');
 check('Q3: no fixed 180 s client abort; requestId sent; late pickup by requestId, never an automatic resubmit', !/180000/.test(apiSrcQ) && /requestId/.test(apiSrcQ) && /api\/chat\/result/.test(apiSrcQ) && (apiSrcQ.match(/fetch\('\/api\/chat'/g) ?? []).length === 1, '');
 check('Q3: server runs a requestId once (join in-flight / stored reply) and serialises a user\'s turns', /storedReply\(userId, requestId\)/.test(routesSrcQ) && /runOnce\(/.test(routesSrcQ) && /enqueue/.test(readSrc('../src/server/chatRequests.ts')) && /runOnce/.test(readSrc('../src/server/arch/routes.ts')) && /chat\/result/.test(archHtmlQ) && /chatOnce/.test(archHtmlQ), '');
-check('Q2 (v17): mobile caption is plain ("Abel could see …"); elapsed, category, answerer and round plan only with the debug switch; arch.html shows category + client-measured elapsed', /performance\.now\(\) - sentAt/.test(appSrcQ) && /const tech = debug && sup/.test(chatSrcQ) && /sup\.plan/.test(chatSrcQ) && /sup\.category/.test(chatSrcQ) && /Abel could see/.test(chatSrcQ) && /client-measured/.test(archHtmlQ), '');
+check('Q2 (v17): mobile caption is plain ("Nora could see …"); elapsed, category, answerer and round plan only with the debug switch; arch.html shows category + client-measured elapsed', /performance\.now\(\) - sentAt/.test(appSrcQ) && /const tech = debug && sup/.test(chatSrcQ) && /sup\.plan/.test(chatSrcQ) && /sup\.category/.test(chatSrcQ) && /Nora could see/.test(chatSrcQ) && /client-measured/.test(archHtmlQ), '');
 
 // --- Q4 conservative grounding: a General classification never lets a customer-looking figure through
 {
@@ -1709,7 +1709,7 @@ check('Q2: caption order is elapsed first, then the exact category (mobile debug
     const p6: any = await A.chat(W, 'undo', 'sess-g47'); const p7: any = await A.chat(W, 'undo', 'sess-g47');
     check('G47: a second undo with nothing to undo does not invent a goal', gl().filter((t) => t === 'Save for a car').length === 1 && p7.intent !== 'goal_add', p6.reply + ' || ' + p7.reply);
     const r2 = readSrc('../README.md');
-    check('G46 (v17): README describes the current chat path (agents gather via abelSharedContext, Abel writes the reply) and no stale offers risk line', /abelSharedContext/.test(r2) && /Abel writes the reply/.test(r2) && !/High risk always waits for the customer: offers/.test(r2));
+    check('G46 (v17): README describes the current chat path (agents gather via abelSharedContext, Nora writes the reply) and no stale offers risk line', /abelSharedContext/.test(r2) && /Nora writes the reply/.test(r2) && !/High risk always waits for the customer: offers/.test(r2));
   }
   {
     const X = 'fiuser'; const gl = () => (S.loadUserDb(X).goals ?? []).map((g: any) => g.title);

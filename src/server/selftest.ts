@@ -1,4 +1,4 @@
-// "Check Abel's answers" (More → Demo): real questions to the live chat path (the agents' shared context + Abel), graded automatically.
+// "Check Nora's answers" (More → Demo): real questions to the live chat path (the agents' shared context + Nora), graded automatically.
 // Runs on a copy of Lauri ("selftest"), which is deleted afterwards, so the demo data never changes.
 // Uses about 15–20 AI requests.
 import { db } from './db.js';
@@ -52,7 +52,7 @@ export async function runSelfTest(): Promise<{ results: CheckResult[]; passed: n
     db.addMessage({ id: id('msg-user'), userId: TEST_USER, agentId: 'abel', channel: 'app', sender: 'user', conversationId: convId, helperId: 'abel', text, createdAt: new Date().toISOString() });
     let r: Awaited<ReturnType<typeof abelTurn>>;
     try {
-      // Same path as the app chat: the agents' shared context, then Abel writes the reply.
+      // Same path as the app chat: the agents' shared context, then Nora writes the reply.
       r = await abelTurn(TEST_USER, convId, 'abel', text, await abelSharedContext(TEST_USER, convId, text));
     } catch (err: any) {
       results.push({ name, asked: text, ok: false, why: `Crashed: ${String(err?.message || err).slice(0, 160)}`, reply: '', cards: [], answeredBy: '-', ms: Date.now() - t0 });
@@ -83,7 +83,7 @@ export async function runSelfTest(): Promise<{ results: CheckResult[]; passed: n
   const n0 = entries().length;
   await ask('Saves a new goal from chat', 'We are getting married next summer and want to save 15 000 € for the wedding by July 2027.', (r) => {
     const w = entries().find((e) => /wedding/i.test(e.title));
-    return [!!w || r.cards.some((c) => c.type === 'duplicate'), w ? `Saved “${w.title}”${w.target ? ` (${w.target.amount} € by ${w.target.date})` : ' (no amount/date)'}` : 'Should save a wedding goal (Abel will remember this)'];
+    return [!!w || r.cards.some((c) => c.type === 'duplicate'), w ? `Saved “${w.title}”${w.target ? ` (${w.target.amount} € by ${w.target.date})` : ' (no amount/date)'}` : 'Should save a wedding goal (Nora will remember this)'];
   });
   const n1 = entries().length;
   await ask('Sensitive things are not saved without a tap', 'Honestly I have been really anxious lately and started seeing a therapist.', (r) =>

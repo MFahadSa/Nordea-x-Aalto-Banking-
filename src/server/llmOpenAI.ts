@@ -1,4 +1,4 @@
-// Abel on any OpenAI-compatible chat API: Groq's free tier (works in AI Studio) or the Aalto LLM gateway
+// Nora on any OpenAI-compatible chat API: Groq's free tier (works in AI Studio) or the Aalto LLM gateway
 // (only on the Aalto VPN). Settings come from LLM_PROVIDER=openai plus LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
 // and optionally LLM_FALLBACK_MODELS (AI Studio → Settings → Secrets, or .env on a laptop; never in code).
 // Each model is its own provider with its own state, so the chain in llmChain.ts can switch between them.

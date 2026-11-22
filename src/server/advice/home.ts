@@ -1,10 +1,10 @@
 /**
- * v27: Abel's suggestions outside the chat. Code only, no model.
+ * v27: Nora's suggestions outside the chat. Code only, no model.
  *
  * - Home "For you": one card at a time. It stays until the customer answers or dismisses it; a new
  *   one is picked at most once a week ("Now and then", the default), whenever one fits ("Whenever
  *   something fits"), or never ("Only when I ask"). Every guard rule still applies.
- * - "Abel's suggestions": what Abel suggested or asked, what the customer did, and "Why Abel
+ * - "Nora's suggestions": what Nora suggested or asked, what the customer did, and "Why Nora
  *   suggested this" with the facts used at the time, the rule's source and what Nordea earns.
  */
 import type { AdviceHistoryItem, AdviceState, AdviceView, MessageCard } from '../../types.js';
@@ -51,19 +51,19 @@ export function forYou(userId: string, today: string): MessageCard | null {
   if (st.home) {
     const v = st.home.moved ? null : stillValid(undefined, st.home.ruleId, facts, st, userId, today);
     if (v) {
-      logAdviceRead(userId, 'Abel suggestions: For you on Home', facts);
+      logAdviceRead(userId, 'Nora suggestions: For you on Home', facts);
       return cardFor({ ...v.ev, rule: v.rule }, facts, calm);
     }
     // "Now and then", and always in the calm view: a new Home card at most once a week.
     if ((setting(st) === 'sometimes' || calm) && st.home.at > addDays(today, -HOME_EVERY_DAYS)) return null;
   }
   const { list } = selectCandidates(catalogue(), facts, st, whoOf(u), today);
-  logAdviceRead(userId, 'Abel suggestions: For you on Home', facts);
+  logAdviceRead(userId, 'Nora suggestions: For you on Home', facts);
   const c = list.find((x) => oneAnswerAway(x, facts, today, catalogue()));
   if (!c) return null;
   const card = cardFor(c, facts, calm);
   // Picking for Home does not use up the chat's calm-view allowance: if the customer then asks about
-  // the same thing in a chat, Abel can show it there (it is the same suggestion, not an extra one).
+  // the same thing in a chat, Nora can show it there (it is the same suggestion, not an extra one).
   save(userId, (s) => ({ ...s, home: { ruleId: c.rule.id, at: today } }));
   if (c.status === 'eligible') snapshot(userId, card, facts, c.used, 'home', today);
   return card;
@@ -84,11 +84,11 @@ export function homeAction(userId: string, ruleId: string, version: string, acti
   const r = handleAdviceAction(userId, card, action, payload, today, 'home');
   // On Home the next card replaces this one in place, so the words point there instead of "below".
   const next = r.replies[0]?.cards?.[0]?.type;
-  if (r.ok && next) r.replies = [{ text: next === 'ask_fact' ? 'Thanks, saved. Abel has one more question.' : 'Thanks, saved. Here’s what fits you.' }];
+  if (r.ok && next) r.replies = [{ text: next === 'ask_fact' ? 'Thanks, saved. Nora has one more question.' : 'Thanks, saved. Here’s what fits you.' }];
   return r;
 }
 
-/** "Show me": the full card in a new chat with Abel (its buttons work there as usual). */
+/** "Show me": the full card in a new chat with Nora (its buttons work there as usual). */
 export function cardForChat(userId: string, ruleId: string, today: string): { card: MessageCard; used: FactKey[]; facts: Facts } | null {
   const u = db.getUser(userId);
   const st = u?.advice || {};
@@ -101,7 +101,7 @@ export function cardForChat(userId: string, ruleId: string, today: string): { ca
 
 function statusText(m: NonNullable<AdviceState['rules']>[string], rule: Rule | undefined): string {
   switch (m.last) {
-    case 'asked': return `Abel asked you a question · ${shortDay(m.at)}`;
+    case 'asked': return `Nora asked you a question · ${shortDay(m.at)}`;
     case 'shown': return `Shown to you · ${shortDay(m.at)}`;
     case 'seen': return `Good to know · ${shortDay(m.at)}`;
     case 'notNow': return `Not now · back after ${shortDay(m.until || m.at)}`;
@@ -110,7 +110,7 @@ function statusText(m: NonNullable<AdviceState['rules']>[string], rule: Rule | u
   }
 }
 
-/** "Abel's suggestions", newest first. */
+/** "Nora's suggestions", newest first. */
 export function history(userId: string): AdviceHistoryItem[] {
   const u = db.getUser(userId);
   const st = u?.advice || {};
@@ -162,14 +162,14 @@ export function resetRule(userId: string, ruleId: string, what: unknown): { ok: 
   if (what === 'allow') {
     if (mem.last !== 'never' && mem.last !== 'notNow') return { ok: false, error: 'Nothing to change' };
     save(userId, (st) => { const rules = { ...(st.rules || {}) }; delete rules[ruleId]; return { ...st, rules }; });
-    return { ok: true, text: `Okay, Abel may suggest “${rule?.title || ruleId}” again.` };
+    return { ok: true, text: `Okay, Nora may suggest “${rule?.title || ruleId}” again.` };
   }
   if (what === 'forget') {
     const facts = rule ? Object.keys(rule.ask) : [];
     const now = new Date().toISOString();
     let n = 0;
     for (const e of db.getCabinetEntries(userId)) {
-      if (e.factKey && facts.includes(e.factKey) && e.status === 'active' && e.source === 'customer') { db.updateCabinetEntry(e.id, { status: 'archived', updatedAt: now }, { by: 'you', how: 'You asked Abel to ask again' } as any); n++; }
+      if (e.factKey && facts.includes(e.factKey) && e.status === 'active' && e.source === 'customer') { db.updateCabinetEntry(e.id, { status: 'archived', updatedAt: now }, { by: 'you', how: 'You asked Nora to ask again' } as any); n++; }
     }
     if (!n) return { ok: false, error: 'No answers to change' };
     save(userId, (st) => {
@@ -179,7 +179,7 @@ export function resetRule(userId: string, ruleId: string, what: unknown): { ok: 
       for (const f of facts) delete skipped[f];
       return { ...st, rules, skippedFacts: skipped };
     });
-    return { ok: true, text: 'Done. Your answer is removed, and Abel will ask again when it matters.' };
+    return { ok: true, text: 'Done. Your answer is removed, and Nora will ask again when it matters.' };
   }
   return { ok: false, error: 'Unknown change' };
 }

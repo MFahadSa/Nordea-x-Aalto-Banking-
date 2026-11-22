@@ -4,11 +4,11 @@ import { AppState, Reward, DataRewards, fetchDataRewards, NordeaDataInfo, fetchN
 import { CabinetEntry, EntryEvent } from '../types.js';
 import { Icon } from '../ui/icons.js';
 import { nfi, eur, monthLong, monthShort, dayMonth } from '../ui/format.js';
-import { DetailHead, NRow, Band, Toggle, RoundActions, BAND_BG } from './Nordea.js';
-import { HistoryCard } from './HomePage.js';
+import { DetailHead, NRow, Band, Toggle, RoundActions, BAND_BG, NChev } from './Nordea.js';
+import { HistoryCard, QuickActions } from './HomePage.js';
 import { AdviceList, proactiveName } from './Advice.js';
 
-// ---------------- What Abel knows ----------------
+// ---------------- What Nora knows ----------------
 const DRAWERS: { name: string; has: (e: CabinetEntry) => boolean; icon: string }[] = [
   { name: 'Other goals', has: (e) => e.type === 'goal', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>' },
   { name: 'Life', has: (e) => e.type === 'life_event', icon: '<path d="M3 11l9-7 9 7v9H3z"/>' },
@@ -20,20 +20,20 @@ const DRAWERS: { name: string; has: (e: CabinetEntry) => boolean; icon: string }
 interface KnowsProps {
   state: AppState;
   onAddGoal: () => void;
-  onTellAbel: () => void;
+  onTellNora: () => void;
   onImport: () => void;
   onPrivacy: () => void;
   onAskAbout: (text: string) => void;
   onUpdate: (e: CabinetEntry, updates: Partial<CabinetEntry>) => void;
   onArchive: (e: CabinetEntry) => void;
-  /** Same as on Home: confirming what Nordea noticed (+10 points, and Abel follows up on a salary change). */
+  /** Same as on Home: confirming what Nordea noticed (+10 points, and Nora follows up on a salary change). */
   onConfirm: (e: CabinetEntry) => void;
   /** An out-of-date goal is still a plan. */
   onKeep: (e: CabinetEntry) => void;
   onDeleteDoc: (id: string) => void;
   /** v20: something was saved from the pipeline: reload the app state. */
   onChanged?: () => void;
-  /** v27: "Abel's suggestions": allow again, or change an answer. */
+  /** v27: "Nora's suggestions": allow again, or change an answer. */
   adviceBusy?: boolean;
   onAdviceChange?: (ruleId: string, what: 'allow' | 'forget') => void;
   /** Opens the refund case page from the Refund cases row (the only way back in after Done clears Home). */
@@ -41,7 +41,7 @@ interface KnowsProps {
 }
 
 // ---------------- History of one entry ----------------
-const WHO: Record<EntryEvent['by'], string> = { you: 'You', abel: 'Abel', nordea: 'Nordea' };
+const WHO: Record<EntryEvent['by'], string> = { you: 'You', abel: 'Nora', nordea: 'Nordea' };
 const DID: Record<EntryEvent['action'], string> = {
   added: 'added it', changed: 'changed it', removed: 'removed it', brought_back: 'brought it back', confirmed: 'confirmed it',
   marked_wrong: 'said it’s wrong', deleted: 'deleted it', undone: 'undid a change',
@@ -53,7 +53,7 @@ function val(field: string, v: any): string {
   if (v == null || v === '') return '–';
   if (field === 'target') return `${eur(v.amount)} by ${monthShort(String(v.date).slice(0, 7))}`;
   if (field === 'status') return STATUS[v] || String(v);
-  if (field === 'readableBy') return Object.entries(v).filter(([, on]) => on).map(([k]) => (k === 'abel' ? 'Abel' : k === 'offers' ? 'Offers' : k)).join(', ') || 'No one';
+  if (field === 'readableBy') return Object.entries(v).filter(([, on]) => on).map(([k]) => (k === 'abel' ? 'Nora' : k === 'offers' ? 'Offers' : k)).join(', ') || 'No one';
   if (typeof v === 'boolean') return v ? 'Yes' : 'No';
   return String(v);
 }
@@ -84,10 +84,10 @@ export const HistoryList: React.FC<{ userId: string; entryId: string }> = ({ use
 };
 
 function seenLine(e: CabinetEntry): string {
-  // Only say something when it isn't the obvious "Abel uses it".
+  // Only say something when it isn't the obvious "Nora uses it".
   if (e.type === 'blind_spot' || e.status === 'archived') return '';
   if (e.status === 'disputed') return 'Not used: you said it’s wrong';
-  if (e.source === 'nordea' && !e.reviewed) return 'This note isn’t used until you confirm it (Abel still sees your account payments)';
+  if (e.source === 'nordea' && !e.reviewed) return 'This note isn’t used until you confirm it (Nora still sees your account payments)';
   if (e.readableBy?.abel === false) return 'Not used: you turned it off';
   if (e.readableBy?.offers && !e.private) return 'Offers can use it';
   return '';
@@ -129,7 +129,7 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
                 <div className="perm-row" style={{ width: '100%' }}>
                   <span>Who can use it:</span>
                   <button className="toggle" aria-pressed={e.readableBy?.abel !== false} onClick={() => onUpdate(e, { readableBy: { ...e.readableBy, abel: e.readableBy?.abel === false } })}>
-                    <span className="knob" />Abel
+                    <span className="knob" />Nora
                   </button>
                   {!e.private && (
                     <button className="toggle" aria-pressed={!!e.readableBy?.offers} onClick={() => onUpdate(e, { readableBy: { ...e.readableBy, offers: !e.readableBy?.offers } })}>
@@ -147,7 +147,7 @@ const ItemRow: React.FC<{ e: CabinetEntry; open: boolean; onMenu: () => void; wh
   );
 };
 
-/** Files the customer chose to keep. Shown in What Abel knows, with delete. */
+/** Files the customer chose to keep. Shown in What Nora knows, with delete. */
 const ApprovalWaiting: React.FC<{ cards: ApprovalCard[]; onDecide: (id: string, ok: boolean) => void }> = ({ cards, onDecide: decide }) => {
   if (!cards.length) return null;
   return (
@@ -174,7 +174,7 @@ const ApprovalWaiting: React.FC<{ cards: ApprovalCard[]; onDecide: (id: string, 
 };
 
 /** v20: what the input pipeline kept for the customer (glasses, WhatsApp, documents...). Nothing is used
- *  until they decide: Save (Abel and, for a case they share, Nordea), Keep private (Abel only), Drop. */
+ *  until they decide: Save (Nora and, for a case they share, Nordea), Keep private (Nora only), Drop. */
 const PipelineWaiting: React.FC<{ items: PipeItem[]; onDecide: (id: string, a: 'save' | 'private' | 'drop') => void }> = ({ items, onDecide }) => {
   const [all, setAll] = useState(false);
   if (!items.length) return (
@@ -254,7 +254,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
   const waiting = active.filter((e) => e.source === 'nordea' && !e.reviewed && e.status === 'active' && e.type !== 'blind_spot');
   const staleGoals = active.filter((e) => e.type === 'goal' && e.status === 'stale' && !tracked.has(e.id));
   const inUse = state.readable.abel;
-  // Not shared: everything Abel can't read, except what's only waiting for a confirm. (An out-of-date goal Abel
+  // Not shared: everything Nora can't read, except what's only waiting for a confirm. (An out-of-date goal Nora
   // still reads counts as in use and as waiting: it is both.)
   const notShared = Math.max(0, active.length - inUse - waiting.length);
   const [allWaiting, setAllWaiting] = useState(false);
@@ -275,7 +275,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
       <header className="nhead detail kn-head" style={{ backgroundImage: BAND_BG }}>
         <div className="dh-top">
           <span className="dh-back" />
-          <b>What Abel knows</b>
+          <b>What Nora knows</b>
           <button className="dh-side" onClick={p.onPrivacy}><Icon name="shield" />Who sees it</button>
         </div>
         <div className="kn-sum">
@@ -285,7 +285,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         </div>
         <RoundActions actions={[
           { icon: 'plus', label: 'Add a goal', onClick: p.onAddGoal },
-          { icon: 'spark', label: 'Tell Abel', onClick: p.onTellAbel },
+          { icon: 'spark', label: 'Tell Nora', onClick: p.onTellNora },
           { icon: 'file', label: 'Import a chat', onClick: p.onImport },
         ]} />
       </header>
@@ -343,7 +343,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                       {g.target > g.saved && <><br /><b>Still to save today:</b> {eur(g.target - g.saved)}.</>}
                     </p>
                     <div className="gm-act">
-                      <button className="btn small primary" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Abel about this</button>
+                      <button className="btn small primary" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Nora about this</button>
                       <button className="btn small" onClick={() => p.onAskAbout('Plan my next payday')}>Plan my payday</button>
                       <button className="btn small quiet" aria-expanded={goalHist === g.goalId} onClick={() => setGoalHist(goalHist === g.goalId ? null : g.goalId)}>{goalHist === g.goalId ? 'Hide history' : 'History'}</button>
                     </div>
@@ -370,7 +370,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
           <div className="nempty">
             <span className="ne-art" aria-hidden="true"><Icon name="cal" /></span>
             <b>Your goals will appear here</b>
-            <p>Tell Abel what you’re saving for, and Abel will track it with you.</p>
+            <p>Tell Nora what you’re saving for, and Nora will track it with you.</p>
             <button className="nq" onClick={p.onAddGoal}><span className="nq-c"><Icon name="plus" /></span><span className="nq-l">Create</span></button>
           </div>
         )}
@@ -378,7 +378,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
           <div className="body">
             <div className="sec-title"><h2>Everything else</h2></div>
             <div className="legend"><span className="from you">You told us</span><span className="from bank">Nordea noticed</span>{hasBlind && <span className="from grey">Not shared</span>}</div>
-            {listedRest.length === 0 && <div className="card"><p>Nothing else yet. Tell Abel about plans or changes in your life.</p></div>}
+            {listedRest.length === 0 && <div className="card"><p>Nothing else yet. Tell Nora about plans or changes in your life.</p></div>}
             {DRAWERS.map((dw) => {
               const items = listedRest.filter(dw.has);
               if (!items.length) return null;
@@ -425,11 +425,11 @@ export const PrivacyPage: React.FC<{ state: AppState; onBack: () => void; onTogg
   const off = !!state.user.offersOff;
   return (
     <>
-      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="reads of what Abel knows, each one logged" onBack={onBack} />
+      <DetailHead title="Who sees it" big={String(state.accessCount)} sub="reads of what Nora knows, each one logged" onBack={onBack} />
       <div className="nbody">
         <Band left="Who can read" />
         <div className="ncard flat">
-          <NRow name="Abel, your assistant" sub={`Can use ${state.readable.abel} things`} />
+          <NRow name="Nora, your assistant" sub={`Can use ${state.readable.abel} things`} />
           <NRow name="Nordea offers" sub={off ? 'Nothing: partner offers are off' : `Can use ${state.readable.offers} things you allowed`} />
           {active.length ? (
             active.map((s) => (
@@ -484,10 +484,10 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
       <DetailHead
         title="Payday autopilot"
         big={noPay ? '–' : nfi(pp.suggestedExtraMove)}
-        sub={noPay ? 'Abel can plan your payday once a salary or pension comes in to this account' : pp.towardsGoal ? `Abel suggests saving this much more for “${pp.towardsGoal}” each payday` : 'Abel suggests saving this much more each payday'}
+        sub={noPay ? 'Nora can plan your payday once a salary or pension comes in to this account' : pp.towardsGoal ? `Nora suggests saving this much more for “${pp.towardsGoal}” each payday` : 'Nora suggests saving this much more each payday'}
         onBack={onBack}
         actions={[
-          { icon: 'spark', label: 'Plan with Abel', onClick: () => onPlan() },
+          { icon: 'spark', label: 'Plan with Nora', onClick: () => onPlan() },
           { icon: 'sliders', label: 'My limits', onClick: () => onPlan('I want to change how much stays in my current account') },
           { icon: 'shield', label: 'How it works', onClick: () => onPlan('How does the payday autopilot work?') },
         ]}
@@ -505,13 +505,13 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
           <NRow name="Bills and spending" sub="Average of the last 3 months" amount={`−${nfi(pp.spendingAveragePerMonth)}`} />
           <NRow name="Already saving" amount={`−${nfi(pp.alreadySavingPerMonth)}`} />
           <NRow name="Left over" amount={nfi(pp.leftOver)} />
-          {pp.towardsGoal && <NRow name="Abel suggests" sub={`To “${pp.towardsGoal}”`} amount={`+${nfi(pp.suggestedExtraMove)}`} />}
+          {pp.towardsGoal && <NRow name="Nora suggests" sub={`To “${pp.towardsGoal}”`} amount={`+${nfi(pp.suggestedExtraMove)}`} />}
         </div>
         </>)}
         <Band left="Your rules" />
         <div className="ncard flat">
           <NRow name="Always keep" sub="Stays in your current account as a buffer" amount={nfi(pp.keepInCurrentAccount)} />
-          <NRow name="What Abel may do" sub="Suggest only. Nothing moves until you confirm" />
+          <NRow name="What Nora may do" sub="Suggest only. Nothing moves until you confirm" />
         </div>
       </div>
     </>
@@ -548,13 +548,13 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
           <>
             <Band left="Your data earns" right={<button className="band-link" onClick={() => setHow(!how)}>{how ? 'Close' : 'How it works'}</button>} />
             <div className="dr-tiles">
-              <div className="ncard dr-tile"><b>+{dr.sharing.points}</b><span className="n-name">For what you share</span><span className="n-sub">{dr.sharing.points ? `${dr.sharing.notesNow} ${dr.sharing.notesNow === 1 ? 'note' : 'notes'} · ${dr.rules.sharedPerNote} each, once` : 'Starts with the first note Abel reads'}</span></div>
-              <button className="ncard dr-tile" onClick={() => setDrOpen(!drOpen)}><b>+{dr.use.points}</b><span className="n-name">For how it’s used</span><span className="n-sub">{dr.use.reads ? `Read ${dr.use.readsThisMonth} ${dr.use.readsThisMonth === 1 ? 'time' : 'times'} this month` : 'Starts when Abel uses your notes'}</span></button>
+              <div className="ncard dr-tile"><b>+{dr.sharing.points}</b><span className="n-name">For what you share</span><span className="n-sub">{dr.sharing.points ? `${dr.sharing.notesNow} ${dr.sharing.notesNow === 1 ? 'note' : 'notes'} · ${dr.rules.sharedPerNote} each, once` : 'Starts with the first note Nora reads'}</span></div>
+              <button className="ncard dr-tile" onClick={() => setDrOpen(!drOpen)}><b>+{dr.use.points}</b><span className="n-name">For how it’s used</span><span className="n-sub">{dr.use.reads ? `Read ${dr.use.readsThisMonth} ${dr.use.readsThisMonth === 1 ? 'time' : 'times'} this month` : 'Starts when Nora uses your notes'}</span></button>
             </div>
-            {how && <p className="dr-how">You earn {dr.rules.sharedPerNote} points once for each note you share, and points each time it’s really read: Abel 1 a reply (up to 10 a day), a partner offer 3, your adviser 10. Remove a note and it stops earning.</p>}
+            {how && <p className="dr-how">You earn {dr.rules.sharedPerNote} points once for each note you share, and points each time it’s really read: Nora 1 a reply (up to 10 a day), a partner offer 3, your adviser 10. Remove a note and it stops earning.</p>}
             {drOpen && (
               <div className="ncard flat">
-                {dr.mostUsed.length ? dr.mostUsed.map((n) => <NRow key={n.id} name={n.title} sub={n.removed ? 'Removed' : 'Still shared'} amount={`${n.reads}×`} chevron={false} />) : <NRow name="Nothing read yet" sub="Ask Abel something to start" chevron={false} />}
+                {dr.mostUsed.length ? dr.mostUsed.map((n) => <NRow key={n.id} name={n.title} sub={n.removed ? 'Removed' : 'Still shared'} amount={`${n.reads}×`} chevron={false} />) : <NRow name="Nothing read yet" sub="Ask Nora something to start" chevron={false} />}
               </div>
             )}
           </>
@@ -576,7 +576,7 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
         <Band left="Earn more" />
         <div className="ncard flat">
           <NRow name={waiting ? 'Check what Nordea noticed' : 'Everything is checked'} sub={waiting ? `${waiting} waiting · +10 points each` : 'Nothing waiting for you'} right={waiting ? <button className="btn small" onClick={onEarn}>Do it</button> : <span className="npill up">✓</span>} />
-          <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `You save ${eur(state.user.extraMonthly)} more a month` : 'Plan your payday with Abel · +50 points'} right={state.user.extraMonthly ? <span className="npill up">✓</span> : undefined} />
+          <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `You save ${eur(state.user.extraMonthly)} more a month` : 'Plan your payday with Nora · +50 points'} right={state.user.extraMonthly ? <span className="npill up">✓</span> : undefined} />
         </div>
         {used.length > 0 && (
           <>
@@ -621,10 +621,10 @@ export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => 
   const [all, setAll] = useState(false);
   return (
     <>
-      <DetailHead title="Contact" sub="How can we help you today?" />
+      <DetailHead title="Help" sub="How can we help you today?" />
       <div className="nbody">
         <div className="ncard first">
-          <NRow name={<><Icon name="spark" /> Chat with Abel</>} sub="Replies instantly" onClick={() => onHelper('abel')} />
+          <NRow name={<><Icon name="spark" /> Chat with Nora</>} sub="Replies instantly" onClick={() => onHelper('abel')} />
           <NRow name={<><Icon name="person" /> Talk to a person</>} sub="A Nordea adviser" onClick={() => onHelper('person')} />
           <NRow name={<><Icon name="cal" /> Book an online meeting</>} sub="Pick a time" onClick={() => onHelper('person')} />
         </div>
@@ -637,7 +637,7 @@ export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => 
 // ---------------- AI connection check ----------------
 const speed = (s: { lastTurn?: { ms: number; calls: number } | null; thinking?: string }) =>
   (s.lastTurn ? ` · last chat answer ${(s.lastTurn.ms / 1000).toFixed(1)} s (${s.lastTurn.calls} ${s.lastTurn.calls === 1 ? 'call' : 'calls'})` : '') + (s.thinking && s.thinking !== 'not tried yet' ? ` · thinking ${s.thinking}` : '');
-/** Shows whether Abel's AI works here, and the real reason if not. Never shows the key. */
+/** Shows whether Nora's AI works here, and the real reason if not. Never shows the key. */
 /** Where the demo's data is saved (Supabase or only this server). */
 /** v24: the reset asks inside the app. A browser pop-up (window.confirm) can be blocked silently in
  *  an embedded preview such as AI Studio's, and then the reset never happened. */
@@ -645,12 +645,12 @@ const ResetRow: React.FC<{ onReset: () => Promise<void> }> = ({ onReset }) => {
   const [ask, setAsk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  if (!ask) return <NRow name="Reset demo data" sub={err ? <span className="ai-bad">{err}</span> : 'Start again'} onClick={() => { setErr(''); setAsk(true); }} />;
+  if (!ask) return <NRow name="Reset the data" sub={err ? <span className="ai-bad">{err}</span> : 'Start again'} onClick={() => { setErr(''); setAsk(true); }} />;
   const go = async () => {
     setBusy(true);
     try { await onReset(); setAsk(false); } catch (e: any) { setErr(`Reset failed: ${e?.message || e}`); setAsk(false); } finally { setBusy(false); }
   };
-  return <NRow name="Reset the demo?" sub="Chats, changes and inputs are deleted, here and in Supabase. The demo customers start again." right={<span style={{ display: 'flex', gap: 6 }}><button className="btn small quiet" onClick={() => setAsk(false)} disabled={busy}>Cancel</button><button className="btn small primary" onClick={go} disabled={busy}>{busy ? 'Resetting…' : 'Reset'}</button></span>} />;
+  return <NRow name="Start again?" sub="Chats, changes and inputs are deleted, here and in Supabase. The customers start again." right={<span style={{ display: 'flex', gap: 6 }}><button className="btn small quiet" onClick={() => setAsk(false)} disabled={busy}>Cancel</button><button className="btn small primary" onClick={go} disabled={busy}>{busy ? 'Resetting…' : 'Reset'}</button></span>} />;
 };
 
 const DbCheck: React.FC = () => {
@@ -689,7 +689,7 @@ const NordeaDataRow: React.FC<{ userId: string; onChanged: () => void }> = ({ us
       done(r.applied.length ? r.applied.map((a) => `Row ${a.rowId}: ${a.result.message}`).join(' ') : 'No new rows in Supabase → nordea_feed.');
     } catch (e: any) { done(String(e?.message || e), true); }
   };
-  const src = s?.info ? `${s.info.from} · ${dayMonth(s.info.at.slice(0, 10))}` : 'The demo’s original data';
+  const src = s?.info ? `${s.info.from} · ${dayMonth(s.info.at.slice(0, 10))}` : 'The original data';
   return (
     <div className="nd-row">
       <NRow name="Nordea account data" sub={`${src} · ${s?.transactions ?? '…'} transactions`} chevron={false} />
@@ -743,12 +743,12 @@ const AiCheck: React.FC = () => {
     <>
       <NRow
         name="AI connection"
-        sub={busy ? 'Testing…' : res ? <span className={res.ok ? 'up' : 'ai-bad'}>{res.text}</span> : 'Test whether Abel’s AI answers'}
+        sub={busy ? 'Testing…' : res ? <span className={res.ok ? 'up' : 'ai-bad'}>{res.text}</span> : 'Test whether Nora’s AI answers'}
         right={<button className="btn small" onClick={test} disabled={busy}>Test</button>}
       />
       {members.length > 1 && (
         <div className="ai-each">
-          <span className="ai-each-h">In order: the first one that's free answers. If all are resting, Abel answers common questions from the bank's own numbers.</span>
+          <span className="ai-each-h">In order: the first one that's free answers. If all are resting, Nora answers common questions from the bank's own numbers.</span>
           {members.map((m) => (
             <div key={m.name} className="ai-each-r">
               <b>{m.name}{m.vision ? ' · reads photos' : ''}</b>
@@ -764,7 +764,7 @@ const AiCheck: React.FC = () => {
   );
 };
 
-/** For the team: ask Abel ~12 real questions and grade the answers (uses ~15–20 AI requests). */
+/** For the team: ask Nora ~12 real questions and grade the answers (uses ~15–20 AI requests). */
 const SelfTest: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<{ results: CheckResult[]; passed: number; total: number } | null>(null);
@@ -777,7 +777,7 @@ const SelfTest: React.FC = () => {
   return (
     <>
       <NRow
-        name="Check Abel’s answers"
+        name="Check Nora’s answers"
         sub={busy ? 'Asking 12 questions… this takes 2–3 minutes' : err ? <span className="ai-bad">{err}</span> : out ? <span className={out.passed === out.total ? 'up' : 'ai-bad'}>{out.passed} of {out.total} passed</span> : '12 test questions · uses about 15–20 AI requests'}
         right={<button className="btn small" onClick={run} disabled={busy}>Run</button>}
       />
@@ -787,7 +787,7 @@ const SelfTest: React.FC = () => {
             <button key={i} className="ai-each-r st-r" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
               <b className={r.ok ? 'up' : 'ai-bad'}>{r.ok ? '✓' : '✗'} {r.name}</b>
               <span>{r.why} · {r.answeredBy} · {(r.ms / 1000).toFixed(1)} s</span>
-              {open === i && <span className="st-more"><b>Asked:</b> {r.asked}<br /><b>Abel:</b> {r.reply || '–'}{r.cards.length ? <><br /><b>Cards:</b> {r.cards.join(', ')}</> : null}</span>}
+              {open === i && <span className="st-more"><b>Asked:</b> {r.asked}<br /><b>Nora:</b> {r.reply || '–'}{r.cards.length ? <><br /><b>Cards:</b> {r.cards.join(', ')}</> : null}</span>}
             </button>
           ))}
         </div>
@@ -796,7 +796,7 @@ const SelfTest: React.FC = () => {
   );
 };
 
-/** For the team: show the small technical line under Abel's messages when something failed. Off for customers. */
+/** For the team: show the small technical line under Nora's messages when something failed. Off for customers. */
 const DebugToggle: React.FC = () => {
   const read = () => { try { return localStorage.getItem('abel-debug') === '1'; } catch { return false; } };
   const [on, setOn] = useState(read);
@@ -816,18 +816,18 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
     <div className="nbody">
       <Band left="You" />
       <div className="ncard flat">
-        <NRow name="What Abel knows" sub="Goals, plans, preferences" onClick={() => onPage('knows')} />
+        <NRow name="What Nora knows" sub="Goals, plans, preferences" onClick={() => onPage('knows')} />
         <NRow name="Who sees it" sub="Access, sharing, offers" onClick={() => onPage('privacy')} />
         <NRow name="Rewards" sub="Points and levels" onClick={() => onPage('rewards')} />
       </div>
       <Band left="Settings" />
       <div className="ncard flat">
         <NRow name="Calm view" sub="Bigger text, fewer things" right={<Toggle on={state.user.viewMode === 'calm'} onChange={onCalm} label="Calm view" />} />
-        {onSuggest && <NRow name="Suggestions from Abel" sub={proactiveName(state.advice?.proactive)} onClick={onSuggest} />}
+        {onSuggest && <NRow name="Suggestions from Nora" sub={proactiveName(state.advice?.proactive)} onClick={onSuggest} />}
         <NRow name="Dark mode" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
       </div>
       {/* v30: the demo tools live on their own page, so customer settings stay customer settings. */}
-      <Band left="For the demo team" />
+      <Band left="For presenting" />
       <div className="ncard flat">
         <NRow name="Presenter tools" sub="Switch customer, reset, AI and data checks. Not part of the customer app." onClick={() => onPage('presenter')} />
       </div>
@@ -840,10 +840,10 @@ export const PresenterPage: React.FC<{ state: AppState; onBack: () => void; onUs
   <>
     <DetailHead title="Presenter tools" onBack={onBack} />
     <div className="nbody">
-      <p className="presenter-note">These tools are for presenting the concept. Customers don’t see them: they open from More → Presenter tools.</p>
-      <Band left="Demo customer" />
+      <p className="presenter-note">These tools are for presenting. Customers don’t see them: they open from More → Presenter tools.</p>
+      <Band left="Customer" />
       <div className="ncard flat">
-        <NRow name="Switch demo customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
+        <NRow name="Switch customer" sub={`Now: ${state.user.name}`} onClick={onUsers} />
         <ResetRow onReset={onReset} />
       </div>
       <RefundDemoTools userId={state.user.id} />
@@ -864,6 +864,74 @@ export const PresenterPage: React.FC<{ state: AppState; onBack: () => void; onUs
   </>
 );
 
+// ---------------- v31: the new reference-style tabs ----------------
+
+/** Pay: the bank's own payment actions on their own tab, as in the Nordea app. Same actions as on Overview. */
+export const PayPage: React.FC<{ state: AppState; onFrame: (w: string) => void }> = ({ state, onFrame }) => (
+  <>
+    <DetailHead title="Pay and transfer" sub="The bank's own payments" />
+    <div className="nbody">
+      <QuickActions onFrame={onFrame} />
+      <div className="ncard">
+        <button className="nrow2 head" onClick={() => onFrame('Payments')}>
+          <span className="n-l">
+            <span className="n-name b">Payments and e-invoices</span>
+            <span className="n-sub"><i className="reddot" />Unconfirmed (2)</span>
+          </span>
+          <NChev />
+        </button>
+      </div>
+    </div>
+  </>
+);
+
+/** Invest: the customer's existing savings goals on the middle tab. No new financial capability:
+ *  the rows open what already exists (the goals in What Nora knows, adding a goal, asking Nora). */
+export const InvestPage: React.FC<{ state: AppState; onAddGoal: () => void; onOpenPage: (p: string) => void; onAskAbout: (t: string) => void }> = ({ state, onAddGoal, onOpenPage, onAskAbout }) => (
+  <>
+    <DetailHead title="Save and invest" sub="Your goals, with Nora's help" actions={[{ icon: 'plus', label: 'Add a goal', onClick: onAddGoal }]} />
+    <div className="nbody">
+      <Band left="Your goals" right={state.goals.length ? String(state.goals.length) : undefined} />
+      <div className="ncard flat">
+        {state.goals.map((g) => (
+          <NRow key={g.goalId} name={g.title} sub={`${eur(g.saved)} of ${eur(g.target)}`} amount={`${Math.round(g.percentSaved)} %`} onClick={() => onOpenPage('knows')} />
+        ))}
+        {!state.goals.length && <NRow name="No goals yet" sub="Add one below" chevron={false} />}
+        <NRow name="Open an ASP account" sub="Ask Nora whether it fits you" onClick={() => onAskAbout('Can I open an ASP account?')} />
+        <NRow name="Add a goal" sub="Save for something new" onClick={onAddGoal} />
+      </div>
+      <Band left="Ideas from Nora" />
+      <div className="ncard flat">
+        <NRow name="Is investing right for me now?" sub="Ask Nora" onClick={() => onAskAbout('Is investing right for me now?')} />
+        <NRow name="What could I invest in?" sub="Ask Nora" onClick={() => onAskAbout('What could I invest in?')} />
+      </div>
+    </div>
+  </>
+);
+
+/** Services: one place for Nora's helpers, rewards and talking to a person. Every row opens an
+ *  existing surface (a helper chat, the autopilot page, Rewards). */
+export const ServicesPage: React.FC<{ state: AppState; onHelper: (id: string) => void; onOpenPage: (p: string) => void }> = ({ state, onHelper, onOpenPage }) => (
+  <>
+    <DetailHead title="Services" sub="Help with money, points and people" />
+    <div className="nbody">
+      <Band left="Nora can help with" />
+      <div className="ncard flat">
+        <NRow name="Payday autopilot" sub="Plan each payday" onClick={() => onOpenPage('autopilot')} />
+        <NRow name="Budget" sub="Where money goes" onClick={() => onHelper('budget')} />
+        <NRow name="Investing" sub="Get ready to invest" onClick={() => onHelper('invest')} />
+        <NRow name="Life events" sub="Moving, baby, new job" onClick={() => onHelper('life')} />
+        <NRow name="Money leaks" sub="Costs that crept up" onClick={() => onHelper('leaks')} />
+      </div>
+      <Band left="Points and people" />
+      <div className="ncard flat">
+        <NRow name="Rewards" sub={`${state.user.points || 0} points to spend`} onClick={() => onOpenPage('rewards')} />
+        <NRow name="Talk to a person" sub="A Nordea adviser" onClick={() => onHelper('person')} />
+      </div>
+    </div>
+  </>
+);
+
 /** Delete a kept file. If things were saved from it, the customer chooses whether they go too. */
 export const DeleteDocSheet: React.FC<{ doc: DocInfo; onDelete: (alsoEntries: boolean) => void; onCancel: () => void }> = ({ doc, onDelete, onCancel }) => {
   const n = doc.entries.length;
@@ -874,7 +942,7 @@ export const DeleteDocSheet: React.FC<{ doc: DocInfo; onDelete: (alsoEntries: bo
         <h3>Delete “{doc.name}”?</h3>
         {n ? (
           <div className="summary">
-            <div className="sum-row"><span>Abel saved {n} {n === 1 ? 'thing' : 'things'} from it:</span></div>
+            <div className="sum-row"><span>Nora saved {n} {n === 1 ? 'thing' : 'things'} from it:</span></div>
             {doc.entries.map((t, i) => <div className="sum-row" key={i}><span>• {t}</span></div>)}
           </div>
         ) : (

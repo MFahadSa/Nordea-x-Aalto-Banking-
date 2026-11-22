@@ -1,4 +1,4 @@
-// v14 routes: conversations with helpers, the real Abel, customer button actions, partner offers,
+// v14 routes: conversations with helpers, the real Nora, customer button actions, partner offers,
 // one-time sharing, imports and the data the screens need. Money and fees are computed in code.
 import type { Express, Request, Response } from 'express';
 import { db } from './db.js';
@@ -83,7 +83,7 @@ export function registerV14Routes(app: Express) {
     }
     const user = db.getUser(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    // v27: Home "For you" and "Abel's suggestions" (picked first, so its logged read is in the counts below).
+    // v27: Home "For you" and "Nora's suggestions" (picked first, so its logged read is in the counts below).
     const advice = adviceView(userId, fin.DEMO_TODAY);
     const entries = db.getCabinetEntries(userId);
     const goals = fin.activeGoals(userId).map((g) => fin.goalStatus(userId, g));
@@ -169,14 +169,14 @@ export function registerV14Routes(app: Express) {
     // another named shop is plainly unsupported, and a yes, a no, a cancel or a topic change never opens anything.
     const REFUND_ASK = 'Which shop is the refund from? Name it and I can look into it.';
     const REFUND_GENERIC = 'That does not tell me which shop. What is the shop called?';
-    const REFUND_NO_SHOP = 'I cannot look into refunds from that shop in this demo. The demo covers one shop only, which you can name if it applies.';
+    const REFUND_NO_SHOP = 'I cannot look into refunds from that shop. For now I can look into one shop only, which you can name if it applies.';
     const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent').slice(-1)[0];
     const afterAsk = [REFUND_ASK, REFUND_GENERIC, REFUND_NO_SHOP].includes(lastAgent?.text ?? '');
     const other = /\b(balance|spend|spending|pay|salary|afford|track|goal|money|unrelated|yes|yeah|yep|ok|okay|thanks|thank|why|what|whats|how|when|who)\b|\?/i;
     const negated = /\b(no|nope|not|don't|dont|never|without|cancel|stop|forget|nevermind|drop|quit)\b|never ?mind/i;
     const generic = /^\s*(an?|the|some|any|my)?\s*(online\s*)?(shop|store|webshop|web shop|retailer|website|merchant|one)\s*\.?\s*$/i;
     const clean = !other.test(u.text) && !negated.test(u.text);
-    // "Where is my refund": with an open case, Abel answers from the case only.
+    // "Where is my refund": with an open case, Nora answers from the case only.
     const openRefund = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
     if (conv.helperId === 'abel' && openRefund && /refund/i.test(u.text) && /\b(where|status|update|any news|how is|how's)\b/i.test(u.text) && u.text.length <= 80 && !negated.test(u.text)) {
       const ex = explainCase(caseView(refunds(), openRefund));
@@ -193,12 +193,12 @@ export function registerV14Routes(app: Express) {
       const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
-        ? agentMsg(userId, conv.id, conv.helperId, open ? 'Abel is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
-        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Abel may read.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Abel look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Demo: fictional data, nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
+        ? agentMsg(userId, conv.id, conv.helperId, open ? 'Nora is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
+        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Nora may read.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Nora look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
-    // His three agents gather what Abel may see for this conversation (User DB via the personal agent,
-    // the session's finalised context.md); Abel writes the reply, with cards and the reply checks.
+    // His three agents gather what Nora may see for this conversation (User DB via the personal agent,
+    // the session's finalised context.md); Nora writes the reply, with cards and the reply checks.
     const shared = await abelSharedContext(userId, conv.id, u.text);
     const reply = await abelTurn(userId, conv.id, conv.helperId, u.text, shared);
     db.addTopicLogEntry({ id: id('topic'), timestamp: now(), userId, topic: reply.topic, couldHelp: reply.couldHelp });
@@ -245,7 +245,7 @@ export function registerV14Routes(app: Express) {
     res.json({ status: 'unknown' });
   });
 
-  // v27: Abel's suggestions outside the chat: Home "For you", "Abel's suggestions", the setting.
+  // v27: Nora's suggestions outside the chat: Home "For you", "Nora's suggestions", the setting.
   app.get('/api/advice', (req: Request, res: Response) => {
     const userId = String(req.query.userId || 'lauri');
     if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });
@@ -326,7 +326,7 @@ export function registerV14Routes(app: Express) {
         if (msg.resolved) return res.status(409).json({ error: 'Already bought' });
         if (action === 'offer_view') {
           out.push(userMsg(userId, conv, helper, `${p.view}: ${item.title}`));
-          out.push(agentMsg(userId, conv, helper, `Sent to ${p.name} (demo) ✓ They only get your name and phone number. Nothing Abel knows about you is shared.`));
+          out.push(agentMsg(userId, conv, helper, `Sent to ${p.name} ✓ They only get your name and phone number. Nothing Nora knows about you is shared.`));
           break;
         }
         const fee = fin.partnerFee(p.fee, item.price);
@@ -336,7 +336,7 @@ export function registerV14Routes(app: Express) {
         db.updateUser(userId, { accounts: { ...user.accounts, savings: { ...user.accounts.savings, balance: Math.round((user.accounts.savings.balance + back) * 100) / 100 } } });
         out.push(userMsg(userId, conv, helper, `${p.id === 'homes' ? 'I bought' : p.buy.replace(' (demo)', '')}: ${item.title}`));
         const home = p.id === 'homes' ? db.getCabinetEntries(userId).find((e) => e.goalType === 'home' && e.status === 'active') : undefined;
-        out.push(agentMsg(userId, conv, helper, `${p.id === 'homes' ? 'Congratulations on your new home! 🎉' : 'Done (demo) ✓'}\n\nNordea earned ${fmt(fee)} from ${p.name} for this. As promised, ${fmt(back)} of it goes back to your savings account.`, {
+        out.push(agentMsg(userId, conv, helper, `${p.id === 'homes' ? 'Congratulations on your new home! 🎉' : 'Done ✓'}\n\nNordea earned ${fmt(fee)} from ${p.name} for this. As promised, ${fmt(back)} of it goes back to your savings account.`, {
           suggestions: home ? [`Mark “${home.title}” as done`] : [],
           cards: [{ type: 'info', data: { link: 'privacy', label: 'See what Nordea earned' } }],
         }));
@@ -391,7 +391,7 @@ export function registerV14Routes(app: Express) {
         const undoToken = id('undo');
         db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}" (private)`, previousEntry: null, entryId: e.id });
         db.updateMessage(msg.id, { resolved: 'Save privately' });
-        out.push(agentMsg(userId, conv, helper, 'Saved privately 🔒 Only I can read it, never offers.', { notes: [{ text: `📌 Abel will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
+        out.push(agentMsg(userId, conv, helper, 'Saved privately 🔒 Only I can read it, never offers.', { notes: [{ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
         break;
       }
       case 'case_answer': {
@@ -434,7 +434,7 @@ export function registerV14Routes(app: Express) {
         const c = card('import');
         if (!c) return res.status(400).json({ error: 'No import on this message' });
         if (action === 'import_no') {
-          // Nothing was approved: the suggestions are dropped from the card, so they can't reach Abel later.
+          // Nothing was approved: the suggestions are dropped from the card, so they can't reach Nora later.
           db.updateMessage(msg.id, { resolved: 'Not now', cards: msg.cards!.map((x) => (x === c ? { ...x, data: { ...x.data, items: [], savedIds: [] } } : x)) });
           if (Array.isArray(c.data!.pipeIds)) settleChatImport(c.data!.pipeIds, {});
           const kept = c.data!.documentId ? db.getDocument(c.data!.documentId) : undefined;
@@ -466,7 +466,7 @@ export function registerV14Routes(app: Express) {
             continue;
           }
           // Older cards put the note into detail; never save those notes as the detail.
-          const detail = x.note || !/^(Looks private|Already in what Abel knows|Changes “)/.test(x.detail || '') ? x.detail || '' : '';
+          const detail = x.note || !/^(Looks private|Already in what Nora knows|Changes “)/.test(x.detail || '') ? x.detail || '' : '';
           const e: CabinetEntry = {
             id: id('entry'), userId, type: x.type, title: x.title, detail: `${detail}${detail ? ' · ' : ''}From ${c.data!.source}`, source: 'document',
             status: 'active', private: !!x.sensitive, readableBy: { abel: true, offers: false }, provenance: { channel: c.data!.channel === 'whatsapp' ? 'whatsapp' : 'app', documentId: c.data!.documentId || c.data!.source, messageId: msg.id },
@@ -484,11 +484,11 @@ export function registerV14Routes(app: Express) {
         if (ids.length) {
           const undoToken = id('undo');
           db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create_many', description: `Imported ${ids.length} things`, previousEntry: null, entryIds: ids });
-          notes.unshift({ text: `📌 Abel will remember ${ids.length === 1 ? 'this' : 'these'}`, undoToken });
+          notes.unshift({ text: `📌 Nora will remember ${ids.length === 1 ? 'this' : 'these'}`, undoToken });
         }
         const total = ids.length + updated;
         // Only what was ticked stays on the card (unticked suggestions are dropped), and the card remembers
-        // which entries came from it, so Abel's history can show their current state.
+        // which entries came from it, so Nora's history can show their current state.
         db.updateMessage(msg.id, {
           resolved: `Save ${total} ${total === 1 ? 'thing' : 'things'}`,
           cards: msg.cards!.map((x) => (x === c ? { ...x, data: { ...x.data, items: picked.map((i: number) => items[i]), savedIds: [...ids, ...touched] } } : x)),
@@ -514,7 +514,7 @@ export function registerV14Routes(app: Express) {
           const undoToken = id('undo');
           db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}"`, previousEntry: null, entryId: e.id });
           db.updateMessage(msg.id, { resolved: 'Keep both' });
-          out.push(agentMsg(userId, conv, helper, `Saved “${e.title}” next to “${existing.title}”.${sensitive ? ' 🔒 Only I can read it.' : ''}`, { notes: [{ text: `📌 Abel will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
+          out.push(agentMsg(userId, conv, helper, `Saved “${e.title}” next to “${existing.title}”.${sensitive ? ' 🔒 Only I can read it.' : ''}`, { notes: [{ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
           break;
         }
         const old = db.getCabinetEntry(existing.id);
@@ -553,7 +553,7 @@ export function registerV14Routes(app: Express) {
         if (!c) return res.status(400).json({ error: 'No refund card on this message' });
         if (action === 'refund_no') {
           db.updateMessage(msg.id, { resolved: 'Not now' });
-          out.push(agentMsg(userId, conv, helper, 'OK. Abel reads nothing for this refund.'));
+          out.push(agentMsg(userId, conv, helper, 'OK. Nora reads nothing for this refund.'));
           break;
         }
         const offered = new Set(((c.data as any).items || []).map((i: any) => i.id));
@@ -561,7 +561,7 @@ export function registerV14Routes(app: Express) {
         if (!items.length || items.some((i: string) => !offered.has(i))) return res.status(400).json({ error: 'Tick at least one offered item' });
         let made: { id: string }; try { made = refunds().openCustomerCase({ userId, consentItems: items, reasons: ['refund_not_received'], country: 'FI' }); } catch (e: any) { return res.status(400).json({ error: e?.message || 'Could not start' }); }
         db.updateMessage(msg.id, { resolved: `Allowed ${items.length}`, cards: (msg.cards || []).map((x) => x.type === 'refund_consent' ? { ...x, data: { ...(x.data || {}), caseId: made.id } } : x) });
-        out.push(agentMsg(userId, conv, helper, 'Done. Abel looks into this refund and watches for it. You can withdraw any time under Abel knows.'));
+        out.push(agentMsg(userId, conv, helper, 'Done. Nora looks into this refund and watches for it. You can withdraw any time under Nora knows.'));
         break;
       }
       default:
@@ -735,7 +735,7 @@ export function registerV14Routes(app: Express) {
     }
   });
 
-  // The history of one thing in What Abel knows, newest first.
+  // The history of one thing in What Nora knows, newest first.
   app.get('/api/entries/:id/history', (req, res) => {
     const userId = String(req.query.userId || 'lauri');
     const e = db.getCabinetEntry(req.params.id);
@@ -751,7 +751,7 @@ export function registerV14Routes(app: Express) {
     res.json({ deletedMessages: n, message: 'Chat deleted' });
   });
 
-  // "Delete my chats". What Abel knows and kept documents stay (they have their own delete).
+  // "Delete my chats". What Nora knows and kept documents stay (they have their own delete).
   app.post('/api/chats/delete', (req, res) => {
     const { userId = 'lauri' } = req.body || {};
     const n = db.deleteChats(userId);
@@ -765,7 +765,7 @@ export function registerV14Routes(app: Express) {
     res.json({ ...db.status(), pipeline: await pipelineStorage() });
   });
 
-  // More → Check Abel's answers: real questions to the real AI on a copy of Lauri, graded automatically.
+  // More → Check Nora's answers: real questions to the real AI on a copy of Lauri, graded automatically.
   let selftestRunning = false;
   app.post('/api/selftest', async (_req, res) => {
     if (selftestRunning) return res.status(409).json({ error: 'A check is already running' });
@@ -779,7 +779,7 @@ export function registerV14Routes(app: Express) {
     }
   });
 
-  // When the customer confirms something Nordea noticed. For a salary change, Abel follows up in a new chat.
+  // When the customer confirms something Nordea noticed. For a salary change, Nora follows up in a new chat.
   app.post('/api/events/observation-confirmed', (req, res) => {
     const { userId = 'lauri', entryId } = req.body || {};
     const e = db.getCabinetEntry(entryId) ?? db.getQueuedCabinetEntry(entryId);
@@ -787,7 +787,7 @@ export function registerV14Routes(app: Express) {
     db.updateCabinetEntry(e.id, { reviewed: true, confirmedAt: now() }, { by: 'you', how: 'You confirmed it' });
     const u = db.getUser(userId)!;
     db.updateUser(userId, { points: (u.points || 0) + 10 });
-    // Only a salary (or pension) change gets Abel's follow-up. ("New regular payment: …" is not one.)
+    // Only a salary (or pension) change gets Nora's follow-up. ("New regular payment: …" is not one.)
     if (!(e.id.endsWith('-obs-salary') || /\b(salary|pension)\b/i.test(e.title))) return res.json({ entry: db.getCabinetEntry(e.id) });
     const sal = fin.salaryInfo(userId);
     const acc = fin.accounts(userId)!;

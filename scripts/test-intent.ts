@@ -17,7 +17,7 @@ const cases: [string, string][] = [
   ['Can I get a mortgage pre-approval for the flat?', 'none'],
   ['Mia has knee surgery in March', 'none'],
   ['What do you know about me?', 'none'],
-  ['Hi Abel', 'none'],
+  ['Hi Nora', 'none'],
   ['We bought a new sofa', 'none'],
   ['My salary went up', 'none'],
   // Looking for a home right now: the homes partner.

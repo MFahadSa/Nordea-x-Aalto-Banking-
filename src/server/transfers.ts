@@ -2,7 +2,7 @@
 /**
  * v29: one transfer now, or every month? The customer's words decide; when they say neither, a single amount is once.
  * v31: the model's own "once: false" no longer counts (it turned "move 40 € to the car fund" into a monthly card).
- * Only a plain yes to Abel's own monthly suggestion ("Want to move 300 € more each payday?" → "yes") is monthly.
+ * Only a plain yes to Nora's own monthly suggestion ("Want to move 300 € more each payday?" → "yes") is monthly.
  */
 export function transferIsOnce(now: string, before: string, _modelSays?: unknown, offered = ''): boolean {
   const monthly = /\b(every|each|per|a)\s+(month|payday)\b|\bmonthly\b|\bregular(ly)?\b|\bstanding\b/i;

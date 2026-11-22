@@ -20,7 +20,7 @@ export const LIMITS = {
   repeatDays: 30,
   seenDays: 180,
   calmEveryDays: 7,
-  /** How many allowed items Abel may choose from (the customer still sees at most one card per reply). */
+  /** How many allowed items Nora may choose from (the customer still sees at most one card per reply). */
   maxCandidates: 8,
 } as const;
 
@@ -111,16 +111,16 @@ export function factsOf(userId: string, today: string): Facts {
 export function logAdviceRead(userId: string, purpose: string, facts: Facts) {
   const ids = [...new Set(Object.values(facts).flatMap((f) => (f.state === 'known' ? f.entryIds || [] : [])))];
   // The same read again within the hour (Home re-opened, a re-render) is the same read: listed once.
-  const last = db.getAccessLog(userId).filter((l) => l.agentId === 'abel' && /^Abel suggestions/.test(l.purpose)).sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+  const last = db.getAccessLog(userId).filter((l) => l.agentId === 'abel' && /^Nora suggestions/.test(l.purpose)).sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
   if (last && last.purpose === purpose && Date.now() - Date.parse(last.timestamp) < 3600_000 && JSON.stringify([...(last.allowedIds || [])].sort()) === JSON.stringify([...ids].sort())) return;
   db.addAccessLogEntry({
     id: `acc-adv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, timestamp: new Date().toISOString(), userId,
-    agentId: 'abel', agentName: 'Abel, your assistant', purpose, itemsReadCount: ids.length, blockedCount: 0,
+    agentId: 'abel', agentName: 'Nora, your assistant', purpose, itemsReadCount: ids.length, blockedCount: 0,
     allowedItems: ids.map((i) => db.getCabinetEntry(i)?.title || i), allowedIds: ids, blockedReasons: [],
   });
 }
 
-export function candidatesFor(userId: string, today: string, purpose = 'Abel suggestions: checking which apply') {
+export function candidatesFor(userId: string, today: string, purpose = 'Nora suggestions: checking which apply') {
   const u = db.getUser(userId);
   const facts = factsOf(userId, today);
   logAdviceRead(userId, purpose, facts);
@@ -142,7 +142,7 @@ export function snapshot(userId: string, card: MessageCard, facts: Facts, used: 
 
 /**
  * v27: Home asks only when one answer is all that is missing: some answer to the question would make the
- * suggestion apply. (In a chat Abel may ask more, because the customer brought the topic up.)
+ * suggestion apply. (In a chat Nora may ask more, because the customer brought the topic up.)
  */
 export function oneAnswerAway(c: Candidate, facts: Facts, today: string, rules: Rule[]): boolean {
   if (c.status === 'eligible') return true;

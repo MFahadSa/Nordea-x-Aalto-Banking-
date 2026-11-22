@@ -85,7 +85,7 @@ try {
   const cs = (await state());
   await fetch(BASE + `/api/refund/case/${cs[0].id}/withdraw`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const after = JSON.stringify(await (await fetch(BASE + `/api/conversations/${statusCid}/messages`)).json());
-  check('after withdrawal the refund status Abel wrote in chat is removed, the customer\'s own words stay', !/89,90|TE-48213|40,00/.test(after) && /where is my refund/.test(after), after.slice(0, 300));
+  check('after withdrawal the refund status Nora wrote in chat is removed, the customer\'s own words stay', !/89,90|TE-48213|40,00/.test(after) && /where is my refund/.test(after), after.slice(0, 300));
   const log = JSON.stringify((await state()));
   check('no case remains open, nothing left readable after all of this', (await state()).every((c: any) => c.withdrawn), log);
 } finally { stop(); }

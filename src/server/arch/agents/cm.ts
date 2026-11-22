@@ -492,7 +492,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
       // nothing reaches the cabinet active without the customer's consent somewhere.
       // An archive is a removal, not new content: it lands directly, and a still-waiting
       // proposal for the same entry is withdrawn so a late accept cannot resurrect it.
-      // "That's wrong" (disputed) also only takes data away from Abel, so it lands directly too.
+      // "That's wrong" (disputed) also only takes data away from Nora, so it lands directly too.
       if (inEntry.status === 'archived' || inEntry.status === 'disputed') {
         const waiting = loadBus(uid).messages.find((m) => m.type === 'propose' && m.status === 'pending'
           && (m.payload as { appWrite?: boolean; entry?: { id?: string } } | undefined)?.appWrite === true
@@ -526,7 +526,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
         autoStoreRoundProposals(uid); // standing permissions ('high') auto-store low/medium
         const stored = loadCmDb(uid).entries.some((e) => e.id === inEntry.id && e.viaMessageId === proposal.id);
         // G11: a changed observation queues - hold the previously stored copy
-        // (reviewed=false) until the customer decides, so Abel never reads the stale
+        // (reviewed=false) until the customer decides, so Nora never reads the stale
         // figure as reviewed (v2 hid it until re-checked). Accept re-reviews; reject
         // leaves it held, exactly v2's "hidden until re-checked".
         if (!stored) {

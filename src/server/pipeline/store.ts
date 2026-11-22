@@ -11,7 +11,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export type PipeSource = 'glasses' | 'whatsapp' | 'document' | 'csv' | 'abel' | 'cloud';
 export const SOURCE_LABEL: Record<PipeSource, string> = {
-  glasses: 'Smart glasses', whatsapp: 'WhatsApp chat', document: 'Document', csv: 'Bank data', abel: 'Abel chat', cloud: 'Personal AI cloud',
+  glasses: 'Smart glasses', whatsapp: 'WhatsApp chat', document: 'Document', csv: 'Bank data', abel: 'Nora chat', cloud: 'Personal AI cloud',
 };
 
 export interface PipeRun {
@@ -53,7 +53,7 @@ export interface PipeCandidate {
   updatesId?: string;
   /** The cabinet entry it became (saved / kept private), or the Nordea observation it is. */
   entryId?: string;
-  /** 'chat': decided in Abel's import card (not in "From your inputs"). */
+  /** 'chat': decided in Nora's import card (not in "From your inputs"). */
   via?: 'chat';
 }
 

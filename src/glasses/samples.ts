@@ -9,7 +9,7 @@ export const MOMENTS: Moment[] = [
     { kind: 'heard', text: 'Lauri: Mia would love that balcony' },
     { kind: 'seen', text: 'Bus stop, line 55' },
   ] },
-  { id: 'ask', scene: 'street', title: 'Ask: “Am I on track for this flat?”', sub: 'Abel answers out loud, from what Lauri allowed.', signals: [], ask: 'Am I on track to buy this flat?' },
+  { id: 'ask', scene: 'street', title: 'Ask: “Am I on track for this flat?”', sub: 'Nora answers out loud, from what Lauri allowed.', signals: [], ask: 'Am I on track to buy this flat?' },
   { id: 'call', scene: 'call', title: 'Mia calls', sub: 'Plans, and something private.', signals: [
     { kind: 'heard', text: 'Mia: lets aim for spring 2028 with the flat deposit' },
     { kind: 'heard', text: 'Mia: my new job starts in January, about 3 200 a month' },
