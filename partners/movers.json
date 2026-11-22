@@ -9,7 +9,7 @@
   "view": "Ask for a quote",
   "buy": "Book it",
   "verb": "booked",
-  "alternative": "Or plan the moving costs with Abel, free",
+  "alternative": "Or plan the moving costs with Nora, free",
   "fee": {
     "type": "flat",
     "value": 40
