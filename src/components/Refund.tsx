@@ -1,5 +1,7 @@
 // Refund Tracker screens. Everything is a demo: fictional credits, nothing is sent to a shop or bank.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { eur, dayShort, workdaysLate, refundNotice, laterStore, useLaterVersion, type RNotice } from './refundNotice.js';
+export { eur };
 import { Icon } from '../ui/icons.js';
 import { DetailHead, NRow, Band, NChev } from './Nordea.js';
 
@@ -27,16 +29,7 @@ const api = async (url: string, body?: unknown) => {
   if (!r.ok && r.status !== 409) throw new Error(d.error || 'Something went wrong');
   return d;
 };
-export const eur = (n: number) => n.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€';
 const day = (iso?: string) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
-const dayShort = (iso?: string) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '');
-const workdaysLate = (from?: string, to?: string) => {
-  if (!to) return 0;
-  if (!from) return 0;
-  let n = 0; const d = new Date(from + 'T12:00:00'); const end = new Date(to + 'T12:00:00');
-  while (d < end) { d.setDate(d.getDate() + 1); if (d.getDay() % 6 !== 0) n++; }
-  return n;
-};
 
 // One shared fetch per customer, however many screens or old chat cards use it. Only the newest request may set the result,
 // and a result for a customer who was switched away from is dropped.
@@ -61,29 +54,11 @@ const openCase = (v: RView | null) => v?.cases.filter((c) => !c.withdrawn).slice
 
 const Demo: React.FC<{ text: string }> = ({ text }) => <p className="rf-demo">{text}</p>;
 
-/** What Home and the bell say about the open refund. Every number and date comes from the case. */
-export interface RNotice { key: string; title: string; sub: string; detail: string; tone: 'amber' | 'green' }
-export const refundNotice = (v: RView | null): RNotice | null => {
-  const c = openCase(v);
-  if (!v || !c) return null;
-  const shop = c.merchant ?? 'the shop';
-  if (c.expected == null) return { key: `${c.id}:nomatch`, tone: 'amber', title: "Abel can't match your refund yet", sub: 'The records you allowed do not show what was bought or for how much.', detail: 'Open the case to see what Abel could read and what is missing.' };
-  const got = (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
-  const late = workdaysLate(c.promiseDate, c.asOf);
-  const money = eur(c.expected);
-  if (got) return { key: `${c.id}:got`, tone: 'green', title: `Your ${shop} refund arrived`, sub: `${money} · counted`, detail: 'The full amount is counted. Open the case to see the credits.' };
-  if (c.shopDeclinedAt) return { key: `${c.id}:declined`, tone: 'amber', title: `The shop declined your ${shop} refund`, sub: `${c.remaining != null ? eur(c.remaining) : 'The refund'} still unpaid · the case stays open`, detail: 'Abel keeps watching. Nothing is sent without you.' };
-  if (c.needsReview) return { key: `${c.id}:review`, tone: 'amber', title: 'A credit came in that needs your check', sub: 'It is not counted yet.', detail: 'Open the case to say whether it is yours.' };
-  if (c.promiseDate && c.late) return { key: `${c.id}:late:${c.asOf}:${c.received ?? 0}`, tone: 'amber', title: `Your ${shop} refund is ${late === 1 ? '1 working day' : `${late} working days`} late`, sub: 'Abel can prepare a reminder for you', detail: `${money} · promised by ${dayShort(c.promiseDate)}. Abel can prepare a reminder for you to approve. Nothing is sent until you say so.` };
-  return { key: `${c.id}:watch`, tone: 'amber', title: `Abel is watching for your ${shop} refund`, sub: c.promiseDate ? `Promised by ${dayShort(c.promiseDate)}` : 'No date from the shop yet', detail: 'Open the case to see where it stands.' };
-};
-const laterSet = new Set<string>();
-
 /** Home: one slim row under Quick actions. Tap to open the detail in place. */
 export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
   const { v } = useRefund(userId);
   const [openKey, setOpenKey] = useState('');
-  const n = refundNotice(v);
+  const n = refundNotice(v as any);
   if (!n) return null;
   const open = openKey === n.key;
   return (
@@ -106,20 +81,20 @@ export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = 
 /** The same item as the top card of the bell's From Abel list. Later hides it from the list until something changes. */
 export const RefundAbelCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
   const { v } = useRefund(userId);
-  const [, bump] = useState(0);
-  const n = refundNotice(v);
-  if (!n || laterSet.has(n.key)) return null;
+  useLaterVersion();
+  const n = refundNotice(v as any);
+  if (!n || laterStore.has(n.key)) return null;
   return (
     <div className="ncard rf-abel">
       <span className={`rf-tag ${n.tone}`}>Your refund</span>
       <b>{n.title}</b>
       <span>{n.detail}</span>
-      <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => { laterSet.add(n.key); bump((x) => x + 1); }}>Later</button></div>
+      <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => laterStore.add(n.key)}>Later</button></div>
     </div>
   );
 };
 /** For the bell badge: is there a refund item in From Abel right now. */
-export const useRefundAbelCount = (userId: string) => { const { v } = useRefund(userId); const n = refundNotice(v); return n && !laterSet.has(n.key) ? 1 : 0; };
+export const useRefundAbelCount = (userId: string) => { const { v } = useRefund(userId); useLaterVersion(); const n = refundNotice(v as any); return n && !laterStore.has(n.key) ? 1 : 0; };
 
 export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = ({ userId, onBack }) => {
   const { v } = useRefund(userId);
