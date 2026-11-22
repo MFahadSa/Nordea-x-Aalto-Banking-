@@ -26,10 +26,12 @@ try {
   let a = await chat('refund'); const c1 = a.cid;
   check('"refund" asks which shop', ASK.test(a.text) && !a.card, a);
   a = await chat('An online shop', c1);
-  check('an unnamed shop is plainly unsupported, no card, no leading question', !a.card && /cannot look into refunds from that shop/.test(a.text) && !/Tuulikki/i.test(a.text) && !/\?/.test(a.text), a);
-  a = await chat('yes', c1);
-  check('a yes after that opens nothing', !a.card, a);
+  check('a generic reply asks for the shop name again, no card, no Tuulikki hint', !a.card && /What is the shop called/.test(a.text) && !/Tuulikki/i.test(a.text), a);
+  a = await chat('Tuulikki', c1);
+  check('EXACT REPORTED PATH: refund, "An online shop", then Tuulikki shows the consent card', a.card === 'refund_consent', a);
   check('nothing was read or opened before consent', (await state()).length === 0);
+  a = await chat('yes', a.cid);
+  check('a yes after the card opens nothing', (await state()).length === 0 && !a.card);
   // naming the shop carries the intent
   a = await chat('refund'); a = await chat('Tuulikki', a.cid);
   check('naming Tuulikki after the ask shows the consent card', a.card === 'refund_consent', a);
@@ -47,8 +49,21 @@ try {
   // persona reset: a fresh conversation does not inherit the ask
   a = await chat('Tuulikki');
   check('a bare shop name in a new conversation opens nothing', !a.card, a);
-  a = await chat('refund'); const c6 = a.cid; a = await chat('Some other shop', c6); a = await chat('Tuulikki', c6);
-  check('after an unsupported shop the ask is over: naming Tuulikki alone no longer carries the refund', !a.card, a);
+  a = await chat('refund'); const c6 = a.cid; a = await chat('Zalando', c6);
+  check('another named shop is plainly unsupported, no card, no Tuulikki hint', !a.card && /cannot look into refunds from that shop/.test(a.text) && !/Tuulikki/i.test(a.text) && !/\?/.test(a.text), a);
+  a = await chat('yes', c6);
+  check('a yes after an unsupported shop opens nothing', !a.card, a);
+  a = await chat('Tuulikki', c6);
+  check('after a yes the ask is over: a bare Tuulikki opens nothing', !a.card, a);
+  a = await chat('refund'); a = await chat('Zalando', a.cid); a = await chat('Tuulikki', a.cid);
+  check('naming Tuulikki after an unsupported shop shows the card', a.card === 'refund_consent', a);
+  a = await chat('refund'); a = await chat('Tuulikki is unrelated; what is my balance?', a.cid);
+  check('a topic change that mentions Tuulikki opens nothing', !a.card, a);
+  for (const t of ['cancel my refund request', 'stop helping with my refund', 'forget the refund']) {
+    a = await chat(t); check(`"${t}" does not start the ask`, !ASK.test(a.text) && !a.card, a);
+  }
+  a = await chat('refund'); a = await chat('cancel that', a.cid); a = await chat('Tuulikki', a.cid);
+  check('after a cancel mid-ask, a bare Tuulikki opens nothing', !a.card, a);
   a = await chat('Help me with my Tuulikki refund');
   check('the explicit Tuulikki refund message still shows the card', a.card === 'refund_consent', a);
   a = await chat('refund'); a = await chat('not Tuulikki', a.cid);
