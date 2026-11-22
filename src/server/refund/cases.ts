@@ -492,13 +492,13 @@ export class RefundStore {
     if (ev.status !== 'posted') return this.flag(c, ev, 'provisional', `Credit ${ev.eventId} is still pending (provisional): noted, not counted until posted`, by);
     if (c.state === 'handed_off') return this.flag(c, ev, 'case_with_a_person', `Credit ${ev.eventId} arrived while the case is with a person: noted for them, not counted yet`, by);
     if (L.receivedCents >= L.expectedCents || L.receivedCents + cents > L.expectedCents) {
-      return this.flag(c, ev, 'possible_duplicate', `Credit ${ev.eventId} (${(cents / 100).toFixed(2)}) would go over the amount owed: possible duplicate, needs review`, by);
+      return this.flag(c, ev, 'possible_duplicate', `Credit ${ev.eventId} would go over the amount owed: possible duplicate, needs review`, by);
     }
     L.credits.push({ eventId: ev.eventId, cents, date: ev.date });
     L.receivedCents += cents;
     this.data.events![ev.eventId] = { caseId: c.id, outcome: 'counted', event: ev };
     const remaining = L.expectedCents - L.receivedCents;
-    this.log(c.id, 'evidence', by, `Credit ${ev.eventId} matched: ${(cents / 100).toFixed(2)} ${ev.currency}. Remaining ${(remaining / 100).toFixed(2)}`);
+    this.log(c.id, 'evidence', by, `Credit ${ev.eventId} matched the case. ${remaining === 0 ? 'Nothing remains owed' : 'Some amount remains owed'}`);
     if (remaining === 0) this.transition(c.id, 'closed', { kind: 'event', type: 'refund_matched', ref: ev.eventId }, by);
     else if (c.state !== 'partially_refunded') this.transition(c.id, 'partially_refunded', { kind: 'event', type: 'refund_partial', ref: ev.eventId }, by);
     this.save();
@@ -513,7 +513,7 @@ export class RefundStore {
     L.credits = L.credits.filter((x) => x !== k);
     L.receivedCents -= k.cents;
     events[ev.eventId] = { caseId: c.id, outcome: 'reversed', event: ev };
-    this.log(c.id, 'flag', by, `Refund ${k.eventId} (${(k.cents / 100).toFixed(2)}) was reversed by the shop or bank`);
+    this.log(c.id, 'flag', by, `Refund ${k.eventId} was reversed by the shop or bank`);
     const to: CaseState = L.receivedCents > 0 ? 'partially_refunded' : 'watching';
     if (c.state !== to && (c.state === 'closed' || c.state === 'partially_refunded')) this.transition(c.id, to, { kind: 'event', type: 'refund_reversed', ref: ev.eventId }, by);
     this.save();
