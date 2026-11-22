@@ -6,29 +6,179 @@
       "id": "rec-tx-tuulikki-0928",
       "kind": "card_transaction",
       "label": "Card purchase: Tuulikki Electronics, 89.90 EUR, 28 Sep 2026",
-      "fields": { "merchantId": "tuulikki-electronics", "merchant": "Tuulikki Electronics", "amount": -89.90, "currency": "EUR", "chargeDate": "2026-09-28", "cardType": "credit", "posted": true, "paymentRef": "TUU-PAY-55120", "txId": "tx-lauri-tuulikki-0928" },
+      "fields": {
+        "merchantId": "tuulikki-electronics",
+        "merchant": "Tuulikki Electronics",
+        "amount": -89.9,
+        "currency": "EUR",
+        "chargeDate": "2026-09-28",
+        "cardType": "credit",
+        "posted": true,
+        "paymentRef": "TUU-PAY-55120",
+        "txId": "tx-lauri-tuulikki-0928"
+      },
       "text": "CARD PURCHASE 28.09.2026 TUULIKKI ELECTRONICS -89.90 EUR (credit card) ref TUU-PAY-55120"
     },
     {
       "id": "rec-receipt-tuulikki",
       "kind": "receipt",
       "label": "Receipt and order confirmation, order TE-48213",
-      "fields": { "merchantId": "tuulikki-electronics", "orderRef": "TE-48213", "item": "Wireless headphones", "amount": 89.90, "currency": "EUR", "orderDate": "2026-09-28", "deliveryDate": "2026-09-30" },
+      "fields": {
+        "merchantId": "tuulikki-electronics",
+        "orderRef": "TE-48213",
+        "item": "Wireless headphones",
+        "amount": 89.9,
+        "currency": "EUR",
+        "orderDate": "2026-09-28",
+        "deliveryDate": "2026-09-30"
+      },
       "text": "Tuulikki Electronics - Order TE-48213 - Wireless headphones - 89.90 EUR - ordered 28 Sep 2026 - delivered 30 Sep 2026. Thank you for your order."
     },
     {
       "id": "rec-tracking-return",
       "kind": "return_tracking",
       "label": "Return tracking FI-RET-7781, sent 3 Oct, received by the shop 5 Oct",
-      "fields": { "trackingRef": "FI-RET-7781", "returnSentDate": "2026-10-03", "sellerReceivedDate": "2026-10-05" },
+      "fields": {
+        "trackingRef": "FI-RET-7781",
+        "returnSentDate": "2026-10-03",
+        "sellerReceivedDate": "2026-10-05"
+      },
       "text": "Parcel FI-RET-7781: posted 03.10.2026, delivered to Tuulikki Electronics returns 05.10.2026."
     },
     {
       "id": "rec-email-tuulikki-0505",
       "kind": "seller_email",
       "label": "Email from Tuulikki Electronics, 5 Oct: return received, refund within 5 working days",
-      "fields": { "merchantId": "tuulikki-electronics", "orderRef": "TE-48213", "promiseWorkingDays": 5, "promiseFrom": "2026-10-05" },
+      "fields": {
+        "merchantId": "tuulikki-electronics",
+        "orderRef": "TE-48213",
+        "promiseWorkingDays": 5,
+        "promiseFrom": "2026-10-05"
+      },
       "text": "Hi Lauri, we have received your return for order TE-48213. Your refund of 89.90 EUR will be paid within 5 working days. Best regards, Tuulikki Electronics customer care"
+    }
+  ],
+  "feedEvents": [
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "EUR",
+      "merchantId": "tuulikki-electronics",
+      "orderRef": "TE-48213",
+      "paymentRef": "TUU-PAY-55120",
+      "originalTxId": "tx-lauri-tuulikki-0928",
+      "status": "posted",
+      "amount": 89.9,
+      "eventId": "ev-refund-full",
+      "label": "Refund arrives: 89.90 EUR from Tuulikki Electronics"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "EUR",
+      "merchantId": "tuulikki-electronics",
+      "orderRef": "TE-48213",
+      "paymentRef": "TUU-PAY-55120",
+      "originalTxId": "tx-lauri-tuulikki-0928",
+      "status": "posted",
+      "amount": 40.0,
+      "eventId": "ev-partial-40",
+      "label": "Partial refund: 40.00 EUR"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "EUR",
+      "merchantId": "tuulikki-electronics",
+      "orderRef": "TE-48213",
+      "paymentRef": "TUU-PAY-55120",
+      "originalTxId": "tx-lauri-tuulikki-0928",
+      "status": "posted",
+      "amount": 49.9,
+      "eventId": "ev-partial-49-90",
+      "label": "Second partial refund: 49.90 EUR"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "EUR",
+      "merchantId": "lumo-sports",
+      "status": "posted",
+      "amount": 89.9,
+      "eventId": "ev-decoy-other-shop",
+      "label": "Decoy: 89.90 EUR from a different shop"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "SEK",
+      "merchantId": "tuulikki-electronics",
+      "orderRef": "TE-48213",
+      "paymentRef": "TUU-PAY-55120",
+      "originalTxId": "tx-lauri-tuulikki-0928",
+      "status": "posted",
+      "amount": 89.9,
+      "eventId": "ev-other-currency",
+      "label": "Decoy: 89.90 SEK from Tuulikki Electronics"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "EUR",
+      "merchantId": "tuulikki-electronics",
+      "orderRef": "TE-48213",
+      "paymentRef": "TUU-PAY-55120",
+      "originalTxId": "tx-lauri-tuulikki-0928",
+      "status": "pending",
+      "amount": 89.9,
+      "eventId": "ev-pending",
+      "label": "Provisional (pending) refund: 89.90 EUR"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "EUR",
+      "merchantId": "tuulikki-electronics",
+      "orderRef": "TE-48213",
+      "paymentRef": "TUU-PAY-55120",
+      "originalTxId": "tx-lauri-tuulikki-0928",
+      "status": "posted",
+      "amount": 89.9,
+      "eventId": "ev-lookalike",
+      "label": "Duplicate: a second, separate 89.90 EUR credit"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "refund",
+      "currency": "EUR",
+      "merchantId": "tuulikki-electronics",
+      "status": "posted",
+      "amount": 89.9,
+      "eventId": "ev-no-reference",
+      "label": "Same shop, no order reference: 89.90 EUR"
+    },
+    {
+      "userId": "lauri",
+      "date": "2026-10-23",
+      "kind": "reversal",
+      "currency": "EUR",
+      "merchantId": "tuulikki-electronics",
+      "orderRef": "TE-48213",
+      "paymentRef": "TUU-PAY-55120",
+      "originalTxId": "tx-lauri-tuulikki-0928",
+      "status": "posted",
+      "amount": 89.9,
+      "reversesEventId": "ev-refund-full",
+      "eventId": "ev-reversal",
+      "label": "Refund reversed: 89.90 EUR taken back"
     }
   ]
 }
