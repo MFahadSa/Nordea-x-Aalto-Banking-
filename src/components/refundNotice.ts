@@ -10,13 +10,20 @@ export const workdaysLate = (from?: string, to?: string) => {
   return n;
 };
 
-export interface RNotice { key: string; title: string; sub: string; detail: string; tone: 'amber' | 'green' }
+export interface RNotice { key: string; caseId: string; title: string; sub: string; detail: string; tone: 'amber' | 'green'; done?: boolean }
 const openCase = (v: { cases: RCase[] } | null) => v?.cases.filter((c) => !c.withdrawn).slice(-1)[0];
 
 /** What Home and the bell say about the open refund. Numbers, dates and actions come from the case. */
 export const refundNotice = (v: { cases: RCase[] } | null): RNotice | null => {
   const c = openCase(v);
   if (!v || !c) return null;
+  // A completed case the customer cleared with Done stays off Home and the bell. It comes back on its own
+  // if something needs attention again (a reversal reopens the case; a credit to check shows its own notice).
+  if (c.state === 'closed' && c.closedAckedAt && !c.needsReview) return null;
+  return { caseId: c.id, ...noticeFor(c) };
+};
+
+const noticeFor = (c: RCase): Omit<RNotice, 'caseId'> => {
   const shop = c.merchant ?? 'the shop';
   // A new key means something changed that the customer should see again, even after "Later".
   const last = (c.shopMessages ?? []).slice(-1)[0];
@@ -27,7 +34,8 @@ export const refundNotice = (v: { cases: RCase[] } | null): RNotice | null => {
   if (c.needsReview) return { key, tone: 'amber', title: 'A credit came in that needs your check', sub: 'It is not counted yet.', detail: 'Open the case to say whether it is yours.' };
   const got = (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
   const money = eur(c.expected);
-  if (got) return { key, tone: 'green', title: `Your ${shop} refund arrived`, sub: `${money} · counted`, detail: 'The full amount is counted. Open the case to see the credits.' };
+  // A fully refunded case can be cleared from Home with Done.
+  if (got) return { key, tone: 'green', done: c.state === 'closed', title: `Your ${shop} refund arrived`, sub: `${money} · counted`, detail: 'The full amount is counted and added to your current account. Open the case to see the credits.' };
   const waiting = last?.direction === 'out';
   const act = c.canWrite === 'reminder' ? 'Abel can prepare a reminder for you to approve.' : c.canWrite === 'answer' ? 'Abel can prepare an answer for you to approve.' : c.canWrite === 'inquiry' ? 'Abel can write to the shop for you to approve.' : waiting ? 'You wrote to the shop and are waiting for its reply.' : 'Open the case to see where it stands.';
   const actShort = c.canWrite === 'reminder' ? 'Abel can prepare a reminder for you' : c.canWrite === 'answer' ? 'Abel can prepare an answer for you' : c.canWrite === 'inquiry' ? 'Abel can write to the shop for you' : waiting ? 'Waiting for the shop to reply' : 'Open the case for details';

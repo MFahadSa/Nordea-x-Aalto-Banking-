@@ -104,7 +104,7 @@ const MSG = { action: 'seller_inquiry' as const, recipient: 'Tuulikki Electronic
   s.withdrawConsent(c.id);
   check('bug 5: withdrawal time uses the demo date', s.get(c.id).consent.withdrawnAt!.startsWith(DEMO_TODAY)); }
 { const src = fs.readFileSync(path.resolve('src/server/refund/index.ts'), 'utf-8');
-  check('the app store is built with the demo clock', /DEMO_TODAY/.test(src) && /demoNow\)\.load\(\)/.test(src)); }
+  check('the app store is built with the demo clock', /DEMO_TODAY/.test(src) && /new RefundStore\([^\n]*demoNow[^\n]*\)\.load\(\)/.test(src)); }
 
 // ---------- old store files ----------
 { const file = path.join(DIR, 'old.json');
