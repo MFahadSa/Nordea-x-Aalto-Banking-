@@ -1,4 +1,4 @@
-import { RefundHomeCard } from './Refund.js';
+import { RefundHomeCard, RefundAbelCard, useRefundAbelCount } from './Refund.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
@@ -106,7 +106,10 @@ export const HomePage: React.FC<Props> = (p) => {
   const carGoal = state.entries.find((e) => e.goalType === 'car' && e.status !== 'archived');
 
   const forYou = state.advice?.forYou && p.onAdviceAnswer ? state.advice.forYou : null;
-  const abelCount = feed.length + (forYou ? 1 : 0);
+  const refundN = useRefundAbelCount(state.user.id);
+  const abelCount = feed.length + (forYou ? 1 : 0) + refundN;
+  // On Home the refund already has its own row, so the list counts it only once the bell has opened the full list.
+  const listCount = abelCount - (feedAll ? 0 : refundN);
   const forYouCard = forYou && (
     <ForYou key={`${forYou.data?.ruleId}-${forYou.type}-${forYou.data?.fact || ''}`} card={forYou} busy={!!p.adviceBusy} inList
       onAnswer={p.onAdviceAnswer!} onShow={p.onAdviceShow!} onNotNow={p.onAdviceNotNow!} />
@@ -155,7 +158,6 @@ export const HomePage: React.FC<Props> = (p) => {
     <>
       <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onUsers={p.onOpenUsers} onBell={bell} />
       <div className="nbody">
-        <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         {(state.notices || []).map((n) => (
           <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
             <span className="nt-ic" aria-hidden="true"><Icon name={n.kind === 'question' ? 'chat' : 'check'} /></span>
@@ -165,6 +167,7 @@ export const HomePage: React.FC<Props> = (p) => {
         ))}
         {/* The existing Nordea app: shown so Abel sits in a familiar place. Tapping says so. */}
         <QuickActions onFrame={p.onFrame} />
+        <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         <div className="ncard">
           <button className="nrow2 head" onClick={() => p.onFrame('Payments')}>
             <span className="n-l">
@@ -208,21 +211,22 @@ export const HomePage: React.FC<Props> = (p) => {
         {/* v30: one place for everything from Abel (what Nordea noticed, old goals, and the one question or
             suggestion). Home shows the first; the rest are one tap away. */}
         <div ref={abelRef} className={`abel-anchor${fromBell ? ' from-bell' : ''}`}>
-          {abelCount > 0 ? (
-            <Band left={fromBell ? `From Abel · ${abelCount} new` : 'From Abel'} right={fromBell ? 'From the bell' : feedAll || abelCount === 1 ? `${abelCount} for you` : `1 of ${abelCount}`} />
+          {listCount > 0 ? (
+            <Band left={fromBell ? `From Abel · ${listCount} new` : 'From Abel'} right={fromBell ? 'From the bell' : feedAll || listCount === 1 ? `${listCount} for you` : `1 of ${listCount}`} />
           ) : fromBell ? (
             <><Band left="From Abel" /><p className="abel-none">Nothing new from Abel right now.</p></>
           ) : null}
         </div>
         {feedAll ? (
           <>
+            <RefundAbelCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
             {feed.map(card)}
             {forYouCard}
           </>
         ) : feed.length ? card(feed[0]) : forYouCard}
-        {!feedAll && abelCount > 1 && (
+        {!feedAll && listCount > 1 && (
           <button className="nshowall plain" onClick={() => setFeedAll(true)}>
-            See all {abelCount} from Abel
+            See all {listCount} from Abel
           </button>
         )}
 

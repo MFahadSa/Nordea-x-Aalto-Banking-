@@ -1,5 +1,7 @@
 // Refund Tracker screens. Everything is a demo: fictional credits, nothing is sent to a shop or bank.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { eur, dayShort, workdaysLate, refundNotice, laterStore, useLaterVersion, type RNotice } from './refundNotice.js';
+export { eur };
 import { Icon } from '../ui/icons.js';
 import { DetailHead, NRow, Band, NChev } from './Nordea.js';
 
@@ -7,10 +9,12 @@ export interface RCase {
   id: string; state: string; withdrawn: boolean; itemCount: number;
   hasCard?: boolean; merchant?: string; orderRef?: string; item?: string; chargeDate?: string;
   shopDeclinedAt?: string;
-  expected?: number; received?: number; remaining?: number; promiseDate?: string; late?: boolean;
+  expected?: number; received?: number; remaining?: number; promiseDate?: string; asOf?: string; late?: boolean;
   credits?: { eventId: string; amount: number; date: string; currency: string }[];
   flags?: { eventId: string; reason: string; amount?: number; currency?: string; needsReview: boolean; conflicts?: string[] }[];
   needsReview?: number;
+  explain?: { lines: string[]; next: string }; canWrite?: 'inquiry' | 'reminder' | 'answer' | null;
+  shopMessages?: { id: string; direction: 'out' | 'in'; at: string; text: string; kind: string }[];
   hasReceipt?: boolean; receiptLabel?: string; receiptSavedAt?: string;
 }
 interface ROffer { id: string; kind: string; title: string; sub: string }
@@ -25,15 +29,7 @@ const api = async (url: string, body?: unknown) => {
   if (!r.ok && r.status !== 409) throw new Error(d.error || 'Something went wrong');
   return d;
 };
-export const eur = (n: number) => n.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€';
 const day = (iso?: string) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
-const dayShort = (iso?: string) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '');
-const workdaysLate = (from?: string, to = '2026-10-23') => {
-  if (!from) return 0;
-  let n = 0; const d = new Date(from + 'T12:00:00'); const end = new Date(to + 'T12:00:00');
-  while (d < end) { d.setDate(d.getDate() + 1); if (d.getDay() % 6 !== 0) n++; }
-  return n;
-};
 
 // One shared fetch per customer, however many screens or old chat cards use it. Only the newest request may set the result,
 // and a result for a customer who was switched away from is dropped.
@@ -58,44 +54,57 @@ const openCase = (v: RView | null) => v?.cases.filter((c) => !c.withdrawn).slice
 
 const Demo: React.FC<{ text: string }> = ({ text }) => <p className="rf-demo">{text}</p>;
 
+/** Home: one slim row under Quick actions. Tap to open the detail in place. */
 export const RefundHomeCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
   const { v } = useRefund(userId);
-  const c = openCase(v);
-  if (!v || !c) return null;
-  const got = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
-  const generic = (
-    <button className="ncard notice" onClick={onOpen}>
-      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t"><b>{c.needsReview ? 'A credit came in that needs your check' : `Abel is watching for your ${c.merchant ?? 'shop'} refund`}</b><span>{c.needsReview ? 'It is not counted yet. Open the case to answer.' : c.promiseDate ? 'Nothing needs you right now.' : 'No promised date is in the records you allowed, so Abel cannot check if it is late.'}</span><span className="rf-demo-s">{v.demo}</span></span>
-      <span className="nt-go">Open</span>
-    </button>
-  );
-  if (c.expected == null) return (
-    <button className="ncard notice" onClick={onOpen}>
-      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t"><b>Abel can't match your refund yet</b><span>The records you allowed do not show what was bought or for how much.</span><span className="rf-demo-s">{v.demo}</span></span>
-      <span className="nt-go">Open</span>
-    </button>
-  );
-  if (!got && !c.shopDeclinedAt && !(c.received ?? 0) && (!c.promiseDate || !c.late)) return generic;
-  const late = workdaysLate(c.promiseDate);
+  const [openKey, setOpenKey] = useState('');
+  const n = refundNotice(v as any);
+  if (!n) return null;
+  const open = openKey === n.key;
   return (
-    <button className="ncard notice" onClick={onOpen}>
-      <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
-      <span className="nt-t">
-        <b>{got ? `Your ${c.merchant ?? 'the shop'} refund arrived` : c.shopDeclinedAt ? `The shop declined your ${c.merchant ?? 'the shop'} refund` : `Your ${c.merchant ?? 'the shop'} refund is later than the shop promised`}</b>
-        <span>{got ? `${eur(c.expected!)} · simulated credit counted` : c.shopDeclinedAt ? `${c.remaining != null ? eur(c.remaining) : 'The refund'} still unpaid · the case stays open` : `${c.expected != null ? eur(c.expected) : 'Refund'} · promised by ${dayShort(c.promiseDate)} · ${late} working days later`}</span>
-        <span className="rf-demo-s">{v.demo}</span>
-      </span>
-      <span className="nt-go">Open</span>
-    </button>
+    <div className={`ncard notice rf-row ${n.tone}${open ? ' open' : ''}`}>
+      <button className="rf-row-h" aria-expanded={open} onClick={() => setOpenKey(open ? '' : n.key)}>
+        <span className="nt-ic" aria-hidden="true"><Icon name="clock" /></span>
+        <span className="nt-t"><b>{n.title}</b>{!open && <span>{n.sub}</span>}</span>
+        {!open && <span className="nt-go">Open</span>}
+      </button>
+      {open && (
+        <div className="rf-row-d">
+          <span>{n.detail}</span>
+          <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => setOpenKey('')}>Later</button></div>
+        </div>
+      )}
+    </div>
   );
 };
+
+/** The same item as the top card of the bell's From Abel list. Later hides it from the list until something changes. */
+export const RefundAbelCard: React.FC<{ userId: string; onOpen: () => void }> = ({ userId, onOpen }) => {
+  const { v } = useRefund(userId);
+  useLaterVersion();
+  const n = refundNotice(v as any);
+  if (!n || laterStore.has(n.key)) return null;
+  return (
+    <div className="ncard rf-abel">
+      <span className={`rf-tag ${n.tone}`}>Your refund</span>
+      <b>{n.title}</b>
+      <span>{n.detail}</span>
+      <div className="rf-row-b"><button className="btn primary" onClick={onOpen}>Open case</button><button className="btn" onClick={() => laterStore.add(n.key)}>Later</button></div>
+    </div>
+  );
+};
+/** For the bell badge: is there a refund item in From Abel right now. */
+export const useRefundAbelCount = (userId: string) => { const { v } = useRefund(userId); useLaterVersion(); const n = refundNotice(v as any); return n && !laterStore.has(n.key) ? 1 : 0; };
 
 export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = ({ userId, onBack }) => {
   const { v } = useRefund(userId);
   const c = openCase(v);
   const [err, setErr] = useState('');
+  const [draft, setDraft] = useState<{ mine?: string; caseId: string; basis: string; kind: string; recipient: string; text: string; cites: string[] } | null>(null);
+  const caseKey = `${userId}:${c?.id ?? ''}`;
+  const reqKey = useRef(caseKey);
+  useEffect(() => { reqKey.current = caseKey; setDraft(null); setErr(''); }, [caseKey]);
+  const [busy, setBusy] = useState(false);
   if (!v || !c) return (<><DetailHead title="Refund" onBack={onBack} /><div className="nbody"><p className="presenter-note">No refund case is open.</p></div></>);
   const full = c.expected != null && (c.received ?? 0) >= c.expected && (c.received ?? 0) > 0;
   const partial = (c.received ?? 0) > 0 && !full;
@@ -103,19 +112,43 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   const pend = (c.flags || []).some((f) => f.reason === 'provisional') && !full;
   const status = nomatch ? 'not matched yet' : c.shopDeclinedAt && !full ? 'Shop declined' : pend && !partial ? 'refund pending, not counted yet' : full ? 'Refund received' : partial && c.expected != null ? `${eur(c.received!)} of ${eur(c.expected)} received` : c.late ? 'no refund yet, later than promised' : 'waiting for the refund';
   const check = async (eventId: string) => { try { await api(`/api/refund/case/${c.id}/review`, { eventId, outcome: 'checked_fine' }); ping(); } catch (e: any) { setErr(e.message); } };
+  // A response only counts if the customer and case are still the ones that asked for it.
+  const openDraft = async () => {
+    const key = caseKey; setErr('');
+    try { const d = await api(`/api/refund/case/${c.id}/shop-draft`); if (reqKey.current === key && d.caseId === c.id) setDraft(d); }
+    catch (e: any) { if (reqKey.current === key) setErr(e.message); }
+  };
+  const sendDraft = async () => {
+    if (!draft || busy || draft.caseId !== c.id) return; const key = caseKey; const mine = draft.text; setBusy(true);
+    try { await api(`/api/refund/case/${c.id}/shop-send`, { text: draft.text, basis: draft.basis }); if (reqKey.current === key) { setDraft(null); ping(); } }
+    catch (e: any) {
+      if (reqKey.current === key) {
+        setErr(e.message);
+        if (/changed since this draft/i.test(e.message)) {
+          // The facts moved on. Show the updated draft and keep the customer's own words visible beside it, never silently replaced.
+          try { const fresh = await api(`/api/refund/case/${c.id}/shop-draft`); if (reqKey.current === key && fresh.caseId === c.id) setDraft({ ...fresh, mine: mine }); }
+          catch { /* the old draft stays on screen, unsent */ }
+        }
+      }
+    }
+    setBusy(false);
+  };
   const saveReceipt = async () => { try { await api(`/api/refund/case/${c.id}/save-receipt`, {}); ping(); } catch (e: any) { setErr(e.message); } };
   const assign = async (eventId: string, acceptConflicts: string[]) => { try { await api(`/api/refund/case/${c.id}/assign`, { eventId, acceptConflicts }); ping(); } catch (e: any) { setErr(e.message); } };
-  const late = workdaysLate(c.promiseDate);
+  const late = workdaysLate(c.promiseDate, c.asOf);
   return (
     <>
       <DetailHead title="Refund case" big={c.expected != null ? eur(c.expected) : undefined} sub={`${c.merchant ?? 'the shop'} · ${status}`} onBack={onBack} />
       <div className="nbody">
-        <Demo text={v.demo} />
         {err && <p className="rf-err">{err}</p>}
+        {c.explain && c.explain.lines.length > 0 && (<>
+          <Band left="Where things stand" />
+          <div className="ncard flat"><p className="rf-rules">{c.explain.lines.join(' ')}{c.explain.next ? ` ${c.explain.next}` : ''}</p></div>
+        </>)}
         <Band left="Status" />
         <div className="ncard flat">
           {(c.credits || []).map((x) => (
-            <NRow key={x.eventId} name={<><Icon name="check" />Refund received</>} sub={dayShort(x.date)} amount={eur(x.amount)} note={<span className="rf-chip">Simulated credit</span>} chevron={false} />
+            <NRow key={x.eventId} name={<><Icon name="check" />Refund received</>} sub={dayShort(x.date)} amount={eur(x.amount)} chevron={false} />
           ))}
           {(c.flags || []).filter((f) => f.reason === 'possible_duplicate').map((f) => (
             <NRow key={f.eventId} name={<><Icon name="shield" />Another {f.amount != null ? eur(f.amount) : 'credit'} came in</>} sub="Not counted. Needs a check" chevron={false}
@@ -152,6 +185,26 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
             <NRow name={c.item} sub={`Order ${c.orderRef}${c.hasCard ? ' · credit card' : ''}`} amount={`−${eur(c.expected)}`} note={c.chargeDate ? `Charged ${day(c.chargeDate)}` : undefined} chevron={false} />
           </div>
         </>)}
+        {(c.canWrite || (c.shopMessages || []).length > 0) && (<>
+          <Band left="Your shop" />
+          <div className="ncard flat">
+            {(c.shopMessages || []).map((m) => (
+              <NRow key={m.id} name={m.direction === 'out' ? (m.kind === 'reminder' ? 'You sent a reminder' : m.kind === 'answer' ? 'You answered the shop' : 'You wrote to the shop') : `${c.merchant ?? 'The shop'} replied`} sub={m.text} note={dayShort(m.at.slice(0, 10))} chevron={false} />
+            ))}
+            {c.canWrite && <NRow name={c.canWrite === 'reminder' ? 'Send a reminder?' : c.canWrite === 'answer' ? 'Answer the shop?' : 'Write to the shop?'} sub={c.canWrite === 'answer' ? 'The shop asked for proof of the return. Abel drafts an answer from your return tracking, you check every word.' : c.canWrite === 'reminder' ? "The date the shop gave has passed. Abel drafts it, you check every word." : 'Abel drafts it from what you allowed. You check every word before it goes.'} chevron={false} right={<button className="btn small" onClick={openDraft}>Draft</button>} />}
+            {draft && draft.caseId === c.id && (
+              <div className="rf-draftbox">
+                <b>{draft.kind === 'reminder' ? 'Reminder to the shop' : draft.kind === 'answer' ? 'Answer to the shop' : 'Message to the shop'}</b>
+                <span className="rf-c-s">To {draft.recipient}</span>
+                <textarea className="rf-draft" value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} rows={9} />
+                {draft.mine && draft.mine !== draft.text && <div className="rf-c-s" style={{ display: 'block', whiteSpace: 'pre-wrap' }}><b>Your earlier words (not sent)</b>{'\n'}Amounts and dates in them may no longer be current. The new draft above is up to date.{'\n\n'}{draft.mine}{'\n'}<button className="btn small" onClick={() => setDraft({ ...draft, text: draft.mine!, mine: undefined })}>Use my words</button></div>}
+                <span className="rf-c-s">Based on: {draft.cites.join(', ')}</span>
+                <button className="btn primary block" disabled={busy || !draft.text.trim()} onClick={sendDraft}>Send this message</button>
+                <button className="btn quiet block" onClick={() => setDraft(null)}>Cancel</button>
+              </div>
+            )}
+          </div>
+        </>)}
         {c.hasReceipt && (<>
           <Band left="Receipt" />
           <div className="ncard flat">
@@ -163,7 +216,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
         {c.promiseDate && (<>
         <Band left="About the dates" />
         <div className="ncard flat"><p className="rf-rules">
-          The shop promised {day(c.promiseDate)}. That is the shop's own date, not a legal deadline. Whether a legal deadline applies depends on how and when you cancelled, and on the item. Abel does not decide that and does not contact the shop for you.
+          The shop promised {day(c.promiseDate)}. That is the shop's own date, not a legal deadline. Whether a legal deadline applies depends on how and when you cancelled, and on the item. Abel does not decide that. It writes to the shop only when you approve the words.
         </p></div>
         </>)}
       </div>

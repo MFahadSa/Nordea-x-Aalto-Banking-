@@ -300,6 +300,8 @@ export interface ChatMessage {
   /** Which helper the conversation is with (abel, autopilot, budget, invest, life, leaks, person). */
   helperId?: string;
   text: string;
+  /** Set on a refund status answer built from one case, so it is removed when that case is withdrawn. */
+  refundCaseId?: string;
   /** Cabinet entries Abel actually relied on for this reply (checked against what the gateway returned). */
   usedEntryIds?: string[];
   /** A file or photo the customer sent (a small thumbnail is kept for photos, never the full file). */

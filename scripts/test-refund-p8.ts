@@ -74,8 +74,20 @@ try {
   check('a negated Tuulikki refund message opens nothing', !a.card, a);
   a = await chat('forget the Tuulikki refund');
   check('cancel wording opens nothing', !a.card, a);
+  // with an open case, "where is my refund" is answered from the case only
+  const offerJ = (await (await fetch(BASE + '/api/refund/lauri')).json()) as any;
+  await fetch(BASE + '/api/refund/lauri/cases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ consentItems: offerJ.offer.map((o: any) => o.id) }) });
+  a = await chat('where is my refund');
+  const statusCid = a.cid;
+  check('with an open case, "where is my refund" is answered from the case', /89,90 €.*expected/.test(a.text) && /promised it by 12 Oct/.test(a.text) && /write to the shop/.test(a.text) && !a.card, a);
+  a = await chat('where is my balance');
+  check('a balance question is not taken as a refund question', !/expected/.test(a.text), a);
+  const cs = (await state());
+  await fetch(BASE + `/api/refund/case/${cs[0].id}/withdraw`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  const after = JSON.stringify(await (await fetch(BASE + `/api/conversations/${statusCid}/messages`)).json());
+  check('after withdrawal the refund status Abel wrote in chat is removed, the customer\'s own words stay', !/89,90|TE-48213|40,00/.test(after) && /where is my refund/.test(after), after.slice(0, 300));
   const log = JSON.stringify((await state()));
-  check('no case, no read, no evidence after all of this', log === '[]', log);
+  check('no case remains open, nothing left readable after all of this', (await state()).every((c: any) => c.withdrawn), log);
 } finally { stop(); }
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
