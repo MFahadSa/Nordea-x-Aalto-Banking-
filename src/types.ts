@@ -318,6 +318,8 @@ export interface ChatMessage {
   };
   /** Set when no AI answered and the bank's own code did (shown as a small label, so it's never mistaken for the AI). */
   answeredBy?: 'bank_code';
+  /** This reply leaves a refund-intake question open in this conversation only. */
+  refundIntake?: boolean;
   /** What this reply is stamped with (not proof of what it used): the actual answering source
    *  (model+provider / scripted / scripted-error) and the rows of the session's finalised
    *  document it was based on. Older messages may lack source/provider. */

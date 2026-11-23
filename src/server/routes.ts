@@ -21,6 +21,7 @@ import { XLSX_MIME, csvText } from './fileText.js';
 import { runSelfTest } from './selftest.js';
 import { pipelineStorage, hydratePipeline } from './pipeline/store.js';
 import { refunds } from './refund/index.js';
+import { refundIntake, REFUND_ASK, REFUND_GENERIC, REFUND_NO_SHOP } from './refund/intake.js';
 import { consentOffer, caseView, explainCase } from './refund/routes.js';
 import { ADVICE_ACTIONS, handleAdviceAction, type AdviceAction } from './advice/actions.js';
 import { adviceView, cardForChat, homeAction, movedToChat, resetRule, setProactive } from './advice/home.js';
@@ -163,19 +164,9 @@ export function registerV14Routes(app: Express) {
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
-    // Refund Tracker: asking about the Tuulikki refund shows the consent card. Code answers; nothing is read before the customer allows.
-    // The demo knows one shop. A short "refund" message with no shop asks which shop, and that question stays open until the customer
-    // names a shop, cancels or changes topic. Only naming Tuulikki then shows the card. A generic reply ("an online shop") asks again,
-    // another named shop is plainly unsupported, and a yes, a no, a cancel or a topic change never opens anything.
-    const REFUND_ASK = 'Which shop is the refund from? Name it and I can look into it.';
-    const REFUND_GENERIC = 'That does not tell me which shop. What is the shop called?';
-    const REFUND_NO_SHOP = 'I cannot look into refunds from that shop. For now I can look into one shop only, which you can name if it applies.';
     const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent').slice(-1)[0];
-    const afterAsk = [REFUND_ASK, REFUND_GENERIC, REFUND_NO_SHOP].includes(lastAgent?.text ?? '');
-    const other = /\b(balance|spend|spending|pay|salary|afford|track|goal|money|unrelated|yes|yeah|yep|ok|okay|thanks|thank|why|what|whats|how|when|who)\b|\?/i;
-    const negated = /\b(no|nope|not|don't|dont|never|without|cancel|stop|forget|nevermind|drop|quit)\b|never ?mind/i;
-    const generic = /^\s*(an?|the|some|any|my)?\s*(online\s*)?(shop|store|webshop|web shop|retailer|website|merchant|one)\s*\.?\s*$/i;
-    const clean = !other.test(u.text) && !negated.test(u.text);
+    const afterAsk = !!lastAgent?.refundIntake || [REFUND_ASK, REFUND_GENERIC, REFUND_NO_SHOP].includes(lastAgent?.text ?? '');
+    const negated = /\b(cancel|stop|forget|never ?mind)\b|\b(don['’]?t|do not) want\b/i;
     // "Where is my refund": with an open case, Nora answers from the case only.
     const openRefund = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
     if (conv.helperId === 'abel' && openRefund && /refund/i.test(u.text) && /\b(where|status|update|any news|how is|how's)\b/i.test(u.text) && u.text.length <= 80 && !negated.test(u.text)) {
@@ -183,13 +174,22 @@ export function registerV14Routes(app: Express) {
       const a = agentMsg(userId, conv.id, conv.helperId, [...ex.lines, ex.next].filter(Boolean).join(' '), { answeredBy: 'bank_code', refundCaseId: openRefund.id, ...(requestId ? { replyToRequestId: requestId } : {}) } as any);
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
-    const refundAsk = conv.helperId === 'abel' && !/tuulikki/i.test(u.text) && clean && (
-      (/refund/i.test(u.text) && u.text.length <= 80 && !afterAsk) || (afterAsk && u.text.length <= 40));
-    if (refundAsk) {
-      const a = agentMsg(userId, conv.id, conv.helperId, afterAsk ? (generic.test(u.text) ? REFUND_GENERIC : REFUND_NO_SHOP) : REFUND_ASK, { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) });
+    const intake = conv.helperId === 'abel' ? refundIntake(u.text, afterAsk) : { kind: 'pass' as const };
+    if (intake.kind === 'reply') {
+      let answer = intake.text;
+      if (intake.lookup) {
+        // Search ordinary account payments only. Refund source records still require consent.
+        const amount = intake.amount;
+        const candidates = db.getTransactions(userId).filter((t) => t.amount < 0 && t.category === 'shopping' && (amount === undefined || Math.abs(Math.abs(t.amount) - amount) < 0.011))
+          .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+        answer += candidates.length
+          ? '\n\nSome recent shopping payments on this account are:\n' + candidates.map((t) => `${fmtDay(t.date)}: ${t.description || 'Shopping'}, ${fmt(Math.abs(t.amount), 2)}`).join('\n') + '\nIs one of these the purchase you mean?'
+          : ' No shopping payment matched those details on this account. That does not mean the purchase did not happen. What was the shop called, or can you check the amount?' ;
+      }
+      const a = agentMsg(userId, conv.id, conv.helperId, answer, { answeredBy: 'bank_code', refundIntake: true, ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
-    if (conv.helperId === 'abel' && /tuulikki/i.test(u.text) && clean && ((/refund/i.test(u.text)) || (afterAsk && u.text.length <= 40))) {
+    if (intake.kind === 'consent') {
       const open = refunds().data.cases.find((c) => c.userId === userId && !c.consent.withdrawnAt);
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
