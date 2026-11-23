@@ -51,11 +51,11 @@ check('at least 35 edge tests ran from the rule files', embedded >= 35, embedded
 // ---------------- Layer 2: dates and versions ----------------
 const asp = { age: 31, hasAspAccount: false, everOwnedHalfOfHome: false, savingForHome: true };
 check('ASP: 31 May 2026 not live, 1 June 2026 live', E.evaluate(versionsOf('asp-account'), F.factsFrom(asp), '2026-05-31').status === 'notLive' && E.evaluate(versionsOf('asp-account'), F.factsFrom(asp), '2026-06-01').status === 'eligible');
-const ps = { hasPsAccount: true, psBalance: 4200, psWithdrawalsStarted: false };
+const ps = { hasPsAccount: true, psBalance: 4200, psBalanceAt2027Start: 4200, psWithdrawalsStarted: false };
 const ps31 = E.evaluate(versionsOf('ps-account'), F.factsFrom(ps), '2026-12-31');
 const ps01 = E.evaluate(versionsOf('ps-account'), F.factsFrom(ps), '2027-01-01');
 check('PS: 31 December 2026 uses the deduction version, 1 January 2027 the withdrawal version', ps31.version === '2026-01-01' && ps01.version === '2027-01-01' && ps31.status === 'eligible' && ps01.status === 'eligible', [ps31.version, ps01.version]);
-check('PS: the two versions say different things', ps31.message !== ps01.message && /deducted/.test(ps31.message || '') && /has ended/.test(ps01.message || ''));
+check('PS: the two versions say different things', ps31.message !== ps01.message && /deduction/.test(ps31.message || '') && /Normal tax/.test(ps01.message || ''));
 const hcRechecked = versionsOf('household-credit').map((v) => ({ ...v, source: { ...v.source, checkedAt: '2027-12-01' } }));
 check('household credit (re-checked in Dec 2027): 31 December 2027 live, 1 January 2028 not', E.evaluate(hcRechecked, F.factsFrom({ paysForHouseholdWork: true }), '2027-12-31').status === 'eligible' && E.evaluate(hcRechecked, F.factsFrom({ paysForHouseholdWork: true }), '2028-01-01').status === 'notLive');
 check('household credit not re-checked by Dec 2027 switches itself off', E.evaluate(versionsOf('household-credit'), F.factsFrom({ paysForHouseholdWork: true }), '2027-12-31').status === 'stale');
@@ -176,7 +176,10 @@ db.addBalanceSnapshot({ id: 'ps2', userId: 'pirkko', accountKey: 'ps', balance: 
 const p26 = factsFor('pirkko', '2026-11-20');
 check('Pirkko: Nordea knows her PS account', p26.hasPsAccount.value === true && E.evaluate(versionsOf('ps-account'), p26, '2026-11-20').status === 'eligible', p26.hasPsAccount);
 const p27 = factsFor('pirkko', '2027-01-05');
-check('Pirkko in January 2027: balance 4 200 € (a later snapshot is ignored), so Nora asks about withdrawals', p27.psBalance.value === 4200 && E.evaluate(versionsOf('ps-account'), p27, '2027-01-05').ask?.fact === 'psWithdrawalsStarted', p27.psBalance);
+check('PS eligibility fails closed without a 1 January 2027 snapshot', p27.psBalance.value === 4200 && p27.psBalanceAt2027Start.state === 'unknown' && E.evaluate(versionsOf('ps-account'), p27, '2027-01-05').status !== 'eligible', p27.psBalanceAt2027Start);
+db.addBalanceSnapshot({ id: 'ps-start', userId: 'pirkko', accountKey: 'ps', balance: 4200, at: '2027-01-01', source: 'test' });
+const pStart = factsFor('pirkko', '2027-01-05');
+check('Exact statutory snapshot unlocks the withdrawal question', pStart.psBalanceAt2027Start.value === 4200 && E.evaluate(versionsOf('ps-account'), pStart, '2027-01-05').ask?.fact === 'psWithdrawalsStarted');
 
 // Sara, 19: student aid paid into Nordea.
 db.cloneUser('alex', 'sara');

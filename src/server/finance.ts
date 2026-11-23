@@ -129,6 +129,7 @@ export function goalStatus(userId: string, goal: CabinetEntry) {
     target: goal.target!.amount,
     targetDate: goal.target!.date,
     saved: round(saved),
+    remainingToTargetNow: round(Math.max(0, goal.target!.amount - saved)),
     monthlyGoingIn: monthly,
     monthsLeft,
     projectedByTargetDate: round(projected),

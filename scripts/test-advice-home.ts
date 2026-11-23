@@ -46,7 +46,7 @@ const NAMED: Named[] = [
   { name: 'Timo, 40, entrepreneur', who: { age: 40, offersOff: false, calm: false }, facts: { age: 40, incomeType: 'none', interestedInInvesting: true, hasEquitySavingsAccount: false }, days: ['2026-11-20'], should: [], never: ['equity-account-under-30'] },
   { name: 'Leena, 50, partner offers off', who: { age: 50, offersOff: true, calm: false }, facts: { age: 50, hasAspAccount: false, savingForHome: true, everOwnedHalfOfHome: false, helpsFamilyWithMoney: true }, days: ['2026-11-20'], should: ['gift-limit:eligible'], never: ['product'] },
   { name: 'Kari, 37, saved a private note: never asked or used', who: { age: 37, offersOff: false, calm: false }, facts: { age: 37, hasAspAccount: false, everOwnedHalfOfHome: false }, hidden: ['savingForHome'], days: ['2026-11-20'], should: [], never: ['asp-account'] },
-  { name: 'Maya, 29, new in Finland, wants to invest', who: { age: 29, offersOff: false, calm: false }, facts: { age: 29, interestedInInvesting: true, hasEquitySavingsAccount: false }, days: ['2026-11-20'], should: ['equity-account-under-30:eligible'], never: [] },
+  { name: 'Maya, 29, outside youth exemption', who: { age: 29, offersOff: false, calm: false }, facts: { age: 29, interestedInInvesting: true, hasEquitySavingsAccount: false }, days: ['2026-11-20'], should: [], never: ['equity-account-under-30'] },
 ];
 for (const n of NAMED) {
   for (const day of n.days) {

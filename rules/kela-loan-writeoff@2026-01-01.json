@@ -1,12 +1,12 @@
 {
   "id": "kela-loan-writeoff",
   "version": "2026-01-01",
-  "title": "Kela pays part of your student loan",
+  "title": "Kela student-loan compensation",
   "kind": "state",
   "validFrom": "2026-01-01",
   "validTo": null,
   "source": {
-    "url": "https://www.kela.fi/opintolainahyvitys",
+    "url": "https://www.kela.fi/student-loan-compensation",
     "checkedAt": "2026-11-20",
     "owner": "Student customers team (demo)"
   },
@@ -18,14 +18,23 @@
         "eq": true
       },
       {
-        "fact": "firstStudyPlaceDate",
-        "gte": "2014-08-01"
+        "any": [
+          {
+            "fact": "firstStudyPlaceDate",
+            "gte": "2014-08-01"
+          },
+          {
+            "fact": "firstAttendanceDate",
+            "gte": "2014-08-01"
+          }
+        ]
       }
     ]
   },
   "ask": {
     "isHigherEducationStudent": "Are you studying for a degree at a university or UAS?",
-    "firstStudyPlaceDate": "When did you first accept a study place at a university or UAS?"
+    "firstStudyPlaceDate": "When did you first accept a study place at a university or UAS?",
+    "firstAttendanceDate": "When did you first register as attending higher education?"
   },
   "action": "inform",
   "regulated": false,
@@ -34,9 +43,15 @@
   ],
   "params": {
     "pct": 40,
-    "threshold": 2500
+    "threshold": 2500,
+    "figure2": "1",
+    "figure3": "2014",
+    "figure4": "1",
+    "figure5": "2014",
+    "figure6": "1",
+    "figure7": "2014"
   },
-  "message": "If you finish your degree within Kela’s deadline, Kela pays {pct} % of your student loan above {threshold} €. Usually you do not need to apply. Paying the loan back early while you study can lower the amount.",
+  "message": "If Kela’s conditions are met, compensation is {pct} % of eligible outstanding higher-education loan above {threshold} €, with degree-based caps. Normally this concerns your first completed degree, first admission/attendance from {figure2} August {figure3} and completion within Kela’s deadline. Not a blanket loan write-off.",
   "earns": "Nordea earns nothing from this. Your student loan, if it is with Nordea, earns interest as usual.",
   "tests": [
     {
@@ -49,13 +64,13 @@
       "expect": "eligible"
     },
     {
-      "name": "started a day too early",
+      "name": "earlier admission needs attendance check",
       "today": "2026-11-20",
       "facts": {
         "isHigherEducationStudent": true,
         "firstStudyPlaceDate": "2014-07-31"
       },
-      "expect": "notEligible"
+      "expect": "ask:firstAttendanceDate"
     },
     {
       "name": "not a student",
@@ -72,5 +87,6 @@
       "expect": "ask:isHigherEducationStudent"
     }
   ],
-  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
+  "explain": "If Kela’s conditions are met, compensation is {pct} % of eligible outstanding higher-education loan above {threshold} €, with degree-based caps. Normally this concerns your first completed degree, first admission/attendance from {figure4} August {figure5} and completion within Kela’s deadline. Not a blanket loan write-off. Accepted deadline extensions can apply. An earlier admission with first attendance from {figure6} August {figure7} can also qualify. First-cycle university graduates can choose to apply or defer until the second-cycle degree. Application requirements depend on degree and study location. Check with Kela; this is distinct from student aid income tests, interest assistance or a bank repayment break."
 }

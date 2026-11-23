@@ -6,7 +6,7 @@
   "validFrom": "2026-01-01",
   "validTo": "2027-01-01",
   "source": {
-    "url": "https://www.nordea.fi/henkiloasiakkaat/palvelumme/saastaminen-sijoittaminen/saastamisen-tilit/ps-tilin-veromuutos.html",
+    "url": "https://www.nordea.fi/en/personal/our-services/savings-investments/savings-accounts/tax-change-to-ps-accounts.html",
     "checkedAt": "2026-11-20",
     "owner": "Pension saving product team (demo)"
   },
@@ -32,9 +32,19 @@
   "params": {
     "max": 5000,
     "lastDay": "31 December 2026",
-    "endDate": "1 January 2027"
+    "endDate": "1 January 2027",
+    "figure3": "2026",
+    "figure4": "2026",
+    "figure5": "5,000",
+    "figure6": "1",
+    "figure7": "2027",
+    "figure8": "5,000",
+    "figure9": "1",
+    "figure10": "2027,",
+    "figure11": "2027",
+    "figure12": "2028"
   },
-  "message": "PS payments made by {lastDay} can still be deducted in tax, up to {max} € this year. The deduction ends on {endDate}. If your balance is {max} € or less on {endDate}, you can withdraw it in the next two years at the normal capital income tax, so check your balance before paying in more.",
+  "message": "{figure3} is the last year for eligible PS contributions to qualify for a tax deduction, generally within a combined {max} € annual cap and other conditions. The balance itself is not deductible. Check eligibility before paying in more.",
   "earns": "Nordea earns nothing from this information.",
   "tests": [
     {
@@ -70,5 +80,6 @@
       "expect": "notEligible"
     }
   ],
-  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
+  "explain": "Eligible PS contributions paid in {figure4} can still qualify for a deduction, generally within a combined annual {figure5} € cap with voluntary individual pension insurance and other eligibility limits. The balance is not deductible. Contributions from {figure6} January {figure7} are not deductible. If total PS savings were no more than {figure8} € ON {figure9} January {figure10} the whole balance may qualify for withdrawal in {figure11} or {figure12} without punitive tax uplift, provided scheduled retirement withdrawals have not begun. Withdrawal remains taxable under normal rules, not tax-free; final tax depends on total capital income. Do not assume earlier contributions were deducted."
 }
