@@ -244,7 +244,7 @@ app.patch('/api/cabinet/:id', (req, res) => {
     entry: updated,
     undoToken,
     // Plain words for what changed (no "cabinet").
-    message: req.body?.status === 'disputed' ? 'Marked as wrong. Abel won’t use it.' : req.body?.status === 'active' && existing.status === 'stale' ? 'Kept. Abel will keep using it.' : req.body?.status === 'active' && existing.status === 'disputed' ? 'Okay, Abel will use it again.' : req.body?.status === 'active' && existing.status === 'archived' ? 'Brought back.' : 'Saved',
+    message: req.body?.status === 'disputed' ? 'Marked as wrong. Nora won’t use it.' : req.body?.status === 'active' && existing.status === 'stale' ? 'Kept. Nora will keep using it.' : req.body?.status === 'active' && existing.status === 'disputed' ? 'Okay, Nora will use it again.' : req.body?.status === 'active' && existing.status === 'archived' ? 'Brought back.' : 'Saved',
   });
 });
 

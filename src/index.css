@@ -1058,3 +1058,37 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .ob-tries{display:flex;flex-direction:column;gap:8px}
 .ob-tryq{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1.5px solid var(--brand-soft);border-radius:999px;background:var(--surface);color:var(--brand-soft);font:inherit;font-size:14.5px;font-weight:600;padding:10px 16px;cursor:pointer}
 .ob-tryq:hover{background:var(--sel)}
+
+/* ===== What Nora knows: five sections, the same buttons on every item ===== */
+.cb-sec{padding:4px 16px}
+.cb-item{display:flex;flex-direction:column;gap:6px;padding:14px 0;border-top:1px solid var(--line)}
+.cb-sec>.cb-item:first-child,.cb-sec>.cb-empty+.cb-item{border-top:0}
+.cb-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cb-t .n-name{font-size:15.5px;display:flex;align-items:center;gap:6px}
+.cb-t .n-sub{font-size:13.5px;color:var(--muted);line-height:1.4}
+.cb-src{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 9px 2px 7px;border-radius:99px}
+.cb-src.bank{background:var(--bank-bg);color:var(--bank)}.cb-src.you{background:var(--you-bg);color:var(--you)}
+.cb-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.cb-btns .btn{display:inline-flex;align-items:center;gap:6px}
+.cb-why{margin:4px 0 0;padding:10px 12px;border-radius:10px;background:var(--surface-2);font-size:13.5px;color:var(--ink-2);line-height:1.45}
+.cb-empty{display:flex;align-items:center;gap:8px;margin:0;padding:14px 0;font-size:14px;color:var(--muted)}
+.cb-count{min-width:22px;height:22px;padding:0 7px;border-radius:99px;background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:inline-grid;place-items:center}
+.cb-goal{display:flex;align-items:flex-start;gap:10px;width:100%;border:0;background:none;padding:0;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
+.cb-goal .cb-t{flex:1}
+.cb-goal .gbar{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:4px}.cb-goal .gbar i{display:block;height:100%;background:var(--brand-soft)}
+.cb-edit{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:12px;background:var(--surface-2);margin-top:4px}
+.cb-edit-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cb-link{display:flex;align-items:center;gap:8px;width:100%;padding:14px 0;border:0;border-top:1px solid var(--line);background:none;font:inherit;font-size:14.5px;font-weight:600;color:var(--brand-soft);cursor:pointer;text-align:left}
+.cb-link svg:last-child{margin-left:auto;color:var(--muted)}
+/* About you: the question inside the card */
+.ab-qhead{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--muted)}
+.ab-q{display:flex;flex-direction:column;gap:6px;background:var(--surface);border-radius:12px;padding:12px;animation:v14in .2s ease}
+.ab-q-l{font-size:12.5px;font-weight:700;color:var(--muted)}
+.ab-q-t{font-size:15.5px;font-weight:700;color:var(--ink);line-height:1.35}
+.ab-q-v{display:flex;gap:6px;align-items:flex-start;font-size:13.5px;font-weight:600;color:var(--you)}
+.ab-q-v svg{flex:none;margin-top:2px}
+.ab-q-from{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.ab-q-btns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px}
+.ab-q-btns .btn{display:inline-flex;align-items:center;gap:6px}
+.ab-q-hint{font-size:12.5px;color:var(--muted)}
+.ab-done .btn.link{margin-left:4px}

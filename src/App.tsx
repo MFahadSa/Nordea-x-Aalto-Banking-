@@ -9,10 +9,11 @@ import { Chat } from './components/Chat.js';
 import { SuggestSettingSheet } from './components/Advice.js';
 import { adviceHome, adviceShow, adviceSetting, adviceChange } from './services/api.js';
 import { Icon } from './ui/icons.js';
-import { AboutCard, GetMoreCard, Onboarding, introFor } from './components/AboutYou.js';
+import { GetMoreCard, introFor } from './components/AboutYou.js';
+import { CabinetPage } from './components/CabinetPage.js';
 import { OffersForYou } from './components/Offers.js';
 import { fetchAbout } from './services/aboutApi.js';
-import type { AboutView, FieldKey } from './aboutParts.js';
+import type { AboutView } from './aboutParts.js';
 import { CabinetEntry, ChatMessage, PersonaId, User } from './types.js';
 import {
   AppState,
@@ -63,7 +64,6 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; undoToken?: string; action?: { label: string; run: () => void } } | null>(null);
   // About you, the onboarding and Offers for you.
   const [about, setAbout] = useState<AboutView | null>(null);
-  const [onboard, setOnboard] = useState<null | 'start' | FieldKey>(null);
   const [offersKey, setOffersKey] = useState(0);
   const [usersOpen, setUsersOpen] = useState(false);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
@@ -461,13 +461,6 @@ export default function App() {
                   onNo={() => setAskDeleteChats(false)}
                 />
               )}
-              {onboard && about && (
-                <Onboarding userId={state.user.id} name={state.user.name} view={about} start={onboard === 'start' ? undefined : onboard}
-                  onSaved={(v) => { setAbout(v); setOffersKey((n) => n + 1); refresh(); }}
-                  onClose={() => setOnboard(null)}
-                  onRewards={() => { setOnboard(null); goPage('rewards' as Page); }}
-                  onTry={(v) => { setOnboard(null); tryNora(v); }} />
-              )}
               <PersonaPickerModal
                 isOpen={usersOpen}
                 onClose={() => setUsersOpen(false)}
@@ -535,7 +528,7 @@ export default function App() {
               onAdviceShow={adviceShowMe}
               onAdviceNotNow={adviceNotNow}
               savingsFirst={!!about && about.fields.mainUse.values.some((x) => x === 'Saving' || x === 'Investing')}
-              getMore={<GetMoreCard view={about} onAdd={() => setOnboard('start')} />}
+              getMore={<GetMoreCard view={about} onAdd={() => goPage('knows')} />}
               offers={<OffersForYou userId={state.user.id} refreshKey={offersKey}
                 skip={state.advice?.forYou?.data?.ruleId === 'asp-account' ? ['asp'] : []}
                 onAsk={(o) => startChat('abel', `Tell me about the ${o.title} for my situation`)}
@@ -543,9 +536,12 @@ export default function App() {
             />
           )}
           {page === 'knows' && (
-            <KnowsPage
+            <CabinetPage
               state={state}
-              aboutTop={<AboutCard view={about} onTry={() => about && tryNora(about)} onAdd={() => setOnboard('start')} />}
+              about={about}
+              onAboutSaved={(v) => { setAbout(v); setOffersKey((n) => n + 1); refresh(); }}
+              onSeeNora={() => about && tryNora(about)}
+              onRewards={() => goPage('rewards')}
               onAddGoal={() => setAddGoalOpen(true)}
               onTellNora={() => openHelper('abel')}
               onImport={() => doImport({ sample: true })}
@@ -557,6 +553,7 @@ export default function App() {
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
               onDeleteDoc={setDelDocId}
               onChanged={() => refresh()}
+              onToast={(m) => setToast({ message: m })}
               adviceBusy={adviceBusy}
               onAdviceChange={adviceChangeRule}
               onOpenRefundCase={() => goPage('refund')}
