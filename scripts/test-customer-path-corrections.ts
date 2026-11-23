@@ -133,3 +133,61 @@ await ask('Is my PS balance under 5,000? Can I withdraw it in 2027?');
 assert.match(captured, /Ordinary account balances must never be used as a PS balance/);
 assert.match(captured, /"psAccount":\s*\{[\s\S]*?"heldAtThisBank":\s*false[\s\S]*?"balance":\s*null/);
 console.log('PASS PS product boundary and unknown personal balance in model context');
+
+// Offers off: no card, so no partner prices or incentive in the model's background either.
+db.cloneUser('lauri', 'offers-off'); db.updateUser('offers-off', { offersOff: true } as any);
+await ask('Our electricity bill is ridiculous, can you help?', 'offers-off');
+assert.ok(!/Fictional partner/.test(captured), 'Offers off: no partner background');
+await ask('We move next Friday and I need a moving company and packing help.', 'offers-off');
+assert.ok(!/Fictional partner/.test(captured), 'Offers off: no movers background');
+const shown = await abelTurn('lauri', 'offers-on-check', 'abel', 'Our electricity bill is ridiculous, can you help?');
+assert.ok(shown.cards.some(c => c.type === 'offer') && /Fictional partner Lumivalo/.test(captured), 'Offers on: card and its background together');
+console.log('PASS partner background only with a shown partner card');
+
+// Adversarial boundaries: object-specific refusals, locale, compounds and no-note mutations.
+const { declinesPartner } = await import('../src/server/advice/purpose.js');
+for (const t of ["We won't be needing movers", "We won’t be needing movers", 'En tarvitse muuttofirmaa, kiitos', 'En halua muuttopalvelua', 'No movers please', 'Stop showing movers', 'Movers? No thanks']) {
+  assert.ok(declinesPartner(t,'movers'), `Refusal missed: ${t}`); await ask(t);
+}
+for(const [t,id] of [
+ ['How can I stop electricity costs rising? Compare cheaper electricity contracts','energy'],
+ ['Movers sound great, no thanks to the van though','movers'],
+ ["I don't need movers, but compare electricity contracts",'energy'],
+] as const){assert.equal(declinesPartner(t,id),false,t);const r=await ask(t,'lauri',false);assert.ok(r.cards.some(c=>c.data?.partnerId===id),t);}
+for(const t of ["Don't note this down, but I just started at Aalto university", 'Do not make a note, I just started at Aalto', 'Älä tallenna tätä, I just started at Aalto']){
+ assert.ok(refusesStorage(t),t);const before=db.getCabinetEntries('alex').length;const noSaveReply=await ask(t,'alex');assert.ok(!noSaveReply.cards.some(c=>c.type==='ask_fact'),'No saving-answer card after refusal');assert.equal(db.getCabinetEntries('alex').length,before,t);
+}
+for(const t of ['I never remember to save money','Make a note that I started at Aalto','Please note this down','No need to save money for a van, we have one']){
+ assert.equal(refusesStorage(t),false,t);
+}
+assert.equal(reviewedContext("Thanks! PS: what's my balance?",31,'2026-11-23'),'','Postscript is not PS savings');
+assert.ok(reviewedContext('PS: can I withdraw my PS account?',31,'2026-11-23').includes('restricted long-term'),'Explicit PS after postscript retained');
+
+// Both the card facts and the model context must fail closed for multiple PS contracts.
+const { buildFacts } = await import('../src/server/advice/facts.js');
+const { evaluate } = await import('../src/server/advice/evaluate.js');
+const { catalogue } = await import('../src/server/advice/guard.js');
+db.cloneUser('lauri','multi-ps');
+for(const [key,balance] of [['ps-one',3000],['ps-two',4000]] as const){db.upsertBankAccount('multi-ps',key,{type:'PS account'});db.addBalanceSnapshot({id:key,userId:'multi-ps',accountKey:key,balance,at:'2027-01-01',source:'isolated test'});}
+const psFacts=buildFacts({user:db.getUser('multi-ps'),entries:[],transactions:[],bankAccounts:db.getBankAccounts('multi-ps'),balances:db.getBalanceSnapshots('multi-ps'),purpose:'abel',today:'2027-01-02'});
+assert.equal(psFacts.hasPsAccount.value,true);assert.equal(psFacts.psBalance.state,'unknown');assert.equal(psFacts.psBalanceAt2027Start.state,'unknown');
+assert.notEqual(evaluate(catalogue().filter(r=>r.id==='ps-account'&&r.version==='2027-01-01'),psFacts,'2027-01-02').status,'eligible');
+await ask('Is my PS balance below 5000?', 'multi-ps');
+assert.match(captured,/Multiple PS contracts: personal eligibility unknown/);assert.match(captured,/"accountCount":\s*2/);
+assert.match(captured,/"balanceOn1January2027":\s*null/);
+console.log('PASS compound/refusal/locale/storage/multiple-PS adversarial boundaries');
+
+for(const t of ["We won't be hiring movers", 'We do not need a moving company', "I don't want any movers"]){assert.ok(declinesPartner(t,'movers'),t);await ask(t);}
+// Current/history boundaries stay consistent for exactly one contract.
+const one=db.getBankAccounts('multi-ps').filter(a=>a.key==='ps-one');
+const oneInput={user:db.getUser('multi-ps'),entries:[],transactions:[],bankAccounts:one,balances:db.getBalanceSnapshots('multi-ps'),purpose:'abel' as const,today:'2026-12-31'};
+assert.equal(buildFacts(oneInput).psBalance.state,'unknown','Future snapshots are not current');
+assert.equal(buildFacts(oneInput).psBalanceAt2027Start.state,'unknown','Future statutory snapshot not known early');
+const dated=buildFacts({...oneInput,today:'2027-01-02'});assert.equal(dated.psBalance.value,3000);assert.equal(dated.psBalanceAt2027Start.value,3000);
+assert.equal(buildFacts({...oneInput,today:'2027-01-02',balances:[{id:'later',userId:'multi-ps',accountKey:'ps-one',balance:100,at:'2027-01-02',source:'test'}]}).psBalanceAt2027Start.state,'unknown','Later low balance does not establish the date');
+// Duplicate/hidden card must not supply new marketing context.
+const firstOffer = await abelTurn('lauri','repeat-card-check','abel','We need a moving company');
+db.addMessage({id:'repeat-card-message',agentId:'abel',channel:'app',userId:'lauri',conversationId:'repeat-card-check',sender:'agent',helperId:'abel',text:firstOffer.text,cards:firstOffer.cards,createdAt:new Date().toISOString()});
+const repeated=await abelTurn('lauri','repeat-card-check','abel','We need a moving company');
+assert.ok(!repeated.cards.some(c=>c.type==='offer'));assert.ok(!/Fictional partner/.test(captured),'Duplicate card gets no fresh partner context');
+console.log('PASS single/multiple dated PS and duplicate-card context boundaries');

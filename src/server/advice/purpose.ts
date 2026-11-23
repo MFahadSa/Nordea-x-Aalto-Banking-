@@ -12,7 +12,8 @@ export function purposeOf(text: string): Purpose {
 
 /** A refusal is not the idiom 'never remember to save money'. */
 export function refusesStorage(text: string): boolean {
-  return /\b(?:don't|don’t|do not)\s+keep\s+(?:a\s+)?note\s+of\s+(?:this|that|it)\b|\bno need to (?:save|store|remember|keep)\b/i.test(text)
+  return /\b(?:don't|don’t|do not|never)\s+(?:note\s+(?:this|that|it|anything)\s+down|make\s+(?:a\s+)?note)|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(text)
+    || /\b(?:don't|don’t|do not)\s+keep\s+(?:a\s+)?note\s+of\s+(?:this|that|it)\b|\bno need to (?:save|store|remember|keep)\s+(?:this|that|it|anything|a note)\b/i.test(text)
     || /\b(?:do not|don't|don’t|never)\s+(?:(?:want|allow)\s+(?:you|nora)\s+to\s+)?(?:save|remember|store)\s+(?:this|that|it|anything|my|our|what|the|these)\b/i.test(text)
     || /\b(?:do not|don't|don’t)\s+want\s+(?:this|that|it|my\s+\w+)\s+(?:saved|stored|remembered)\b/i.test(text);
 }
@@ -21,8 +22,12 @@ export function refusesStorage(text: string): boolean {
 export function declinesPartner(text: string, partner: string): boolean {
   const terms: Record<string, string> = { movers: 'movers?|moving company|packing help', homes: 'homes?|houses?|flats?|listings?', energy: 'energy|electricity|offers?', insure: 'insurance|cover', planner: 'planner|planning|offers?' };
   const object = terms[partner] || partner;
-  return new RegExp(`\\b(?:do not|don't|don’t|won't|won’t|will not|no|not)\\s+(?:need|want|hire|use|show|suggest|looking for|interested in)?\\s*(?:any\\s+)?(?:${object})\\b`, 'i').test(text)
-    || new RegExp(`\\b(?:skip|avoid|stop|hide|decline)\\s+(?:the\\s+|any\\s+)?(?:${object})\\b|\\b(?:${object})\\b[^.]{0,15}\\bno thanks\\b`, 'i').test(text);
+  // Match refusal of the service itself, not stopping its costs or declining a different object.
+  const service = `(?:${object})`;
+  return new RegExp(`\\b(?:do not|don't|don’t|won't|won’t|will not)\\s+(?:be\\s+)?(?:need(?:ing)?|want(?:ing)?|hir(?:e|ing)|us(?:e|ing)|show|suggest)\\s+(?:(?:any|a|an|the)\\s+)?${service}\\b`, 'i').test(text)
+    || new RegExp(`\\b(?:not interested in|not looking for|no need for|skip|avoid|hide|decline|stop showing|stop suggesting)\\s+(?:the\\s+|any\\s+)?${service}\\b`, 'i').test(text)
+    || new RegExp(`\\bno\\s+${service}\\b|\\b${service}\\s*[?!,:]\\s*no thanks(?:[.!]|$)`, 'i').test(text)
+    || (partner === 'movers' && /\ben (?:tarvitse|halua)\s+(?:muutto\w*|pakkausapu\w*)/i.test(text));
 }
 
 /** A requested service/rule is considered separately from incidental money words. */

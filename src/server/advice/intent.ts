@@ -24,7 +24,7 @@ export interface Intent {
 const HOME = String.raw`(flats?|apartments?|homes?|houses?|places?|asunto\w*)`;
 const T: { id: string; re: RegExp; partner?: string; rule?: string; implies?: Intent['implies'] }[] = [
   // Partners first only where the words are about that partner's job right now.
-  { id: 'home-search', partner: 'homes', re: new RegExp(String.raw`\b(viewings?|showings?|open house|listings?|for sale|asuntonäyt\w*|kotiväli)\b|\b(look(ing)?|search(ing)?|hunt(ing)?|browse|browsing|find(ing)?)\b[^.?!]{0,25}\b(at |for |a |new )?${HOME}\b`, 'i') },
+  { id: 'home-search', partner: 'homes', re: new RegExp(String.raw`\b(viewings?|showings|home showing|house showing|open house|listings?|for sale|asuntonäyt\w*|kotiväli)\b|\b(look(ing)?|search(ing)?|hunt(ing)?|browse|browsing|find(ing)?)\b[^.?!]{0,25}\b(at |for |a |new )?${HOME}\b`, 'i') },
   { id: 'home-browse', partner: 'homes', re: /\b(?:show|see)\s+(?:me\s+)?(?:some\s+|example\s+)?(?:homes|flats|houses|apartments|listings)\b/i },
   { id: 'energy', partner: 'energy', re: /\b(electricity|electric bill|power bill|energy bill|energy contract|sähkö\w*|ev charging|charging (the |my |our )?(new )?(ev|electric car|car))\b|\bcharg\w+\b[^.?!]{0,30}\b(ev|electric car)\b/i },
   { id: 'insurance', partner: 'insure', re: /\b(home|contents|flat|house|apartment)\s+insurance\b|\binsur\w+\b[^.?!]{0,25}\b(home|flat|apartment|house|contents)\b|\bkotivakuutu\w*/i },

@@ -199,7 +199,9 @@ function factsFor(userId: string, allowed: Set<string>) {
     goals: fin.activeGoals(userId).filter((g) => allowed.has(g.id)).map((g) => ({ ...fin.goalStatus(userId, g), goalType: g.goalType })),
     paydayPlan: strip(fin.payPlan(userId)),
     psAccount: (() => {
-      const ps = db.getBankAccounts(userId).find(a => /^ps\b|long-term savings|pitkäaikaissäästö/i.test(a.type || ''));
+      const psAccounts = db.getBankAccounts(userId).filter(a => /^ps\b|long-term savings|pitkäaikaissäästö/i.test(a.type || ''));
+      if (psAccounts.length > 1) return { heldAtThisBank: true, accountCount: psAccounts.length, balance: null, balanceOn1January2027: null, note: 'Multiple PS contracts: personal eligibility unknown. Do not select the first or assume an aggregation rule; obtain a reviewed contract-level assessment.' };
+      const ps = psAccounts[0];
       if (!ps) return { heldAtThisBank: false, balance: null, balanceOn1January2027: null, note: 'Do not substitute ordinary account totals. An external PS account is not established here.' };
       const snapshots = db.getBalanceSnapshots(userId).filter(b => b.accountKey === ps.key && b.at.slice(0,10) <= fin.DEMO_TODAY).sort((a,b)=>b.at.localeCompare(a.at));
       return { heldAtThisBank: true, balance: snapshots[0]?.balance ?? null, asOf: snapshots[0]?.at ?? null, balanceOn1January2027: snapshots.find(b=>b.at.slice(0,10)==='2027-01-01')?.balance ?? null };
@@ -549,7 +551,7 @@ function codeCard(ctx: TurnCtx): string {
     if (it.rule === 'asp-account' && /\b(?:already have|already own|have got)\b[^.?!]{0,30}\b(?:one|asp|account)\b|\bmy (?:existing )?asp account\b/i.test(ctx.userText)) continue;
     if (it.id === 'gift-information') continue; // Receiving a gift does not imply supporting children.
     if (it.rule) {
-      const r = ruleCardFor(ctx.userId, ctx.conversationId, refusesStorage(ctx.userText) ? { ...it, implies: undefined } : it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
+      const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any), !refusesStorage(ctx.userText));
       if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; return r.describe; }
     } else if (it.partner) {
       const d = partnerCard(ctx, it.partner);
@@ -834,7 +836,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
   const cardNote = helperId === 'person' || FRAUD.test(userText) ? '' : codeCard(ctx);
   // Reviewed facts constrain the model; they never replace the customer's task or tool turn.
-  const checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY);
+  const shownPartners = new Set(ctx.cards.filter((c) => c.type === 'offer').map((c) => String(c.data?.partnerId)));
+  const checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
   const groundedNote = checkedContext;
   const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote) + '\n' + checkedContext;
   const t0 = Date.now();
