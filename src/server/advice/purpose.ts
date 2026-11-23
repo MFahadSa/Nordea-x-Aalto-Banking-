@@ -15,13 +15,17 @@ export function refusesStorage(text: string): boolean {
   const t = text.toLowerCase().replace(/[’]/g, "'").replace(/\bdont\b/g,"don't").replace(/\bpls\b/g,"please");
   if (/\boff the record\b|\b(?:keep this private|this stays between us)\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
   if (/\b(?:nora[, ]+)?forget (?:i said|this|that|what i said)\b/.test(t)) return true;
+  if (/^(?:please\s+)?no saving(?:\s+please)?(?:\s+(?:this|that|it|my data|any of this))?(?:\s+please)?\s*(?:$|[,;.!?])/.test(t.trim())) return true;
+  if (/\bleave (?!nothing\b).{0,25}out of (?:your|my|the) notes\b/.test(t)) return true;
   if (/\bnothing\b.{0,35}\b(?:should|may|must|can) be (?:saved|stored|noted|recorded|kept)\b/.test(t)) return true;
   // Recognise a directed negative command first, then interpret its verb class.
   // Arbitrary data nouns are allowed; keep/make/add need an explicit recording object.
   const commands = [
     /(?:^|\bplease\s+|\bnora[, ]+)(?:don't|do not|never|no need to)\s+(.+)/,
     /\b(?:don't|do not)\s+(?:want|allow)\s+(?:you|nora)\s+to\s+(.+)/,
-    /\brather you (?:didn't|did not|not)\s+(.+)/,
+    /\b(?:rather|prefer) you (?:didn't|did not|not)\s+(.+)/,
+    /\b(?:can|could|would) you not\s+(.+)/,
+    /\b(?:i'd|i would) like you to not\s+(.+)/,
   ];
   for(const raw of t.split(/[.!?;,]|\bbut\b/)) {
     const c=raw.trim();
@@ -29,12 +33,12 @@ export function refusesStorage(text: string): boolean {
     const m=commands.map(re=>c.match(re)).find(Boolean);
     if(!m) continue;
     const request=m[1].trim();
-    if (/^(?:make\s+(?:(?:a|any)\s+)?(?:note|record)|keep\s+(?:(?:(?:a|any)\s+)?(?:note|record)|.{0,30}on file)|add\s+.{0,30}\b(?:to|in)\s+(?:my\s+|your\s+|the\s+)?notes?)\b/.test(request)) return true;
+    if (/^(?:make\s+(?:(?:a|any)\s+)?(?:note|record)|keep\s+(?:(?:(?:a|any)\s+)?(?:note|record)|my data|track of|.{0,30}on file)|hold on to\s+(?:this|that|it|my data)\b|(?:add|put)\s+.{0,30}\b(?:to|in)\s+(?:my\s+|your\s+|the\s+)?notes?)\b/.test(request)) return true;
     const v=request.match(/^(save|store|remember|note|log|record|write)\b\s*(.*)$/);
     if(!v) continue;
     const [,verb,obj]=v;
-    if (verb==='save' && /^(?:money|euros?|up|for|enough|more|much|a bit|on\b|it all in\b)/.test(obj)) continue;
-    if (verb==='log' && /^(?:in|out)\b/.test(obj)) continue;
+    if (verb==='save' && /^(?:money|euros?|up|for|enough|more|much|less|a bit|on\b|it all in\b)/.test(obj)) continue;
+    if (verb==='log' && /^(?:(?:me|us|you)\s+)?(?:in|out)\b/.test(obj)) continue;
     if (verb==='record' && /\bas (?:spending|income|a refund|a payment)\b/.test(obj)) continue;
     if (verb==='write' && !/\bdown\b/.test(obj)) continue;
     return true;
@@ -50,15 +54,17 @@ export function declinesPartner(text: string, partner: string): boolean {
     const states: (boolean | undefined)[] = objects.map(()=>undefined);
     const clauses=text.toLowerCase().replace(/[’]/g,"'").split(/[.!?;,]|\b(?:but|however|instead|although|though|and)\b/i);
     let last:number[]=[];
+    let lastObjects:number[]=[];
     for(const raw of clauses){const c=raw.trim();if(!c)continue;
-      const matches=objects.map((re,i)=>re.test(c)?i:-1).filter(i=>i>=0);
+      let matches=objects.map((re,i)=>re.test(c)?i:-1).filter(i=>i>=0);
+      if (!matches.length && /\b(?:need|want)\s+some\b/.test(c)) matches=lastObjects;
       const refusal = /\b(?:don't|do not|won't|will not|aren't|are not|not)\s+(?:be\s+|going to\s+)?(?:need(?:ing)?|want(?:ing)?(?: to hire)?|hir(?:e|ing)|us(?:e|ing)|plan to use)\b/.test(c)
         || /\b(?:not interested in|not looking for|no need for|no thanks to|skip|avoid|hide|decline|stop showing|stop suggesting|en tarvitse|en halua)\b/.test(c)
         || /^no\b/.test(c)
         || (/\b(?:manage|do|cope)\b.{0,12}\bwithout\b/.test(c) && !/\b(?:can't|cannot|won't|will not|not)\b/.test(c));
       const neg=refusal;
-      if(matches.length){for(const i of matches)states[i]=!neg;last=matches;}
-      else if(last.length && /^(?:no(?: thanks)?|i'?d rather not|rather not|no thank you)$/i.test(c))for(const i of last)states[i]=false;
+      if(matches.length){for(const i of matches)states[i]=!neg;last=matches;lastObjects=matches;}
+      else if(last.length && /^(?:no(?: thanks)?|i'?d rather not|rather not|no thank you|not this time)$/i.test(c))for(const i of last)states[i]=false;
     }
     // Declining packing does not cancel a company request (and vice versa).
     return states.some(v=>v===false) && !states.some(v=>v===true);
@@ -70,12 +76,12 @@ export function declinesPartner(text: string, partner: string): boolean {
   let declined = false;
   for (const clause of clauses) {
     const object = `${service}(?!['’]s?\\s+(?:prices?|costs?))\\b`;
-    const negative = new RegExp(`\\b(?:do not|don't|don’t|won't|won’t|will not|aren't|aren’t|are not|isn't|isn’t|not going to)\\s+(?:be\\s+|going to\\s+)?(?:need(?:ing)?|want(?:ing)?|hir(?:e|ing)|us(?:e|ing)|show|suggest)\\s+(?:(?:any|a|an|the)\\s+)?${object}`, 'i').test(clause)
+    const negative = new RegExp(`\\b(?:do not|don't|don’t|won't|won’t|will not|aren't|aren’t|are not|isn't|isn’t|not going to)\\s+(?:be\\s+|going to\\s+)?(?:need(?:ing)?|want(?:ing)?|hir(?:e|ing)|us(?:e|ing)|show(?:\\s+me)?|suggest)\\s+(?:(?:any|a|an|the)\\s+)?${object}`, 'i').test(clause)
       || new RegExp(`\\b(?:not interested in|not looking for|not needing|no need for|no thanks to|skip|avoid|hide|decline|stop showing|stop suggesting)\\s+(?:the\\s+|any\\s+)?${object}`, 'i').test(clause)
       || new RegExp(`\\bno\\s+${object}|^${service}\\s*[,?:]?\\s*no thanks$`, 'i').test(clause)
       || (partner === 'movers' && /\ben (?:tarvitse|halua)\s+(?:muutto\w*|pakkausapu\w*)/i.test(clause));
     if (negative) declined = true;
-    else if (new RegExp(`\\b(?:need|want|hire|find|book|compare|show|get|looking for)\\s+(?:(?:a|an|some|any|the|cheaper)\\s+)?${service}\\b`, 'i').test(clause)) declined = false;
+    else if (new RegExp(`\\b(?:(?:do\\s+)?(?:need|want)|hire|find|book|compare|show|get|looking for)\\s+(?:(?:a|an|some|any|the|cheaper|home)\\s+)?${service}\\b`, 'i').test(clause)) declined = false;
   }
   // Preserve the short two-sentence refusal without matching a refusal of another object.
   if (new RegExp(`^${service}\\s*[?!,:]\\s*no thanks[.!]?$`, 'i').test(text.trim())) return true;
@@ -93,4 +99,35 @@ export function explicitlyRequests(text: string, topic: string): boolean {
     'household-credit': /\b(?:claim|eligible|calculate|receive)\b[^.?!]{0,45}\bhousehold (?:tax )?credit\b/i,
   };
   return requests[topic]?.test(text) || false;
+}
+
+/** A narrow safe exception on mixed privacy turns. No model-authored text is retained.
+ * Unsupported/ambiguous goals stay blocked for clarification, never blanket positive precedence.
+ */
+export function scopedGoalOnRefusal(text: string, today: string): {title: string; detail: string; targetAmount: number; targetDate?: string; goalType: string} | null {
+  if (!refusesStorage(text)) return null;
+  const clauses=text.replace(/[’]/g,"'").split(/[;.!?]|\bbut\b/i);
+  const positives=clauses.filter(c=>/\b(?:please\s+)?(?:save|set|create|add)\s+(?:a\s+)?goal\b/i.test(c) && !refusesStorage(c) && !/\b(?:don't|do not|not|never)\b/i.test(c));
+  if(positives.length!==1)return null;
+  const c=positives[0];
+  if (/\b(?:if|unless|maybe|hypothetical|private|privately|secret|sensitive|only after|not yet)\b/i.test(c)) return null;
+  const kinds=[{re:/\bemergency (?:fund|saving)/i,title:'Emergency fund',type:'other'},{re:/\bcar\b/i,title:'Car savings',type:'car'},{re:/\b(?:home|flat|house)\b/i,title:'Home savings',type:'home'}].filter(k=>k.re.test(c));
+  if(kinds.length!==1)return null;
+  const kind=kinds[0];
+  const restrictions=clauses.filter(x=>refusesStorage(x));
+  if (!restrictions.length || restrictions.some(x=>! /\b(?:my|our)\s+/i.test(x) || /\b(?:my|our)\s+(?:data|information|details|notes)\b/i.test(x))) return null;
+  // A refusal that names this goal/category conflicts, even if another clause sounds positive.
+  if(clauses.some(x=>refusesStorage(x)&&(/\b(?:goals?|anything|nothing|any of this|all of this|everything)\b|off the record|between us/i.test(x)||kind.re.test(x))))return null;
+  const amount=c.match(/\b(?:of|for)\s+(\d[\d ,]*(?:\.\d{1,2})?)(?:\s*(?:euros?|€))?/i);
+  if (amount && !/^(?:\d+|\d{1,3}(?:[ ,]\d{3})+)(?:\.\d{1,2})?$/.test(amount[1].trim())) return null;
+  const value=amount?Number(amount[1].replace(/[ ,]/g,'')):NaN;
+  if(!Number.isFinite(value)||value<=0)return null;
+  const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const m=c.match(/\bby\s+(january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+(20\d\d))?\b/i);
+  // A supplied but unsupported deadline must not silently become an undated goal.
+  if (!m && /\b(?:by|before|until|deadline|on)\b|\b20\d\d\b/i.test(c)) return null;
+  let targetDate:string|undefined;
+  if(m){let year=m[2]?Number(m[2]):Number(today.slice(0,4));const month=months.indexOf(m[1].toLowerCase())+1;if(!m[2]&&`${year}-${String(month).padStart(2,'0')}-01`<today)year++;targetDate=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);}
+  if (targetDate && targetDate < today) return null;
+  return {title:kind.title,detail:`Save ${value} euros for ${kind.title.toLowerCase()}${targetDate?` by ${targetDate}`:''}.`,targetAmount:value,...(targetDate?{targetDate}:{}),goalType:kind.type};
 }
