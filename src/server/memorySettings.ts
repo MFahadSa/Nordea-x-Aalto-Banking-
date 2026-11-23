@@ -2,7 +2,7 @@
 // Nora follows them in src/server/abel.ts:
 //  - searchChats: Nora may look at the titles of the customer's earlier chats with her.
 //  - fromChats:   Nora may suggest things to remember from a chat (they still need the customer's OK).
-//  - sensitive:   OFF by default. When off, health, relationship and similar private topics are never saved.
+//  - sensitive:   always false. Private topics (health, religion, relationships…) are never saved; not a setting.
 import type { Express, Request } from 'express';
 import { db } from './db.js';
 
@@ -11,7 +11,7 @@ export const MEMORY_DEFAULTS: MemorySettings = { searchChats: true, fromChats: t
 
 export function memoryOf(userId: string): MemorySettings {
   const u = db.getUser(userId) as unknown as { memory?: Partial<MemorySettings> } | undefined;
-  return { ...MEMORY_DEFAULTS, ...(u?.memory || {}) };
+  return { ...MEMORY_DEFAULTS, ...(u?.memory || {}), sensitive: false };
 }
 
 const uidOf = (req: Request) => String((req.method === 'GET' ? req.query.userId : req.body?.userId) || 'lauri');
@@ -26,7 +26,7 @@ export function registerMemoryRoutes(app: Express) {
     const userId = uidOf(req);
     if (!db.getUser(userId)) return res.status(404).json({ error: 'Unknown customer' });
     const next = { ...memoryOf(userId) };
-    for (const k of Object.keys(MEMORY_DEFAULTS) as (keyof MemorySettings)[]) {
+    for (const k of ['searchChats', 'fromChats'] as const) {
       if (typeof req.body?.[k] === 'boolean') next[k] = req.body[k];
     }
     db.updateUser(userId, { memory: next } as never);

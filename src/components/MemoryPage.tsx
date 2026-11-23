@@ -1,5 +1,5 @@
 // More → Memory: what Nora may remember and how, modelled on Claude's memory settings, adapted to banking.
-// Private topics are OFF by default. Import gives a short prompt for another AI that asks only for what
+// Private topics are always excluded (not a setting). Import gives a short prompt for another AI that asks only for what
 // matters for banking; what comes back goes to Nora knows → Waiting for you, and nothing is saved without a tap.
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -7,7 +7,7 @@ import { AppState, sendToPipeline } from '../services/api.js';
 import { Icon } from '../ui/icons.js';
 import { Band, DetailHead, Toggle } from './Nordea.js';
 
-interface Memory { searchChats: boolean; fromChats: boolean; sensitive: boolean }
+interface Memory { searchChats: boolean; fromChats: boolean }
 
 export const IMPORT_PROMPT = `I'm moving to Nora, my bank's assistant at Nordea. Please list what you know about me that matters for my everyday money, and nothing else.
 
@@ -123,16 +123,14 @@ export const MemoryPage: React.FC<{ state: AppState; onBack: () => void; onOpenK
             right={m && <Toggle on={m.searchChats} onChange={() => set('searchChats')} label="Use your past chats" />} />
           <Row name="Remember things from chats" sub="Nora can suggest goals and plans you mention. Nothing is saved without your OK."
             right={m && <Toggle on={m.fromChats} onChange={() => set('fromChats')} label="Remember things from chats" />} />
-          <Row name="Include private topics" sub="Allow Nora to save private things, like health or relationships. Off by default. Even when on, only Nora reads them, never offers."
-            right={m && <Toggle on={m.sensitive} onChange={() => set('sensitive')} label="Include private topics" />} />
-          <Row name="Nora’s memory" sub="See, add to, edit or remove what Nora knows."
-            right={<button className="btn small" onClick={onOpenKnows}>Open</button>} />
+          <Row name="Exclude private topics" sub="Nora never saves private things, like health, religion or relationships. This is always on to protect you."
+            right={<span className="tgl on locked" role="switch" aria-checked="true" aria-disabled="true" aria-label="Exclude private topics: always on" title="Always on"><i /></span>} />
           <Row name="Import from another AI" sub="Bring what another AI assistant knows about you. We give you a prompt that asks only for what matters for banking."
             right={<button className="btn small" onClick={() => setImporting(true)}>Start import</button>} />
           <Row name="Export memory" sub="Download what Nora knows as a Markdown file."
             right={<button className="btn small" onClick={() => { exportMarkdown(state); onToast('Downloaded'); }}>Export</button>} />
         </div>
-        <p className="foot-note">Turning a setting off doesn’t remove what Nora already knows. Remove things in Nora’s memory.</p>
+        <p className="foot-note">Turning a setting off doesn’t remove what Nora already knows. You can remove things in Nora knows.</p>
       </div>
       {importing && <ImportSheet userId={userId} onClose={() => setImporting(false)}
         onDone={(n) => { setImporting(false); onToast(n ? `${n} ${n === 1 ? 'item waits' : 'items wait'} for you in Nora knows` : 'Nothing to keep was found'); if (n) onOpenKnows(); }} />}

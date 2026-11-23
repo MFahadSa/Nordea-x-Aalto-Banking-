@@ -610,7 +610,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       if (action !== 'archive' && !mem.fromChats)
         return { saved: false, error: 'The customer turned off "Remember things from chats" in More → Memory. Nothing was saved. Say so briefly; they can add it themselves in Nora knows.' };
       if (action === 'add' && sensitive && !mem.sensitive)
-        return { saved: false, error: 'Private topics are not saved: "Include private topics" is off in More → Memory. Nothing was saved. Do not say you saved or noted it.' };
+        return { saved: false, error: 'Private topics are never saved (More → Memory: "Exclude private topics" is always on). Nothing was saved. Do not say you saved or noted it; you may say Nora doesn\'t keep private things.' };
       if (action === 'add') {
         const title = String(a.title || '').trim().slice(0, 80);
         if (!title) return { saved: false, error: 'title is required' };
