@@ -15,7 +15,8 @@ export function refusesStorage(text: string): boolean {
   const t = text.toLowerCase().replace(/[’]/g, "'").replace(/\bdont\b/g,"don't").replace(/\bpls\b/g,"please");
   if (/\boff the record\b|\b(?:keep this private|this stays between us)\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
   if (/\b(?:nora[, ]+)?forget (?:i said|this|that|what i said)\b/.test(t)) return true;
-  if (/\b(?:no saving|leave .{0,25}out of (?:your|my|the) notes|do not keep track|don't keep track)\b/.test(t)) return true;
+  if (/^(?:please\s+)?no saving(?:\s+please)?(?:\s+(?:this|that|it|my data|any of this))?(?:\s+please)?\s*(?:$|[,;.!?])/.test(t.trim())) return true;
+  if (/\bleave (?!nothing\b).{0,25}out of (?:your|my|the) notes\b/.test(t)) return true;
   if (/\bnothing\b.{0,35}\b(?:should|may|must|can) be (?:saved|stored|noted|recorded|kept)\b/.test(t)) return true;
   // Recognise a directed negative command first, then interpret its verb class.
   // Arbitrary data nouns are allowed; keep/make/add need an explicit recording object.
@@ -32,12 +33,12 @@ export function refusesStorage(text: string): boolean {
     const m=commands.map(re=>c.match(re)).find(Boolean);
     if(!m) continue;
     const request=m[1].trim();
-    if (/^(?:make\s+(?:(?:a|any)\s+)?(?:note|record)|keep\s+(?:(?:(?:a|any)\s+)?(?:note|record)|my data|track of|.{0,30}on file)|hold on to\s+|(?:add|put)\s+.{0,30}\b(?:to|in)\s+(?:my\s+|your\s+|the\s+)?notes?)\b/.test(request)) return true;
+    if (/^(?:make\s+(?:(?:a|any)\s+)?(?:note|record)|keep\s+(?:(?:(?:a|any)\s+)?(?:note|record)|my data|track of|.{0,30}on file)|hold on to\s+(?:this|that|it|my data)\b|(?:add|put)\s+.{0,30}\b(?:to|in)\s+(?:my\s+|your\s+|the\s+)?notes?)\b/.test(request)) return true;
     const v=request.match(/^(save|store|remember|note|log|record|write)\b\s*(.*)$/);
     if(!v) continue;
     const [,verb,obj]=v;
     if (verb==='save' && /^(?:money|euros?|up|for|enough|more|much|less|a bit|on\b|it all in\b)/.test(obj)) continue;
-    if (verb==='log' && /^(?:in|out)\b/.test(obj)) continue;
+    if (verb==='log' && /^(?:(?:me|us|you)\s+)?(?:in|out)\b/.test(obj)) continue;
     if (verb==='record' && /\bas (?:spending|income|a refund|a payment)\b/.test(obj)) continue;
     if (verb==='write' && !/\bdown\b/.test(obj)) continue;
     return true;
@@ -123,6 +124,8 @@ export function scopedGoalOnRefusal(text: string, today: string): {title: string
   if(!Number.isFinite(value)||value<=0)return null;
   const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
   const m=c.match(/\bby\s+(january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+(20\d\d))?\b/i);
+  // A supplied but unsupported deadline must not silently become an undated goal.
+  if (!m && /\b(?:by|before|until|deadline|on)\b|\b20\d\d\b/i.test(c)) return null;
   let targetDate:string|undefined;
   if(m){let year=m[2]?Number(m[2]):Number(today.slice(0,4));const month=months.indexOf(m[1].toLowerCase())+1;if(!m[2]&&`${year}-${String(month).padStart(2,'0')}-01`<today)year++;targetDate=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);}
   if (targetDate && targetDate < today) return null;

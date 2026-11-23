@@ -265,3 +265,8 @@ console.log('PASS round5 refusal runtime, scoped sanitized goal and partner edge
 for(const t of ["Don't keep my data; please save a goal of 5000 for an emergency fund by June", "Don't save my address; save a goal of 5,00 for an emergency fund by June", "Don't save my address; save a goal of 5000 for an emergency fund by June 2025"]){assert.equal(scopedGoalOnRefusal(t,'2026-11-23'),null,t);}
 
 for(const t of ["Don't save my address; maybe save a goal of 5000 for an emergency fund by June", "Don't save my address; save a private goal of 5000 for an emergency fund by June", "Don't save my address; save a goal of 5000 for an emergency fund by June if I decide later"]){assert.equal(scopedGoalOnRefusal(t,'2026-11-23'),null,t);}
+
+for(const t of ["I don't keep track of my spending, should I open an ASP account?", "We don't keep track of every euro", 'No saving this month, we spent it all on the move', 'Is there no saving plan in this app?', 'Leave nothing out of the notes, I want the full summary', "Don't hold on to your old receipts", "Please don't log me out"]){assert.equal(refusesStorage(t),false,t);}
+for(const t of ['No saving please, I started at Aalto','Do not keep track of this',"Please don't hold on to this"]){assert.ok(refusesStorage(t),t);}
+assert.equal(scopedGoalOnRefusal("Don't save my address; save a goal of 5000 for an emergency fund by 30 June 2027",'2026-11-23'),null,'Unsupported deadline must hold, not drop date');
+console.log('PASS financial tracking/recording distinction and unsupported deadline hold');
