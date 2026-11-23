@@ -8,7 +8,7 @@ export interface OfferView {
   about: string; steps: string[]; url?: string;
 }
 export type OfferAction = 'pin' | 'unpin' | 'later' | 'unlater' | 'hide' | 'unhide' | 'reason';
-export type Answers = Partial<Record<FieldKey, { values: string[]; text?: string }>>;
+export type Answers = Partial<Record<FieldKey, { values: string[]; text?: string; asIs?: boolean }>>;
 
 async function j<T>(r: Response): Promise<T> {
   const d = await r.json().catch(() => ({}));

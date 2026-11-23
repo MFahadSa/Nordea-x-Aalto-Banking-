@@ -90,6 +90,24 @@ export function mergeCorrection(base: string, typed: string): string {
   // A rewrite of the whole thing: most of the old words are there again, or it is long.
   if (tw.length >= 8 || (tw.length >= 3 && tw.filter((w) => bw.has(w)).length / tw.length >= 0.5 && /\d/.test(t) === /\d/.test(base))) return t;
   const parts = base.split(/,\s*|;\s*/);
+  // Home: owning or renting changes the whole line (no rent when you own).
+  if (/^(rents|owns|lives with parents|student housing|housing costs)/i.test(base)) {
+    if (/\b(own|owns|bought|my own)\b/i.test(t)) return 'Owns their home';
+    if (/\b(parents?)\b/i.test(t)) return 'Lives with parents';
+    if (/\b(student housing|hoas|dorm)\b/i.test(t)) return 'Lives in student housing';
+  }
+  // Money habits: "saves …" and "spends …" are separate sentences; a correction changes the one it is about.
+  const sentences = base.split(/(?<=\.)\s+/);
+  if (sentences.length > 1) {
+    const i = /\b(save|saving|saves)\b/i.test(t) ? sentences.findIndex((x) => /\bsaves?\b/i.test(x)) : /\b(spend|spends|mostly|most)\b/i.test(t) ? sentences.findIndex((x) => /\bspends?\b/i.test(x)) : -1;
+    if (i >= 0) {
+      const rest = sentences.filter((_, j) => j !== i);
+      if (/\b(don'?t|do not|no longer|not)\b.*\bsav/i.test(t)) return rest.join(' ');
+      const fixed = mergeCorrection(sentences[i].replace(/\.$/, ''), t);
+      sentences[i] = `${fixed.charAt(0).toUpperCase() + fixed.slice(1)}.`;
+      return sentences.join(' ');
+    }
+  }
   const AMOUNT = /(\d[\d\s.,]*\d|\d)\s*(k\b)?\s*(€|eur(?:o|os)?\b)?/i;
   // A payday: "paid on the 15th", "payday 15", "15th".
   const day = t.match(/\b(?:paid on the|payday(?: is)?(?: on the)?|on the)\s*(\d{1,2})(?:st|nd|rd|th)?\b/i) || t.match(/^(\d{1,2})(st|nd|rd|th)$/i);

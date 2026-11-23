@@ -2,8 +2,8 @@
 // Kept deliberately simple: one paragraph, one "Try Nora with this", one clear reason to add answers,
 // one button. Answers are given in a short flow: one question per screen, a tap moves on by itself.
 // Wording rule: talk about what the customer gets, never about how much the bank knows.
-import React, { useState } from 'react';
-import { FIELDS, QUESTIONS, type AboutView, type FieldKey, mergeCorrection } from '../aboutParts.js';
+import React, { useEffect, useState } from 'react';
+import { FIELDS, QUESTIONS, type AboutView, type FieldKey } from '../aboutParts.js';
 import { saveAbout } from '../services/aboutApi.js';
 import { Icon } from '../ui/icons.js';
 import { Band } from './Nordea.js';
@@ -77,6 +77,13 @@ const EDITABLE: FieldKey[] = ['work', 'home', 'money', 'plans', 'interests', 'ri
  *  Nordea's data comes first ("Is this right?"): Yes / Not right (type what's right) / Skip.
  *  Answered questions never come back; skipped ones can be answered later. Edit changes any answer.
  *  The question area keeps the same height, so the page doesn't jump between questions. */
+/** What a customer might type when a line is wrong: just what changed, in their own words. */
+const HINT: Partial<Record<FieldKey, string>> = {
+  work: 'E.g. “4 000 € now”, “paid on the 15th”, “I’m a product designer”',
+  home: 'E.g. “I own my flat”, “rent is 1 200 €”, “I live with my parents”',
+  money: 'E.g. “I save 200 € a month now”, “mostly groceries”, “I don’t save”',
+};
+
 export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSeeNora: () => void; onSaved: (v: AboutView) => void; onRewards: () => void }> = ({ userId, view, onSeeNora, onSaved, onRewards }) => {
   const [skipped, setSkipped] = useState<FieldKey[]>([]);
   const [busy, setBusy] = useState(false);
@@ -91,6 +98,23 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
   const [answered, setAnswered] = useState(0);
   // The questions start with a Start button, so the first screen is the reason, not a form.
   const [started, setStarted] = useState(false);
+  // The corrected line, worked out by the server (AI, or rules if no AI answers) while the customer types.
+  const [preview, setPreview] = useState<{ for: string; text: string } | null>(null);
+  const [thinking, setThinking] = useState(false);
+  const [fixFor, setFixFor] = useState<FieldKey | null>(null);
+  useEffect(() => {
+    const k = editKey || (fixing ? fixFor : null);
+    const typed = text.trim();
+    if (!k || !typed) { setPreview(null); setThinking(false); return; }
+    setThinking(true);
+    const t = window.setTimeout(async () => {
+      try {
+        const r = await fetch('/api/about/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, key: k, text: typed }) }).then((x) => x.json());
+        if (r?.text) setPreview({ for: typed, text: r.text });
+      } catch { /* the server merges on Save anyway */ } finally { setThinking(false); }
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [text, fixing, fixFor, editKey, userId]);
   if (!view) return null;
   const QS = Object.fromEntries(QUESTIONS.map((q) => [q.field, q]));
   const askFor = (k: FieldKey): Ask => {
@@ -108,7 +132,7 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
   const sel = picks ?? current;
   const pos = answered + skipped.length + 1;
   const total = answered + asks.length;
-  const reset = () => { setFixing(false); setText(''); setPicks(null); setErr(null); };
+  const reset = () => { setFixing(false); setText(''); setPicks(null); setErr(null); setPreview(null); setFixFor(null); };
 
   const save = async (answers: Parameters<typeof saveAbout>[1], confirm: FieldKey[] = []) => {
     setBusy(true); setErr(null);
@@ -124,6 +148,7 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
   const tap = (o: string) => { if (!f) return; setPicks(f.multi ? (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]) : [o]); };
   const mine = (Object.keys(view.fields) as FieldKey[]).filter((k) => k !== 'basics' && view.fields[k].source !== 'none').length;
   const fresh = cur && !editKey && view.fields[cur.key].source === 'none';
+  const ready = !!preview && preview.for === text.trim();
 
   // The question (or the correction), with its buttons. Same box for answering and for editing.
   const question = cur && f && (
@@ -137,19 +162,21 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
           {fixing || editKey ? (
             <>
               <label className="sr" htmlFor="ab-fix">What’s right?</label>
-              <input id="ab-fix" className="ab-text one" autoFocus placeholder="Just the part that changed, e.g. “4 000 €” or “paid on the 15th”" value={text} onChange={(e) => setText(e.target.value)} />
-              {text.trim() && mergeCorrection(cur.text, text) !== text.trim().replace(/[.]+$/, '') && (
-                <span className="ab-q-preview" aria-live="polite"><Icon name="check" size={14} />Nora will save: {mergeCorrection(cur.text, text)}</span>
+              <input id="ab-fix" className="ab-text one" autoFocus placeholder={HINT[cur.key] || 'What’s right?'} value={text} onChange={(e) => setText(e.target.value)} />
+              {text.trim() && (
+                <span className={`ab-q-preview${ready ? '' : ' wait'}`} aria-live="polite">
+                  {ready ? <><Icon name="check" size={14} />Nora will save: {preview!.text}</> : thinking ? 'Working out the new line…' : ''}
+                </span>
               )}
               <div className="ab-q-btns">
-                <button className="btn small primary" disabled={busy || !text.trim()} onClick={() => save({ [cur.key]: { values: [], text } })}>Save{fresh ? ' · +5' : ''}</button>
+                <button className="btn small primary" disabled={busy || !text.trim() || thinking} onClick={() => save({ [cur.key]: ready ? { values: [], text: preview!.text, asIs: true } : { values: [], text } })}>Save{fresh ? ' · +5' : ''}</button>
                 <button className="btn small quiet" onClick={skip}>{editKey ? 'Cancel' : 'Skip for now'}</button>
               </div>
             </>
           ) : (
             <div className="ab-q-btns">
               <button className="btn small primary" disabled={busy} onClick={() => save({}, [cur.key])}><Icon name="check" size={15} strokeWidth={2.6} />Yes, that’s right · +5</button>
-              <button className="btn small" disabled={busy} onClick={() => setFixing(true)}>Not right</button>
+              <button className="btn small" disabled={busy} onClick={() => { setFixing(true); setFixFor(cur.key); }}>Not right</button>
               <button className="btn small quiet" disabled={busy} onClick={skip}>Skip</button>
             </div>
           )}

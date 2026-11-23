@@ -1140,3 +1140,4 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .mem-prompt{white-space:pre-wrap;font:inherit;font-size:13px;line-height:1.45;background:var(--surface-2);color:var(--ink-2);border-radius:10px;padding:10px 12px;margin:0;max-height:180px;overflow-y:auto}
 .mem-paste{font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);resize:vertical;width:100%;box-sizing:border-box}
 .ab-q-preview{display:flex;gap:6px;align-items:flex-start;font-size:13px;line-height:1.4;color:var(--ok);margin-top:-2px}.ab-q-preview svg{flex:none;margin-top:2px}
+.ab-q-preview.wait{color:var(--muted)}

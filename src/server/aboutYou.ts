@@ -16,6 +16,7 @@ import { db } from './db.js';
 import * as fin from './finance.js';
 import { loadBus } from './arch/store/busStore.js';
 import { decideProposal } from './arch/orchestrator.js';
+import { getProvider } from './llm.js';
 import type { CabinetEntry } from '../types.js';
 import { REWARDS } from './routes.js';
 import { FIELDS, QUESTIONS, mergeCorrection, type AboutView, type FieldKey, type FieldView } from '../aboutParts.js';
@@ -118,7 +119,8 @@ export function bankPicture(userId: string) {
     pattern.length ? pattern.join('; ') : open.demo?.money || '',
     acc?.savings?.monthlyDeposit ? `saves ${eur(acc.savings.monthlyDeposit)} every month` : '',
   ].filter(Boolean);
-  if (money.length) lines.push({ key: 'money', label: 'Money habits', icon: 'pie', values: [], text: money.map((m, i) => (i ? m : m.charAt(0).toUpperCase() + m.slice(1))).join('; ') });
+  // Spending and saving are two different things: two sentences, so a correction to one leaves the other.
+  if (money.length) lines.push({ key: 'money', label: 'Money habits', icon: 'pie', values: [], text: money.map((m) => `${m.charAt(0).toUpperCase() + m.slice(1)}.`).join(' ') });
   return { lines, basics: u ? [`${u.age}`, open.city, open.since ? `customer since ${open.since}` : ''].filter(Boolean).join(', ') : '', eatingOut: monthly('restaurants') };
 }
 
@@ -220,7 +222,43 @@ const FACT_OF: { field: FieldKey; fact: string; when: (v: string[]) => boolean }
   { field: 'home', fact: 'everOwnedHalfOfHome', when: (v) => v.includes('Owns') },
 ];
 
-function writeField(userId: string, key: FieldKey, values: string[], free: string | undefined, fromNordea: boolean) {
+/**
+ * Apply a customer's correction to an About you sentence with the AI ("I own my flat" → "Owns their home"),
+ * so it understands what they mean. Falls back to mergeCorrection's rules when no AI answers in time,
+ * and never keeps an AI answer with a number the customer or the bank didn't give.
+ */
+export async function smartCorrection(key: FieldKey, base: string, typed: string): Promise<{ text: string; by: 'ai' | 'rules' }> {
+  const rules = { text: mergeCorrection(base, typed), by: 'rules' as const };
+  if (!base || !typed.trim()) return rules;
+  const p = getProvider();
+  if (!p.isConfigured()) return rules;
+  try {
+    const r = await p.step({
+      system: [
+        'You update one line of a bank customer\'s profile ("About you") with their correction.',
+        `The line is about: ${FIELDS[key].label}.`,
+        'Change only what the correction is about and keep everything else that is still true.',
+        'Remove anything the correction makes untrue (e.g. if they now own their home, drop the rent; if they say they don\'t save, drop the saving).',
+        'Write in the same style: third person, short, no name, no extra words, no numbers that are not in the line or the correction. Amounts like "4 000 €".',
+        'Answer only with the rewriteAnswer tool.',
+      ].join('\n'),
+      turns: [{ role: 'user', text: `Current line: ${base}\nCustomer's correction: ${typed.trim()}` }],
+      tools: [{ name: 'rewriteAnswer', description: 'The updated line.', parameters: { type: 'object', properties: { text: { type: 'string', description: 'The whole updated line.' } }, required: ['text'] } }],
+      temperature: 0, timeoutMs: 9000, maxWaitMs: 9000,
+    });
+    const out = String(r.calls.find((c) => c.name === 'rewriteAnswer')?.args?.text || '').trim().replace(/\s+/g, ' ');
+    const digits = (x: string) => (x.match(/\d[\d\s.,]*/g) || []).map((d) => d.replace(/[\s.,]/g, ''));
+    const known = new Set([...digits(base), ...digits(typed)]);
+    const typedK = typed.match(/(\d+)\s*k\b/i);
+    if (typedK) known.add(String(Number(typedK[1]) * 1000));
+    if (!out || out.length > 300 || digits(out).some((d) => !known.has(d))) return rules;
+    return { text: out, by: 'ai' };
+  } catch {
+    return rules;
+  }
+}
+
+function writeField(userId: string, key: FieldKey, values: string[], free: string | undefined, fromNordea: boolean, asIs = false) {
   const entries = db.getCabinetEntries(userId);
   const old = entries.filter((e) => e.aboutPart === key && live(e));
   const def = FIELDS[key];
@@ -229,7 +267,7 @@ function writeField(userId: string, key: FieldKey, values: string[], free: strin
   const typed = (free || '').trim().slice(0, 400);
   const base = !def.options.length || key === 'work' || key === 'home'
     ? (old[0]?.detail || bankPicture(userId).lines.find((l) => l.key === key)?.text || '') : '';
-  const text = typed && base && !clean.length ? mergeCorrection(base, typed) : typed;
+  const text = typed && base && !clean.length && !asIs ? mergeCorrection(base, typed) : typed;
   // A new answer replaces the old one (not kept as a removed note: About you shows the current answer).
   for (const e of old) db.deleteCabinetEntry(e.id, { by: 'you', how: 'Replaced by your new answer', purge: true });
   if (!clean.length && !text) return; // cleared
@@ -408,11 +446,23 @@ export function registerAboutRoutes(app: Express) {
     res.json(aboutView(userId));
   });
 
-  // Save answers: { answers: { field: { values: [], text? } }, confirm: [field] } - one call for the whole onboarding.
+  // What a typed correction will become: { key, text } → { text, by: 'ai' | 'rules' }. The app shows it before Save.
+  app.post('/api/about/preview', async (req, res) => {
+    const userId = uidOf(req);
+    const key = String(req.body?.key || '') as FieldKey;
+    if (!db.getUser(userId) || !(key in FIELDS)) return res.status(400).json({ error: 'Unknown customer or field' });
+    const typed = String(req.body?.text || '').slice(0, 400);
+    const old = db.getCabinetEntries(userId).find((e) => e.aboutPart === key && live(e));
+    const base = old?.detail || bankPicture(userId).lines.find((l) => l.key === key)?.text || '';
+    res.json(base ? await smartCorrection(key, base, typed) : { text: typed.trim(), by: 'rules' });
+  });
+
+  // Save answers: { answers: { field: { values: [], text?, asIs? } }, confirm: [field] } - one call for the whole onboarding.
+  // asIs: the text is the corrected line the customer saw in the preview, saved exactly.
   app.post('/api/about', (req, res) => {
     const userId = uidOf(req);
     if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });
-    const answers = (req.body?.answers || {}) as Record<string, { values?: string[]; text?: string }>;
+    const answers = (req.body?.answers || {}) as Record<string, { values?: string[]; text?: string; asIs?: boolean }>;
     const confirm = (Array.isArray(req.body?.confirm) ? req.body.confirm : []) as string[];
     const before = aboutView(userId);
     const rewarded: string[] = [];
@@ -431,7 +481,7 @@ export function registerAboutRoutes(app: Express) {
     }
     for (const [k, a] of Object.entries(answers)) {
       if (!(k in FIELDS) || k === 'basics') continue;
-      writeField(userId, k as FieldKey, Array.isArray(a?.values) ? a.values.map(String) : [], typeof a?.text === 'string' ? a.text : undefined, false);
+      writeField(userId, k as FieldKey, Array.isArray(a?.values) ? a.values.map(String) : [], typeof a?.text === 'string' ? a.text : undefined, false, a?.asIs === true);
       rewarded.push(k);
     }
     const points = reward(userId, rewarded);
