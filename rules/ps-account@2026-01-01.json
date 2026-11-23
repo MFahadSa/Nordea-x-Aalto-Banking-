@@ -31,20 +31,12 @@
   ],
   "params": {
     "max": 5000,
-    "lastDay": "31 December 2026",
+    "lastDeductionYear": 2026,
     "endDate": "1 January 2027",
-    "figure3": "2026",
-    "figure4": "2026",
-    "figure5": "5,000",
-    "figure6": "1",
-    "figure7": "2027",
-    "figure8": "5,000",
-    "figure9": "1",
-    "figure10": "2027,",
-    "figure11": "2027",
-    "figure12": "2028"
+    "firstWithdrawalYear": 2027,
+    "lastWithdrawalYear": 2028
   },
-  "message": "{figure3} is the last year for eligible PS contributions to qualify for a tax deduction, generally within a combined {max} € annual cap and other conditions. The balance itself is not deductible. Check eligibility before paying in more.",
+  "message": "{lastDeductionYear} is the last year for eligible PS contributions to qualify for a deduction, generally within a {max} € combined annual cap and other conditions. The existing balance is not deductible. Check eligibility before paying in more.",
   "earns": "Nordea earns nothing from this information.",
   "tests": [
     {
@@ -81,5 +73,5 @@
     }
   ],
   "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
-  "explain": "Eligible PS contributions paid in {figure4} can still qualify for a deduction, generally within a combined annual {figure5} € cap with voluntary individual pension insurance and other eligibility limits. The balance is not deductible. Contributions from {figure6} January {figure7} are not deductible. If total PS savings were no more than {figure8} € ON {figure9} January {figure10} the whole balance may qualify for withdrawal in {figure11} or {figure12} without punitive tax uplift, provided scheduled retirement withdrawals have not begun. Withdrawal remains taxable under normal rules, not tax-free; final tax depends on total capital income. Do not assume earlier contributions were deducted."
+  "explain": "{lastDeductionYear} is the last year for eligible PS contributions to qualify for a deduction, generally within a {max} € combined annual cap and other conditions. The existing balance is not deductible. Check eligibility before paying in more. Contributions from {endDate} are not deductible. The historical test is total PS savings no more than {max} € on {endDate}, not today’s balance. The whole balance may qualify for withdrawal in {firstWithdrawalYear} or {lastWithdrawalYear} without punitive tax uplift. Nordea excludes a lump sum if retirement age has already been reached and scheduled withdrawals have started. Normal tax still applies, depending on the applicable withdrawal rules and total capital income, not a guaranteed tax-free payment."
 }

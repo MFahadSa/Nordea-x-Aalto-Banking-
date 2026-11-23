@@ -40,13 +40,9 @@
     "abel"
   ],
   "params": {
-    "ageLimit": 28,
-    "figure1": "18",
-    "figure2": "27",
-    "figure3": "18",
-    "figure4": "27"
+    "ageLimit": 28
   },
-  "message": "Customers aged {figure1}–{figure2} can get an equity savings account without custody fees. Trading fees and other possible charges still apply. Free investment advice is a separate service.",
+  "message": "The youth custody exemption is for customers under {ageLimit}. Trading fees and other possible charges still apply. Free investment advice is separate.",
   "earns": "Fees on funds or trades if you invest through Nordea.",
   "tests": [
     {
@@ -119,5 +115,5 @@
     }
   ],
   "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
-  "explain": "Customers aged {figure3}–{figure4} can get an equity savings account without custody fees. Trading fees and other possible charges still apply. Free investment advice is a separate service. An equity savings account holds shares, not funds. Tax treatment depends on withdrawals and applicable conditions; this is not a recommendation to buy particular shares."
+  "explain": "Customers under {ageLimit} can qualify for the youth custody exemption. This adult demo only offers it to adults. Trading fees and other possible charges still apply. An equity savings account is for eligible shares, not funds or ETFs. Investment advice is a separate service, not stock-picking or portfolio management included in this account."
 }

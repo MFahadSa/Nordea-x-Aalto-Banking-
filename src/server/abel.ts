@@ -18,7 +18,8 @@ import { relevantForLoan, isLoanContext } from './pipeline/loan.js';
 import { candidatesFor, remember, snapshot } from './advice/guard.js';
 import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { intentsOf } from './advice/intent.js';
-import { reviewedAnswer } from './advice/reviewedAnswer.js';
+import { reviewedContext } from './advice/reviewedAnswer.js';
+import { refusesStorage } from './advice/purpose.js';
 import { ruleCardFor, earlierRuleExplain } from './advice/chatCard.js';
 import { cardFor } from './advice/cards.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
@@ -235,14 +236,14 @@ ${shared.sharedContext}
 ` : ''}Provenance: ${shared.provenance.join(' + ')}.` : 'SHARED CONTEXT: not in use for this customer.'}
 
 HOW YOU TALK
-- Warm, brief, plain English, like a caring person texting. Acknowledge feelings first. At most one question; ask if unclear.
+- Warm, brief, plain language in the customer’s language, like a caring person texting. Acknowledge feelings first. At most one question; ask if unclear.
 - Use the cabinet naturally, never recite it. Small talk: one or two sentences.
 - Money: 12 000 € (whole euros, or 1 420,50 € if cents matter). Plain text: no markdown, no tables, no JSON, no suggestion lists (quick replies go in suggestions). For a plan over many months, summarise it in a few sentences.
 - Never show ids. When they name something ("the salary one"), find it yourself (newest = latest "added").
 - You can't browse, give live rates or forecasts, or move money. Unhappy customer: apologise, repair, offer a person.${calm ? '\n- CALM view: very short warm sentences, at most two suggestions, always offer a person.' : ''}
 
 RULES
-- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly). In goals, remainingToTargetNow is target minus saved today; shortBy is the projected shortfall at the target date, NOT money remaining to save today. Never confuse them. In goals, monthlyGoingIn is what goes in now; extraPerMonthNeeded is what's missing on top. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
+- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly). In goals, remainingToTargetNow is target minus saved today; shortBy is the projected shortfall at the target date, NOT money remaining to save today. Select the goal the customer names; if more than one home goal could fit, ask which one before quoting a goal amount. Never confuse them. In goals, monthlyGoingIn is what goes in now; extraPerMonthNeeded is what's missing on top. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
 - One step: finishReply, plus any action tool in the same step.
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts); never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
 - Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
@@ -539,6 +540,7 @@ function partnerCard(ctx: TurnCtx, partnerId: string): string {
 /** v28: the one card of this reply, from the customer's words (intent.ts). Returns what the model is told. */
 function codeCard(ctx: TurnCtx): string {
   for (const it of intentsOf(ctx.userText)) {
+    if (it.rule === 'asp-account' && /\b(?:already have|already own|have got)\b[^.?!]{0,30}\b(?:one|asp|account)\b|\bmy (?:existing )?asp account\b/i.test(ctx.userText)) continue;
     if (it.id === 'gift-information') continue; // Receiving a gift does not imply supporting children.
     if (it.rule) {
       const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
@@ -577,7 +579,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
     case 'proposeCabinetChange': {
       if (ctx.changes >= 3) return { saved: false, error: 'At most 3 changes per reply.' };
       const action = String(a.action);
-      if (action !== 'archive' && /\b(do not|don't|don’t|never)\s+(save|remember|store)\b/i.test(ctx.userText))
+      if (action !== 'archive' && refusesStorage(ctx.userText))
         return { saved: false, error: 'The customer asked not to save. Nothing was saved.' };
       if (action === 'add' && a.type === 'goal' && /[?]|\b(maybe|hypothetical|what if|thinking about)\b/i.test(ctx.userText)
         && !/\b(save|remember|create|add)\b[^.?!]{0,35}\b(goal|plan|this|it)\b/i.test(ctx.userText))
@@ -825,12 +827,10 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const facts = factsFor(userId, ctx.allowedIds);
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
   const cardNote = helperId === 'person' || FRAUD.test(userText) ? '' : codeCard(ctx);
-  // Reviewed factual paths do not depend on the model recalling current tax/product rules.
-  // Keep action, adviser, correction and removal turns on their existing tool/consent paths.
-  const actionTurn = /\b(transfer|set up|move \d|every month|monthly transfer|remember|save this|forget|remove|delete|undo|adviser|advisor|mortgage|home loan|pre.?approval)\b/i.test(userText);
-  const reviewed = helperId !== 'person' && !actionTurn && !FRAUD.test(userText) ? reviewedAnswer(userText, ctx.cards, facts.goals) : null;
-  if (reviewed) return { text: reviewed, suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: ctx.extraUsed, topic: 'other', couldHelp: true };
-  const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote);
+  // Reviewed facts constrain the model; they never replace the customer's task or tool turn.
+  const checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY);
+  const groundedNote = checkedContext;
+  const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote) + '\n' + checkedContext;
   const t0 = Date.now();
   let modelCalls = 0;
 
@@ -893,7 +893,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   collectNumbers(customerWords, known);
   collectNumbers(facts, known);
   if (shared) collectNumbers([shared.userDbFacts ?? '', shared.sharedContext ?? ''], known); // F10: architecture facts are quotable
-  collectNumbers(cardNote, known); // v29: the rule's official numbers (ASP 1 %, 4 %, 30 %…)
+  collectNumbers([cardNote, groundedNote], known); // v29: the rule's official numbers (ASP 1 %, 4 %, 30 %…)
   // Partner fees as the percentages a card shows (a 2 % fee is stored as 0.02).
   for (const p of getAllPartners()) if (p.fee.type !== 'flat') known.push(Math.round(p.fee.value * 10000) / 100);
   known.push(100); // "100 %" (all of it) is plain language, not a figure

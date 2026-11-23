@@ -44,14 +44,9 @@
   "params": {
     "pct": 40,
     "threshold": 2500,
-    "figure2": "1",
-    "figure3": "2014",
-    "figure4": "1",
-    "figure5": "2014",
-    "figure6": "1",
-    "figure7": "2014"
+    "cohortDate": "1 August 2014"
   },
-  "message": "If Kela’s conditions are met, compensation is {pct} % of eligible outstanding higher-education loan above {threshold} €, with degree-based caps. Normally this concerns your first completed degree, first admission/attendance from {figure2} August {figure3} and completion within Kela’s deadline. Not a blanket loan write-off.",
+  "message": "If Kela’s conditions are met, compensation is {pct} % of eligible outstanding higher-education loan above {threshold} €, with degree-based caps. Normally this concerns your first completed degree, first admission/attendance from {cohortDate}, and completion within Kela’s deadline.",
   "earns": "Nordea earns nothing from this. Your student loan, if it is with Nordea, earns interest as usual.",
   "tests": [
     {
@@ -88,5 +83,5 @@
     }
   ],
   "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
-  "explain": "If Kela’s conditions are met, compensation is {pct} % of eligible outstanding higher-education loan above {threshold} €, with degree-based caps. Normally this concerns your first completed degree, first admission/attendance from {figure4} August {figure5} and completion within Kela’s deadline. Not a blanket loan write-off. Accepted deadline extensions can apply. An earlier admission with first attendance from {figure6} August {figure7} can also qualify. First-cycle university graduates can choose to apply or defer until the second-cycle degree. Application requirements depend on degree and study location. Check with Kela; this is distinct from student aid income tests, interest assistance or a bank repayment break."
+  "explain": "Student-loan compensation is {pct} % of eligible outstanding higher-education loan above {threshold} €, with degree-based caps, not a blanket write-off. Normally it concerns the first completed higher-education degree and completion within Kela’s deadline, including accepted extensions. First admission from {cohortDate}, or earlier admission with first attendance from then, can qualify. First-cycle university graduates can apply or defer until the second-cycle degree; application requirements differ by degree/location. This is distinct from student-aid income tests, interest assistance and bank repayment breaks. Kela confirms eligibility."
 }

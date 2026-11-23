@@ -30,11 +30,10 @@
   "params": {
     "limit": 7500,
     "years": 3,
-    "oldLimit": 5000,
-    "figure3": "2026,"
+    "effectiveYear": 2026
   },
-  "message": "Since this year you can give each person gifts worth less than {limit} € in total every {years} years without gift tax. Before, the limit was {oldLimit} €. The limit counts per giver, so two grandparents can each give.",
-  "explain": "From {figure3} gifts totalling less than {limit} € from the same donor to the same recipient over a rolling {years}-year period can be exempt. At {limit} € or more, gift tax applies to the combined taxable value, not only the excess above the threshold. It is not a calendar-year allowance and is not restricted to family. Check gift dates and earlier gifts; use Vero for tax calculations. Never work out the tax itself; point to the Tax Administration.",
+  "message": "From {effectiveYear}, gifts totalling less than {limit} € from the same donor to the same recipient over a rolling {years}-year period can be exempt. At the threshold, tax applies to the combined taxable value, not just the excess.",
+  "explain": "From {effectiveYear}, gifts totalling less than {limit} € from the same donor to the same recipient over a rolling {years}-year period can be exempt. At the threshold, tax applies to the combined taxable value, not just the excess. Check earlier gifts and gift dates. This is not a calendar-year allowance or a family-only exemption. Never work out the tax itself; point to the Tax Administration.",
   "earns": "Nordea earns nothing from this.",
   "tests": [
     {
