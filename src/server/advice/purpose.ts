@@ -12,18 +12,32 @@ export function purposeOf(text: string): Purpose {
 
 /** A refusal is not the idiom 'never remember to save money'. */
 export function refusesStorage(text: string): boolean {
-  const t = text.toLowerCase().replace(/[’]/g, "'").replace(/\bdont\b/g,"don't");
+  const t = text.toLowerCase().replace(/[’]/g, "'").replace(/\bdont\b/g,"don't").replace(/\bpls\b/g,"please");
   if (/\boff the record\b|\b(?:keep this private|this stays between us)\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
   if (/\b(?:nora[, ]+)?forget (?:i said|this|that|what i said)\b/.test(t)) return true;
-  // Directed commands, not descriptions such as "I don't save much" or "I don't remember my PIN".
-  const verb = '(?:save|store|remember|note|log|record|keep|write|add|make)';
-  const object = '(?:this|that|it|anything|what|i said|my (?:salary|data|details|information)|our (?:data|details)|a (?:note|record)|notes?)';
+  if (/\bnothing\b.{0,35}\b(?:should|may|must|can) be (?:saved|stored|noted|recorded|kept)\b/.test(t)) return true;
+  // Recognise a directed negative command first, then interpret its verb class.
+  // Arbitrary data nouns are allowed; keep/make/add need an explicit recording object.
+  const commands = [
+    /(?:^|\bplease\s+|\bnora[, ]+)(?:don't|do not|never|no need to)\s+(.+)/,
+    /\b(?:don't|do not)\s+(?:want|allow)\s+(?:you|nora)\s+to\s+(.+)/,
+    /\brather you (?:didn't|did not|not)\s+(.+)/,
+  ];
   for(const raw of t.split(/[.!?;,]|\bbut\b/)) {
     const c=raw.trim();
-    if (/\b(?:i|we)\s+(?:don't|do not|didn't|never)\s+(?:save|remember|keep|record|log)\b/.test(c) && !/\b(?:you|nora)\b/.test(c)) continue;
-    if (new RegExp(`\\b(?:don't|do not|never|no need to|didn't)\\s+(?:(?:want|allow)\\s+(?:you|nora)\\s+to\\s+)?${verb}(?:\\s+${object}\\b|\\s*$)`).test(c)) return true;
-    if (/\b(?:don't|do not) want\s+(?:this|that|it|my data|my salary)\s+(?:saved|stored|noted|recorded|kept)\b/.test(c)) return true;
-    if (/\brather you (?:didn't|did not)\s+(?:save|store|remember|note|log|record|keep|write)\b/.test(c)) return true;
+    if (/\b(?:don't|do not) want\s+.{1,40}\s+(?:saved|stored|noted|recorded|kept)\b/.test(c)) return true;
+    const m=commands.map(re=>c.match(re)).find(Boolean);
+    if(!m) continue;
+    const request=m[1].trim();
+    if (/^(?:make\s+(?:(?:a|any)\s+)?(?:note|record)|keep\s+(?:(?:(?:a|any)\s+)?(?:note|record)|.{0,30}on file)|add\s+.{0,30}\b(?:to|in)\s+(?:my\s+|your\s+|the\s+)?notes?)\b/.test(request)) return true;
+    const v=request.match(/^(save|store|remember|note|log|record|write)\b\s*(.*)$/);
+    if(!v) continue;
+    const [,verb,obj]=v;
+    if (verb==='save' && /^(?:money|euros?|up|for|enough|more|much|a bit|on\b|it all in\b)/.test(obj)) continue;
+    if (verb==='log' && /^(?:in|out)\b/.test(obj)) continue;
+    if (verb==='record' && /\bas (?:spending|income|a refund|a payment)\b/.test(obj)) continue;
+    if (verb==='write' && !/\bdown\b/.test(obj)) continue;
+    return true;
   }
   return false;
 }

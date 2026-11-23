@@ -236,3 +236,14 @@ setProvider({name:'positive-note-review',isConfigured:()=>true,step:async()=>({c
 const positiveNote=await abelTurn('alex','positive-note-review','abel',"Don't forget to note that I'm saving 5000 for a car by 2028");
 assert.ok(positiveNote.notes.length||positiveNote.cards.some(c=>c.type==='duplicate'));
 console.log('PASS normal ASP and affirmative note runtime paths');
+
+for(const t of ["Don't save my balance", "Don't save my income, I started at Aalto", "Please don't remember my address", "Don't note my age", "Please don't store my IBAN", "Don't save any of this", "Don't save these details", "I'd rather you not save that", 'Nothing from this chat should be saved', "Don't keep any record of this"]){assert.ok(refusesStorage(t),t);}
+for(const t of ["Don't make this complicated, should we open an ASP account?", "Please don't keep it long, how does the ASP work?", "Don't make it a big deal, but should we open an ASP account", 'Never save it all in one account, right?', "Don't add this to the total, what is my balance?", "Don't record that as spending, it was a refund", "Don't keep this simple, give me details on PS"]){assert.equal(refusesStorage(t),false,t);}
+console.log('PASS recording verb classes and arbitrary data objects');
+
+setProvider({name:'object-boundary-runtime',isConfigured:()=>true,step:async({system})=>{captured=system;calls++;return {calls:[finish]}}});
+for(const t of ["Don't save my income, I started at Aalto", "Don't save any of this, I started at Aalto", 'Nothing from this chat should be saved, I started at Aalto']){
+ const before=JSON.stringify([db.getCabinetEntries('alex'),db.getUser('alex')?.advice]);await abelTurn('alex',`object-runtime-${++n}`,'abel',t);assert.equal(JSON.stringify([db.getCabinetEntries('alex'),db.getUser('alex')?.advice]),before,t);
+}
+for(const t of ["Don't make this complicated, should we open an ASP account?", "Please don't keep it long, should we open an ASP account?"]){const r=await abelTurn('lauri',`style-runtime-${++n}`,'abel',t);assert.ok(r.cards.some(c=>c.data?.ruleId==='asp-account'),t);}
+console.log('PASS arbitrary-data no-save mutation and style-not-privacy runtime checks');
