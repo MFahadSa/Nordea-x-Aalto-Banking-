@@ -318,6 +318,9 @@ export interface ChatMessage {
   /** Exact shared source snapshot exposed for this reply, not model-reported usage. */
   suppliedSharedRevision?: string;
   exposedContentKeys?: string[];
+  /** Disposable question state, never a saved customer fact or action consent. */
+  retryRequest?: string;
+  clarification?: {kind:'customer_detail'|'saved_search'|'context_changed'|'verification_failure';question:string;purpose?:'goal_progress'};
   savedContextPage?: {query:string;cursor?:string;complete?:boolean;count?:number;language?:string;viewRevision?:string;discovery?:boolean};
   exposedSources?: {owner:'cabinet'|'personal'|'cm'|'nordea';id:string;revision:string}[];
   /** A file or photo the customer sent (a small thumbnail is kept for photos, never the full file). */

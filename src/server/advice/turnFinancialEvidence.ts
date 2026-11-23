@@ -36,9 +36,9 @@ export class TurnFinancialEvidence {
  list(){return this.registry.list().filter(f=>!this.currentGoals.has(f.sourceId)).filter(f=>{
   if(!this.requestText||!f.sourceId.startsWith('bank:'))return true;
   if(f.sourceId==='bank:getAccounts')return /balance|account|how much.*(?:have|money)|savings|säästötil|käyttötil|saldo|afford/iu.test(this.requestText);
-  if(f.sourceId==='bank:getSalary')return /salary|income|pension|payday|palk|eläke|afford/iu.test(this.requestText);
-  if(f.sourceId==='bank:getSpending')return /spend|spent|cost|pay|gym|phone|restaurant|groc|transport|kulut|käytin|ruoka|afford/iu.test(this.requestText);
-  if(f.sourceId==='bank:getPayPlan')return /payday|left|remainder|afford|how much.*save|palkkapäiv|varaa/iu.test(this.requestText);
+  if(f.sourceId==='bank:getSalary')return /budgets?|monthly plan|salary|income|pension|payday|palk|eläke|afford/iu.test(this.requestText);
+  if(f.sourceId==='bank:getSpending')return /budgets?|monthly plan|spend|spent|cost|pay|gym|phone|restaurant|groc|transport|kulut|käytin|ruoka|afford/iu.test(this.requestText);
+  if(f.sourceId==='bank:getPayPlan')return /budgets?|monthly plan|payday|left|remainder|afford|how much.*save|palkkapäiv|varaa/iu.test(this.requestText);
   return true;
  });}
 

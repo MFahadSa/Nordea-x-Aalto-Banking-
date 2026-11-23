@@ -95,12 +95,13 @@ export function callsInText(text: string, toolNames: string[], only?: { name: st
   for (const b of jsonBlocks(s)) {
     const v = b.value;
     if (!v || typeof v !== 'object') continue;
-    const name = v.name || v.function?.name || v.tool;
+    const name = v.name ?? v.function?.name ?? v.tool;
     const args = v.arguments ?? v.parameters ?? v.args ?? v.function?.arguments;
     const nm = typeof name === 'string' ? closestTool(name, toolNames) : undefined;
-    if (!nm && finish && typeof name === 'string' && name.toLowerCase() === 'json' && args && typeof args === 'object' && !Array.isArray(args)
-        && finish.required.every((k) => k in (args as Record<string, unknown>))) {
-      // gpt-oss writes its function call as {"name":"json","arguments":{…}}; when the args are exactly
+    if (!nm && finish && typeof name === 'string' && ['json',''].includes(name.toLowerCase()) && args && typeof args === 'object' && !Array.isArray(args)
+        && finish.required.length > 0 && finish.required.every((k) => k in (args as Record<string, unknown>))
+        && (name.toLowerCase() !== '' || finish.name === 'finishReply' && typeof args.text === 'string' && !!args.text.trim() && Array.isArray(args.suggestions) && args.suggestions.every((x:unknown)=>typeof x==='string') && Array.isArray(args.usedEntryIds) && args.usedEntryIds.every((x:unknown)=>typeof x==='string') && typeof args.topic==='string' && typeof args.couldHelp==='boolean' && Object.keys(args).every(k=>['text','suggestions','usedEntryIds','topic','couldHelp','financialAnswer','savedAnswerEvidence','savedLookupClaim','clarification'].includes(k)))) {
+      // gpt-oss may write a finish wrapper with name json or an empty name; when the args are exactly
       // the finish tool's shape, run it as that finish call (never invent other tools).
       calls.push({ id: id(), name: finish.name, args: args as Record<string, unknown> });
       cut.push([b.start, b.end]);
