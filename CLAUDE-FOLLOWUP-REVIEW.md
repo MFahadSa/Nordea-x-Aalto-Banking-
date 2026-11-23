@@ -1,3 +1,7 @@
+# Superseded by round 3
+
+Read `CLAUDE-ROUND3-REVIEW.md` first. The content below records the PR61 handoff and is not the current acceptance report.
+
 # Independent follow-up review: customer-purpose routing
 
 This file supersedes the PR60 handoff for the routing correction. Review the new `fix/customer-purpose-routing` branch against main `fce684de4f8b9c9db8512aea9ad02641c81d7107`, which merged PR60. Do not merge, update main, revert production or deploy. The owner controls those actions.

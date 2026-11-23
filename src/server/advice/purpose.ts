@@ -12,12 +12,28 @@ export function purposeOf(text: string): Purpose {
 
 /** A refusal is not the idiom 'never remember to save money'. */
 export function refusesStorage(text: string): boolean {
-  return /\b(?:do not|don't|don’t|never)\s+(?:(?:want|allow)\s+(?:you|nora)\s+to\s+)?(?:save|remember|store)\s+(?:this|that|it|anything|my|our|what|the|these)\b/i.test(text)
+  return /\b(?:don't|don’t|do not)\s+keep\s+(?:a\s+)?note\s+of\s+(?:this|that|it)\b|\bno need to (?:save|store|remember|keep)\b/i.test(text)
+    || /\b(?:do not|don't|don’t|never)\s+(?:(?:want|allow)\s+(?:you|nora)\s+to\s+)?(?:save|remember|store)\s+(?:this|that|it|anything|my|our|what|the|these)\b/i.test(text)
     || /\b(?:do not|don't|don’t)\s+want\s+(?:this|that|it|my\s+\w+)\s+(?:saved|stored|remembered)\b/i.test(text);
 }
 
 /** Only an explicit positive service request may create a partner card. */
 export function declinesPartner(text: string, partner: string): boolean {
   const terms: Record<string, string> = { movers: 'movers?|moving company|packing help', homes: 'homes?|houses?|flats?|listings?', energy: 'energy|electricity|offers?', insure: 'insurance|cover', planner: 'planner|planning|offers?' };
-  return new RegExp(`\\b(?:do not|don't|don’t|no|not)\\s+(?:need|want|show|suggest|looking for)?\\s*(?:any\\s+)?(?:${terms[partner] || partner})\\b`, 'i').test(text);
+  const object = terms[partner] || partner;
+  return new RegExp(`\\b(?:do not|don't|don’t|won't|won’t|will not|no|not)\\s+(?:need|want|hire|use|show|suggest|looking for|interested in)?\\s*(?:any\\s+)?(?:${object})\\b`, 'i').test(text)
+    || new RegExp(`\\b(?:skip|avoid|stop|hide|decline)\\s+(?:the\\s+|any\\s+)?(?:${object})\\b|\\b(?:${object})\\b[^.]{0,15}\\bno thanks\\b`, 'i').test(text);
+}
+
+/** A requested service/rule is considered separately from incidental money words. */
+export function explicitlyRequests(text: string, topic: string): boolean {
+  const requests: Record<string, RegExp> = {
+    energy: /\b(?:get|find|compare|switch|cheaper|show|see)\b[^.?!]{0,45}\b(?:electricity|energy|contract|tariff|plans?)\b|\b(?:electricity|energy)\b[^.?!]{0,70}\b(?:cheaper contract|compare|switch)\b/i,
+    movers: /\b(?:need|hire|find|book|want|looking for)\b[^.?!]{0,35}\b(?:movers?|moving company|packing help|moving van)\b/i,
+    homes: /\b(?:show|see|find|browse)\s+(?:me\s+)?(?:some\s+)?(?:homes|flats|houses|apartments|listings)\b/i,
+    'asp-account': /\b(?:open|opening|apply for|eligible for)\b[^.?!]{0,25}\basp\b/i,
+    'kela-loan-writeoff': /\bkela\b[^.?!]{0,55}\b(?:help|loan|compensation)\b|\b(?:claim|eligible|compensation)\b[^.?!]{0,35}\bstudent loan\b/i,
+    'household-credit': /\b(?:claim|eligible|calculate|receive)\b[^.?!]{0,45}\bhousehold (?:tax )?credit\b/i,
+  };
+  return requests[topic]?.test(text) || false;
 }

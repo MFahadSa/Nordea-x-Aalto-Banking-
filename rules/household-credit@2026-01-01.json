@@ -31,8 +31,8 @@
     "rate": 40,
     "max": 2100,
     "ownShare": 150,
-    "firstYear": 2026,
-    "lastYear": 2027
+    "firstYear": "2026",
+    "lastYear": "2027"
   },
   "message": "In {firstYear} and {lastYear}, qualifying company labour including VAT can give a {rate} % credit against tax, less a {ownShare} € annual own liability, up to {max} € per person per year. Not materials, travel or a guaranteed refund.",
   "earns": "Nordea earns nothing from this.",

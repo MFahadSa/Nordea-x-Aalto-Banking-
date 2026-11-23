@@ -37,10 +37,10 @@
   ],
   "params": {
     "max": 5000,
-    "lastDeductionYear": 2026,
+    "lastDeductionYear": "2026",
     "endDate": "1 January 2027",
-    "firstWithdrawalYear": 2027,
-    "lastWithdrawalYear": 2028
+    "firstWithdrawalYear": "2027",
+    "lastWithdrawalYear": "2028"
   },
   "message": "The contribution deduction has ended. If total PS savings were no more than {max} € on {endDate}, the whole balance may qualify for withdrawal in {firstWithdrawalYear} or {lastWithdrawalYear}. Normal tax still applies. Retirement age and scheduled withdrawals must be checked.",
   "earns": "Nordea earns nothing from this information.",
@@ -96,5 +96,5 @@
     }
   ],
   "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
-  "explain": "The contribution deduction has ended. If total PS savings were no more than {max} € on {endDate}, the whole balance may qualify for withdrawal in {firstWithdrawalYear} or {lastWithdrawalYear}. Normal tax still applies. Retirement age and scheduled withdrawals must be checked. The historical test is total PS savings no more than {max} € on {endDate}, not today’s balance. The whole balance may qualify for withdrawal in {firstWithdrawalYear} or {lastWithdrawalYear} without punitive tax uplift. Nordea excludes a lump sum if retirement age has already been reached and scheduled withdrawals have started. Normal tax still applies, depending on the applicable withdrawal rules and total capital income, not a guaranteed tax-free payment. Do not assume earlier contributions were deducted."
+  "explain": "The contribution deduction has ended. The historical test is total PS savings no more than {max} € on {endDate}, not today’s balance. The whole balance may qualify for withdrawal in {firstWithdrawalYear} or {lastWithdrawalYear} without punitive tax uplift. Nordea excludes a lump sum if retirement age has already been reached and scheduled withdrawals have started. Normal tax still applies, depending on applicable withdrawal rules and total capital income. Do not assume earlier contributions were deducted."
 }

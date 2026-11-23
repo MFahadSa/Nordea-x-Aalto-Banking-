@@ -212,6 +212,20 @@ const ghost = F.buildFacts({ user: undefined, entries: [], transactions: [], ban
 check('an unknown customer has only unknown facts', F.FACT_KEYS.every((k) => ghost[k].state === 'unknown'));
 check('…and the ASP rule cannot ask them about Nordea products', E.evaluate(versionsOf('asp-account'), ghost, DEMO_TODAY).status === 'notEligible');
 
+
+// Rendered text: a year must never get a thousands separator ("2 026", "2,026") in a card or in the model background.
+{
+  const { explainFor } = await import('../src/server/advice/chatCard.js');
+  const { renderExplanation } = await import('../src/server/advice/reviewedAnswer.js');
+  const { catalogue } = await import('../src/server/advice/guard.js');
+  const bad: string[] = [];
+  for (const r of catalogue()) {
+    const card = (r.message || '').replace(/\{(\w+)\}/g, (m, k) => { const v = (r.params as Record<string, unknown>)[k]; return typeof v === 'number' ? v.toLocaleString('fi-FI').replace(/\u00a0/g, ' ') : String(v ?? m); });
+    for (const text of [card, explainFor(r.id, r.validFrom), renderExplanation(r)])
+      for (const m of text.match(/\b2[ ,\u00a0]0[0-9]{2}\b(?!\s*(?:€|EUR))/g) || []) bad.push(`${r.id}@${r.version}: "${m}"`);
+  }
+  check('no rendered rule text writes a year with a thousands separator', bad.length === 0, [...new Set(bad)]);
+}
 fs.rmSync(DIR, { recursive: true, force: true });
 fs.rmSync(RD, { recursive: true, force: true });
 console.log(`\nRESULT ${passed}/${passed + failed}`);
