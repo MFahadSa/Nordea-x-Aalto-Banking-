@@ -607,7 +607,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
         return { saved: false, error: 'You cannot set reminders. Say so kindly and suggest their phone\'s calendar. Nothing was saved.' };
       if (action === 'add') {
         const title = String(a.title || '').trim().slice(0, 80);
-        if (a.type !== 'goal' && /university|student|studies/i.test(title) && db.getCabinetEntries(ctx.userId).some(e => /Studies at a university or UAS/i.test(e.title))) return { saved: false, alreadyKnown: true, note: 'The structured student fact is already saved. Do not save a second general student note.' };
+        if (a.type !== 'goal' && /^(?:started|starting|attends?|studies at|is (?:a )?student|higher.education student)(?:\s+(?:a|the))?\s*(?:university|college|uas|student)?(?:\s+this (?:autumn|fall|year))?$/i.test(title) && db.getCabinetEntries(ctx.userId).some(e => /Studies at a university or UAS/i.test(e.title))) return { saved: false, alreadyKnown: true, note: 'The structured student fact is already saved. Do not save a second general student note.' };
         if (!title) return { saved: false, error: 'title is required' };
         const type = ['goal', 'life_event', 'preference', 'fact'].includes(a.type) ? a.type : 'fact';
         // v28: an amount or a date the customer never said is not saved (the AI must not invent a goal's numbers).
@@ -955,6 +955,14 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
 
   let retried = false;
   let ruleRetried = false;
+  const reviewedRetries = new Set<string>();
+  const repeatedReviewedProblem = (text: string) => {
+    const p = reviewedReplyProblem(userText, text, checkedContext, ctx.cards);
+    if (!p) return false;
+    if (reviewedRetries.has(p)) return true;
+    reviewedRetries.add(p);
+    return false;
+  };
   /** What's wrong with a reply, told to the model so it can write it again itself. */
   const problemWith = (text: string): string | null => {
     if (!text.trim()) return 'Your reply was empty (maybe cut off). Answer again briefly with finishReply.';
@@ -1009,6 +1017,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
         return finish(t, j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
       }
       if (t && isGarbled(t)) return offline('The AI answer was garbled');
+      if (p && repeatedReviewedProblem(t)) return offline('Unverified reply after correction: ' + p);
+      if (p && ruleRetried && !reviewedReplyProblem(userText,t,checkedContext,ctx.cards)) return offline('Unverified reply after correction: ' + p);
       if (p) ruleRetried = true;
       turns.push({ role: 'model', text: t || '(empty)' });
       turns.push({ role: 'user', text: `(system) ${p || 'Please answer by calling finishReply, and use tools for any numbers.'}` });
@@ -1036,8 +1046,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
         // expecting it, so the model writes them again knowing what happened.
         const failed = results.find((r) => (r.result as any)?.error && ((r.result as any).shown === false || (r.result as any).saved === false));
         const p = problemWith(text) || (failed ? `Your reply was written before this result: ${(failed.result as any).error} Write the reply again to match.` : null);
-        if (p && ruleRetried && reviewedReplyProblem(userText, text, checkedContext, ctx.cards)) return offline('Unverified reply after correction: ' + p);
-        if (p && !ruleRetried) {
+        if (p && repeatedReviewedProblem(text)) return offline('Unverified reply after correction: ' + p);
+        if (p && (!ruleRetried || reviewedReplyProblem(userText, text, checkedContext, ctx.cards))) {
           ruleRetried = true;
           results.push({ call, result: { accepted: false, error: p } });
           continue;

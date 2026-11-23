@@ -15,8 +15,8 @@ export function refundIntake(text: string, active: boolean): RefundDecision {
   if (/^\s*(yes|yeah|yep|ok|okay|thanks|thank you|hello|hi|hey|bye)\W*$/i.test(t)) return { kind: 'pass' };
   if (/\bnot\s+tuulikki\b/i.test(t)) return { kind: 'pass' };
   if (/\btuulikki\b/i.test(t)) {
-    const amount = t.match(/(?:about|around|roughly|paid|was)\s*[€]?\s*(\d+(?:[.,]\d{1,2})?)|(?:€\s*)(\d+(?:[.,]\d{1,2})?)/i);
-    const stated = amount ? Number((amount[1] || amount[2]).replace(',', '.')) : undefined;
+    const amount = t.match(/(?:€|\bEUR)\s*(\d+(?:[.,]\d{1,2})?)(?!\d)|\b(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?\b|EUR\b)|(?:about|around|roughly|paid|was)\s+(\d+(?:[.,]\d{1,2})?)(?!\d)/i);
+    const stated = amount ? Number((amount[1] || amount[2] || amount[3]).replace(',', '.')) : undefined;
     if (stated !== undefined) return { kind: 'consent', statedAmount: stated };
     return { kind: 'consent' };
   }

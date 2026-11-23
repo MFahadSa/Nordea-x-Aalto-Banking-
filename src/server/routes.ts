@@ -194,7 +194,7 @@ export function registerV14Routes(app: Express) {
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
         ? agentMsg(userId, conv.id, conv.helperId, open ? 'Nora is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
-        : agentMsg(userId, conv.id, conv.helperId, `I can look into your Tuulikki Electronics refund. Tick what Nora may read.${intake.statedAmount !== undefined ? ' Your approximate amount is not yet matched. I will check it against only the records you allow, not assume the demo purchase is yours.' : ''}`, { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Nora look into your Tuulikki Electronics refund?', data: { items: offer, statedAmount: intake.statedAmount, demo: 'Nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
+        : agentMsg(userId, conv.id, conv.helperId, `I can look into your Tuulikki Electronics refund. Tick what Nora may read.${intake.statedAmount !== undefined ? ' Your approximate amount is not yet matched. I will check it against only the records you allow, not assume a purchase matches your request.' : ''}`, { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Nora look into your Tuulikki Electronics refund?', data: { items: offer, statedAmount: intake.statedAmount, demo: 'Nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
     // His three agents gather what Nora may see for this conversation (User DB via the personal agent,
@@ -564,7 +564,7 @@ export function registerV14Routes(app: Express) {
         const opened = caseView(refunds(), refunds().data.cases.find((x) => x.id === made.id)!);
         const stated = Number(c.data?.statedAmount);
         const mismatch = stated > 0 && opened.expected != null && Math.abs(stated - opened.expected) > 0.01;
-        out.push(agentMsg(userId, conv, helper, mismatch ? `The allowed demo records show ${fmt(opened.expected, 2)}, not your approximate ${fmt(stated, 2)}. This is only the fictional Tuulikki example, not a match to your stated amount. You can withdraw and start again if it is not the right purchase.` : 'Done. Nora looks into this refund and watches for it. You can withdraw any time under Nora knows.'));
+        out.push(agentMsg(userId, conv, helper, mismatch ? `The records you allowed show ${fmt(opened.expected, 2)}, not your approximate ${fmt(stated, 2)}. This is not a match to your stated amount. You can withdraw and start again if it is not the right purchase.` : 'Done. Nora looks into this refund and watches for it. You can withdraw any time under Nora knows.'));
         break;
       }
       default:

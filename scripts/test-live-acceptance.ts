@@ -48,3 +48,17 @@ n=0;setProvider({name:'correction-live-regression',isConfigured:()=>true,step:as
 const corrected=await abelTurn('lauri','live-retry-success','abel','Is this gift tax free?');
 assert.equal(n,2);assert.ok(!corrected.offline);assert.match(corrected.text,/less than/);
 console.log('PASS live-story context, contradictions, retry/fail-closed, provider history, minimal handoff and amount intake regressions');
+
+for (const text of ['Gifts under 7,500 euros are exempt.','A gift below 7,500 € is exempt.','The 7,500 euro threshold itself is not exempt.']) assert.equal(problem('gift tax',text,gift),null,text);
+for (const text of ['The offer details do not say whether you can cancel anytime.','This card does not include an adviser link.','Cancellation terms are unknown.']) assert.equal(problem('insurance',text,energy),null,text);
+assert.equal(problem('ASP','You can deposit up to 40 €.',context('ASP')),null);
+assert.equal(problem('energy','Kuukausimaksu on 3,90 €/kk.',energy),null);
+assert.equal(problem('invest','Guaranteed returns do not exist.',''),null);
+assert.ok(problem('invest','Nordea Advis',''));
+for (const text of ['Tuulikki, 129 euros','Tuulikki, EUR 129','Tuulikki, 129€','Tuulikki, €129','Tuulikki, about 129']) assert.deepEqual(refundIntake(text,true),{kind:'consent',statedAmount:129},text);
+assert.deepEqual(refundIntake('Tuulikki in 2024',true),{kind:'consent'});
+n=0;setProvider({name:'plain-persistent',isConfigured:()=>true,step:async()=>{n++;return {calls:[],text:'Up to 7,500 euros is tax-free.'}}});
+const plain=await abelTurn('lauri','plain-rejected','abel','Is this gift tax free?');assert.equal(n,2);assert.ok(plain.offline);
+n=0;setProvider({name:'distinct-problems',isConfigured:()=>true,step:async()=>({calls:[{name:'finishReply',args:{text:++n===1?'I am connecting you now.':n===2?'Up to 7,500 euros is tax-free.':'Gifts under 7,500 euros are exempt.',suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]})});
+const distinct=await abelTurn('lauri','distinct-problems','abel','Is this gift tax free?');assert.equal(n,3);assert.ok(!distinct.offline);
+console.log('PASS independent-review positive/negative wording, amount variants and bounded separate retries');
