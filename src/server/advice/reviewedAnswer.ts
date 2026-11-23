@@ -3,6 +3,7 @@
  */
 import { catalogue } from './guard.js';
 import { intentsOf } from './intent.js';
+import { declinesPartner } from './purpose.js';
 import { getPartner } from '../partnerRegistry.js';
 import type { Rule } from './rules.js';
 
@@ -29,6 +30,8 @@ export function reviewedContext(text: string, age: number | undefined, today: st
     const versions = all.filter(r => r.id === id && r.validFrom <= today && (!r.validTo || today < r.validTo) && Date.parse(today) - Date.parse(r.source.checkedAt) <= r.reviewDays * 86400000);
     return versions.map(rule => `${rule.title}: ${renderExplanation(rule)} Source: ${rule.source.url} (checked ${rule.source.checkedAt}).`);
   });
+  if(!declinesPartner(text,'energy')&&/\b(?:electricity|energy bill|fixed (?:versus|vs\.?|or) (?:exchange|spot))\b/iu.test(text))facts.push('ELECTRICITY EXPLANATION BOUNDARY: A fixed contract fixes the price per unit for its stated period, not the total bill: consumption and other charges can change. Exchange/spot pricing follows the market plus any stated margin. Without usage and relevant prices, do not say which is cheaper. Explain these concepts without inventing a Nordea service or offer. Current app options must come from an actually supplied partner catalogue; general market arrangements are not established app options. If no catalogue is supplied, no current commercial option or availability is verified. A saved household-work fact or a possible household tax credit is not an approved credit, and does not establish an electricity-bill discount. Do not use unrelated benefits to reduce this bill. This background does not show an offer, authorize a switch or establish customer ownership.');
+  if(topics.has('household-credit'))facts.push('BENEFIT STATUS: A saved statement that the customer pays for household work supports checking a possible credit, not a decision that a credit is approved, already held or paid. The household credit is against tax for qualifying labour under the supplied rule; it is not an electricity-consumption bill discount. Keep any actual approval or paid amount unknown unless a specific current source establishes it.');
   const partnerIds = displayedFollowup ? [...shownPartners] : intentsOf(text).flatMap(intent => intent.partner && shownPartners.has(intent.partner) ? [intent.partner] : []);
   for (const partnerId of partnerIds) {
     const p = getPartner(partnerId);

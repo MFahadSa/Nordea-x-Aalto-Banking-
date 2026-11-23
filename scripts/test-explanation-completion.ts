@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {explanationReplyProblem as p} from '../src/server/advice/replyCompletion.js';
+assert.ok(p('Can you explain fixed versus exchange pricing?', 'Fixed'));
+assert.ok(p('Compare fixed and exchange pricing.', 'Fixed.'));
+assert.equal(p('Fixed or exchange?', 'Fixed.'),null);
+assert.equal(p('Is the rate fixed?', 'Yes.'),null);
+assert.equal(p('Can you explain the options?', 'Why?'),null);
+assert.equal(p('Can you explain the options?', 'Which options do you mean?'),null);
+assert.equal(p('Please explain why fixed differs.', 'The fixed rate stays steady; the exchange rate varies.'),null);
+console.log('PASS narrow one-word explanation check, choice/yes-no/clarification positives. Not universal completeness.');
