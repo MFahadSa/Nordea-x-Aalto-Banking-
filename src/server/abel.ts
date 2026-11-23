@@ -256,7 +256,7 @@ RULES
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts); never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
 - Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
 - Passed goal dates: ask if still a plan.
-- CARDS: the app decides partner offers, questions and suggestions itself, from what the customer said. You never offer partners, products or benefits on your own, never ask the app's questions yourself, and never write a card as text (no "[Card: …]"). THIS TURN: ${cardNote || 'No card. Do not mention any card, partner, offer or suggestion "below".'}
+${u.offersOff ? '- PARTNER OFFERS ARE OFF: do not mention partner offers, prices, incentives or recommend a partner, even if earlier chat contains one. Help without a partner pitch.\n' : ''}- CARDS: the app decides partner offers, questions and suggestions itself, from what the customer said. You never offer partners, products or benefits on your own, never ask the app's questions yourself, and never write a card as text (no "[Card: …]"). THIS TURN: ${cardNote || 'No card. Do not mention any card, partner, offer or suggestion "below".'}
 - Adviser card (startHandoff): only when they ask for a person, or about a loan or mortgage, and only if THIS TURN has no card.
 - offerTransfer shows a confirm card, only between their own accounts. You can never pay another person: say so and point to Payments in the app.
 - A flat's price is not the deposit goal; homes are paid mostly with a loan you can't calculate. Don't count months or years to cover a price; mention a free adviser.
@@ -551,7 +551,10 @@ function codeCard(ctx: TurnCtx): string {
     if (it.rule === 'asp-account' && /\b(?:already have|already own|have got)\b[^.?!]{0,30}\b(?:one|asp|account)\b|\bmy (?:existing )?asp account\b/i.test(ctx.userText)) continue;
     if (it.id === 'gift-information') continue; // Receiving a gift does not imply supporting children.
     if (it.rule) {
-      const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any), !refusesStorage(ctx.userText));
+      // Rule cards persist answers, display state and reasons. An explicit no-save turn
+      // stays educational only; do not route its facts into any of those stores.
+      if (refusesStorage(ctx.userText)) continue;
+      const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
       if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; return r.describe; }
     } else if (it.partner) {
       const d = partnerCard(ctx, it.partner);

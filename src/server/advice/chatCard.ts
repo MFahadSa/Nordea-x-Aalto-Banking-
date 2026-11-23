@@ -23,7 +23,7 @@ export interface RuleCard {
   notes: NonNullable<ChatMessage['notes']>;
 }
 
-export function ruleCardFor(userId: string, conversationId: string, intent: Intent, today: string, undo: (entryId: string, title: string) => string, allowSave = true): RuleCard | null {
+export function ruleCardFor(userId: string, conversationId: string, intent: Intent, today: string, undo: (entryId: string, title: string) => string): RuleCard | null {
   const u = db.getUser(userId);
   if (!u || !intent.rule) return null;
   const versions = catalogue().filter((r) => r.id === intent.rule);
@@ -44,11 +44,11 @@ export function ruleCardFor(userId: string, conversationId: string, intent: Inte
   delete stNoWait.rules![intent.rule]; // asked about it now: no waiting time applies (never/accepted handled above)
   let ev = evaluate(versions, withWords, today);
   let rule = versions.find((r) => r.version === ev.version);
-  if (!rule || blockReason(rule, ev, stNoWait, whoOf(u), today) || (!allowSave && ev.status === 'ask')) return null;
+  if (!rule || blockReason(rule, ev, stNoWait, whoOf(u), today)) return null;
 
   // Save what the words answered (only facts the rule really used), so Home and later chats don't ask again.
   const notes: RuleCard['notes'] = [];
-  for (const [k, v] of allowSave ? implied : []) {
+  for (const [k, v] of implied) {
     if (!ev.used.includes(k) || (facts[k].state === 'known' && facts[k].value === v)) continue;
     const e = saveAnswer(userId, rule.id, k, v, v ? 'Yes' : 'No', 'You said it in a chat');
     notes.push({ text: `📌 Nora will remember this: ${e.title}`, undoToken: undo(e.id, e.title), entryId: e.id });

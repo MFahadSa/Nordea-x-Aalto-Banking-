@@ -191,3 +191,8 @@ db.addMessage({id:'repeat-card-message',agentId:'abel',channel:'app',userId:'lau
 const repeated=await abelTurn('lauri','repeat-card-check','abel','We need a moving company');
 assert.ok(!repeated.cards.some(c=>c.type==='offer'));assert.ok(!/Fictional partner/.test(captured),'Duplicate card gets no fresh partner context');
 console.log('PASS single/multiple dated PS and duplicate-card context boundaries');
+
+const adviceBefore=JSON.stringify(db.getUser('alex')?.advice);
+await ask("I paid a cleaning company. Don't note this down",'alex');
+assert.equal(JSON.stringify(db.getUser('alex')?.advice),adviceBefore,'No inferred rule display/reason snapshots after storage refusal');
+await ask('Our electricity bill is too high','offers-off');assert.match(captured,/PARTNER OFFERS ARE OFF/);
