@@ -1,3 +1,5 @@
+import {goalProgressReply} from './advice/goalProgress.js';
+import {clarificationInput,clarificationChoices,UNKNOWN_REPLY,type Clarification} from './advice/clarification.js';
 import {explanationReplyProblem} from './advice/replyCompletion.js';
 import {TurnFinancialEvidence} from './advice/turnFinancialEvidence.js';
 import {goalRevision,proposalDeadline,goalProposalText,finnishGoalRequest,finnishGoalProposal} from './advice/goalConfirmation.js';
@@ -199,7 +201,8 @@ const ALL_TOOLS: ToolDecl[] = [
       type: 'object',
       properties: {
         text: { type: 'string', description: 'Short paragraphs, blank line between' },
-        suggestions: { type: 'array', items: { type: 'string' }, description: '0–3 short quick replies' },
+        suggestions: { type: 'array', items: { type: 'string' }, description: '0–3 short quick replies. Clarification choices must be exact current customer words or readable saved-item titles; never guess a value.' },
+        clarification: {type:'object',description:'Only when a needed detail genuinely requires a customer answer. Not a provider or verification failure. Existing question cards take precedence.',properties:{kind:{type:'string',enum:['customer_detail','saved_search','context_changed','verification_failure']},question:{type:'string',description:'One specific complete question, ending with a question mark. No invented values. Replaces text for this clarification.'}},required:['kind','question']},
         usedEntryIds: { type: 'array', items: { type: 'string' } },
         topic: { type: 'string', enum: ['goals', 'spending', 'income', 'saving_plan', 'afford', 'life_event', 'investing', 'home_buying', 'person', 'privacy', 'small_talk', 'complaint', 'out_of_scope', 'other'] },
         couldHelp: { type: 'boolean' },
@@ -279,6 +282,7 @@ HOW YOU TALK
 - You can't browse, give live rates or forecasts, or move money. Unhappy customer: apologise, repair, offer a person.${calm ? '\n- CALM view: very short warm sentences, at most two suggestions, always offer a person.' : ''}
 
 RULES
+- MISSING DETAIL: When one genuinely missing customer detail blocks the requested help, use finishReply.clarification with kind customer_detail and that specific question. The app offers a safe unknown answer and typed input; suggestions may name only exact customer words or currently readable saved-item titles. Never invent an amount, date, eligibility answer or default. If the customer is unsure, help with general guidance or another supported route instead of repeating the same demand. A limited saved lookup needs a search name/topic (saved_search), not a claim that nothing is saved. Provider, calculation and verification failures are the app's problem, not evidence the customer omitted data. Do not collect credentials or card details. An existing question card owns its own question and answer controls. Clarification is not permission to save a fact or execute an action.
 - Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly). In goals, remainingToTargetNow is target minus saved today; shortBy is the projected shortfall at the target date, NOT money remaining to save today. Select the goal the customer names; if more than one home goal could fit, ask which one before quoting a goal amount. Never confuse them. In goals, monthlyGoingIn is what goes in now; extraPerMonthNeeded is what's missing on top. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
 - One step: finishReply, plus any action tool in the same step.
 - Goals always need a visible proposal and customer tap before save/change. proposeCabinetChange prepares that proposal only. Other meaningful context (life events, preferences, facts) may be saved quietly; never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
@@ -469,6 +473,7 @@ interface TurnCtx {
   offersShown: number;
   extraUsed: string[];
   goalWriteReplies?:string[];
+  clarificationReadOnly?:boolean;
   /** What the customer wrote this turn (for the checks below). */
   userText: string;
   helperId?: string;
@@ -621,6 +626,7 @@ function runTool(call:ToolCall,ctx:TurnCtx):unknown {
 function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
   let a = call.args || {};
   const u = db.getUser(ctx.userId)!;
+  if(ctx.clarificationReadOnly && ACTION_TOOLS.has(call.name) && call.name!=='startHandoff' && !(call.name==='proposeCabinetChange'&&a.type==='goal') && call.name!=='offerTransfer') return {saved:false,shown:false,error:'This is a clarification answer, not permission to save facts or prepare an action. Use the answer for this conversation only; ask for an explicit separate request before changing anything.'};
   switch (call.name) {
     case 'getMoreSaved': return ctx.retrieve ? ctx.retrieve(a) : {error:'Bounded saved-context lookup is not active.'};
     case 'selectConversationTopic': {
@@ -982,6 +988,8 @@ export interface NoraReply {
   exposedSources?: SourceRef[];
   exposedContentKeys?: string[];
   savedContextPage?: {query:string;cursor?:string;complete?:boolean;count?:number;language?:string;viewRevision?:string;discovery?:boolean};
+  clarification?: Clarification;
+  retryRequest?: string;
 }
 
 export async function abelTurn(userId: string, conversationId: string, helperId: string, userText: string, shared?: NoraSharedContext): Promise<NoraReply> {
@@ -996,6 +1004,8 @@ const sharedRevision = (shared?: NoraSharedContext): string => sourceRevision([s
 
 async function abelTurnInner(userId: string, conversationId: string, helperId: string, userText: string, seen: { supplied?: NoraReply['supplied']; exposure?:TurnExposure }, shared?: NoraSharedContext): Promise<NoraReply> {
   const provider = getProvider();
+  const latestReply=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.sender==='agent').at(-1);
+  if(latestReply?.retryRequest && /^(?:Retry the calculation|Try answering again)$/u.test(userText.trim()))userText=latestReply.retryRequest;
   const readScope=recallToolScope(userText);
   const turnTools=readScope?TOOLS.filter(t=>readScope.has(t.name)):TOOLS;
 
@@ -1018,6 +1028,10 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   if(bounded){sources.push(bankCore);exposure!.include([bankCore]);}
   if(bounded)sources.push(...discoverySources(sources));
   const prior=db.getMessages(userId).filter(m=>m.conversationId===conversationId && m.sender==='agent').at(-1);
+  ctx.clarificationReadOnly=!!prior?.clarification;
+  if(prior?.clarification && /^(?:i(?:'m| am) not sure|i don'?t know|not sure|skip|prefer not to say)[.! ]*$/iu.test(userText.trim())) {
+    return {text:prior.clarification.kind==='saved_search'?'No problem. I will not assume the information is missing. You can name another topic whenever you remember it, or ask for general help.':'No problem. I will leave that detail unknown rather than guess. Would you prefer general guidance or a Nordea adviser?',suggestions:['Give general guidance','Ask a Nordea adviser'],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true};
+  }
   const validPrior=(prior?.exposedSources || []).filter(r=>referencesCurrent([r],sources));
   const pageFollowup=!!prior?.savedContextPage && /^(?:(?:yes|yeah|ok|okay|joo|kyllä)[, ]+)?(?:more|next|continue|show more|go on|keep going|carry on|what else|anything else|lisää|seuraavat|jatka|entä muuta|vielä)[.! ]*$/iu.test(userText.trim());
   const retrievalQuery=pageFollowup?prior!.savedContextPage!.query:userText;
@@ -1036,8 +1050,14 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   if(bounded) (facts.paydayPlan as any).towardsGoal=null;
   const suppliedShared=bounded ? {...shared,userDbFacts:undefined,sharedContext:JSON.stringify(initial!.rows.filter(r=>r.owner!=='cabinet'||r.discoveryOnly)),provenance:['bounded current source retrieval']} : shared;
 
+  const progress=goalProgressReply(userText,read.allowed.filter(e=>e.type==='goal'&&e.status!=='archived'&&!!e.target),prior?.clarification,g=>fin.goalStatus(userId,g),fin.DEMO_TODAY);
+  if(progress){
+    if(exposure)exposure.include(sources.filter(s=>s.owner==='cabinet'&&(progress.usedEntryIds as string[]).includes(s.id)));
+    return {...progress,cards:[],notes:[],topic:'goals',couldHelp:true,offline:true};
+  }
+
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
-  const cardNote = helperId === 'person' || FRAUD.test(userText) || DIRECT_PERSON.test(userText) ? '' : codeCard(ctx);
+  const cardNote = ctx.clarificationReadOnly || helperId === 'person' || FRAUD.test(userText) || DIRECT_PERSON.test(userText) ? '' : codeCard(ctx);
   // Reviewed facts constrain the model; they never replace the customer's task or tool turn.
   for (const n of ctx.notes) if (n.entryId) linkCurrentSource(ctx, n.entryId);
   const shownPartners = new Set(ctx.cards.filter((c) => c.type === 'offer').map((c) => String(c.data?.partnerId)));
@@ -1046,6 +1066,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const financialEvidence=new TurnFinancialEvidence(userId,conversationId,newId('financial-turn'),(id,revision)=>{if(id==='request:current')return sourceRevision(userText)===revision;if(id==='bank:getSpending')return sourceRevision({...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}})===revision;if(id==='bank:getPayPlan')return sourceRevision(fin.payPlan(userId))===revision;if(id==='bank:getAccounts')return sourceRevision(fin.accounts(userId))===revision;if(id==='bank:getSalary')return sourceRevision(fin.salaryInfo(userId))===revision;const current=previewCabinetForAgent(userId,'abel').allowed;if(id.startsWith('status:')){const e=current.find(e=>e.id===id.slice(7));return !!e&&e.status!=='archived'&&!!e.target&&sourceRevision({...fin.goalStatus(userId,e),goalType:e.goalType,...(e.status==='stale'?{stale:true,savingRateKnown:false}:{savingRateKnown:fin.primaryGoal(userId)?.id===e.id})})===revision;}const e=current.find(e=>e.id===id);return !!e&&sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy])===revision;});
   selected.forEach(e=>financialEvidence.includeEntry(e));facts.goals.forEach(g=>financialEvidence.includeGoal({...g,savingRateKnown:fin.primaryGoal(userId)?.id===g.goalId}));selected.filter(e=>e.type==='goal'&&e.status==='stale'&&e.target).forEach(e=>financialEvidence.includeGoal({...fin.goalStatus(userId,e),goalType:e.goalType,stale:true,savingRateKnown:false}));financialEvidence.includeBank('getAccounts',fin.accounts(userId));financialEvidence.includeBank('getSalary',fin.salaryInfo(userId));financialEvidence.includeBank('getSpending',{...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}});financialEvidence.includeBank('getPayPlan',fin.payPlan(userId));
   let system = systemPrompt(userId, helperId, selected, read.blocked.length, facts, suppliedShared, cardNote) + '\n' + checkedContext;
+  if(bounded)system=system.replace("FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):",'FACTS (computed bank context. For personal numeric or calendar answers choose the supplied FINANCIAL FACT HANDLES in finishReply.financialAnswer; do not copy numbers into prose):').replace('use these numbers directly','choose the corresponding financialAnswer handles').replace('- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly).','- Personal numbers and dates must be selected through financialAnswer handles or supported calculation expressions. The app renders values with their roles and units. Do not restate them in text.');
+  if(ctx.clarificationReadOnly)system+='\nCLARIFICATION ANSWER: The last reply asked '+JSON.stringify(prior!.clarification)+'. Use the answer only for this conversation. Do not save notes or infer eligibility from a clarification answer. A separate explicit new action request still uses the existing confirmation controls, never direct execution. If the answer is unknown, do not repeat the same question; give supported general help without guessing.';
   system += '\nFACT ROLES: Every figure has a role and unit. A number appearing somewhere is not permission to assign it to another field. For goals, saved, target, monthly contribution, shortfall and months left are separate. For products, opening/starting year, purchase/payment date, annual interest and one-time bonus are separate. PS annual contribution deduction cap and historical balance withdrawal test are separate. Energy monthly fee, usage price and spot margin are separate; never present just a fee as the total cost. Say unknown when coverage or a term is absent. Use the customer\'s language, but retain the exact meaning, threshold boundary and conditions. Do not expand an acronym unless CHECKED BACKGROUND provides the expansion. Do not invent screens, sections or availability; describe only actual controls in the displayed contract.';
   const t0 = Date.now();
   let modelCalls = 0;
@@ -1132,7 +1154,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const latestAssistant=[...history].reverse().find(m=>m.sender!=='user');
   const shortDependentReply=userText.trim().split(/\s+/).length<=8 && /^(?:yes|no|yep|yeah|sure|ok(?:ay)?|the (?:first|second|third|other) one|that one|january|february|march|april|may|june|july|august|september|october|november|december|kyllä|joo|ei|tammikuu|maaliskuu)\b/i.test(userText.trim());
   if(latestAssistant && leftOut(latestAssistant) && shortDependentReply && !pendingQuestion(userId,conversationId,fin.DEMO_TODAY)) {
-    return {text:'The context behind my earlier question has changed, so I need to check what you mean before changing anything. What would you like this choice to apply to?',suggestions:[],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true};
+    return {text:'The context behind my earlier question has changed. What would you like this choice to apply to?',clarification:{kind:'context_changed',question:'What would you like this choice to apply to?'},suggestions:[UNKNOWN_REPLY],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true};
   }
 
   system += '\n' + contracts.facts + '\n' + contracts.text;
@@ -1169,7 +1191,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const fi=prior?.savedContextPage?.language==='fi' && pageFollowup || /(?:mitä|kerro|minusta|autostani|tiedät|muistat|onko|sinulla|muistiin)/iu.test(userText);
     const text=rows.length ? (fi?'Jaetusta tallennetusta tiedosta löytyi: ':'From the saved context currently shared: ')+'\n'+rows.map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n')+(initial!.truncated?(fi?' Tämä on vain osa tiedoista. Sano lisää tai rajaa aihetta.':' This is a partial view. Say more for the next page, or name a topic.'): '') : (fi?'En saanut sopivaa osumaa tällä haulla. Se ei tarkoita, ettei tietoa olisi tallennettu. Millä nimellä tai aiheella se tallennettiin?':'This search did not find a matching saved item. That does not mean it is not saved. What name or topic was it saved under?');
     const currentText=completedPage ? (fi?'Tämä haku on jo käyty loppuun. Voit kysyä toisesta aiheesta.':'That saved-context search is complete. You can ask about another topic.') : text;
-    return {text:currentText,suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:rows.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true,savedContextPage:completedPage?prior!.savedContextPage!:{query:retrievalQuery,cursor:initial!.nextCursor,complete:!initial!.truncated,count:rows.length,language:fi?'fi':'en',viewRevision,discovery:rows.some(r=>r.discoveryOnly)}};
+    return {text:currentText,...(!rows.length&&!completedPage?{clarification:{kind:'saved_search' as const,question:fi?'Millä nimellä tai aiheella se tallennettiin?':'What name or topic was it saved under?'},suggestions:[UNKNOWN_REPLY]}:{suggestions:[]}),cards:ctx.cards,notes:ctx.notes,usedEntryIds:rows.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true,savedContextPage:completedPage?prior!.savedContextPage!:{query:retrievalQuery,cursor:initial!.nextCursor,complete:!initial!.truncated,count:rows.length,language:fi?'fi':'en',viewRevision,discovery:rows.some(r=>r.discoveryOnly)}};
   }
   if(exposure) for(const m of history.filter(m=>boundedIds.has(m.id)&&!leftOut(m))) {exposure.inherit(m.exposedSources || []);exposure.inheritVisible(m.exposedContentKeys || []);}
   updateSeen();
@@ -1222,7 +1244,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     if(/Personal financial quantities/.test(detail||'')){
       const rows=(exposure?.content()||[]).filter(r=>!r.discoveryOnly&&r.id!=='app-bank-core');
       const relevant=rows.filter(r=>r.detail&&financialEvidence.list().some(f=>f.sourceId===r.id));
-      return {text:relevant.length?'I could verify these saved source details, but did not complete the calculation:\n'+relevant.map(r=>r.title+': '+r.detail).join('\n'):'I have not verified the requested financial calculation. Which saved item should I use?',suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:relevant.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true,errorDetail:detail};
+      return {text:relevant.length?'I could verify these saved source details, but did not complete the calculation:\n'+relevant.map(r=>r.title+': '+r.detail).join('\n'):'I could not verify the requested calculation. This does not mean your information is missing. Would you like to retry the calculation or ask an adviser?',...(!ctx.cards.length&&!ctx.notes.length?{retryRequest:userText,suggestions:['Retry the calculation','Ask a Nordea adviser']}:{suggestions:['Ask a Nordea adviser']}),cards:ctx.cards,notes:ctx.notes,usedEntryIds:relevant.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true,errorDetail:detail};
     }
     if(/Pending goal proposal/.test(detail||''))return {text:'That goal was only proposed, not saved. Tap its confirmation card if you want to save it.',suggestions:[],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true,offline:true,errorDetail:detail};
     if(ctx.goalWriteReplies?.length)return {text:ctx.goalWriteReplies.join('\n'),suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[...ctx.extraUsed],topic:'other',couldHelp:true,offline:true,errorDetail:detail};
@@ -1237,17 +1259,17 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       if(bounded && !FRAUD.test(userText) && (detail?.startsWith('Unverified reply after correction: A limited search') || !policyQuestion && /not true: Nora keeps/i.test(detail || ''))) {
         const rows=exposure!.content().filter(r=>r.id!=='app-bank-core');
         const fi=/(?:mitä|kerro|sinulla|muistat|tallenn|kuussa)/iu.test(userText);
-        const factsText=rows.length?rows.filter((r,i,a)=>a.findIndex(x=>x.id===r.id)===i).map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n'):(fi?'Haku tarvitsee toisen hakusanan.':'This search needs another name or topic.');
-        return {text:(rows.length?(fi?'Jaetusta tiedosta löytyi:\n':'The currently shared context includes:\n'):'')+factsText+(mixedSavedRequest(userText)?(fi?'\nEn saanut vielä luotettavaa vastausta kysymyksesi toiseen osaan.':'\nI have not yet obtained a verified answer to the other part of your request.') : ''),suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true};
+        const factsText=rows.length?rows.filter((r,i,a)=>a.findIndex(x=>x.id===r.id)===i).map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n'):(fi?'Millä nimellä tai aiheella se tallennettiin?':'What name or topic was it saved under?');
+        return {text:(rows.length?(fi?'Jaetusta tiedosta löytyi:\n':'The currently shared context includes:\n'):'')+factsText+(mixedSavedRequest(userText)?(fi?'\nEn saanut vielä luotettavaa vastausta kysymyksesi toiseen osaan.':'\nI have not yet obtained a verified answer to the other part of your request.') : ''),...(!rows.length?{clarification:{kind:'saved_search' as const,question:fi?'Millä nimellä tai aiheella se tallennettiin?':'What name or topic was it saved under?'},suggestions:[UNKNOWN_REPLY]}:{suggestions:[]}),cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true};
       }
-      if(bounded && /Unverified/i.test(detail||'') && /\b(?:that|it|this)\b/iu.test(userText) && !validPrior.length && /months?|weeks?|years?/iu.test(userText))return {text:'Which saved plan or amount should I use for that calculation?',suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true};
+      if(bounded && /Unverified/i.test(detail||'') && /\b(?:that|it|this)\b/iu.test(userText) && !validPrior.length && /months?|weeks?|years?/iu.test(userText))return {text:'I could not verify which plan that calculation refers to. Which plan did you mean?',clarification:{kind:'context_changed',question:'Which plan did you mean?'},suggestions:[UNKNOWN_REPLY],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true};
       const failText = ctx.cards.some(c => c.type === 'handoff')
         ? 'Tap Connect me below to reach a Nordea adviser. Nothing has been sent yet, and nobody will call until you connect.'
         : connectionFailure ? (rateLimited ? 'Nora’s AI service has reached its current usage limit, so I could not finish answering your request. Your request is still open.' : 'I could not reach Nora’s AI service, so I could not finish answering your request. Your request is still open.') + (ctx.notes.length ? ' Any changes already shown below remain saved and can be undone.' : '')
         : privacyFailure ? 'I keep only what you’ve approved in Nora knows, and this chat is kept in your history. You can review or remove saved items there.'
         : ctx.cards.length || ctx.notes.length ? doneLine() : 'I couldn’t verify my answer, so I won’t guess. Your request is still open. You can try again or ask a Nordea adviser.';
       recordTurn(Date.now() - t0, modelCalls);
-      return { text: withSafety(failText), suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [...ctx.extraUsed], topic: 'other', couldHelp: false, offline: true, errorDetail: detail, provider: answerProvider };
+      return { text: withSafety(failText),...(!ctx.cards.length&&!ctx.notes.length?{retryRequest:userText,suggestions:['Try answering again','Ask a Nordea adviser']}:{suggestions:ctx.cards.length?[]:['Ask a Nordea adviser']}), cards: ctx.cards, notes: ctx.notes, usedEntryIds: [...ctx.extraUsed], topic: 'other', couldHelp: false, offline: true, errorDetail: detail, provider: answerProvider };
     }
     // The AI did answer but badly (garbled, made-up numbers): that's "I didn't get that right", not "try later".
     const o = offlineAnswer(userId, userText, read.allowed, /garbled|Unverified|step limit|was code/i.test(detail || '') ? 'unclear' : 'no_ai', history.filter((m) => m.sender === 'user' && !leftOut(m)).slice(-3).map((m) => String(m.text || '')).join(' '));
@@ -1393,8 +1415,10 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const results: { call: ToolCall; result: unknown }[] = [];
     let finished: NoraReply | null = null;
     // Run the other tools first, so a finishReply in the same step sees their results and cards.
+    const clarificationCall=res.calls.find(c=>c.name==='finishReply'&&c.args.clarification);
     const ordered = [...res.calls.filter((c) => c.name !== 'finishReply'), ...res.calls.filter((c) => c.name === 'finishReply')];
     for (const call of ordered) {
+      if(clarificationCall&&call.name!=='finishReply'&&ACTION_TOOLS.has(call.name)){results.push({call,result:{saved:false,shown:false,error:'A clarification question cannot execute or prepare another action in the same step.'}});continue;}
       if(readScope&&!readScope.has(call.name)){results.push({call,result:{accepted:false,error:'This is a read-only recall turn. No stateful action was authorized or run. Answer from current sources, or ask the customer to clarify a separate action request.'}});continue;}
       if (call.name === 'finishReply') {
         if(ctx.goalWriteReplies?.length){finished=finish(ctx.goalWriteReplies.join('\n'),[],[], 'other',true);results.push({call,result:{accepted:true}});continue;}
@@ -1406,7 +1430,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
           results.push({ call, result: { accepted: false, error: 'The pending question changed in this step. Write finishReply again after reading its result. Only saved:true means saved; shown:true with saved:false is an interpretation review, not eligibility or a saved fact. CURRENT QUESTION and THIS TURN earlier in the prompt are superseded by this result.' } });
           continue;
         }
-        if(Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length){
+        if(!call.args.clarification&&Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length){
           try{
             const requested=call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact});
             const lines=financialEvidence.render(requested,/(?:mitä|mihin|palkkani|palkkapäiv|milloin|paljonko|kuinka|tavoite|kuussa|vuodessa|päättyy)/iu.test(userText)?'fi':'en',userText);
@@ -1421,9 +1445,21 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
             const pendingLine=pe&&pd?.draft?.target&&goalNameInText(pe.title,userText)&&pd.existingRevision===goalRevision(pe)&&pd.expiresAt&&Date.parse(pd.expiresAt)>Date.now()?`For "${pe.title}", the proposed target ${pd.draft.target.amount} EUR by ${pd.draft.target.date} is not saved. Only tapping the card confirmation would apply it.`:'';
             const staleLines=read.allowed.filter(e=>e.type==='goal'&&e.status==='stale'&&(/\bcar\b/iu.test(userText)?/\bcar\b/iu.test(e.title):false)).map(e=>fi?`Tavoite "${e.title}" on merkitty vanhentuneeksi. Määräpäivä on mennyt.`:`The "${e.title}" goal is marked stale. Its saved deadline has passed.`);
             const localizedPending=fi&&pendingLine&&pe&&pd?.draft?.target?`Tavoitteen "${pe.title}" ehdotettu summa ${pd.draft.target.amount} euroa ja määräpäivä ${pd.draft.target.date} eivät ole tallennettuja. Muutos vaatii kortin vahvistuksen.`:pendingLine;
-            finished=finish([...lines,...staleLines,localizedPending,note].join('\n\n'),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
+            const safeProse=prose&&!/[0-9]/u.test(prose)&&!problemWith(prose)?prose:'';
+            finished=finish([safeProse,...lines,...staleLines,localizedPending,note].filter(Boolean).join('\n\n').trim(),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
             results.push({call,result:{accepted:true}});continue;
           }catch(err:any){results.push({call,result:{accepted:false,error:String(err.message)+' Choose only current handles and compatible calculations.'}});continue;}
+        }
+        if(call.args.clarification){
+          const clarification=clarificationInput(call.args.clarification);
+          if(!clarification || ctx.cards.length || ctx.notes.length || pendingQuestion(userId,conversationId,fin.DEMO_TODAY)) {results.push({call,result:{accepted:false,error:'Use one valid specific question only when no existing card/question or completed change owns this turn. Otherwise explain the actual control or result without another intake.'}});continue;}
+          if(clarification.kind==='verification_failure'){results.push({call,result:{accepted:false,error:'Verification failure is not missing customer information. State the failure honestly and offer retry or an adviser, not customer intake.'}});continue;}
+          const text=clarification.question;
+          const p=problemWith(text);
+          if(p){if(ruleRetried)return offline('Unverified reply after correction: '+p);ruleRetried=true;results.push({call,result:{accepted:false,error:p}});continue;}
+          const allowedChoices=[...(userText.trim().length<=40?[userText.trim()]:[]),...selected.map(e=>e.title),...(exposure?.content()||[]).map(e=>e.title)];
+          const reply=finish(text,clarificationChoices(call.args.suggestions,allowedChoices),[],call.args.topic,true);
+          finished={...reply,clarification};results.push({call,result:{accepted:true}});continue;
         }
         const text = cleanReply(String(call.args.text || ''));
         const incomplete=unfinishedReplyProblem(text);

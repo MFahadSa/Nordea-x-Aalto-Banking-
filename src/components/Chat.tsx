@@ -597,7 +597,7 @@ export const Chat: React.FC<Props> = (p) => {
       });
     });
     richCards.forEach((x) => items.push({ who: 'bot', key: `${m.id}-c${x.ci}`, node: x.node, rich: true }));
-    if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">{m.errorInfo ? 'Quick answer from your account data · Nora’s AI is taking a short break' : 'Guided refund help · no AI answer used'}</span> });
+    if (m.answeredBy === 'bank_code') items.push({ who: 'bot', key: `${m.id}-bank`, node: <span className="bank-note">{m.errorInfo ? 'Answer not verified · recovery options' : m.refundCaseId ? 'Guided refund help · no AI answer used' : 'Checked by the app · no AI answer used'}</span> });
     if (m.errorInfo && debug) items.push({ who: 'bot', key: `${m.id}-err`, node: <span className="err-info">Technical detail: {m.errorInfo}</span> });
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
     // "Nora could see …" only under Nora's latest reply, so it isn't repeated down the whole chat.
@@ -648,6 +648,7 @@ export const Chat: React.FC<Props> = (p) => {
         )}
         {pills && (
           <div className={`qr pop${p.waiting ? ' busy' : ''}`}>
+            {last?.clarification && <button className="qr-b" onClick={() => boxRef.current?.focus({preventScroll:true})}>Type an answer</button>}
             {pills.map((s) => <button key={s} className="qr-b" onClick={() => send(s)}>{pillLabel(s)}</button>)}
           </div>
         )}

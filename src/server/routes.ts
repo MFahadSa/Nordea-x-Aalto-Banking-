@@ -260,6 +260,8 @@ export function registerV14Routes(app: Express) {
       exposedSources:reply.exposedSources,
       exposedContentKeys:reply.exposedContentKeys,
       savedContextPage:reply.savedContextPage,
+      clarification:reply.clarification,
+      retryRequest:reply.retryRequest,
       suppliedSharedRevision:reply.suppliedSharedRevision,
       supplied: { ...(reply.supplied || { notes: 0, accountData: true }), source: reply.offline ? 'scripted' : 'model', provider: reply.provider, category: classifyQuestion(u.text, shared.sharedContext ? [shared.sharedContext] : []), ...(shared.sharedContext ? { shared: true } : {}) },
       errorInfo: reply.errorDetail,
