@@ -247,3 +247,17 @@ for(const t of ["Don't save my income, I started at Aalto", "Don't save any of t
 }
 for(const t of ["Don't make this complicated, should we open an ASP account?", "Please don't keep it long, should we open an ASP account?"]){const r=await abelTurn('lauri',`style-runtime-${++n}`,'abel',t);assert.ok(r.cards.some(c=>c.data?.ruleId==='asp-account'),t);}
 console.log('PASS arbitrary-data no-save mutation and style-not-privacy runtime checks');
+
+// Round 5: all supplied runtime bypasses and adversarial mixed-scope proposals.
+const { scopedGoalOnRefusal } = await import('../src/server/advice/purpose.js');
+const refusedTurns=["Don't put this in my notes: I started a new job at Wolt", "Can you not save this? I started a new job at Wolt", "Don't keep my data. I started a new job at Wolt", "No saving please, I started a new job at Wolt", "Please don't hold on to this", "I'd prefer you not save this", "I'd like you to not save this", 'Do not keep track of this', 'Leave this out of your notes'];
+for(const t of refusedTurns){assert.ok(refusesStorage(t),t);planned=[{name:'proposeCabinetChange',args:{action:'add',type:'fact',title:'New job at Wolt',detail:'I work at Wolt',sensitive:false}},finish];setProvider({name:'privacy-adversary',isConfigured:()=>true,step:async()=>({calls:planned.length?planned.splice(0):[finish]})});const before=JSON.stringify([db.getCabinetEntries('alex'),db.getUser('alex')?.advice]);await abelTurn('alex',`r5-${++n}`,'abel',t);assert.equal(JSON.stringify([db.getCabinetEntries('alex'),db.getUser('alex')?.advice]),before,t);}
+const mixed="Don't remember my old address; please save a goal of 5,000 for an emergency fund by June";
+assert.ok(scopedGoalOnRefusal(mixed,'2026-11-23'));
+planned=[{name:'proposeCabinetChange',args:{action:'add',type:'fact',title:'Old address',detail:'Forbidden address',sensitive:false}},{name:'proposeCabinetChange',args:{action:'add',type:'goal',title:'Emergency plus old address',detail:'Forbidden address',targetAmount:5000,targetDate:'2030-01-01',goalType:'other',sensitive:false}},finish];
+setProvider({name:'mixed-adversary',isConfigured:()=>true,step:async()=>({calls:planned.length?planned.splice(0):[finish]})});
+const idsBefore=new Set(db.getCabinetEntries('alex').map(e=>e.id));await abelTurn('alex','r5-mixed','abel',mixed);const additions=db.getCabinetEntries('alex').filter(e=>!idsBefore.has(e.id));
+assert.equal(additions.length,1);assert.equal(additions[0].title,'Emergency fund');assert.ok(!JSON.stringify(additions).includes('Forbidden'));assert.equal(additions[0].target?.date,'2027-06-30');
+for(const t of ["Don't save anything. Please save a goal of 5000 for an emergency fund by June", "Don't save my emergency fund; please save a goal of 5000 for an emergency fund by June", "Don't save my address; please save a goal of 5000 by June"]){assert.equal(scopedGoalOnRefusal(t,'2026-11-23'),null,t);}
+for(const [t,id,want] of [["Don't show me listings, just my goal",'homes',true],['Movers? Not this time','movers',true],['No movers yet, but we do need some for Friday','movers',false],["I don't need cover for my bike, but I do want home insurance",'insure',false]] as const)assert.equal(declinesPartner(t,id),want,t);
+console.log('PASS round5 refusal runtime, scoped sanitized goal and partner edges');

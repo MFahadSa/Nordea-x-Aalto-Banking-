@@ -19,7 +19,7 @@ import { candidatesFor, remember, snapshot } from './advice/guard.js';
 import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { intentsOf } from './advice/intent.js';
 import { reviewedContext } from './advice/reviewedAnswer.js';
-import { refusesStorage } from './advice/purpose.js';
+import { refusesStorage, scopedGoalOnRefusal } from './advice/purpose.js';
 import { ruleCardFor, earlierRuleExplain } from './advice/chatCard.js';
 import { cardFor } from './advice/cards.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
@@ -567,7 +567,7 @@ function codeCard(ctx: TurnCtx): string {
 }
 
 function runTool(call: ToolCall, ctx: TurnCtx): unknown {
-  const a = call.args || {};
+  let a = call.args || {};
   const u = db.getUser(ctx.userId)!;
   switch (call.name) {
     case 'getAccounts':
@@ -590,8 +590,12 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
     case 'proposeCabinetChange': {
       if (ctx.changes >= 3) return { saved: false, error: 'At most 3 changes per reply.' };
       const action = String(a.action);
-      if (action !== 'archive' && refusesStorage(ctx.userText))
-        return { saved: false, error: 'The customer asked not to save. Nothing was saved.' };
+      if (action !== 'archive' && refusesStorage(ctx.userText)) {
+        const scoped = action === 'add' && a.type === 'goal' ? scopedGoalOnRefusal(ctx.userText, fin.DEMO_TODAY) : null;
+        if (!scoped || Number(a.targetAmount) !== scoped.targetAmount || (scoped.goalType !== 'other' && a.goalType !== scoped.goalType)) return { saved: false, error: 'Privacy restriction: this proposed change is not explicitly authorized. Nothing from this proposal was saved. Ask only if the scope needs clarification.' };
+        // Never persist model-authored details alongside the independently identified goal.
+        a = { action: 'add', type: 'goal', ...scoped, sensitive: false };
+      }
       if (action === 'add' && a.type === 'goal' && /[?]|\b(maybe|hypothetical|what if|thinking about)\b/i.test(ctx.userText)
         && !/\b(save|remember|create|add)\b[^.?!]{0,35}\b(goal|plan|this|it)\b/i.test(ctx.userText))
         return { saved: false, error: 'This is an exploratory question, not consent to create a goal. Ask before saving.' };
