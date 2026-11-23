@@ -160,7 +160,7 @@ export const HomePage: React.FC<Props> = (p) => {
     <>
       <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onMore={p.onOpenMore} onBell={bell} />
       <div className="nbody">
-        {(state.notices || []).map((n) => (
+        {(state.notices || []).filter(n => n.kind !== 'decision').map((n) => (
           <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
             <span className="nt-ic" aria-hidden="true"><Icon name={n.kind === 'question' ? 'chat' : 'check'} /></span>
             <span className="nt-t"><b>{n.kind === 'question' ? `${n.by} from Nordea asked you` : 'Nordea decided on your application'}</b><span>{n.text}</span></span>
@@ -169,6 +169,13 @@ export const HomePage: React.FC<Props> = (p) => {
         ))}
         {/* The existing Nordea app: shown so Nora sits in a familiar place. Tapping says so. */}
         <QuickActions onFrame={p.onFrame} />
+        {(state.notices || []).filter(n => n.kind === 'decision').map((n) => (
+          <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
+            <span className="nt-ic" aria-hidden="true"><Icon name={n.kind === 'question' ? 'chat' : 'check'} /></span>
+            <span className="nt-t"><b>{n.kind === 'question' ? `${n.by} from Nordea asked you` : 'Nordea decided on your application'}</b><span>{n.text}</span></span>
+            <span className="nt-go">{n.kind === 'question' ? 'Answer' : 'Open'}</span>
+          </button>
+        ))}
         <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         <div className="ncard">
           <button className="nrow2 head" onClick={() => p.onFrame('Payments')}>
