@@ -39,6 +39,10 @@ export const ICONS: Record<string, string> = {
  "gift": "<rect x=\"4\" y=\"9\" width=\"16\" height=\"11\" rx=\"1.5\"/><path d=\"M4 13h16M12 9v11M12 9c-2-4-6-3.5-6-1.5S10 9 12 9zm0 0c2-4 6-3.5 6-1.5S14 9 12 9z\"/>",
  "trash": "<path d=\"M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5\"/><path d=\"M10 11v5M14 11v5\"/>",
  "clock": "<circle cx=\"12\" cy=\"12\" r=\"8\"/><path d=\"M12 7.5V12l3 2\"/>",
+ "pin": "<path d=\"M9 3.5h6l-1 6 3.5 3.5h-11L10 9.5z\"/><path d=\"M12 13v7.5\"/>",
+ "x": "<path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\"/>",
+ "info": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 11v5.5M12 7.8v.4\"/>",
+ "undo": "<path d=\"M9 7L4.5 11.5 9 16\"/><path d=\"M5 11.5h9a5 5 0 0 1 0 10h-2\"/>",
  "help": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M9.5 9.2a2.6 2.6 0 0 1 5.1.7c0 1.7-2.6 2.1-2.6 3.6\"/><path d=\"M12 16.8h.01\"/>",
  "grid": "<rect x=\"4\" y=\"4\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"13\" y=\"4\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"4\" y=\"13\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"13\" y=\"13\" width=\"7\" height=\"7\" rx=\"1.5\"/>",
  "paytab": "<path d=\"M4 8h13M14 4.5L17.5 8 14 11.5\"/><path d=\"M20 16H7M10 12.5L6.5 16l3.5 3.5\"/>"

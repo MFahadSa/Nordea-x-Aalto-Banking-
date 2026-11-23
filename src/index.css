@@ -923,3 +923,92 @@ span.cam-x{background:none}
 .rf-abel>b{font-size:17px}
 .rf-abel>span:not(.rf-tag){color:var(--ink-2);font-size:14.5px}
 .rf-tag{font-size:13px;font-weight:700;color:#b26a00}.rf-tag.green{color:#1c7a5a}
+
+/* ===== About you, onboarding, Get more from Nora, Offers for you ===== */
+.chip{display:inline-flex;align-items:center;gap:5px}
+.chip.sug{background:var(--sel);border-color:var(--brand-soft);color:var(--brand-soft);border-style:dashed}
+.ab-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.ab-from{align-self:flex-start;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;margin-top:6px}
+.ab-from.you{background:var(--you-bg);color:var(--you)}.ab-from.bank{background:var(--bank-bg);color:var(--bank)}
+.ab-card{padding:16px;display:flex;flex-direction:column;gap:12px}
+.ab-card .about-p{font-size:15.5px;line-height:1.55;color:var(--ink);margin:0}
+.ab-start{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1.5px solid var(--brand-soft);background:var(--sel);border-radius:12px;padding:12px;cursor:pointer;font:inherit;color:var(--ink)}
+.ab-start-ic{flex:none;width:36px;height:36px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center}
+.ab-start-ic svg{width:18px;height:18px}
+.ab-start-t{flex:1;display:flex;flex-direction:column;gap:1px}.ab-start-t b{font-size:15px}.ab-start-t span{font-size:13px;color:var(--muted)}
+.ab-parts{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.ab-part{padding:12px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.ab-part h3{font-size:15px;font-weight:700;margin:0}
+.ab-field{display:flex;flex-direction:column;gap:2px}
+.ab-flabel{font-size:12.5px;color:var(--muted);font-weight:600}
+.ab-v{font-size:14.5px;color:var(--ink)}.ab-v.muted{color:var(--muted)}
+.ab-sug-from{font-size:13px;color:var(--ink-2)}
+.ab-confirm{align-self:flex-start;margin-top:6px}
+.ab-text{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);color:var(--ink);font:inherit;font-size:14.5px;resize:vertical}
+.ab-text.one{resize:none}
+.ab-text:focus{outline:none;border-color:var(--brand-soft);background:var(--surface)}
+.ab-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+/* Onboarding: full screen inside the phone */
+.ob{position:absolute;left:0;right:0;bottom:0;top:var(--sb-h,38px);z-index:26;background:var(--surface);display:flex;flex-direction:column;animation:v14up .2s ease}
+.ob-top{flex:none;display:grid;grid-template-columns:40px 1fr 40px;align-items:center;padding:8px 10px}
+.ob-back,.ob-x{width:40px;height:40px;border:0;background:none;color:var(--ink-2);display:grid;place-items:center;cursor:pointer;border-radius:50%}
+.ob-back:hover,.ob-x:hover{background:var(--surface-2)}
+.ob-dots{display:flex;justify-content:center;gap:6px}
+.ob-dots i{width:26px;height:5px;border-radius:99px;background:var(--surface-2)}.ob-dots i.on{background:var(--brand-soft)}
+.ob-body{flex:1;overflow-y:auto;padding:8px 20px 16px;display:flex;flex-direction:column;gap:10px}
+.ob-body h1{font-size:24px;font-weight:700;line-height:1.2;margin:0}
+.ob-body h2{font-size:21px;font-weight:700;line-height:1.25;margin:4px 0 0}
+.ob-value{display:flex;gap:6px;align-items:flex-start;font-size:14px;color:var(--you);font-weight:600;margin:0 0 6px}
+.ob-value svg{flex:none;margin-top:2px}
+.ob-intro,.ob-sum{display:flex;flex-direction:column;gap:12px;padding-top:12px}
+.ob-intro p,.ob-sum p{color:var(--ink-2);margin:0;font-size:15.5px}
+.ob-art{width:60px;height:60px;border-radius:18px;background:var(--brand);color:#fff;display:grid;place-items:center}
+.ob-art svg{width:28px;height:28px}.ob-art.ok{background:var(--ok)}
+.ob-gets{list-style:none;margin:4px 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.ob-gets li{display:flex;gap:10px;align-items:center;font-size:15px}.ob-gets svg{color:var(--ok);flex:none}
+.ob-small{font-size:13px!important;color:var(--muted)!important}
+.ob-conf{display:flex;flex-direction:column;gap:2px;padding:12px 0;border-top:1px solid var(--line)}
+.ob-conf-l{font-size:12.5px;font-weight:600;color:var(--muted)}
+.ob-conf b{font-size:15.5px}
+.ob-sum-l{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.ob-sum-l li{display:flex;flex-direction:column;gap:1px;padding:9px 0;border-top:1px solid var(--line)}
+.ob-sum-l li span{font-size:12.5px;color:var(--muted)}.ob-sum-l li b{font-size:15px;font-weight:600}
+.ob-err{color:var(--danger);font-size:14px}
+.ob-foot{flex:none;padding:12px 20px 18px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
+.ob-nav{display:flex;justify-content:space-between;gap:10px}.ob-nav .btn{min-width:110px}
+.ob-foot .btn.block{display:flex;gap:8px}
+/* Get more from Nora */
+.getmore{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.gm-head{display:flex;align-items:center;gap:12px}
+.gm-ic{flex:none;width:38px;height:38px;border-radius:12px;background:var(--sel);color:var(--brand-soft);display:grid;place-items:center}
+.gm-ic svg{width:20px;height:20px}
+.gm-t{flex:1;display:flex;flex-direction:column}.gm-t h2{font-size:16px;font-weight:700;margin:0}.gm-t span{font-size:13px;color:var(--muted)}
+.gm-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.gm-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 0;border:0;background:none;text-align:left;font:inherit;font-size:14.5px;color:var(--ink);cursor:pointer}
+button.gm-item{color:var(--brand-soft);font-weight:600}
+button.gm-item svg{margin-left:auto;color:var(--muted)}
+.gm-item.done{color:var(--ink-2);cursor:default}
+.gm-tick{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ok-bg);color:var(--ok)}
+.gm-tick.todo{background:none;border:2px solid var(--line)}
+/* Offers for you */
+.offer-card{gap:8px}
+.ofc-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.ofc-h h3{font-size:16.5px}
+.ofc-why{flex:none;width:32px;height:32px;border:0;background:none;color:var(--muted);border-radius:50%;display:grid;place-items:center;cursor:pointer;margin:-4px -6px 0 0}
+.ofc-why:hover,.ofc-why[aria-expanded="true"]{background:var(--surface-2);color:var(--brand-soft)}
+.ofc-reason{display:flex;gap:6px;align-items:flex-start;font-size:14px;font-weight:600;color:var(--you)!important;margin:0}
+.ofc-reason svg{flex:none;margin-top:3px}
+.ofc-line{font-size:14.5px;margin:0}
+.ofc-pinned{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:var(--brand-soft)!important;margin:0}
+.ofc-whybox{background:var(--surface-2);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.ofc-whybox ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ofc-whybox li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ofc-src{color:var(--muted);font-size:12.5px}
+.ofc-whybox p{margin:0;color:var(--ink-2)!important}
+.ofc-note{font-size:12.5px!important;color:var(--muted)!important}
+.ofc-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
+.of-ic{display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;padding:6px 2px;border-radius:10px;cursor:pointer;font:inherit;font-size:11.5px;font-weight:600;color:var(--ink-2)}
+.of-ic:hover{background:var(--surface-2)}
+.of-ic.on{color:var(--brand-soft)}
+.of-ic span{line-height:1.2;text-align:center}
+.ofc-hidden p{margin:0;font-size:14px}

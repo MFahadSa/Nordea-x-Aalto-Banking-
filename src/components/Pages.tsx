@@ -19,6 +19,8 @@ const DRAWERS: { name: string; has: (e: CabinetEntry) => boolean; icon: string }
 
 interface KnowsProps {
   state: AppState;
+  /** About you, shown first (src/components/AboutYou.tsx). */
+  aboutTop?: React.ReactNode;
   onAddGoal: () => void;
   onTellNora: () => void;
   onImport: () => void;
@@ -239,7 +241,8 @@ const DocsSection: React.FC<{ userId: string; docs: DocInfo[]; onDelete: (id: st
 );
 
 export const KnowsPage: React.FC<KnowsProps> = (p) => {
-  const { state } = p;
+  // About you shows its own notes (aboutPart), so the lists below don't repeat them.
+  const state = { ...p.state, entries: p.state.entries.filter((e) => !e.aboutPart) };
   const [menu, setMenu] = useState<string | null>(null);
   const [why, setWhy] = useState<string | null>(null);
   const [goalOpen, setGoalOpen] = useState<string | null>(null);
@@ -290,6 +293,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         ]} />
       </header>
       <div className="nbody">
+        {p.aboutTop}
         {waiting.length > 0 && (
           <>
             <Band left="Waiting for you" right={<span className="band-note">Notes here aren’t used until you confirm</span>} />

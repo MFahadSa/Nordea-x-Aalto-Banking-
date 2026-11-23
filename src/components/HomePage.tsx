@@ -26,6 +26,11 @@ interface Props {
   onAdviceAnswer?: (value: string) => void;
   onAdviceShow?: () => void;
   onAdviceNotNow?: () => void;
+  /** Get more from Nora (setup checklist) and Offers for you. */
+  getMore?: React.ReactNode;
+  offers?: React.ReactNode;
+  /** The customer mainly uses Nordea for saving or investing: show that first. */
+  savingsFirst?: boolean;
 }
 
 /** Things Nordea noticed that wait for the customer, and old goals that look out of date. */
@@ -153,6 +158,19 @@ export const HomePage: React.FC<Props> = (p) => {
       </div>
     );
 
+  const saveCard = (
+    <div className="ncard">
+      <button className="nrow2 head" onClick={() => p.onOpenPage('invest')}>
+        <span className="n-l">
+          <span className="n-name b">Save and invest</span>
+          <span className="n-sub">
+            {mainGoal ? `${mainGoal.title}: ${eur(mainGoal.saved)} of ${eur(mainGoal.target)} · ${goals.length} ${goals.length === 1 ? 'goal' : 'goals'}` : 'Create or view a savings goal'}
+          </span>
+        </span>
+        <NChev />
+      </button>
+    </div>
+  );
   const convs = state.conversations;
   const [histAll, setHistAll] = useState(false);
 
@@ -170,6 +188,8 @@ export const HomePage: React.FC<Props> = (p) => {
         {/* The existing Nordea app: shown so Nora sits in a familiar place. Tapping says so. */}
         <QuickActions onFrame={p.onFrame} />
         <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
+        {p.getMore}
+        {p.savingsFirst && saveCard}
         <div className="ncard">
           <button className="nrow2 head" onClick={() => p.onFrame('Payments')}>
             <span className="n-l">
@@ -198,17 +218,8 @@ export const HomePage: React.FC<Props> = (p) => {
             </button>
           </div>
         </div>
-        <div className="ncard">
-          <button className="nrow2 head" onClick={() => p.onOpenPage('invest')}>
-            <span className="n-l">
-              <span className="n-name b">Save and invest</span>
-              <span className="n-sub">
-                {mainGoal ? `${mainGoal.title}: ${eur(mainGoal.saved)} of ${eur(mainGoal.target)} · ${goals.length} ${goals.length === 1 ? 'goal' : 'goals'}` : 'Create or view a savings goal'}
-              </span>
-            </span>
-            <NChev />
-          </button>
-        </div>
+        {!p.savingsFirst && saveCard}
+        {p.offers}
 
         {/* v30: one place for everything from Nora (what Nordea noticed, old goals, and the one question or
             suggestion). Home shows the first; the rest are one tap away. */}

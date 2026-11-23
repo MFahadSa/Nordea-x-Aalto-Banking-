@@ -202,6 +202,8 @@ const cmToEntry = (userId: string, e: ArchEntry): CabinetEntry => {
     ...(doc?.confirmedAt ? { confirmedAt: doc.confirmedAt } : {}),
     // v25: a customer's answer to an Nora fact question (the recommender's rules read these).
     ...(doc?.factKey ? { factKey: doc.factKey, factValue: doc.factValue } : {}),
+    // About you: which field this note fills, and the tapped answers (src/server/aboutYou.ts).
+    ...(doc?.aboutPart ? { aboutPart: doc.aboutPart, aboutValues: doc.aboutValues } : {}),
     createdAt: e.createdAt,
     updatedAt: doc?.updatedAt ?? e.createdAt,
   };
