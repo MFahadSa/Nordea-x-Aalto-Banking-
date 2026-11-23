@@ -31,12 +31,10 @@
     "rate": 40,
     "max": 2100,
     "ownShare": 150,
-    "figure3": "2026",
-    "figure4": "2027,",
-    "figure5": "2026",
-    "figure6": "2027,"
+    "firstYear": 2026,
+    "lastYear": 2027
   },
-  "message": "In {figure3} and {figure4} qualifying company labour costs including VAT can give a {rate} % credit against tax, less a {ownShare} € annual own liability, up to {max} € per person per year. Not materials or travel, and not a guaranteed refund.",
+  "message": "In {firstYear} and {lastYear}, qualifying company labour including VAT can give a {rate} % credit against tax, less a {ownShare} € annual own liability, up to {max} € per person per year. Not materials, travel or a guaranteed refund.",
   "earns": "Nordea earns nothing from this.",
   "tests": [
     {
@@ -72,5 +70,5 @@
     }
   ],
   "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
-  "explain": "In {figure5} and {figure6} qualifying company labour costs including VAT can give a {rate} % credit against tax, less a {ownShare} € annual own liability, up to {max} € per person per year. Not materials or travel, and not a guaranteed refund. The company must be in the prepayment register and the work must qualify. The employee route and oil-heating replacement have different rules. The credit reduces tax, not taxable income, and is limited by available tax. Keep an itemised invoice."
+  "explain": "In {firstYear} and {lastYear}, qualifying company labour including VAT can give a {rate} % credit against tax, less a {ownShare} € annual own liability, up to {max} € per person per year. The work must qualify and the company must be in the prepayment register. Materials and travel do not qualify. The employee and oil-heating replacement routes differ. The credit reduces tax, not taxable income, and is limited by tax available. Never assume all invoice costs qualify."
 }

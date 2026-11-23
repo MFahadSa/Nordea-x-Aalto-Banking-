@@ -8,6 +8,7 @@
  *
  * The AI is only told which card the app shows, so its words can introduce it in one sentence.
  */
+import { purposeOf, declinesPartner } from './purpose.js';
 import type { FactKey } from './facts.js';
 
 export interface Intent {
@@ -23,10 +24,11 @@ export interface Intent {
 const HOME = String.raw`(flats?|apartments?|homes?|houses?|places?|asunto\w*)`;
 const T: { id: string; re: RegExp; partner?: string; rule?: string; implies?: Intent['implies'] }[] = [
   // Partners first only where the words are about that partner's job right now.
-  { id: 'home-search', partner: 'homes', re: new RegExp(String.raw`\b(viewings?|showings?|open house|listings?|for sale|asuntonäyt\w*|kotiväli)\b|\b(look(ing)?|search(ing)?|hunt(ing)?|browse|browsing|find(ing)?|see|show)\b[^.?!]{0,25}\b(at |for |a |new )?${HOME}\b`, 'i') },
+  { id: 'home-search', partner: 'homes', re: new RegExp(String.raw`\b(viewings?|showings?|open house|listings?|for sale|asuntonäyt\w*|kotiväli)\b|\b(look(ing)?|search(ing)?|hunt(ing)?|browse|browsing|find(ing)?)\b[^.?!]{0,25}\b(at |for |a |new )?${HOME}\b`, 'i') },
+  { id: 'home-browse', partner: 'homes', re: /\b(?:show|see)\s+(?:me\s+)?(?:some\s+|example\s+)?(?:homes|flats|houses|apartments|listings)\b/i },
   { id: 'energy', partner: 'energy', re: /\b(electricity|electric bill|power bill|energy bill|energy contract|sähkö\w*|ev charging|charging (the |my |our )?(new )?(ev|electric car|car))\b|\bcharg\w+\b[^.?!]{0,30}\b(ev|electric car)\b/i },
   { id: 'insurance', partner: 'insure', re: /\b(home|contents|flat|house|apartment)\s+insurance\b|\binsur\w+\b[^.?!]{0,25}\b(home|flat|apartment|house|contents)\b|\bkotivakuutu\w*/i },
-  { id: 'moving', partner: 'movers', re: /\b(movers?|moving (house|home|out|in|to|our|my)|moving van|removal (firm|company|van)|packing (up|boxes|help)|we move|I move|pack(ed|ing)?)\b|\bmuutto\w*/i },
+  { id: 'moving', partner: 'movers', re: /\b(movers?|moving (house|home|out|in|to|our|my)|moving van|removal (firm|company|van)|packing help|moving compan(?:y|ies)|removal (?:service|help))\b|\bmuutto\w*/i },
   // Rules: products, tax rules and state benefits.
   { id: 'studies', rule: 'kela-loan-writeoff', implies: { isHigherEducationStudent: true }, re: /\b(started|starting|start|begin|began|accepted|got (in|into|a place)|enrolled|studying|study|student)\b[^.?!]{0,40}\b(aalto|university|uni|uas|amk|ammattikorkea\w*|yliopist\w*|college|degree|bachelor|master'?s)\b|\b(aalto|helsinki|tampere|turku|oulu) (uni|university)\b|\bi'?m (a )?(university |uni )?student\b/i },
   { id: 'student-loan', rule: 'kela-loan-writeoff', re: /\b(student loan|opintolaina\w*|kela)\b/i },
@@ -44,5 +46,7 @@ const T: { id: string; re: RegExp; partner?: string; rule?: string; implies?: In
 export function intentsOf(text: string): Intent[] {
   const t = String(text || '');
   // A question about progress is not a request for offers ("am I on track for the flat?").
-  return T.filter((x) => x.re.test(t)).map(({ id, partner, rule, implies }) => ({ id, ...(partner ? { partner } : {}), ...(rule ? { rule } : {}), ...(implies ? { implies } : {}) }));
+  const purpose = purposeOf(t);
+  if (purpose === 'banking' || purpose === 'plan') return [];
+  return T.filter((x) => x.re.test(t) && (!x.partner || !declinesPartner(t, x.partner))).map(({ id, partner, rule, implies }) => ({ id, ...(partner ? { partner } : {}), ...(rule ? { rule } : {}), ...(implies ? { implies } : {}) }));
 }

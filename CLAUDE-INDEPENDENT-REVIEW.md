@@ -1,3 +1,7 @@
+# Superseded for the routing follow-up
+
+PR60 was merged. Read `CLAUDE-FOLLOWUP-REVIEW.md` on this branch first. The text below is the historical PR60 handoff, not the current acceptance report. Its deterministic-response design is replaced by the follow-up.
+
 # Independent Claude review: Nora customer-path corrections
 
 ## Owner's requested workflow
