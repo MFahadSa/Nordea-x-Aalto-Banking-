@@ -71,64 +71,142 @@ export const GetMoreCard: React.FC<{ view: AboutView | null; onAdd: () => void }
 
 // ---------------- About you (top of What Nora knows) ----------------
 type Ask = { kind: 'check'; key: FieldKey; label: string; text: string } | { kind: 'question'; key: FieldKey; title: string; value: string };
+const EDITABLE: FieldKey[] = ['work', 'home', 'money', 'plans', 'interests', 'risk', 'mainUse'];
 
-/** One question at a time, inside the card. Nothing pops up: a tap answers it and the next one appears.
- *  Nordea's data comes first ("Is this right?"): Yes / Not right (type what's right) / Skip for now.
- *  Answered questions never come back; skipped ones come back next time. */
+/** One question at a time, inside the card. Pick, then Save (every question has a Save button).
+ *  Nordea's data comes first ("Is this right?"): Yes / Not right (type what's right) / Skip.
+ *  Answered questions never come back; skipped ones can be answered later. Edit changes any answer.
+ *  The question area keeps the same height, so the page doesn't jump between questions. */
 export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSeeNora: () => void; onSaved: (v: AboutView) => void; onRewards: () => void }> = ({ userId, view, onSeeNora, onSaved, onRewards }) => {
   const [skipped, setSkipped] = useState<FieldKey[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [earned, setEarned] = useState(0);
-  const [fixing, setFixing] = useState<string | null>(null);
-  const [picks, setPicks] = useState<string[]>([]);
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [fixing, setFixing] = useState(false);
+  const [text, setText] = useState('');
+  const [picks, setPicks] = useState<string[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editKey, setEditKey] = useState<FieldKey | null>(null);
+  // Answered in this visit: keeps "Question 3 of 7" counting up while answered questions drop out.
+  const [answered, setAnswered] = useState(0);
   if (!view) return null;
+  const QS = Object.fromEntries(QUESTIONS.map((q) => [q.field, q]));
+  const askFor = (k: FieldKey): Ask => {
+    const b = view.bank.find((l) => l.key === k);
+    return QS[k] ? { kind: 'question', key: k, title: QS[k].title, value: QS[k].value } : { kind: 'check', key: k, label: FIELDS[k].label, text: b?.text || view.fields[k].text };
+  };
   const asks: Ask[] = [
-    ...view.bank.filter((l) => view.fields[l.key].source === 'none').map((l) => ({ kind: 'check' as const, key: l.key, label: l.label, text: l.text })),
-    ...QUESTIONS.filter((q) => view.fields[q.field].source === 'none').map((q) => ({ kind: 'question' as const, key: q.field, title: q.title, value: q.value })),
+    ...view.bank.filter((l) => view.fields[l.key].source === 'none').map((l) => askFor(l.key)),
+    ...QUESTIONS.filter((q) => view.fields[q.field].source === 'none').map((q) => askFor(q.field)),
   ];
   const open = asks.filter((a) => !skipped.includes(a.key));
-  const cur = open[0];
-  const total = asks.length + (view.incentive.remaining === 0 ? 0 : 0);
-  const pos = asks.length - open.length + 1;
+  const cur: Ask | undefined = editKey ? askFor(editKey) : open[0];
   const f = cur ? FIELDS[cur.key] : null;
-  const initial = cur && cur.kind === 'question' ? view.fields[cur.key].suggestion?.values || [] : [];
-  const sel = picks.length || chosen ? picks : initial;
+  const current = cur ? (view.fields[cur.key].values.length ? view.fields[cur.key].values : view.fields[cur.key].suggestion?.values || []) : [];
+  const sel = picks ?? current;
+  const pos = answered + skipped.length + 1;
+  const total = answered + asks.length;
+  const reset = () => { setFixing(false); setText(''); setPicks(null); setErr(null); };
 
   const save = async (answers: Parameters<typeof saveAbout>[1], confirm: FieldKey[] = []) => {
     setBusy(true); setErr(null);
     try {
       const r = await saveAbout(userId, answers, confirm);
-      setEarned((n) => n + r.points); setFixing(null); setPicks([]); setChosen(null);
+      setEarned((n) => n + r.points); reset();
+      if (!editKey) setAnswered((n) => n + 1);
+      if (editKey) setEditKey(null);
       onSaved(r);
     } catch (e: any) { setErr(e?.message || 'That didn’t work. Try again.'); } finally { setBusy(false); }
   };
-  const skip = () => { if (cur) { setSkipped([...skipped, cur.key]); setFixing(null); setPicks([]); setChosen(null); } };
-  const tapOne = (o: string) => {
-    if (!cur || busy) return;
-    setChosen(o); setPicks([o]);
-    window.setTimeout(() => save({ [cur.key]: { values: [o] } }), 280); // a beat to show the tick, then the next question
-  };
-  const toggle = (o: string) => { setChosen('multi'); setPicks(sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]); };
+  const skip = () => { if (cur) { if (editKey) setEditKey(null); else setSkipped([...skipped, cur.key]); reset(); } };
+  const tap = (o: string) => { if (!f) return; setPicks(f.multi ? (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]) : [o]); };
   const mine = (Object.keys(view.fields) as FieldKey[]).filter((k) => k !== 'basics' && view.fields[k].source !== 'none').length;
+  const fresh = cur && !editKey && view.fields[cur.key].source === 'none';
+
+  // The question (or the correction), with its buttons. Same box for answering and for editing.
+  const question = cur && f && (
+    <div className="ab-q" key={`${cur.key}-${editKey ? 'edit' : 'ask'}`}>
+      <span className="ab-q-l">{editKey ? `Change: ${FIELDS[cur.key].label}` : `Question ${pos} of ${total}`}{earned > 0 && !editKey && <span className="ob-pts">+{earned} points</span>}</span>
+      {cur.kind === 'check' ? (
+        <>
+          <b className="ab-q-t">{editKey ? 'What should Nora know?' : 'Is this right?'}</b>
+          <span className="ab-q-fact">{cur.text}</span>
+          <span className="ab-q-from"><span className={`ab-dot ${view.fields[cur.key].source === 'you' ? 'you' : 'bank'}`} />{view.fields[cur.key].source === 'you' ? 'You told us' : 'From your Nordea data'}</span>
+          {fixing || editKey ? (
+            <>
+              <label className="sr" htmlFor="ab-fix">What’s right?</label>
+              <input id="ab-fix" className="ab-text one" autoFocus placeholder="What’s right? E.g. “Works part-time”" value={text} onChange={(e) => setText(e.target.value)} />
+              <div className="ab-q-btns">
+                <button className="btn small primary" disabled={busy || !text.trim()} onClick={() => save({ [cur.key]: { values: [], text } })}>Save{fresh ? ' · +5' : ''}</button>
+                <button className="btn small quiet" onClick={skip}>{editKey ? 'Cancel' : 'Skip for now'}</button>
+              </div>
+            </>
+          ) : (
+            <div className="ab-q-btns">
+              <button className="btn small primary" disabled={busy} onClick={() => save({}, [cur.key])}><Icon name="check" size={15} strokeWidth={2.6} />Yes, that’s right · +5</button>
+              <button className="btn small" disabled={busy} onClick={() => setFixing(true)}>Not right</button>
+              <button className="btn small quiet" disabled={busy} onClick={skip}>Skip</button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <b className="ab-q-t">{cur.title}</b>
+          <span className="ab-q-v"><Icon name="spark" size={14} />{cur.value}</span>
+          <div className="ab-chips" role="group" aria-label={cur.title}>
+            {f.options.map((o) => {
+              const on = sel.includes(o);
+              return (
+                <button key={o} className={`chip${on ? ' on' : ''}`} aria-pressed={on} disabled={busy} onClick={() => tap(o)}>
+                  {on && <Icon name="check" size={14} strokeWidth={2.6} />}{o}
+                </button>
+              );
+            })}
+          </div>
+          <span className="ab-q-hint">{f.multi ? 'Pick as many as you like, then Save.' : 'Pick one, then Save.'}</span>
+          <div className="ab-q-btns">
+            <button className="btn small primary" disabled={busy || !sel.length} onClick={() => save({ [cur.key]: { values: sel } })}>{busy ? 'Saving…' : `Save${fresh ? ' · +5' : ''}`}</button>
+            <button className="btn small quiet" disabled={busy} onClick={skip}>{editKey ? 'Cancel' : 'Skip'}</button>
+          </div>
+        </>
+      )}
+      {err && <p className="ob-err">{err}</p>}
+    </div>
+  );
 
   return (
     <>
-      <Band left="About you" />
+      <Band left="About you" right={<button className="btn link band-act" aria-expanded={editing} onClick={() => { setEditing(!editing); setEditKey(null); reset(); }}><Icon name="sliders" size={15} />{editing ? 'Done' : 'Edit'}</button>} />
       <div className="ncard ab-card">
         <p className="about-p">{view.paragraph}</p>
         <p className="ab-srcline">
           <span className="ab-dot bank" />From your Nordea data
           {mine > 0 && <><span className="ab-dot you" />{mine} {mine === 1 ? 'answer' : 'answers'} from you</>}
         </p>
-        <button className="btn block ab-try" onClick={onSeeNora}><Icon name="spark" size={18} />See how Nora can help you</button>
 
-        {cur && f ? (
-          <div className="ab-value">
-            {pos === 1 && !earned ? (
-              <>
-                <b className="ab-value-h">Answer {open.length} quick {open.length === 1 ? 'question' : 'questions'} and get:</b>
+        {editing ? (
+          // Edit: every answer in one list; Change opens it in the same box.
+          editKey ? question : (
+            <div className="ab-edit">
+              {EDITABLE.map((k) => {
+                const fv = view.fields[k];
+                const shownText = fv.text || view.bank.find((l) => l.key === k)?.text || '';
+                return (
+                  <div className="ab-edit-row" key={k}>
+                    <span className="ab-edit-t"><span>{FIELDS[k].label}</span><b>{shownText || 'Not set yet'}</b></span>
+                    <button className="btn small" onClick={() => { reset(); setEditKey(k); }}>{shownText ? 'Change' : 'Add'}</button>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <>
+            <button className="btn block ab-try" onClick={onSeeNora}><Icon name="spark" size={18} />See how Nora can help you</button>
+            {cur && f ? (
+              <div className="ab-value">
+                {/* The reason stays the same while answering, so the box doesn't change size. */}
+                <b className="ab-value-h">{open.length} quick {open.length === 1 ? 'question' : 'questions'} left. Answer them and get:</b>
                 <div className="ab-gain">
                   <span className="ab-gain-ic pts" aria-hidden="true"><Icon name="star" /></span>
                   <span><b>+{view.incentive.points} points</b>{view.incentive.rewardLine && <> · {view.incentive.rewardLine}</>}</span>
@@ -137,69 +215,22 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
                   <span className="ab-gain-ic adv" aria-hidden="true"><Icon name="spark" /></span>
                   <span><b>Advice made for you</b>, like:<ul>{view.incentive.teasers.map((t) => <li key={t}>{t}</li>)}</ul></span>
                 </div>
-              </>
+                {question}
+              </div>
             ) : (
-              <div className="ab-qhead"><span>Question {pos} of {total}</span>{earned > 0 && <span className="ob-pts">+{earned} points</span>}</div>
+              <div className="ab-reward">
+                <span className="ab-gain-ic pts" aria-hidden="true"><Icon name="star" /></span>
+                <span className="ab-reward-t">
+                  <b>{earned > 0 ? `Thanks! +${earned} points` : 'Nora has what she needs'}</b>
+                  <span>You have {view.incentive.have} points.{skipped.length > 0 && ` ${skipped.length} skipped for now.`}</span>
+                </span>
+                <span className="ab-reward-b">
+                  <button className="btn small primary" onClick={onRewards}>See your rewards</button>
+                  {skipped.length > 0 && <button className="btn small" onClick={() => setSkipped([])}>Answer the rest</button>}
+                </span>
+              </div>
             )}
-
-            <div className="ab-q" key={cur.key}>
-              {cur.kind === 'check' ? (
-                <>
-                  <span className="ab-q-l">Is this right? · {cur.label}</span>
-                  <b className="ab-q-t">{cur.text}</b>
-                  <span className="ab-q-from"><span className="ab-dot bank" />From your Nordea data</span>
-                  {fixing === cur.key ? (
-                    <>
-                      <label className="sr" htmlFor="ab-fix">What’s right?</label>
-                      <input id="ab-fix" className="ab-text one" autoFocus placeholder="What’s right? E.g. “Works part-time”" onChange={(e) => setPicks([e.target.value])} />
-                      <div className="ab-q-btns">
-                        <button className="btn small primary" disabled={busy || !(picks[0] || '').trim()} onClick={() => save({ [cur.key]: { values: [], text: picks[0] } })}>Save · +5</button>
-                        <button className="btn small quiet" onClick={skip}>Skip for now</button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="ab-q-btns">
-                      <button className="btn small primary" disabled={busy} onClick={() => save({}, [cur.key])}><Icon name="check" size={15} strokeWidth={2.6} />Yes, that’s right · +5</button>
-                      <button className="btn small" disabled={busy} onClick={() => { setFixing(cur.key); setPicks([]); }}>Not right</button>
-                      <button className="btn small quiet" disabled={busy} onClick={skip}>Skip</button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <b className="ab-q-t">{cur.title}</b>
-                  <span className="ab-q-v"><Icon name="spark" size={14} />{cur.value}</span>
-                  <div className="ab-chips" role="group" aria-label={cur.title}>
-                    {f.options.map((o) => {
-                      const on = sel.includes(o);
-                      return (
-                        <button key={o} className={`chip${on ? ' on' : ''}`} aria-pressed={on} disabled={busy}
-                          onClick={() => (f.multi ? toggle(o) : tapOne(o))}>
-                          {on && <Icon name="check" size={14} strokeWidth={2.6} />}{o}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="ab-q-btns">
-                    {f.multi && <button className="btn small primary" disabled={busy || !sel.length} onClick={() => save({ [cur.key]: { values: sel } })}>Save · +5</button>}
-                    <button className="btn small quiet" disabled={busy} onClick={skip}>Skip</button>
-                    {f.multi && <span className="ab-q-hint">Pick as many as you like</span>}
-                  </div>
-                </>
-              )}
-            </div>
-            {err && <p className="ob-err">{err}</p>}
-          </div>
-        ) : asks.length && skipped.length ? (
-          <p className="ab-done">
-            {earned > 0 && <b>+{earned} points. </b>}{skipped.length} skipped for now.
-            <button className="btn link" onClick={() => setSkipped([])}>Answer them now</button>
-          </p>
-        ) : (
-          <p className="ab-done">
-            <Icon name="check" size={16} strokeWidth={2.6} />
-            {earned > 0 ? <>Thanks! +{earned} points. <button className="btn link" onClick={onRewards}>See Rewards</button></> : 'Nora has what she needs.'}
-          </p>
+          </>
         )}
       </div>
     </>

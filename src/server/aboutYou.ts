@@ -34,7 +34,7 @@ const OPENING: Record<string, { city?: string; since?: number; occupation?: stri
   alex: { city: 'Tampere', since: 2026, demo: {
     work: 'Studies, with a part-time job: about 900 € a month, paid on the 15th',
     home: 'Rents a student flat, about 480 € a month',
-    money: 'Spends about 260 € a month on groceries, 90 € on eating out and 45 € on transport',
+    money: 'Spends most on groceries, then eating out and transport',
   } },
 };
 
@@ -91,6 +91,22 @@ export function bankPicture(userId: string) {
   const spend = Object.keys(CAT).map((c) => ({ c, v: monthly(c) })).filter((x) => x.v >= 20).sort((a, b) => b.v - a.v).slice(0, 3);
   const and = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
   const salaryNow = recent.some((t) => t.category === 'salary' && t.amount > 0);
+  // Patterns, not exact sums (hard for anyone to check): where most money goes, and what changed lately.
+  const cut = last ? new Date(Date.parse(last) - 30 * 864e5).toISOString().slice(0, 10) : '';
+  const lately = (cat: string) => -recent.filter((t) => t.category === cat && t.amount < 0 && t.date > cut).reduce((a, t) => a + t.amount, 0);
+  const before = (cat: string) => -recent.filter((t) => t.category === cat && t.amount < 0 && t.date <= cut).reduce((a, t) => a + t.amount, 0) / 2;
+  const rising = spend.filter((x) => before(x.c) > 20 && lately(x.c) > before(x.c) * 1.25).map((x) => CAT[x.c]);
+  const falling = spend.filter((x) => before(x.c) > 20 && lately(x.c) < before(x.c) * 0.75).map((x) => CAT[x.c]);
+  // What Nordea already noticed counts too (e.g. "You've been eating out more").
+  for (const e of db.getCabinetEntries(userId)) {
+    if (e.source !== 'nordea' || e.status === 'disputed' || e.status === 'archived') continue;
+    if (/eating out more/i.test(e.title) && !rising.includes('eating out')) rising.push('eating out');
+  }
+  const pattern = [
+    spend.length ? `Spends most on ${spend[0] ? CAT[spend[0].c] : ''}${spend[1] ? `, then ${and(spend.slice(1).map((x) => CAT[x.c]))}` : ''}` : '',
+    rising.length ? `${and(rising).charAt(0).toLowerCase() + and(rising).slice(1)} ${rising.length > 1 ? 'have' : 'has'} gone up lately` : '',
+    falling.length ? `${and(falling)} ${falling.length > 1 ? 'have' : 'has'} gone down lately` : '',
+  ].filter(Boolean);
   const lines: { key: FieldKey; label: string; icon: string; text: string; values: string[] }[] = [];
   if (pension && !salaryNow) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Retired'], text: `Retired${open.occupation ? ` ${open.occupation}` : ''}, pension of ${eur(pension.amount)} a month` });
   else if (sal.found) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Working'],
@@ -99,8 +115,8 @@ export function bankPicture(userId: string) {
   if (!rentTx && open.demo?.home) lines.push({ key: 'home', label: 'Home', icon: 'home', values: ['Rents'], text: open.demo.home });
   if (rentTx) lines.push({ key: 'home', label: 'Home', icon: 'home', values: rents ? ['Rents'] : [], text: rents ? `Rents, about ${eur(-rentTx.amount)} a month` : `Housing costs about ${eur(-rentTx.amount)} a month` });
   const money = [
-    spend.length ? `Spends about ${and(spend.map((x, i) => `${eur(x.v)}${i ? '' : ' a month'} on ${CAT[x.c]}`))}` : open.demo?.money || '',
-    acc?.savings?.monthlyDeposit ? `saves ${eur(acc.savings.monthlyDeposit)} a month (${eur(acc.savings.balance)} saved)` : '',
+    pattern.length ? pattern.join('; ') : open.demo?.money || '',
+    acc?.savings?.monthlyDeposit ? `saves ${eur(acc.savings.monthlyDeposit)} every month` : '',
   ].filter(Boolean);
   if (money.length) lines.push({ key: 'money', label: 'Money habits', icon: 'pie', values: [], text: money.map((m, i) => (i ? m : m.charAt(0).toUpperCase() + m.slice(1))).join('; ') });
   return { lines, basics: u ? [`${u.age}`, open.city, open.since ? `customer since ${open.since}` : ''].filter(Boolean).join(', ') : '', eatingOut: monthly('restaurants') };
@@ -178,7 +194,7 @@ export function aboutView(userId: string): AboutView {
   const teasers = [
     home ? `How much to save each month to reach “${home.title}” on time` : 'How much to save each month for what matters to you',
     travel && home ? `A travel budget that keeps your flat on track` : travel ? `How much to put aside for “${travel.title}”` : '',
-    bank.eatingOut >= 150 ? `Where you could cut back on eating out (about ${eur(bank.eatingOut)} a month now)` : 'Where your money goes, and where you could save',
+    bank.eatingOut >= 150 ? 'Where you could cut back on eating out, which has gone up lately' : 'Where your money goes, and where you could save',
     'Only savings and offers that fit your comfort with risk',
   ].filter(Boolean).slice(0, 3);
   return {

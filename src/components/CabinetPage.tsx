@@ -98,6 +98,14 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
   const [why, setWhy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [advice, setAdvice] = useState(false);
+  // "Not right" on something Nordea noticed: then Edit (correct it) or Remove.
+  const [wrong, setWrong] = useState<string | null>(null);
+  // From you, From Nordea and Your documents fold away to save space.
+  const [sec, setSec] = useState<Record<string, boolean>>({});
+  const toggleSec = (k: string) => setSec((x) => ({ ...x, [k]: !x[k] }));
+  const fold = (k: string, n: number) => (
+    <button className="btn link band-act cb-fold" aria-expanded={!!sec[k]} onClick={() => toggleSec(k)}>{sec[k] ? 'Hide' : n ? `Show ${n}` : 'Show'}<Icon name="chev" size={15} /></button>
+  );
 
   // Waiting for you: inputs from glasses / chats / documents, and approval requests, come from the server.
   const [pipe, setPipe] = useState<PipeItem[]>([]);
@@ -166,11 +174,22 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
             <div className="cb-item" key={e.id}>
               <span className="cb-src bank"><Icon name="bank" size={13} />Nordea noticed</span>
               <span className="cb-t"><span className="n-name">{e.title}</span>{e.detail && <span className="n-sub">{e.detail.replace(/\s*Is this right\?$/, '')}</span>}</span>
-              <div className="cb-btns">
-                <button className="btn small primary" onClick={() => p.onConfirm(e)}><Icon name="check" size={15} strokeWidth={2.6} />Yes, that’s right</button>
-                <button className="btn small" onClick={() => p.onUpdate(e, { status: 'disputed' })}>Not right</button>
-                {e.why && <button className="btn small quiet" aria-expanded={why === e.id} onClick={() => setWhy(why === e.id ? null : e.id)}><Icon name="info" size={15} />How do we know?</button>}
-              </div>
+              {editing === e.id ? (
+                <EditForm e={e} onSave={(u) => { setEditing(null); setWrong(null); p.onUpdate(e, { ...u, reviewed: true }); }} onCancel={() => setEditing(null)} />
+              ) : wrong === e.id ? (
+                <div className="cb-btns">
+                  <span className="cb-ask">What would you like to do?</span>
+                  <button className="btn small primary" onClick={() => setEditing(e.id)}><Icon name="sliders" size={15} />Edit</button>
+                  <button className="btn small" onClick={() => { setWrong(null); p.onUpdate(e, { status: 'disputed' }); }}><Icon name="trash" size={15} />Remove</button>
+                  <button className="btn small quiet" onClick={() => setWrong(null)}>Cancel</button>
+                </div>
+              ) : (
+                <div className="cb-btns">
+                  <button className="btn small primary" onClick={() => p.onConfirm(e)}><Icon name="check" size={15} strokeWidth={2.6} />Yes, that’s right</button>
+                  <button className="btn small" onClick={() => setWrong(e.id)}>Not right</button>
+                  {e.why && <button className="btn small quiet" aria-expanded={why === e.id} onClick={() => setWhy(why === e.id ? null : e.id)}><Icon name="info" size={15} />How do we know?</button>}
+                </div>
+              )}
               {why === e.id && e.why && <p className="cb-why">{e.why}</p>}
             </div>
           ))}
@@ -207,8 +226,8 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
         </div>
 
         {/* 3. From you */}
-        <Band left="From you" right={<button className="btn link band-act" onClick={p.onAddGoal}>+ Add a goal</button>} />
-        <div className="ncard cb-sec">
+        <Band left="From you" right={fold('mine', goals.length + mine.length)} />
+        {sec.mine && <div className="ncard cb-sec">
           {!goals.length && !mine.length && <p className="cb-empty">Nothing yet. Add a goal, or tell Nora about your plans.</p>}
           {goals.map((g) => {
             const e = items.find((x) => x.id === g.goalId)!;
@@ -235,11 +254,12 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
             );
           })}
           {mine.map((e) => itemRow(e, false))}
-        </div>
+          <button className="cb-link" onClick={p.onAddGoal}><Icon name="plus" size={16} />Add a goal<Icon name="chev" size={16} /></button>
+        </div>}
 
         {/* 4. From Nordea */}
-        <Band left="From Nordea" right={<span className="band-note">Only what you confirmed</span>} />
-        <div className="ncard cb-sec">
+        <Band left="From Nordea" right={fold('nordea', nordea.length)} />
+        {sec.nordea && <div className="ncard cb-sec">
           {!nordea.length && <p className="cb-empty">Nothing yet. When you confirm something Nordea noticed, it shows here.</p>}
           {nordea.map((e) => itemRow(e, true))}
           {state.advice && p.onAdviceChange && (
@@ -250,11 +270,11 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
               {advice && <AdviceList view={state.advice} busy={!!p.adviceBusy} onChange={p.onAdviceChange} />}
             </>
           )}
-        </div>
+        </div>}
 
         {/* 5. Your documents */}
-        <Band left="Your documents" right={docs.length ? <span className="cb-count">{docs.length}</span> : undefined} />
-        <div className="ncard cb-sec" id="your-docs">
+        <Band left="Your documents" right={fold('docs', docs.length)} />
+        {sec.docs && <div className="ncard cb-sec" id="your-docs">
           {!docs.length && <p className="cb-empty">None kept. Switch on “Keep a copy” when you add a file to a chat.</p>}
           {[...docs].reverse().map((d: DocInfo) => (
             <div className="cb-item" key={d.id}>
@@ -268,8 +288,8 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
               </div>
             </div>
           ))}
-        </div>
-        <RefundKnows userId={state.user.id} onOpen={p.onOpenRefundCase} bare />
+        </div>}
+        {sec.docs && <RefundKnows userId={state.user.id} onOpen={p.onOpenRefundCase} bare />}
       </div>
     </>
   );
