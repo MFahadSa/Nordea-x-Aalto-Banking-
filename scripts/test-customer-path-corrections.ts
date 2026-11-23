@@ -201,3 +201,23 @@ for(const t of ['No need to save', "Don't write this down", "Don't keep a note",
 for(const t of ["We're not going to need movers", "We aren't hiring movers", 'no thanks to movers', 'Not needing movers, but need insurance']){assert.ok(declinesPartner(t,'movers'),t);assert.ok(!intentsOf(t).some(i=>i.partner==='movers'),t);}
 for(const t of ["we won't hire movers but need packing help", "I don't need movers' prices but need a moving company"]){assert.equal(declinesPartner(t,'movers'),false,t);assert.ok(intentsOf(t).some(i=>i.partner==='movers'),t);}
 console.log('PASS independent reviewer consent and clause-boundary probes');
+
+// Refusal of another service must not erase a clearly requested one.
+for(const [t,id] of [
+ ["We aren't hiring movers, but need home insurance",'insure'],
+ ['No thanks to movers; compare cheaper electricity contracts','energy'],
+ ["We won't need movers. Need packing help instead",'movers'],
+ ['Movers? No thanks. Compare electricity contracts instead','energy'],
+] as const){assert.ok(intentsOf(t).some(i=>i.partner===id),t);}
+// Refusing storage has priority even when a misbehaving model proposes saving.
+planned=[{name:'proposeCabinetChange',args:{action:'add',type:'fact',title:'University',detail:'Aalto',sensitive:false}},finish];
+setProvider({name:'refusal-action-review',isConfigured:()=>true,step:async()=>({calls:planned.length?planned.splice(0):[finish]})});
+const refusedCount=db.getCabinetEntries('alex').length;
+await abelTurn('alex','refuse-action-review','abel',"Don't write this down, I started at Aalto");
+assert.equal(db.getCabinetEntries('alex').length,refusedCount);
+console.log('PASS final compound-service and misbehaving-provider no-save checks');
+
+for(const t of ["Don't save", "Don't remember I said that", "I'd rather you didn't save this", "Please don't note it", "Don't log this", "Keep this private, don't save", "I don't want this noted", "Don't add this to my notes", "Don't note my salary", "Off the record, I started at Aalto"]){assert.ok(refusesStorage(t),t);}
+for(const t of ["I don't want to hire movers, I'll do it myself", "We don't plan to use movers", 'We will manage without movers', 'Hire movers? No.', "Do we need movers? I'd rather not"]){assert.ok(declinesPartner(t,'movers'),t);}
+for(const t of ["We need a moving company, don't need packing help", "We won't hire movers but need packing help"]){assert.equal(declinesPartner(t,'movers'),false,t);}
+console.log('PASS structural privacy and service-item choice probes');

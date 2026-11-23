@@ -12,15 +12,38 @@ export function purposeOf(text: string): Purpose {
 
 /** A refusal is not the idiom 'never remember to save money'. */
 export function refusesStorage(text: string): boolean {
-  return /\b(?:don't|don’t|do not|never)\s+(?:(?:note|write)\s+(?:this|that|it|anything)\s+down|make\s+(?:a\s+)?note)|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(text)
-    || /\b(?:don't|don’t|do not)\s+keep\s+(?:(?:a\s+)?note(?:\s+of\s+(?:this|that|it))?|this|that|it)\b|\bno need to (?:save|store|remember|keep)(?:\s+(?:this|that|it|anything|a note)\b|(?=\s*(?:$|[.!?,;])))/i.test(text)
-    || /\b(?:do not|don't|don’t|never)\s+(?:(?:want|allow)\s+(?:you|nora)\s+to\s+)?(?:save|remember|store)\s+(?:this|that|it|anything|my|our|what|the|these)\b/i.test(text)
-    || /\b(?:do not|don't|don’t)\s+want\s+(?:this|that|it|my\s+\w+)\s+(?:saved|stored|remembered)\b/i.test(text);
+  // Privacy is a high-stakes boundary. Prefer withholding automatic retention when
+  // negated recording language is ambiguous, while leaving saving-money idioms alone.
+  const t = text.replace(/[’]/g, "'");
+  if (/\boff the record\b|\bkeep this private\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
+  const clauses=t.split(/[.!?;,]|\bbut\b/i);
+  const recording=/\b(?:sav(?:e|ed|ing)|stor(?:e|ed|ing)|remember(?:ed|ing)?|not(?:e|ed|ing)|log(?:ged|ging)?|record(?:ed|ing)?|keep|kept|writ(?:e|ing|ten)|add(?:ed|ing)?\s+.{0,18}notes?)\b/i;
+  const negative=/\b(?:don't|do not|never|no need|didn't|wouldn't|rather.{0,10}not|not want|not.{0,12}(?:saved|stored|noted|recorded|kept))\b/i;
+  return clauses.some(clause=>{
+    // Only discard clearly financial saving, not a memory request about money.
+    const c=clause.replace(/\b(?:remember|forget)\s+to\s+save\s+(?:money|euros?)\b/gi,'').replace(/\bsave\s+(?:money|euros?)\b/gi,'');
+    if (negative.test(c) && recording.test(c)) return true;
+    return /\b(?:don't|do not|never)\s+want\b.{0,35}\b(?:saved|stored|noted|recorded|kept)\b/i.test(c);
+  });
 }
 
 /** Only an explicit positive service request may create a partner card. */
 export function declinesPartner(text: string, partner: string): boolean {
   const terms: Record<string, string> = { movers: 'movers?|moving compan(?:y|ies)|packing help|moving van', homes: 'homes?|houses?|flats?|listings?', energy: 'energy|electricity|offers?', insure: 'insurance|cover', planner: 'planner|planning|offers?' };
+  if (partner === 'movers') {
+    const objects=[/\bmovers?\b|\bmoving compan(?:y|ies)\b|\bmuutto\w*/i,/\bpacking help\b|\bpakkausapu\w*/i,/\bmoving van\b/i];
+    const states: (boolean | undefined)[] = objects.map(()=>undefined);
+    const clauses=text.replace(/[’]/g,"'").split(/[.!?;,]|\b(?:but|however|instead|although|though|and)\b/i);
+    let last:number[]=[];
+    for(const raw of clauses){const c=raw.trim();if(!c)continue;
+      const matches=objects.map((re,i)=>re.test(c)?i:-1).filter(i=>i>=0);
+      const neg=/^no\b|\b(?:don't|do not|won't|will not|aren't|are not|not|no thanks|without|skip|avoid|hide|decline|stop|en tarvitse|en halua)\b/i.test(c);
+      if(matches.length){for(const i of matches)states[i]=!neg;last=matches;}
+      else if(last.length && /^(?:no(?: thanks)?|i'?d rather not|rather not|no thank you)$/i.test(c))for(const i of last)states[i]=false;
+    }
+    // Declining packing does not cancel a company request (and vice versa).
+    return states.some(v=>v===false) && !states.some(v=>v===true);
+  }
   const service = `(?:${terms[partner] || partner})`;
   // Contrast clauses can change the customer's request. A later explicit positive request
   // wins for that service; money/cost talk is never itself a refusal of the service.
