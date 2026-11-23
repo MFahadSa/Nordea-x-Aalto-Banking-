@@ -621,7 +621,7 @@ export const ContactPage: React.FC<{ state: AppState; onHelper: (id: string) => 
   const [all, setAll] = useState(false);
   return (
     <>
-      <DetailHead title="Help" sub="How can we help you today?" />
+      <DetailHead title="Contact" sub="How can we help you today?" />
       <div className="nbody">
         <div className="ncard first">
           <NRow name={<><Icon name="spark" /> Chat with Nora</>} sub="Replies instantly" onClick={() => onHelper('abel')} />
@@ -825,6 +825,13 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
         <NRow name="Calm view" sub="Bigger text, fewer things" right={<Toggle on={state.user.viewMode === 'calm'} onChange={onCalm} label="Calm view" />} />
         {onSuggest && <NRow name="Suggestions from Nora" sub={proactiveName(state.advice?.proactive)} onClick={onSuggest} />}
         <NRow name="Dark mode" right={<Toggle on={isDark} onChange={onDark} label="Dark mode" />} />
+      </div>
+      {/* The banking pages that used to be tabs stay available here. */}
+      <Band left="Everyday banking" />
+      <div className="ncard flat">
+        <NRow name="Pay and transfer" sub="Payments and e-invoices" onClick={() => onPage('pay')} />
+        <NRow name="Invest" sub="Savings goals" onClick={() => onPage('invest')} />
+        <NRow name="Services" sub="Autopilot, rewards and more" onClick={() => onPage('services')} />
       </div>
       {/* v30: the demo tools live on their own page, so customer settings stay customer settings. */}
       <Band left="For presenting" />
