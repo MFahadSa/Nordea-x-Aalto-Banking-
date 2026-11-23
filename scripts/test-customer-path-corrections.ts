@@ -270,3 +270,10 @@ for(const t of ["I don't keep track of my spending, should I open an ASP account
 for(const t of ['No saving please, I started at Aalto','Do not keep track of this',"Please don't hold on to this"]){assert.ok(refusesStorage(t),t);}
 assert.equal(scopedGoalOnRefusal("Don't save my address; save a goal of 5000 for an emergency fund by 30 June 2027",'2026-11-23'),null,'Unsupported deadline must hold, not drop date');
 console.log('PASS financial tracking/recording distinction and unsupported deadline hold');
+
+setProvider({name:'tracking-runtime',isConfigured:()=>true,step:async()=>({calls:[finish]})});
+const trackAsp=await abelTurn('lauri','tracking-asp-round5','abel',"I don't keep track of my spending, should I open an ASP account?");assert.ok(trackAsp.cards.some(c=>c.data?.ruleId==='asp-account'));
+planned=[{name:'proposeCabinetChange',args:{action:'add',type:'goal',title:'Emergency',detail:'Should not save without correct date',targetAmount:5000,targetDate:'2027-06-30',goalType:'other',sensitive:false}},finish];
+setProvider({name:'deadline-runtime',isConfigured:()=>true,step:async()=>({calls:planned.length?planned.splice(0):[finish]})});
+const dateBefore=JSON.stringify([db.getCabinetEntries('alex'),db.getUser('alex')?.advice]);await abelTurn('alex','date-hold-round5','abel',"Don't save my address; save a goal of 5000 for an emergency fund by 30 June 2027");assert.equal(JSON.stringify([db.getCabinetEntries('alex'),db.getUser('alex')?.advice]),dateBefore);
+console.log('PASS runtime financial tracking ASP and date-hold no mutation');
