@@ -16,7 +16,6 @@ import { Icon } from '../ui/icons.js';
 import { eur, monthShort, monthLong, dayMonth } from '../ui/format.js';
 import { Band, RoundActions, BAND_BG } from './Nordea.js';
 import { AboutCard } from './AboutYou.js';
-import { AdviceList } from './Advice.js';
 import { RefundKnows } from './Refund.js';
 
 export interface CabinetProps {
@@ -88,9 +87,9 @@ const Actions: React.FC<{ e: CabinetEntry; editing: boolean; why: boolean; onEdi
   // Hidden until asked for, so each item stays one or two lines.
   const [open, setOpen] = useState(false);
   if (!open) return (
-    <div className="cb-btns">
-      <button className="btn small quiet cb-opts" aria-expanded={false} onClick={() => setOpen(true)}><Icon name="more" size={16} />{onWhy && e.why ? 'Edit, remove or why' : 'Edit or remove'}</button>
-    </div>
+    <button className="cb-more" aria-expanded={false} aria-label={`${onWhy && e.why ? 'Edit, remove or see why' : 'Edit or remove'}: ${e.title}`} title="More" onClick={() => setOpen(true)}>
+      <Icon name="dots" size={22} strokeWidth={2.4} />
+    </button>
   );
   return (
     <div className="cb-btns">
@@ -107,7 +106,6 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
   const [editing, setEditing] = useState<string | null>(null);
   const [why, setWhy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  const [advice, setAdvice] = useState(false);
   // "Not right" on something Nordea noticed: then Edit (correct it) or Remove.
   const [wrong, setWrong] = useState<string | null>(null);
   // From you, From Nordea and Your documents fold away to save space.
@@ -273,14 +271,6 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
         {isOpen('nordea') && <div className="ncard cb-sec">
           {!nordea.length && <p className="cb-empty">Nothing yet. When you confirm something Nordea noticed, it shows here.</p>}
           {nordea.map((e) => itemRow(e, true))}
-          {state.advice && p.onAdviceChange && (
-            <>
-              <button className="cb-link" aria-expanded={advice} onClick={() => setAdvice(!advice)}>
-                <Icon name="spark" size={16} />Nora’s suggestions and settings<Icon name="chev" size={16} />
-              </button>
-              {advice && <AdviceList view={state.advice} busy={!!p.adviceBusy} onChange={p.onAdviceChange} />}
-            </>
-          )}
         </div>}
 
         {/* 5. Your documents */}

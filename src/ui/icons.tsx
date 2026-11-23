@@ -44,6 +44,7 @@ export const ICONS: Record<string, string> = {
  "info": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 11v5.5M12 7.8v.4\"/>",
  "undo": "<path d=\"M9 7L4.5 11.5 9 16\"/><path d=\"M5 11.5h9a5 5 0 0 1 0 10h-2\"/>",
  "bank": "<path d=\"M3.5 9.5L12 4.5l8.5 5\"/><path d=\"M5.5 10v7M9.5 10v7M14.5 10v7M18.5 10v7M3.5 19.5h17\"/>",
+ "dots": "<circle cx=\"6\" cy=\"12\" r=\"1.4\"/><circle cx=\"12\" cy=\"12\" r=\"1.4\"/><circle cx=\"18\" cy=\"12\" r=\"1.4\"/>",
  "help": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M9.5 9.2a2.6 2.6 0 0 1 5.1.7c0 1.7-2.6 2.1-2.6 3.6\"/><path d=\"M12 16.8h.01\"/>",
  "grid": "<rect x=\"4\" y=\"4\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"13\" y=\"4\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"4\" y=\"13\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"13\" y=\"13\" width=\"7\" height=\"7\" rx=\"1.5\"/>",
  "paytab": "<path d=\"M4 8h13M14 4.5L17.5 8 14 11.5\"/><path d=\"M20 16H7M10 12.5L6.5 16l3.5 3.5\"/>"
