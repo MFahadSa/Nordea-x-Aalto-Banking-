@@ -1,3 +1,4 @@
+import {explanationReplyProblem} from './advice/replyCompletion.js';
 import {TurnFinancialEvidence} from './advice/turnFinancialEvidence.js';
 import {goalRevision,proposalDeadline,goalProposalText,finnishGoalRequest,finnishGoalProposal} from './advice/goalConfirmation.js';
 import {knowledgeAbsenceClaim} from './advice/knowledgeAbsence.js';
@@ -1086,7 +1087,9 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     .flatMap((e) => [...numbersIn(withoutDates(`${e.title} ${e.detail}`)), ...(e.target ? [e.target.amount] : [])])
     .filter((n) => n >= 100 && !sharedNums.some((k) => Math.abs(k - n) <= Math.max(1, k * 0.01)));
   const mentionsHidden = (t: string) => numbersIn(withoutDates(t)).some((n) => hiddenNums.some((h) => Math.abs(h - n) <= Math.max(1, h * 0.01)));
+  const rejectedHistory = new Set<string>();
   const leftOut = (m: ChatMessage): string | null => {
+    if(rejectedHistory.has(m.id))return '[earlier assistant wording is withheld because it fails current checked facts; this is not a customer statement or an accepted answer]';
     if (bounded && m.sender !== 'user' && m.exposedSources === undefined) return '[older assistant context has no bounded exposure record and is not reused]';
     if (m.sender !== 'user' && m.suppliedSources === undefined && !(m.usedEntryIds?.length || m.notes?.some(n=>n.entryId))) return '[an older assistant reply is not reused because its supplied source versions were not recorded; the customer history is unchanged]';
     if (blockedHistoryIds.has(m.id)) return '[an earlier exchange is left out because the customer no longer shares its saved context]';
@@ -1115,15 +1118,23 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   // not be interpreted against an invented or withdrawn question. Code-owned current
   // question cards are handled separately. Ask one safe repair question, keeping all
   // customer messages and the current cabinet intact, without replaying old prose.
+  const allowedHistory = history.filter(m => !leftOut(m));
+  const contracts = conversationContracts(allowedHistory, userText, db.getUser(userId)?.age, fin.DEMO_TODAY, !!db.getUser(userId)?.offersOff, new Set(read.allowed.map(e => e.title)), new Set(Object.entries(db.getUser(userId)?.advice?.rules || {}).filter(([,v]) => ['never', 'notNow'].includes(v.last)).map(([id]) => id)));
+  checkedContext += '\n' + contracts.facts;
+  groundedNote = checkedContext;
+  // Do not recycle an older assistant claim that current factual checks reject.
+  // Preserve the stored/customer history and separately rebuilt real control contracts.
+  for(let i=0;i<history.length;i++){
+    const m=history[i];if(m.sender==='user'||leftOut(m))continue;
+    const originalRequest=history.slice(0,i).reverse().find(x=>x.sender==='user')?.text||'';
+    if(explanationReplyProblem(originalRequest,String(m.text||''))||reviewedReplyProblem(originalRequest,String(m.text||''),checkedContext,m.cards||[]))rejectedHistory.add(m.id);
+  }
   const latestAssistant=[...history].reverse().find(m=>m.sender!=='user');
   const shortDependentReply=userText.trim().split(/\s+/).length<=8 && /^(?:yes|no|yep|yeah|sure|ok(?:ay)?|the (?:first|second|third|other) one|that one|january|february|march|april|may|june|july|august|september|october|november|december|kyllä|joo|ei|tammikuu|maaliskuu)\b/i.test(userText.trim());
   if(latestAssistant && leftOut(latestAssistant) && shortDependentReply && !pendingQuestion(userId,conversationId,fin.DEMO_TODAY)) {
     return {text:'The context behind my earlier question has changed, so I need to check what you mean before changing anything. What would you like this choice to apply to?',suggestions:[],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true};
   }
-  const allowedHistory = history.filter(m => !leftOut(m));
-  const contracts = conversationContracts(allowedHistory, userText, db.getUser(userId)?.age, fin.DEMO_TODAY, !!db.getUser(userId)?.offersOff, new Set(read.allowed.map(e => e.title)), new Set(Object.entries(db.getUser(userId)?.advice?.rules || {}).filter(([,v]) => ['never', 'notNow'].includes(v.last)).map(([id]) => id)));
-  checkedContext += '\n' + contracts.facts;
-  groundedNote = checkedContext;
+
   system += '\n' + contracts.facts + '\n' + contracts.text;
   // Keep complete recent messages within a fixed character budget. Include card/control
   // rendering and resolved answers in the budget, not just the visible text.
@@ -1290,6 +1301,11 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const fi=/(?:mitä|kerro|sinulla|muistat|tallenn|kuussa|minun|mulla|olenko|onko)/iu.test(userText);
     return {text:(fi?'Jaetusta tallennetusta tiedosta löytyi:\n':'From the saved context currently shared:\n')+rows.filter((r,i,a)=>a.findIndex(x=>x.id===r.id||x.title===r.title&&x.detail===r.detail)===i).map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n'),suggestions:[],cards:[],notes:[],usedEntryIds:rows.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true};
   };
+  const unfinishedReplyProblem=(text:string):string|null=>{
+    if(text.length>400&&!/[.!?]["'’”)]*$/u.test(text.trim()))return 'Your long reply ends without a complete sentence. Rewrite the whole answer in at most 300 characters, complete sentences, no unfinished offer.';
+    if (CUT_OFF.test(text) && text.length > 40) return 'Your reply was cut off mid-sentence. Write it again, complete and short.';
+    return null;
+  };
   const problemWith = (text: string): string | null => {
     const proposed=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.cards?.some(c=>c.type==='goal_confirm')&&m.resolved!=='Confirmed goal').flatMap(m=>m.cards!.filter(c=>c.type==='goal_confirm').map(c=>c.data)).filter(Boolean);
     for(const data of proposed){
@@ -1301,6 +1317,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       if(named&&(!current||pendingFields)&&!claimScope)return 'Pending goal proposal is not a saved or established goal. State only that it was proposed and still needs a tap. Do not describe it as a current saving fact.';
     }
 
+    const incomplete=unfinishedReplyProblem(text);if(incomplete)return incomplete;
     // A currently disclosed manifest can prove its fixed contract duration, not personal figures.
     // Mask only this exact role-bound phrase for the personal-handle gate; source checks still run.
     const productDurationText=/Fictional partner Lumivalo Energy/.test(checkedContext)&&/Fixed price · 12 months/.test(checkedContext)
@@ -1311,6 +1328,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     }
     if (bounded && knowledgeAbsenceClaim(text)) return 'A limited search does not establish that no saved fact exists. Retrieve the related context or describe the limited check without claiming absence.';
     if(bounded){const financial=financialGroundingProblem(text,groundingSources,groundingRequest);if(financial)return financial;}
+    const completionProblem=explanationReplyProblem(userText,text);
+    if(completionProblem)return completionProblem;
     if (!text.trim()) return 'Your reply was empty (maybe cut off). Answer again briefly with finishReply.';
     const roleProblem = personalRoleProblem(text, facts, ctx.cards);
     if (roleProblem) return roleProblem;
@@ -1326,8 +1345,6 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const tm = transferMismatch(text, ctx.cards);
     if (tm) return tm;
     if (NOT_STORED_CLAIM.test(text)) return 'That is not true: Nora keeps what the customer approved in "Nora knows" (they can see and remove it), and this chat is kept in their history. Write the reply again with that.';
-    if(text.length>400&&!/[.!?]["'’”)]*$/u.test(text.trim()))return 'Your long reply ends without a complete sentence. Rewrite the whole answer in at most 300 characters, complete sentences, no unfinished offer.';
-    if (CUT_OFF.test(text) && text.length > 40) return 'Your reply was cut off mid-sentence. Write it again, complete and short.';
     if (FRAUD.test(userText) && REASSURE.test(text)) return 'Do not judge how likely the scam or payment is (no "probably nothing", "almost certainly"). Write it again: you can\'t tell from here, the steps above are what to do.';
     return null;
   };
@@ -1409,6 +1426,9 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
           }catch(err:any){results.push({call,result:{accepted:false,error:String(err.message)+' Choose only current handles and compatible calculations.'}});continue;}
         }
         const text = cleanReply(String(call.args.text || ''));
+        const incomplete=unfinishedReplyProblem(text);
+        if(incomplete){if(ruleRetried)return offline('Unverified reply after correction: '+incomplete);ruleRetried=true;results.push({call,result:{accepted:false,error:incomplete}});continue;}
+
         const sourceAnswer=narrowSourceAnswer(text,call.args);if(sourceAnswer){if(sourceEvidenceRetried)return sourceAnswer;sourceEvidenceRetried=true;results.push({call,result:{accepted:false,error:'Current saved source rows were supplied for this personal-context question. Answer from them with savedAnswerEvidence.sourceId and an exact detail quote naturally included in the answer. Do not deny knowledge, refuse, or answer a privacy-policy question instead. If the rows are not relevant, ask a constructive clarification.'}});continue;}
         if (isGarbled(text) && ruleRetried) return offline('The AI answer was garbled');
         if (isGarbled(text)) { ruleRetried = true; results.push({ call, result: { accepted: false, error: 'Your reply came out broken. Write it again in plain, complete sentences.' } }); continue; }
