@@ -29,8 +29,6 @@ interface Props {
   /** Get more from Nora (setup checklist) and Offers for you. */
   getMore?: React.ReactNode;
   offers?: React.ReactNode;
-  /** The customer mainly uses Nordea for saving or investing: show that first. */
-  savingsFirst?: boolean;
 }
 
 /** Things Nordea noticed that wait for the customer, and old goals that look out of date. */
@@ -38,7 +36,7 @@ export function feedItems(entries: CabinetEntry[]) {
   return entries.filter((e) => (e.source === 'nordea' && !e.reviewed && e.status === 'active') || e.status === 'stale');
 }
 
-export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame: (w: string) => void; onAsk: () => void; onMore: () => void; onBell: () => void }> = ({ state, feedCount, onFrame, onAsk, onMore, onBell }) => (
+export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame: (w: string) => void; onAsk: () => void; onMore: () => void; onBell: () => void; onHelper?: (k: string) => void }> = ({ state, feedCount, onFrame, onAsk, onMore, onBell, onHelper }) => (
   <header className="nhead" style={{ backgroundImage: BAND_BG }}>
     <div className="nhead-top">
       <span className="nh-right" style={{ marginLeft: 'auto' }}>
@@ -63,6 +61,15 @@ export const HomeHeader: React.FC<{ state: AppState; feedCount: number; onFrame:
       <span>Ask Nora anything…</span>
       <i className="live-dot" aria-hidden="true" />
     </button>
+    {/* Nora can help with: small chips right under the bar. */}
+    {onHelper && (
+      <div className="ask-helps" role="group" aria-label="Nora can help with">
+        <span className="ask-helps-l">Nora can help with</span>
+        {HELPER_ORDER.filter((k) => k !== 'abel' && (state.user.viewMode !== 'calm' || k === 'person')).map((k) => (
+          <button key={k} className="ask-help" onClick={() => onHelper(k)}><Icon name={HELPERS[k].icon} />{HELPERS[k].card}</button>
+        ))}
+      </div>
+    )}
   </header>
 );
 
@@ -171,12 +178,11 @@ export const HomePage: React.FC<Props> = (p) => {
       </button>
     </div>
   );
-  const convs = state.conversations;
-  const [histAll, setHistAll] = useState(false);
 
   return (
     <>
-      <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onMore={p.onOpenMore} onBell={bell} />
+      <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onMore={p.onOpenMore} onBell={bell}
+        onHelper={(k) => (k === 'autopilot' ? p.onOpenPage('autopilot') : p.onOpenHelper(k))} />
       <div className="nbody">
         {(state.notices || []).map((n) => (
           <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
@@ -187,9 +193,6 @@ export const HomePage: React.FC<Props> = (p) => {
         ))}
         {/* The existing Nordea app: shown so Nora sits in a familiar place. Tapping says so. */}
         <QuickActions onFrame={p.onFrame} />
-        <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
-        {p.getMore}
-        {p.savingsFirst && saveCard}
         <div className="ncard">
           <button className="nrow2 head" onClick={() => p.onFrame('Payments')}>
             <span className="n-l">
@@ -218,8 +221,19 @@ export const HomePage: React.FC<Props> = (p) => {
             </button>
           </div>
         </div>
-        {!p.savingsFirst && saveCard}
+        {saveCard}
+        <div className="ncard">
+          <button className="nrow2 head" onClick={() => p.onFrame('Loans')}>
+            <span className="n-l">
+              <span className="n-name b">Loans</span>
+              <span className="n-sub">No loans · See home, student and other loans</span>
+            </span>
+            <NChev />
+          </button>
+        </div>
         {p.offers}
+        <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
+        {p.getMore}
 
         {/* v30: one place for everything from Nora (what Nordea noticed, old goals, and the one question or
             suggestion). Home shows the first; the rest are one tap away. */}
@@ -243,29 +257,6 @@ export const HomePage: React.FC<Props> = (p) => {
           </button>
         )}
 
-        <div className="ncard">
-          <div className="nhead-row">
-            <div>
-              <h3>Nora can help with</h3>
-            </div>
-          </div>
-          <div className="helpers in-card">
-            {HELPER_ORDER.filter((k) => state.user.viewMode !== 'calm' || k === 'abel' || k === 'person').map((k) => {
-              const h = HELPERS[k];
-              return (
-                <button key={k} className={`helper ${h.cls}`} onClick={() => (k === 'autopilot' ? p.onOpenPage('autopilot') : p.onOpenHelper(k))}>
-                  <span className="h-glyph" aria-hidden="true"><Icon name={h.icon} /></span>
-                  <span className="h-ico" aria-hidden="true"><Icon name={h.icon} /></span>
-                  <span className="h-name">{h.card}</span>
-                  <span className="h-line">{h.line}</span>
-                  <span className="h-go" aria-hidden="true"><Icon name="arrow" /></span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <HistoryCard state={state} all={histAll} onToggle={() => setHistAll(!histAll)} onOpen={p.onOpenConversation} onDelete={p.onDeleteChat} onDeleteAll={p.onDeleteAllChats} />
         <p className="foot-note">You can see and remove what Nora uses in Nora knows.</p>
       </div>
     </>

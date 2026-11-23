@@ -527,7 +527,6 @@ export default function App() {
               onAdviceAnswer={adviceAnswer}
               onAdviceShow={adviceShowMe}
               onAdviceNotNow={adviceNotNow}
-              savingsFirst={!!about && about.fields.mainUse.values.some((x) => x === 'Saving' || x === 'Investing')}
               getMore={<GetMoreCard view={about} onAdd={() => goPage('knows')} />}
               offers={<OffersForYou userId={state.user.id} refreshKey={offersKey}
                 skip={state.advice?.forYou?.data?.ruleId === 'asp-account' ? ['asp'] : []}

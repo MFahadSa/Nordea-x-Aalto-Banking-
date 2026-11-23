@@ -990,27 +990,40 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .gm-item.done{color:var(--ink-2);cursor:default}
 .gm-tick{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ok-bg);color:var(--ok)}
 .gm-tick.todo{background:none;border:2px solid var(--line)}
-/* Offers for you */
-.offer-card{gap:8px}
-.ofc-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.ofc-h h3{font-size:16.5px}
-.ofc-why{flex:none;width:32px;height:32px;border:0;background:none;color:var(--muted);border-radius:50%;display:grid;place-items:center;cursor:pointer;margin:-4px -6px 0 0}
-.ofc-why:hover,.ofc-why[aria-expanded="true"]{background:var(--surface-2);color:var(--brand-soft)}
-.ofc-reason{display:flex;gap:6px;align-items:flex-start;font-size:14px;font-weight:600;color:var(--you)!important;margin:0}
+/* Offers for you: a horizontal row */
+.offer-row{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -14px;padding:2px 14px 8px;scrollbar-width:none}
+.offer-row::-webkit-scrollbar{display:none}
+.offer-row>div{flex:none;width:78%;max-width:300px;scroll-snap-align:start;display:flex}
+.offer-card{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 2px rgba(16,19,43,.05)}
+.offer-card h3{font-size:16px;margin:0;color:var(--ink)}
+.ofc-reason{display:flex;gap:6px;align-items:flex-start;font-size:13.5px;font-weight:600;color:var(--you)!important;margin:0}
 .ofc-reason svg{flex:none;margin-top:3px}
-.ofc-line{font-size:14.5px;margin:0}
-.ofc-pinned{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:var(--brand-soft)!important;margin:0}
-.ofc-whybox{background:var(--surface-2);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
-.ofc-whybox ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-.ofc-whybox li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ofc-line{font-size:14px;margin:0;color:var(--ink-2);flex:1}
+.ofc-acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+.ofc-acts .btn{display:inline-flex;gap:6px;align-items:center}
+.ofc-no{color:var(--muted)!important;font-weight:500;margin-left:auto}
 .ofc-src{color:var(--muted);font-size:12.5px}
-.ofc-whybox p{margin:0;color:var(--ink-2)!important}
-.ofc-note{font-size:12.5px!important;color:var(--muted)!important}
-.ofc-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
-.of-ic{display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;padding:6px 2px;border-radius:10px;cursor:pointer;font:inherit;font-size:11.5px;font-weight:600;color:var(--ink-2)}
-.of-ic:hover{background:var(--surface-2)}
-.of-ic.on{color:var(--brand-soft)}
-.of-ic span{line-height:1.2;text-align:center}
+.ofs{max-height:84%;overflow-y:auto;gap:14px}
+.ofs-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.ofs-h h3{font-size:18px;margin:0;color:var(--ink)}
+.ofs-x{flex:none;width:34px;height:34px;border:0;border-radius:50%;background:var(--surface-2);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.ofs-about{margin:0;font-size:15px;line-height:1.45;color:var(--ink)}
+.ofs section{display:flex;flex-direction:column;gap:6px}
+.ofs h4{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.ofs-used{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13.5px;color:var(--ink-2)}
+.ofs-used li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ofs-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.4;color:var(--ink)}
+.ofs-small{margin:0;font-size:13.5px;color:var(--ink-2)}.ofs-small.muted{color:var(--muted);font-size:12.5px;text-align:center}
+.ofs-link{display:inline-flex;gap:6px;align-items:center;font-weight:600;font-size:14.5px;color:var(--brand-soft);text-decoration:none}
+.ofs-acts{display:flex;flex-direction:column;gap:8px}.ofs-acts .btn{justify-content:center;display:flex;gap:8px}
+/* Nora can help with: small chips under the Ask Nora bar */
+.ask-helps{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:10px -16px 0;padding:0 16px 2px}
+.ask-helps::-webkit-scrollbar{display:none}
+.ask-help{flex:none;display:inline-flex;gap:5px;align-items:center;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;border-radius:999px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.ask-help svg{width:14px;height:14px}
+.ask-help:hover{background:rgba(255,255,255,.22)}
+.ask-help:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.ask-helps-l{flex:none;align-self:center;font-size:12px;color:rgba(255,255,255,.8);padding-right:2px}
 .ofc-hidden p{margin:0;font-size:14px}
 
 /* ===== About you v2: one paragraph, Try Nora, one clear reason, one button; a smooth answer flow ===== */

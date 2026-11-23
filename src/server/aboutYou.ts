@@ -270,6 +270,8 @@ export interface OfferView {
   id: string; title: string; line: string; reason: string; note?: string; earns: string;
   used: { label: string; value: string; from: string }[];
   goal?: string; pinned: boolean;
+  /** Details: what it is, how to set it up, and the official page when we have one. */
+  about: string; steps: string[]; url?: string;
 }
 interface OfferDef {
   id: string; title: string; earns: string; note?: string;
@@ -300,6 +302,10 @@ const OFFERS: OfferDef[] = [
     earns: 'A yearly management fee from the fund.', note: 'Funds can go down as well as up.',
     fit: (c) => (c.v('interests').includes('Investing basics') || c.v('mainUse').includes('Investing')) && !c.v('risk').includes('Keep it safe')
       ? { reason: `Because you want to learn about investing${c.v('risk').length ? ` and are ${c.v('risk')[0] === 'Comfortable' ? 'comfortable with' : 'OK with a little'} risk` : ''}`, used: [used(c, 'interests'), ...(c.v('risk').length ? [used(c, 'risk')] : [])] } : null },
+  { id: 'equity-savings', title: 'Equity savings account', line: 'Buy shares and pay tax only when you take money out. No custody fees aged 18–27.',
+    earns: 'Trading fees on the shares you buy.', note: 'Shares can go down as well as up.',
+    fit: (c) => c.age >= 18 && c.age <= 27 && (c.v('interests').includes('Investing basics') || c.v('mainUse').includes('Investing'))
+      ? { reason: `Because you’re ${c.age} and want to learn about investing`, used: [ageUsed(c), used(c, 'interests')] } : null },
   { id: 'if-home', title: 'Home insurance from If', line: '25% discount on new If home insurance for Nordea customers.',
     earns: 'A commission from If if you buy the insurance.', note: 'Sold by our partner If.',
     fit: (c) => c.v('home').includes('Rents') || c.v('home').includes('Owns') || c.v('plans').includes('A home')
@@ -316,6 +322,48 @@ const OFFERS: OfferDef[] = [
     fit: (c) => c.v('plans').includes('Travel')
       ? { reason: 'Because you plan to travel', line: c.age <= 27 ? 'Travel insurance and cashback, for under one euro a month for young customers.' : undefined, used: [used(c, 'plans'), ageUsed(c)] } : null },
 ];
+
+/** Details per offer. Links only where the project has a real Nordea page (rules/*.json sources). */
+const DETAILS: Record<string, { about: string; steps: string[]; url?: string }> = {
+  asp: {
+    about: 'An ASP account is a savings account for your first home. You save regularly; when you buy, the savings earn extra interest, tax-free, and you can apply for an ASP loan with state guarantee.',
+    steps: ['Open the account in the app: Save and invest → ASP account.', 'Set a monthly transfer of 50–1,500 €.', 'Keep saving for at least 20 months; then you can apply for an ASP loan.'],
+    url: 'https://www.nordea.fi/en/personal/our-services/savings-investments/saving-for-a-home.html',
+  },
+  'asp-loan': {
+    about: 'An ASP loan finances your first home on top of your ASP savings, with a state guarantee and an interest subsidy.',
+    steps: ['Make at least 20 monthly ASP deposits of 50–1,500 €.', 'Ask Nora what you could afford.', 'Apply for the loan and talk it through with an adviser.'],
+  },
+  young: {
+    about: 'Customers aged 18–27 get daily banking for little or no cost, and benefits for saving and investing.',
+    steps: ['Check that your details (age or student status) are up to date.', 'The benefits switch on by themselves; no application needed.'],
+  },
+  funds: {
+    about: 'Put a fixed amount into a fund every month, from 10 €. Spreading it over time evens out the ups and downs.',
+    steps: ['Pick an amount you can keep up, from 10 € a month.', 'Answer a few questions with the digital adviser (about 7 minutes).', 'Choose a fund and start the monthly saving. You can pause any time.'],
+  },
+  'equity-savings': {
+    about: 'An equity savings account lets you buy shares and pay tax only when you take money out. Customers aged 18–27 pay no custody fees; trading fees still apply.',
+    steps: ['Open the account in the app: Save and invest → Equity savings account.', 'Move money in (up to 100,000 € in total).', 'Buy shares; nothing is taxed until you withdraw.'],
+    url: 'https://www.nordea.fi/en/personal/our-services/savings-investments/investments/equity-savings-account.html',
+  },
+  'if-home': {
+    about: 'Home insurance from our partner If covers your belongings and liability. Nordea customers get 25% off new If home insurance.',
+    steps: ['Get a quote from If (about 5 minutes).', 'Pick the cover that fits your home.', 'The discount is applied when you buy.'],
+  },
+  'home-loan': {
+    about: 'A home loan with FlexiPayment: when life changes, you can lower or pause your monthly payment free of charge.',
+    steps: ['Ask Nora how much you could borrow.', 'Fill in a loan application.', 'Book a meeting with an adviser to go through the offer.'],
+  },
+  renovation: {
+    about: 'A renovation loan or FlexiCredit spreads the cost of fixing up your home over time.',
+    steps: ['Estimate the cost of the work.', 'Apply in the app; you get a decision quickly.', 'Pay back at your own pace.'],
+  },
+  gold: {
+    about: 'The Gold package bundles travel insurance and cashback on card purchases.',
+    steps: ['Switch your package in the app: Services → Packages.', 'Your card gets travel insurance straight away.'],
+  },
+};
 
 function ctxOf(userId: string): Ctx {
   const u = db.getUser(userId)!;
@@ -338,7 +386,8 @@ export function offersFor(userId: string, today = now().slice(0, 10)) {
     const f = o.fit(c);
     if (!f) continue;
     if (st.hidden?.[o.id] || (st.later?.[o.id] && st.later[o.id] > today)) { hidden++; continue; }
-    offers.push({ id: o.id, title: o.title, line: f.line || o.line, reason: f.reason, note: o.note, earns: o.earns, used: f.used, goal: o.goal?.(c), pinned: !!st.pinned?.[o.id] });
+    const d = DETAILS[o.id] || { about: o.line, steps: [] };
+    offers.push({ id: o.id, title: o.title, line: f.line || o.line, reason: f.reason, note: o.note, earns: o.earns, used: f.used, goal: o.goal?.(c), pinned: !!st.pinned?.[o.id], about: d.about, steps: d.steps, url: d.url });
   }
   return { offers, hidden };
 }

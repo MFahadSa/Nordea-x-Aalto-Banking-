@@ -5,6 +5,7 @@ export interface OfferView {
   id: string; title: string; line: string; reason: string; note?: string; earns: string;
   used: { label: string; value: string; from: string }[];
   goal?: string; pinned: boolean;
+  about: string; steps: string[]; url?: string;
 }
 export type OfferAction = 'pin' | 'unpin' | 'later' | 'unlater' | 'hide' | 'unhide' | 'reason';
 export type Answers = Partial<Record<FieldKey, { values: string[]; text?: string }>>;
