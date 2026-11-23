@@ -92,6 +92,7 @@ export default function App() {
       setError(null);
       setNoData(false);
     } catch (e: any) {
+      if (selectedCustomer.current !== id) return;
       if (e?.code === 'NO_DATA') {
         setState(null);
         setError(null);
@@ -101,6 +102,7 @@ export default function App() {
       // Loaded data may not have this customer (e.g. no "lauri"): switch to the first one there is.
       if (e?.message === 'User not found') {
         const us = await fetchUsers().catch(() => [] as User[]);
+        if (selectedCustomer.current !== id) return;
         setUsers(us);
         if (us.length && us[0].id !== id) { selectedCustomer.current = us[0].id; setPersonaId(us[0].id as PersonaId); return; }
       }

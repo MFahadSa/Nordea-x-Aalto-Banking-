@@ -62,3 +62,29 @@ const plain=await abelTurn('lauri','plain-rejected','abel','Is this gift tax fre
 n=0;setProvider({name:'distinct-problems',isConfigured:()=>true,step:async()=>({calls:[{name:'finishReply',args:{text:++n===1?'I am connecting you now.':n===2?'Up to 7,500 euros is tax-free.':'Gifts under 7,500 euros are exempt.',suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]})});
 const distinct=await abelTurn('lauri','distinct-problems','abel','Is this gift tax free?');assert.equal(n,3);assert.ok(!distinct.offline);
 console.log('PASS independent-review positive/negative wording, amount variants and bounded separate retries');
+
+const unsafeClauses = [
+ ['gift tax','Gifts up to 7,500 euros are exempt and no reporting is needed.',gift],
+ ['insurance','You can cancel anytime with no cancellation fee.',energy],
+ ['insurance','No problem, you can cancel anytime.',energy],
+ ['insurance','The exclusions are unknown but you can cancel anytime.',energy],
+ ['invest','This investment has guaranteed returns with no risk.',''],
+ ['ASP','No worries, the maximum age is 40.',context('ASP')],
+] as const;
+for (const [request,reply,checked] of unsafeClauses) assert.ok(problem(request,reply,checked),reply);
+for (const [request,reply,checked] of [
+ ['gift tax','Gifts up to 7,500 euros are not exempt.',gift],
+ ['insurance','You cannot cancel anytime.',energy],
+ ['insurance','I cannot confirm that you can cancel anytime.',energy],
+ ['insurance','Whether you can cancel anytime is unknown.',energy],
+ ['planner','This card does not include an adviser link.',energy],
+ ['PS','It is not simply a normal capital gain.',context('PS')],
+ ['invest','There are no guaranteed returns.',''],
+] as const) assert.equal(problem(request,reply,checked),null,reply);
+for (const [i,[request,unsafe]] of unsafeClauses.entries()) {
+ let count=0;
+ setProvider({name:'independent-clause-runtime',isConfigured:()=>true,step:async()=>({calls:[{name:'finishReply',args:{text:++count===1?unsafe:'I cannot verify that claim from the supplied facts.',suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]})});
+ const result=await abelTurn('lauri',`unsafe-clause-${i}`,'abel',request==='insurance'?'We need home insurance before moving':request==='invest'?'I want to start investing':request);
+ assert.equal(count,2,`Unsafe first answer accepted: ${unsafe}`);assert.notEqual(result.text,unsafe);
+}
+console.log('PASS predicate-scoped negation, independent unsafe clauses, direct denials and first-answer runtime rejection');
