@@ -231,7 +231,7 @@ console.log('PASS directed privacy versus ordinary banking and service need');
 setProvider({name:'directed-boundary-review',isConfigured:()=>true,step:async({system})=>{captured=system;calls++;return {calls:[finish]}}});
 const normalAsp=await abelTurn('lauri','normal-asp-directed','abel',"I don't save much, should I open an ASP account?");
 assert.ok(normalAsp.cards.some(c=>c.data?.ruleId==='asp-account'));
-planned=[{name:'proposeCabinetChange',args:{action:'add',type:'goal',title:'Affirmative reminder car goal',detail:'Saving for a car',targetAmount:5000,targetDate:'2028-12-31',goalType:'car',sensitive:false}},finish];
+planned=[{name:'proposeCabinetChange',args:{action:'add',type:'goal',title:'A new car goal',detail:'Saving for a car',targetAmount:5000,targetDate:'2028-12-31',goalType:'car',sensitive:false}},finish];
 setProvider({name:'positive-note-review',isConfigured:()=>true,step:async()=>({calls:planned.length?planned.splice(0):[finish]})});
 const positiveNote=await abelTurn('alex','positive-note-review','abel',"Don't forget to note that I'm saving 5000 for a car by 2028");
 assert.ok(positiveNote.notes.length||positiveNote.cards.some(c=>c.type==='duplicate'));
