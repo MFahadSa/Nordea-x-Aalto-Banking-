@@ -1108,3 +1108,5 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .ab-reward-b{display:flex;gap:8px;flex-wrap:wrap}
 .cb-fold svg{transition:transform .2s;transform:rotate(90deg)}.cb-fold[aria-expanded="true"] svg{transform:rotate(-90deg)}
 .cb-ask{width:100%;font-size:13px;font-weight:600;color:var(--ink-2)}
+.cb-opts{color:var(--ink-2)}
+.ab-start-btn{display:flex;gap:8px}

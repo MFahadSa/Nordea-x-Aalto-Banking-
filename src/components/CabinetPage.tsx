@@ -84,13 +84,23 @@ const EditForm: React.FC<{ e: CabinetEntry; onSave: (u: Partial<CabinetEntry>) =
 };
 
 /** The three buttons every item has, always in the same order. */
-const Actions: React.FC<{ e: CabinetEntry; editing: boolean; why: boolean; onEdit: () => void; onRemove: () => void; onWhy?: () => void }> = ({ e, editing, why, onEdit, onRemove, onWhy }) => (
-  <div className="cb-btns">
-    <button className="btn small" aria-pressed={editing} onClick={onEdit}><Icon name="sliders" size={15} />Edit</button>
-    <button className="btn small" onClick={onRemove}><Icon name="trash" size={15} />Remove</button>
-    {onWhy && e.why && <button className="btn small quiet" aria-expanded={why} onClick={onWhy}><Icon name="info" size={15} />How do we know?</button>}
-  </div>
-);
+const Actions: React.FC<{ e: CabinetEntry; editing: boolean; why: boolean; onEdit: () => void; onRemove: () => void; onWhy?: () => void }> = ({ e, why, onEdit, onRemove, onWhy }) => {
+  // Hidden until asked for, so each item stays one or two lines.
+  const [open, setOpen] = useState(false);
+  if (!open) return (
+    <div className="cb-btns">
+      <button className="btn small quiet cb-opts" aria-expanded={false} onClick={() => setOpen(true)}><Icon name="more" size={16} />{onWhy && e.why ? 'Edit, remove or why' : 'Edit or remove'}</button>
+    </div>
+  );
+  return (
+    <div className="cb-btns">
+      <button className="btn small" onClick={onEdit}><Icon name="sliders" size={15} />Edit</button>
+      <button className="btn small" onClick={onRemove}><Icon name="trash" size={15} />Remove</button>
+      {onWhy && e.why && <button className="btn small" aria-expanded={why} onClick={onWhy}><Icon name="info" size={15} />How do we know?</button>}
+      <button className="btn small quiet" aria-expanded onClick={() => setOpen(false)}>Close</button>
+    </div>
+  );
+};
 
 export const CabinetPage: React.FC<CabinetProps> = (p) => {
   const { state } = p;
@@ -102,9 +112,10 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
   const [wrong, setWrong] = useState<string | null>(null);
   // From you, From Nordea and Your documents fold away to save space.
   const [sec, setSec] = useState<Record<string, boolean>>({});
-  const toggleSec = (k: string) => setSec((x) => ({ ...x, [k]: !x[k] }));
+  const isOpen = (k: string) => sec[k] !== false;
+  const toggleSec = (k: string) => setSec((x) => ({ ...x, [k]: !isOpen(k) }));
   const fold = (k: string, n: number) => (
-    <button className="btn link band-act cb-fold" aria-expanded={!!sec[k]} onClick={() => toggleSec(k)}>{sec[k] ? 'Hide' : n ? `Show ${n}` : 'Show'}<Icon name="chev" size={15} /></button>
+    <button className="btn link band-act cb-fold" aria-expanded={isOpen(k)} onClick={() => toggleSec(k)}>{isOpen(k) ? 'Hide' : n ? `Show ${n}` : 'Show'}<Icon name="chev" size={15} /></button>
   );
 
   // Waiting for you: inputs from glasses / chats / documents, and approval requests, come from the server.
@@ -227,7 +238,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
 
         {/* 3. From you */}
         <Band left="From you" right={fold('mine', goals.length + mine.length)} />
-        {sec.mine && <div className="ncard cb-sec">
+        {isOpen('mine') && <div className="ncard cb-sec">
           {!goals.length && !mine.length && <p className="cb-empty">Nothing yet. Add a goal, or tell Nora about your plans.</p>}
           {goals.map((g) => {
             const e = items.find((x) => x.id === g.goalId)!;
@@ -259,7 +270,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
 
         {/* 4. From Nordea */}
         <Band left="From Nordea" right={fold('nordea', nordea.length)} />
-        {sec.nordea && <div className="ncard cb-sec">
+        {isOpen('nordea') && <div className="ncard cb-sec">
           {!nordea.length && <p className="cb-empty">Nothing yet. When you confirm something Nordea noticed, it shows here.</p>}
           {nordea.map((e) => itemRow(e, true))}
           {state.advice && p.onAdviceChange && (
@@ -274,7 +285,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
 
         {/* 5. Your documents */}
         <Band left="Your documents" right={fold('docs', docs.length)} />
-        {sec.docs && <div className="ncard cb-sec" id="your-docs">
+        {isOpen('docs') && <div className="ncard cb-sec" id="your-docs">
           {!docs.length && <p className="cb-empty">None kept. Switch on “Keep a copy” when you add a file to a chat.</p>}
           {[...docs].reverse().map((d: DocInfo) => (
             <div className="cb-item" key={d.id}>
@@ -289,7 +300,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
             </div>
           ))}
         </div>}
-        {sec.docs && <RefundKnows userId={state.user.id} onOpen={p.onOpenRefundCase} bare />}
+        {isOpen('docs') && <RefundKnows userId={state.user.id} onOpen={p.onOpenRefundCase} bare />}
       </div>
     </>
   );

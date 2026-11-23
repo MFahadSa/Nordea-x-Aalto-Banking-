@@ -89,6 +89,8 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
   const [editKey, setEditKey] = useState<FieldKey | null>(null);
   // Answered in this visit: keeps "Question 3 of 7" counting up while answered questions drop out.
   const [answered, setAnswered] = useState(0);
+  // The questions start with a Start button, so the first screen is the reason, not a form.
+  const [started, setStarted] = useState(false);
   if (!view) return null;
   const QS = Object.fromEntries(QUESTIONS.map((q) => [q.field, q]));
   const askFor = (k: FieldKey): Ask => {
@@ -206,7 +208,7 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
             {cur && f ? (
               <div className="ab-value">
                 {/* The reason stays the same while answering, so the box doesn't change size. */}
-                <b className="ab-value-h">{open.length} quick {open.length === 1 ? 'question' : 'questions'} left. Answer them and get:</b>
+                <b className="ab-value-h">{started || answered > 0 ? `${open.length} quick ${open.length === 1 ? 'question' : 'questions'} left. Answer them and get:` : `Answer ${open.length} quick ${open.length === 1 ? 'question' : 'questions'} and get:`}</b>
                 <div className="ab-gain">
                   <span className="ab-gain-ic pts" aria-hidden="true"><Icon name="star" /></span>
                   <span><b>+{view.incentive.points} points</b>{view.incentive.rewardLine && <> · {view.incentive.rewardLine}</>}</span>
@@ -215,7 +217,9 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
                   <span className="ab-gain-ic adv" aria-hidden="true"><Icon name="spark" /></span>
                   <span><b>Advice made for you</b>, like:<ul>{view.incentive.teasers.map((t) => <li key={t}>{t}</li>)}</ul></span>
                 </div>
-                {question}
+                {started || answered > 0 ? question : (
+                  <button className="btn primary block ab-start-btn" onClick={() => setStarted(true)}><Icon name="spark" size={18} />Start · about a minute</button>
+                )}
               </div>
             ) : (
               <div className="ab-reward">
