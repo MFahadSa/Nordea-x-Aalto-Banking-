@@ -199,7 +199,9 @@ function factsFor(userId: string, allowed: Set<string>) {
     goals: fin.activeGoals(userId).filter((g) => allowed.has(g.id)).map((g) => ({ ...fin.goalStatus(userId, g), goalType: g.goalType })),
     paydayPlan: strip(fin.payPlan(userId)),
     psAccount: (() => {
-      const ps = db.getBankAccounts(userId).find(a => /^ps\b|long-term savings|pitkäaikaissäästö/i.test(a.type || ''));
+      const psAccounts = db.getBankAccounts(userId).filter(a => /^ps\b|long-term savings|pitkäaikaissäästö/i.test(a.type || ''));
+      if (psAccounts.length > 1) return { heldAtThisBank: true, accountCount: psAccounts.length, balance: null, balanceOn1January2027: null, note: 'Multiple PS contracts: personal eligibility unknown. Do not select the first or assume an aggregation rule; obtain a reviewed contract-level assessment.' };
+      const ps = psAccounts[0];
       if (!ps) return { heldAtThisBank: false, balance: null, balanceOn1January2027: null, note: 'Do not substitute ordinary account totals. An external PS account is not established here.' };
       const snapshots = db.getBalanceSnapshots(userId).filter(b => b.accountKey === ps.key && b.at.slice(0,10) <= fin.DEMO_TODAY).sort((a,b)=>b.at.localeCompare(a.at));
       return { heldAtThisBank: true, balance: snapshots[0]?.balance ?? null, asOf: snapshots[0]?.at ?? null, balanceOn1January2027: snapshots.find(b=>b.at.slice(0,10)==='2027-01-01')?.balance ?? null };
@@ -254,7 +256,7 @@ RULES
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts); never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
 - Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
 - Passed goal dates: ask if still a plan.
-- CARDS: the app decides partner offers, questions and suggestions itself, from what the customer said. You never offer partners, products or benefits on your own, never ask the app's questions yourself, and never write a card as text (no "[Card: …]"). THIS TURN: ${cardNote || 'No card. Do not mention any card, partner, offer or suggestion "below".'}
+${u.offersOff ? '- PARTNER OFFERS ARE OFF: do not mention partner offers, prices, incentives or recommend a partner, even if earlier chat contains one. Help without a partner pitch.\n' : ''}- CARDS: the app decides partner offers, questions and suggestions itself, from what the customer said. You never offer partners, products or benefits on your own, never ask the app's questions yourself, and never write a card as text (no "[Card: …]"). THIS TURN: ${cardNote || 'No card. Do not mention any card, partner, offer or suggestion "below".'}
 - Adviser card (startHandoff): only when they ask for a person, or about a loan or mortgage, and only if THIS TURN has no card.
 - offerTransfer shows a confirm card, only between their own accounts. You can never pay another person: say so and point to Payments in the app.
 - A flat's price is not the deposit goal; homes are paid mostly with a loan you can't calculate. Don't count months or years to cover a price; mention a free adviser.
@@ -549,7 +551,10 @@ function codeCard(ctx: TurnCtx): string {
     if (it.rule === 'asp-account' && /\b(?:already have|already own|have got)\b[^.?!]{0,30}\b(?:one|asp|account)\b|\bmy (?:existing )?asp account\b/i.test(ctx.userText)) continue;
     if (it.id === 'gift-information') continue; // Receiving a gift does not imply supporting children.
     if (it.rule) {
-      const r = ruleCardFor(ctx.userId, ctx.conversationId, refusesStorage(ctx.userText) ? { ...it, implies: undefined } : it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
+      // Rule cards persist answers, display state and reasons. An explicit no-save turn
+      // stays educational only; do not route its facts into any of those stores.
+      if (refusesStorage(ctx.userText)) continue;
+      const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
       if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; return r.describe; }
     } else if (it.partner) {
       const d = partnerCard(ctx, it.partner);
@@ -834,7 +839,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
   const cardNote = helperId === 'person' || FRAUD.test(userText) ? '' : codeCard(ctx);
   // Reviewed facts constrain the model; they never replace the customer's task or tool turn.
-  const checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY);
+  const shownPartners = new Set(ctx.cards.filter((c) => c.type === 'offer').map((c) => String(c.data?.partnerId)));
+  const checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
   const groundedNote = checkedContext;
   const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote) + '\n' + checkedContext;
   const t0 = Date.now();

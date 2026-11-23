@@ -1,3 +1,7 @@
+# Superseded by round 4
+
+Read `CLAUDE-ROUND4-REVIEW.md` for the latest correction and independent review. The fifteen-story matrix below remains the acceptance checklist, not a record of completed published journeys.
+
 # Nora correction review, round 3
 
 Review branch: `fix/rule-rendering-and-explicit-requests`

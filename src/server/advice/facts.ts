@@ -101,8 +101,10 @@ export function buildFacts(x: FactInputs): Facts {
   const hasType = (re: RegExp) => accounts.some((a) => re.test(a.type || ''));
   const products = 'Your Nordea accounts';
   facts.hasAspAccount = known('hasAspAccount', hasType(/\basp\b/i), products);
-  const ps = accounts.find((a) => /^ps\b|long-term savings|pitkäaikaissäästö/i.test(a.type || ''));
-  facts.hasPsAccount = known('hasPsAccount', !!ps, products);
+  const psAccounts = accounts.filter((a) => /^ps\b|long-term savings|pitkäaikaissäästö/i.test(a.type || ''));
+  facts.hasPsAccount = known('hasPsAccount', psAccounts.length > 0, products);
+  // Multiple contracts need a reviewed eligibility basis, never silently select the first.
+  const ps = psAccounts.length === 1 ? psAccounts[0] : undefined;
   if (ps) {
     const snap = x.balances.filter((b) => b.accountKey === ps.key && b.at.slice(0, 10) <= today).sort((a, b) => b.at.localeCompare(a.at))[0];
     if (snap) facts.psBalance = known('psBalance', snap.balance, 'PS account balance', snap.at.slice(0, 10));
