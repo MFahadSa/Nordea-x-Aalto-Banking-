@@ -38,12 +38,9 @@ const foreign=geminiContents([{role:'model_calls',calls:[call]},{role:'tool_resu
 assert.ok(foreign.every(x=>x.parts.every((p:any)=>!p.functionCall&&!p.functionResponse)));
 assert.deepEqual(relevantForLoan([{type:'fact',title:'Pays for cleaning at home',detail:''},{type:'fact',title:'Studies at a university or UAS: Yes',detail:'student loan'},{type:'goal',goalType:'home',title:'Buy a flat',detail:''}] as any).map(e=>e.title),['Buy a flat']);
 assert.deepEqual(refundIntake('It was Tuulikki Electronics, about 129 euros.',true),{kind:'consent',statedAmount:129});
-// Optional exact replay when the local live-evidence directory is present.
-if (fs.existsSync('/downloads/nora-published64/01-asp.json')) for (const id of ['01-asp','04-gift','07-ps2027']) {
-  const saved=JSON.parse(fs.readFileSync(`/downloads/nora-published64/${id}.json`,'utf8'));
-  const [q,a]=saved.messages;
-  assert.ok(problem(q.text,a.text,context(q.text)), `Stored live failure not rejected: ${id}`);
-}
+// Exact stored published failures, independent of local capture paths.
+const fixtures=JSON.parse(fs.readFileSync(new URL('./fixtures/live-story-replies.json',import.meta.url),'utf8'));
+for (const f of fixtures) assert.ok(problem(f.request,f.reply,context(f.request)), `Stored live failure not rejected: ${f.id}`);
 let n=0;setProvider({name:'adversarial-live-regression',isConfigured:()=>true,step:async()=>{n++;return{calls:[{name:'finishReply',args:{text:'Up to 7,500 euros is tax-free.',suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]}}});
 const rejected=await abelTurn('lauri','live-retry-reject','abel','Is this gift tax free?');
 assert.ok(n>=2);assert.ok(rejected.offline);assert.doesNotMatch(rejected.text,/Up to 7,500/);
