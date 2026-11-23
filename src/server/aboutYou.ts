@@ -17,7 +17,8 @@ import * as fin from './finance.js';
 import { loadBus } from './arch/store/busStore.js';
 import { decideProposal } from './arch/orchestrator.js';
 import type { CabinetEntry } from '../types.js';
-import { FIELDS, type AboutView, type FieldKey, type FieldView } from '../aboutParts.js';
+import { REWARDS } from './routes.js';
+import { FIELDS, QUESTIONS, type AboutView, type FieldKey, type FieldView } from '../aboutParts.js';
 
 const now = () => new Date().toISOString();
 const newId = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -26,10 +27,15 @@ const POINTS_PER_ANSWER = 5;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** What Nordea knows from opening the account (fictional demo customers). */
-const OPENING: Record<string, { city?: string; since?: number; occupation?: string }> = {
+const OPENING: Record<string, { city?: string; since?: number; occupation?: string; demo?: { work?: string; home?: string; money?: string } }> = {
   lauri: { city: 'Helsinki', since: 2017, occupation: 'UX designer' },
-  eeva: { city: 'Espoo', since: 1979, occupation: 'retired teacher' },
-  alex: { city: 'Tampere', since: 2026 },
+  eeva: { city: 'Espoo', since: 1979, occupation: 'teacher' },
+  // A new customer: only a few weeks of data, so the demo fills in a fictional picture.
+  alex: { city: 'Tampere', since: 2026, demo: {
+    work: 'Studies, with a part-time job: about 900 € a month, paid on the 15th',
+    home: 'Rents a student flat, about 480 € a month',
+    money: 'Spends about 260 € a month on groceries, 90 € on eating out and 45 € on transport',
+  } },
 };
 
 type Extra = { aboutRewarded?: string[]; offerState?: OfferState };
@@ -64,25 +70,49 @@ function sentence(key: FieldKey, values: string[], free?: string): string {
   return values.join(', ');
 }
 
-/** Nordea's pre-filled answers: what the bank data and the customer's own goals already say. */
-function suggestions(userId: string, entries: CabinetEntry[]): Partial<Record<FieldKey, { values: string[]; text: string; from: string }>> {
+const eur = (n: number) => `${Math.round(n).toLocaleString('fi-FI')} €`;
+const CAT: Record<string, string> = { groceries: 'groceries', restaurants: 'eating out', transport: 'transport', subscriptions: 'subscriptions', shopping: 'shopping', bills: 'bills', pharmacy: 'pharmacy' };
+
+/** What Nordea's own data shows: work and salary, home and rent, spending by category, saving. */
+export function bankPicture(userId: string) {
   const u = db.getUser(userId);
   const open = OPENING[userId] || {};
-  const out: Partial<Record<FieldKey, { values: string[]; text: string; from: string }>> = {};
-  if (!u) return out;
-  out.basics = { values: [], text: [`${u.age}`, open.city, open.since ? `customer since ${open.since}` : ''].filter(Boolean).join(', '), from: 'Nordea knows' };
-  const sal = fin.salaryInfo(userId);
   const tx = db.getTransactions(userId);
-  const pension = tx.some((t) => t.category === 'pension' && t.amount > 0);
-  if (sal.found) out.work = { values: ['Working'], text: `${open.occupation ? `Works as a ${open.occupation}` : 'Works'}, steady salary`, from: 'Nordea knows' };
-  else if (pension) out.work = { values: ['Retired'], text: `Retired${open.occupation ? ` (${open.occupation})` : ''}, pension income`, from: 'Nordea knows' };
-  if (tx.some((t) => t.category === 'housing' && t.amount < 0 && /rent|vuokra/i.test(t.description || ''))) out.home = { values: ['Rents'], text: 'Rents', from: 'Nordea noticed' };
+  const sal = fin.salaryInfo(userId);
   const acc = fin.accounts(userId);
-  const habits = [
-    acc?.savings?.monthlyDeposit ? `Saves ${Math.round(acc.savings.monthlyDeposit).toLocaleString('fi-FI')} € a month` : '',
-    ...entries.filter((e) => e.source === 'nordea' && e.type === 'observation' && live(e) && !/salary/i.test(e.title)).map((e) => e.title.replace(/^You've been /i, '').replace(/^./, (c) => c.toUpperCase())),
+  // The last three months of data (counted back from the newest transaction, so the demo data stays current).
+  const last = tx.map((t) => t.date).sort().at(-1);
+  const from = last ? new Date(Date.parse(last) - 91 * 864e5).toISOString().slice(0, 10) : '';
+  const recent = tx.filter((t) => t.date > from);
+  const monthly = (cat: string) => -recent.filter((t) => t.category === cat && t.amount < 0).reduce((a, t) => a + t.amount, 0) / 3;
+  const pension = recent.filter((t) => t.category === 'pension' && t.amount > 0).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+  const rentTx = recent.filter((t) => t.category === 'housing' && t.amount < 0).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+  const rents = !!rentTx && /rent|vuokra/i.test(rentTx.description || '');
+  const spend = Object.keys(CAT).map((c) => ({ c, v: monthly(c) })).filter((x) => x.v >= 20).sort((a, b) => b.v - a.v).slice(0, 3);
+  const and = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
+  const salaryNow = recent.some((t) => t.category === 'salary' && t.amount > 0);
+  const lines: { key: FieldKey; label: string; icon: string; text: string; values: string[] }[] = [];
+  if (pension && !salaryNow) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Retired'], text: `Retired${open.occupation ? ` ${open.occupation}` : ''}, pension of ${eur(pension.amount)} a month` });
+  else if (sal.found) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Working'],
+    text: `${open.occupation ? `${open.occupation.charAt(0).toUpperCase() + open.occupation.slice(1)}, s` : 'S'}teady salary of ${eur(sal.latest!)} a month, paid on the ${sal.payday}${[, 'st', 'nd', 'rd'][sal.payday! % 10] && ![11, 12, 13].includes(sal.payday!) ? [, 'st', 'nd', 'rd'][sal.payday! % 10] : 'th'}` });
+  if (!lines.some((l) => l.key === 'work') && open.demo?.work) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Both'], text: open.demo.work });
+  if (!rentTx && open.demo?.home) lines.push({ key: 'home', label: 'Home', icon: 'home', values: ['Rents'], text: open.demo.home });
+  if (rentTx) lines.push({ key: 'home', label: 'Home', icon: 'home', values: rents ? ['Rents'] : [], text: rents ? `Rents, about ${eur(-rentTx.amount)} a month` : `Housing costs about ${eur(-rentTx.amount)} a month` });
+  const money = [
+    spend.length ? `Spends about ${and(spend.map((x, i) => `${eur(x.v)}${i ? '' : ' a month'} on ${CAT[x.c]}`))}` : open.demo?.money || '',
+    acc?.savings?.monthlyDeposit ? `saves ${eur(acc.savings.monthlyDeposit)} a month (${eur(acc.savings.balance)} saved)` : '',
   ].filter(Boolean);
-  if (habits.length) out.money = { values: [], text: habits.map((h, i) => (i ? h.charAt(0).toLowerCase() + h.slice(1) : h)).join(', '), from: 'Nordea noticed' };
+  if (money.length) lines.push({ key: 'money', label: 'Money habits', icon: 'pie', values: [], text: money.map((m, i) => (i ? m : m.charAt(0).toUpperCase() + m.slice(1))).join('; ') });
+  return { lines, basics: u ? [`${u.age}`, open.city, open.since ? `customer since ${open.since}` : ''].filter(Boolean).join(', ') : '', eatingOut: monthly('restaurants') };
+}
+
+/** Nordea's pre-filled answers: what the bank data and the customer's own goals already say. */
+function suggestions(userId: string, entries: CabinetEntry[]): Partial<Record<FieldKey, { values: string[]; text: string; from: string }>> {
+  const out: Partial<Record<FieldKey, { values: string[]; text: string; from: string }>> = {};
+  if (!db.getUser(userId)) return out;
+  const bank = bankPicture(userId);
+  out.basics = { values: [], text: bank.basics, from: 'Nordea knows' };
+  for (const l of bank.lines) out[l.key] = { values: l.values, text: l.text, from: 'From your Nordea data' };
   // The customer's own goals and notes already say some things: suggest them, never assume them.
   const goals = entries.filter((e) => e.type === 'goal' && e.status === 'active');
   const plans = [
@@ -95,10 +125,14 @@ function suggestions(userId: string, entries: CabinetEntry[]): Partial<Record<Fi
   return out;
 }
 
+/** The answers that earn points, in the order the flow asks them. */
+export const ASKED: FieldKey[] = ['work', 'home', 'money', 'plans', 'interests', 'risk', 'mainUse'];
+
 export function aboutView(userId: string): AboutView {
   const u = db.getUser(userId);
   const entries = db.getCabinetEntries(userId);
   const sug = suggestions(userId, entries);
+  const bank = bankPicture(userId);
   const fields = {} as Record<FieldKey, FieldView>;
   for (const def of Object.values(FIELDS)) {
     const e = fieldEntry(entries, def.key);
@@ -115,21 +149,45 @@ export function aboutView(userId: string): AboutView {
   const f = fields;
   const has = (k: FieldKey) => f[k].source !== 'none';
   const name = u?.name || '';
+  // The paragraph: Nordea's data first (it is what Nordea already sees), then what the customer added.
+  const bankText = (k: FieldKey) => (has(k) ? f[k].text : bank.lines.find((l) => l.key === k)?.text || '');
   const parts = [
     `${name}${f.basics.text ? `, ${f.basics.text}` : ''}.`,
-    [f.work.text, f.home.text && f.people.text ? `${f.people.text}, ${f.home.text.toLowerCase()}` : f.people.text || f.home.text].filter(Boolean).join('. '),
-    f.money.text,
+    bankText('work'),
+    [f.people.text, has('home') ? f.home.text : bankText('home')].filter(Boolean).join(', '),
+    bankText('money'),
     f.plans.text ? `Plans: ${lower(f.plans.text)}` : '',
     f.interests.text,
     [f.risk.text, f.style.text].filter(Boolean).join('; '),
     f.more.text,
   ].filter(Boolean).map((s) => (/[.!?]$/.test(s) ? s : `${s}.`));
-  const goals = entries.some((e) => e.type === 'goal' && e.status === 'active');
+  const goals = entries.filter((e) => e.type === 'goal' && e.status === 'active');
+
+  // What answering is worth: points toward a real reward, and examples of advice it unlocks.
+  // Screens left: one to check Nordea's data (if anything is unchecked), then one per open question.
+  const unchecked = bank.lines.filter((l) => !has(l.key)).length;
+  const remaining = (unchecked ? 1 : 0) + QUESTIONS.filter((q) => !has(q.field)).length;
+  const earn = ASKED.filter((k) => !has(k)).length * POINTS_PER_ANSWER;
+  const now = u?.points || 0;
+  const rewards = [...REWARDS].sort((a, b) => a.pts - b.pts);
+  const reach = rewards.find((r) => r.pts > now && r.pts <= now + earn);
+  const next = rewards.find((r) => r.pts > now);
+  const rewardLine = !earn ? '' : reach ? `Enough for ${lower(reach.title)}` : next ? `${earn} points closer to ${lower(next.title)}` : '';
+  const home = goals.find((g) => g.goalType === 'home' || /flat|home|house|apartment/i.test(g.title));
+  const travel = goals.find((g) => g.goalType === 'travel' || /trip|travel|holiday/i.test(g.title));
+  const teasers = [
+    home ? `How much to save each month to reach “${home.title}” on time` : 'How much to save each month for what matters to you',
+    travel && home ? `A travel budget that keeps your flat on track` : travel ? `How much to put aside for “${travel.title}”` : '',
+    bank.eatingOut >= 150 ? `Where you could cut back on eating out (about ${eur(bank.eatingOut)} a month now)` : 'Where your money goes, and where you could save',
+    'Only savings and offers that fit your comfort with risk',
+  ].filter(Boolean).slice(0, 3);
   return {
     paragraph: parts.join(' '),
     fields,
+    bank: bank.lines.map((l) => ({ key: l.key, label: l.label, icon: l.icon, text: l.text })),
+    incentive: { remaining, points: earn, have: now, rewardLine, teasers },
     setup: [
-      { key: 'plans', done: has('plans') || goals, doneText: 'Your goal is set', todoText: 'Add your plans → see if you’re on track', step: 'plans' },
+      { key: 'plans', done: has('plans') || goals.length > 0, doneText: 'Your goal is set', todoText: 'Add your plans → see if you’re on track', step: 'plans' },
       { key: 'interests', done: has('interests'), doneText: 'Tips matched to your interests', todoText: 'Pick your topics → get tips that fit you', step: 'interests' },
       { key: 'risk', done: has('risk'), doneText: 'Offers that suit you', todoText: 'Set your comfort with risk → only offers that suit you', step: 'risk' },
       { key: 'confirm', done: (['work', 'home', 'money'] as FieldKey[]).every((k) => has(k) || !f[k].suggestion), doneText: 'What we know is checked', todoText: 'Check what we already know → one tap each', step: 'confirm' },

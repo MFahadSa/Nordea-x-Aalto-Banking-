@@ -68,6 +68,10 @@ export interface FieldView {
 export interface AboutView {
   paragraph: string;
   fields: Record<FieldKey, FieldView>;
+  /** What Nordea's own data shows (read-only, always shown with its source). */
+  bank: { key: FieldKey; label: string; icon: string; text: string }[];
+  /** What answering is worth: points toward a real reward, and the advice it unlocks. */
+  incentive: { remaining: number; points: number; have: number; rewardLine: string; teasers: string[] };
   /** "Get more from Nora": what each answer turns on. */
   setup: { key: string; done: boolean; doneText: string; todoText: string; step: FieldKey | 'confirm' }[];
 }

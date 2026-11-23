@@ -1012,3 +1012,49 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .of-ic.on{color:var(--brand-soft)}
 .of-ic span{line-height:1.2;text-align:center}
 .ofc-hidden p{margin:0;font-size:14px}
+
+/* ===== About you v2: one paragraph, Try Nora, one clear reason, one button; a smooth answer flow ===== */
+.ab-srcline{display:flex;align-items:center;flex-wrap:wrap;gap:6px 6px;font-size:12.5px;color:var(--muted);margin:-4px 0 0}
+.ab-dot{width:8px;height:8px;border-radius:50%;display:inline-block}.ab-dot.bank{background:var(--bank)}.ab-dot.you{background:var(--you);margin-left:8px}
+.btn.ab-try{display:flex;gap:8px;border-color:var(--brand-soft);color:var(--brand-soft)}
+.ab-value{display:flex;flex-direction:column;gap:12px;background:var(--sel);border-radius:14px;padding:14px}
+.ab-value.compact{background:none;padding:0}
+.ab-value-h{font-size:16px;font-weight:700;color:var(--ink)}
+.ab-gain{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.4;color:var(--ink)}
+.ab-gain ul{margin:4px 0 0;padding-left:18px;color:var(--ink-2);font-size:14px;display:flex;flex-direction:column;gap:3px}
+.ab-gain-ic{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center}
+.ab-gain-ic svg{width:16px;height:16px}
+.ab-gain-ic.pts{background:var(--warn-bg);color:var(--warn)}
+.ab-gain-ic.adv{background:var(--you-bg);color:var(--you)}
+.ab-value .btn.block{display:flex;gap:8px}
+.ab-done{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px;color:var(--ok);margin:0}
+.ab-done .btn.link{font-size:14px}
+/* The flow */
+.ob-count{justify-self:center;display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--muted)}
+.ob-pts{font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--warn-bg);color:var(--warn)}
+.ob-bar{flex:none;height:4px;margin:0 20px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.ob-bar i{display:block;height:100%;background:var(--brand-soft);border-radius:99px;transition:width .3s ease}
+.ob-body{padding-top:16px}
+.ob-sub{font-size:13.5px;color:var(--muted);margin:0}
+.ob-facts{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column}
+.ob-facts li{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+.ob-fact-ic{flex:none;width:24px;height:24px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;margin-top:1px}
+.ob-facts li.off .ob-fact-ic{background:var(--surface-2);color:var(--muted)}
+.ob-fact-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ob-fact-t span{font-size:12.5px;color:var(--muted);font-weight:600}.ob-fact-t b{font-size:15px;font-weight:600;line-height:1.35}
+.ob-facts li.off .ob-fact-t b{text-decoration:line-through;color:var(--muted)}
+.ob-opts{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.ob-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:52px;padding:12px 16px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);font:inherit;font-size:16px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
+.ob-opt:hover{border-color:var(--brand-soft)}
+.ob-opt.on{border-color:var(--brand);background:var(--sel)}
+.ob-opt:disabled{cursor:default}
+.ob-opt-ck{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center}
+.ob-opt.on .ob-opt-ck{background:var(--brand);border-color:var(--brand);color:#fff}
+.ob-reward{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;border-radius:12px;background:var(--warn-bg);padding:12px;font:inherit;font-size:14.5px;color:var(--ink);cursor:pointer}
+.ob-reward span span{font-size:13px;color:var(--ink-2)}
+.ob-reward>svg{margin-left:auto;color:var(--muted)}
+.getmore{padding:16px}
+@media (prefers-reduced-motion:reduce){.ob-bar i{transition:none}}
+.ob-tries{display:flex;flex-direction:column;gap:8px}
+.ob-tryq{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1.5px solid var(--brand-soft);border-radius:999px;background:var(--surface);color:var(--brand-soft);font:inherit;font-size:14.5px;font-weight:600;padding:10px 16px;cursor:pointer}
+.ob-tryq:hover{background:var(--sel)}

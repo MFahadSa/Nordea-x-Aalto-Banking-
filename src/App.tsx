@@ -63,7 +63,7 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; undoToken?: string; action?: { label: string; run: () => void } } | null>(null);
   // About you, the onboarding and Offers for you.
   const [about, setAbout] = useState<AboutView | null>(null);
-  const [onboard, setOnboard] = useState<null | 'intro' | 'confirm' | 'summary' | FieldKey>(null);
+  const [onboard, setOnboard] = useState<null | 'start' | FieldKey>(null);
   const [offersKey, setOffersKey] = useState(0);
   const [usersOpen, setUsersOpen] = useState(false);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
@@ -240,7 +240,7 @@ export default function App() {
   /** "Try Nora with this": the chat opens with Nora's first message built from the answers, and 3 questions to tap. */
   const tryNora = (v: AboutView) => {
     if (!state) return;
-    const intro = introFor(v, state.user.name);
+    const intro = introFor(v);
     openHelper('abel');
     setMessages([{ id: 'intro-' + Date.now(), userId: state.user.id, agentId: 'abel', channel: 'app', sender: 'agent', text: intro.text, suggestions: intro.suggestions, createdAt: new Date().toISOString() }]);
   };
@@ -462,9 +462,10 @@ export default function App() {
                 />
               )}
               {onboard && about && (
-                <Onboarding userId={state.user.id} name={state.user.name} view={about} start={onboard}
+                <Onboarding userId={state.user.id} name={state.user.name} view={about} start={onboard === 'start' ? undefined : onboard}
                   onSaved={(v) => { setAbout(v); setOffersKey((n) => n + 1); refresh(); }}
                   onClose={() => setOnboard(null)}
+                  onRewards={() => { setOnboard(null); goPage('rewards' as Page); }}
                   onTry={(v) => { setOnboard(null); tryNora(v); }} />
               )}
               <PersonaPickerModal
@@ -534,7 +535,7 @@ export default function App() {
               onAdviceShow={adviceShowMe}
               onAdviceNotNow={adviceNotNow}
               savingsFirst={!!about && about.fields.mainUse.values.some((x) => x === 'Saving' || x === 'Investing')}
-              getMore={<GetMoreCard view={about} onStep={(st) => setOnboard(st === 'start' ? 'intro' : st)} />}
+              getMore={<GetMoreCard view={about} onAdd={() => setOnboard('start')} />}
               offers={<OffersForYou userId={state.user.id} refreshKey={offersKey}
                 skip={state.advice?.forYou?.data?.ruleId === 'asp-account' ? ['asp'] : []}
                 onAsk={(o) => startChat('abel', `Tell me about the ${o.title} for my situation`)}
@@ -544,10 +545,7 @@ export default function App() {
           {page === 'knows' && (
             <KnowsPage
               state={state}
-              aboutTop={<AboutCard userId={state.user.id} name={state.user.name} view={about}
-                onStart={() => setOnboard('intro')}
-                onToast={(m) => setToast({ message: m })}
-                onSaved={(v, pts) => { setAbout(v); setOffersKey((n) => n + 1); refresh(); setToast({ message: `Nora updated${pts ? ` · +${pts} points` : ''}`, action: { label: 'Try it', run: () => tryNora(v) } }); }} />}
+              aboutTop={<AboutCard view={about} onTry={() => about && tryNora(about)} onAdd={() => setOnboard('start')} />}
               onAddGoal={() => setAddGoalOpen(true)}
               onTellNora={() => openHelper('abel')}
               onImport={() => doImport({ sample: true })}
