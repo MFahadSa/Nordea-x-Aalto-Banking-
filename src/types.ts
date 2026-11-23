@@ -91,11 +91,17 @@ export interface CabinetEntry {
     page?: number;
     messageId?: string;
     detectedFrom?: string;
+    /** Absent on legacy records. Only app-validated current field evidence is added. */
+    /** Each current target field's known origin; absent legacy fields remain unknown. */
+    targetOrigin?:{amount?:'customer-evidence'|'direct-customer-ui'|'customer-confirmed-proposal';date?:'customer-evidence'|'direct-customer-ui'|'customer-confirmed-proposal'};
+    targetFields?: {amount?:import('./server/advice/goalWriteEvidence.js').GoalFieldEvidence;date?:import('./server/advice/goalWriteEvidence.js').GoalFieldEvidence};
   };
   target?: {
     amount: number;
     date: string; // YYYY-MM-DD
   };
+  /** Owning goal sources of an architecture-derived cabinet row; permissions remain source-bound. */
+  sourceGoalIds?: string[];
   linked?: {
     lastContribution?: string;
   };
@@ -262,6 +268,7 @@ export interface ImportBatch {
 
 export interface MessageCard {
   type:
+    | 'goal_confirm'
     | 'goal_status'
     | 'undo_banner'
     | 'access_check'
@@ -304,6 +311,15 @@ export interface ChatMessage {
   refundCaseId?: string;
   /** Cabinet entries Nora actually relied on for this reply (checked against what the gateway returned). */
   usedEntryIds?: string[];
+  /** Code-observed exact source quotation revisions, not model self-report. */
+  quotedSources?: {id:string;revision:string}[];
+  /** Sources actually supplied to Nora, not sources it claims to have used. */
+  suppliedSources?: {id:string;revision:string}[];
+  /** Exact shared source snapshot exposed for this reply, not model-reported usage. */
+  suppliedSharedRevision?: string;
+  exposedContentKeys?: string[];
+  savedContextPage?: {query:string;cursor?:string;complete?:boolean;count?:number;language?:string;viewRevision?:string;discovery?:boolean};
+  exposedSources?: {owner:'cabinet'|'personal'|'cm'|'nordea';id:string;revision:string}[];
   /** A file or photo the customer sent (a small thumbnail is kept for photos, never the full file). */
   attachment?: {
     name: string;

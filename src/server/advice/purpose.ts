@@ -1,7 +1,43 @@
 /** Purpose precedes topic. A topic mention is not permission to advertise or replace a task. */
 export type Purpose = 'banking' | 'plan' | 'information' | 'conversation';
+/** Own-history retrieval is read-only regardless of the topic nouns it contains. */
+export function ownHistoryRead(text:string):boolean {
+ const t=text.trim();
+ return /\b(?:recall|remind me|what (?:did|have) I (?:tell|told|say|said|save|saved|write|wrote|note|noted)|did I (?:mention|tell)|my (?:notes|records)|(?:summari[sz]e|show|list) (?:my|our) (?:goals|facts|notes))\b|\b(?:what do|what does) (?:my|your) (?:notes|record)\b|\b(?:muistatko|muistuta|tavoitteeni|muistiinpano\w*)\b/iu.test(t);
+}
+/** Questions cannot establish implied customer facts. Separate affirmative clauses may. */
+export function customerAssertion(text:string):boolean {
+ return text.split(/[.!?;:]|\bbut\b|,?\s+and\s+(?=(?:I|We)\b)/iu).some(c=>{
+  const t=c.trim();
+  if(/^(?:did|do|have|am|what|when|how|can|could|would|should|remind|recall|please|mitä|mikä|voinko|pitäisikö)\b/iu.test(t)||/^(?:I|We)\s+(?:want|would|could|should|need|plan|hope|wish)\b/iu.test(t))return false;
+  if(/\b(?:not|never|no longer|not yet|thinking|going to|planning|hope|wish|graduated|finished)\b/iu.test(t))return false;
+  return /^(?:I(?:[’']ve|[’']m|[’']d)?\s+(?:(?:just|recently|now|also|really|already|currently|still|do)\s+)*(?:am|have|started|start|study|studying|save|saving|pay|paid|give|gave|help|support)|We\s+(?:(?:now|also|really|currently)\s+)*(?:are|have|pay|save|saving)|My wife and I pay|Started at|Aloitin|Olen|Maksan|Opiskelen)\b/iu.test(t);
+ });
+}
+/** Fact inference needs a direct first-person predicate, not a topic later in the clause. */
+export function customerFactAssertion(text:string,fact:string):boolean {
+ const t=text.trim().replace(/[’]/g,"'");
+ const subject="(?:I|We|My wife and I)";
+ const mods="(?:(?:just|recently|now|also|really|already|currently|still|do)\\s+)*";
+ const predicates:Record<string,string>={
+  isHigherEducationStudent:"(?:started|start|study|studying|am studying|am (?:a |an )?(?:university |uni |college )?student|have started|'ve started|'m studying|'m (?:a |an )?(?:university |uni |college )?student)\\b[^.!?]{0,40}\\b(?:at|aalto|university|uni|uas|college|degree|student)",
+  paysForHouseholdWork:"(?:pay|paid|am paying|have paid|are paying)\\b[^.!?]{0,30}\\b(?:cleaner|cleaning|renovat\\w*|repairs?|plumber|electrician|carpenter|gardener|home care|carer)",
+  savingForHome:"(?:save|saving|am saving|are saving|have saved|'m saving)\\b[^.!?]{0,35}\\b(?:home|flat|house|apartment)",
+  helpsFamilyWithMoney:"(?:give|gave|help|support|pay for|am helping|am supporting|are helping)\\b[^.!?]{0,40}\\b(?:children|kids|son|daughter|grand\\w*)",
+  interestedInInvesting:"(?:am interested in|am investing|invest|have shares|have stocks|'m interested in)\\b",
+ };
+ if(fact==='isHigherEducationStudent'&&/^(?:Opiskelen|Aloitin|Started at)\b/iu.test(t)&&! /\b(?:not|never|no longer|graduated|finished)\b/iu.test(t))return true;
+ const predicate=predicates[fact];if(!predicate)return false;
+ if(/\b(?:not|never|no longer|not yet|thinking|going to|planning|hope|wish|graduated|finished)\b/iu.test(t))return false;
+ return new RegExp('^'+subject+'(?:\\s+|(?=\'))'+mods+predicate,'iu').test(t);
+}
 export function purposeOf(text: string): Purpose {
   const t = text.trim();
+  if(/^\s*(?:please\s+)?(?:calculate|plan|make|prepare|help me plan|laske|suunnittele|laadi|tee)\b[^.!?]{0,100}\b(?:budget|monthly|budjet\w*|kuukausi\w*|kuukausi|kuukausibudjet\w*)\b/iu.test(t))return 'plan';
+  if(ownHistoryRead(t))return 'banking';
+  if(/\b(?:plan|budget)\b[^.!?]{0,90}\b(?:my|our|monthly|saving|term|student)\b|\b(?:suunnittele\w*|kuukausittainen|budjet\w*|budjetoi|laadi|tee)\b[^.!?]{0,100}\b(?:budjet\w*|ensi|lukukau\w*|kuukau\w*|sääst\w*|opisk\w*)\b/iu.test(t))return 'plan';
+  // Asking about an existing goal or saved field is a banking read, not product intent.
+  if (/\b(?:how much|what|when|which|do you|have i|show|check)\b[^.!?]{0,100}\b(?:saved|target|deadline|goal|saving pace)\b|\b(?:my|our)\s+(?:goal|target|deadline)\b|\b(?:tavoite|määräaika|säästetty)\b/iu.test(t)) return 'banking';
   if (/\b(balance|transactions?|payments?|refund|returned|headphones|spent|spend|spending|progress|on track|how .*savings .*going)\b/i.test(t)
     || /\b(move|transfer)\b[^.?!]{0,35}\b(money|euros?|savings|account)\b/i.test(t)) return 'banking';
   if (/\b(put|set|save|saving|aside|goal|plan|remember|forget|remove|delete)\b/i.test(t)
@@ -14,7 +50,7 @@ export function purposeOf(text: string): Purpose {
 export function refusesStorage(text: string): boolean {
   const t = text.toLowerCase().replace(/[’]/g, "'").replace(/\bdont\b/g,"don't").replace(/\bpls\b/g,"please");
   if (/\boff the record\b|\b(?:keep this private|this stays between us)\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
-  if (/\b(?:nora[, ]+)?forget (?:i said|this|that|what i said)\b/.test(t)) return true;
+  if (/(?:^|[.!?;:]\s*)(?:nora[, ]+)?forget (?:i said|this|that|what i said)\b/.test(t)) return true;
   if (/^(?:please\s+)?no saving(?:\s+please)?(?:\s+(?:this|that|it|my data|any of this))?(?:\s+please)?\s*(?:$|[,;.!?])/.test(t.trim())) return true;
   if (/\bleave (?!nothing\b).{0,25}out of (?:your|my|the) notes\b/.test(t)) return true;
   if (/\bnothing\b.{0,35}\b(?:should|may|must|can) be (?:saved|stored|noted|recorded|kept)\b/.test(t)) return true;
@@ -94,7 +130,7 @@ export function explicitlyRequests(text: string, topic: string): boolean {
     energy: /\b(?:get|find|compare|switch|cheaper|show|see)\b[^.?!]{0,45}\b(?:electricity|energy|contract|tariff|plans?)\b|\b(?:electricity|energy)\b[^.?!]{0,70}\b(?:cheaper contract|compare|switch)\b/i,
     movers: /\b(?:need|hire|find|book|want|looking for)\b[^.?!]{0,35}\b(?:movers?|moving company|packing help|moving van)\b/i,
     homes: /\b(?:show|see|find|browse)\s+(?:me\s+)?(?:some\s+)?(?:homes|flats|houses|apartments|listings)\b/i,
-    'asp-account': /\b(?:open|opening|apply for|eligible for)\b[^.?!]{0,25}\basp\b/i,
+    'asp-account': /\b(?:open|opening|apply for|eligible for)\b[^.?!]{0,25}\basp\b|\b(?:avaan|avata|avaaminen)\b[^.!?]{0,25}\basp/iu,
     'kela-loan-writeoff': /\bkela\b[^.?!]{0,55}\b(?:help|loan|compensation)\b|\b(?:claim|eligible|compensation)\b[^.?!]{0,35}\bstudent loan\b/i,
     'household-credit': /\b(?:claim|eligible|calculate|receive)\b[^.?!]{0,45}\bhousehold (?:tax )?credit\b/i,
   };

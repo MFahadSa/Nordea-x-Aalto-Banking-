@@ -105,7 +105,7 @@ export function accounts(userId: string) {
 /** The goal the savings account counts towards: the home goal, otherwise the first active goal. */
 export function primaryGoal(userId: string): CabinetEntry | undefined {
   const goals = activeGoals(userId);
-  return goals.find((g) => g.goalType === 'home') || goals[0];
+  return goals.find((g) => g.id === 'lauri-home-goal' && userId === 'lauri');
 }
 
 export function activeGoals(userId: string): CabinetEntry[] {
@@ -118,25 +118,21 @@ export function activeGoals(userId: string): CabinetEntry[] {
 export function goalStatus(userId: string, goal: CabinetEntry) {
   const acc = accounts(userId)!;
   const isPrimary = primaryGoal(userId)?.id === goal.id;
-  const saved = goal.goalType === 'car' ? acc.carFund?.balance || 0 : isPrimary ? acc.savings.balance : 0;
-  const monthly = isPrimary ? acc.savings.monthlyDeposit : 0;
+  const saved:number|undefined = goal.goalType === 'car' ? acc.carFund?.balance : isPrimary ? acc.savings.balance : undefined;
+  const monthly:number|undefined = isPrimary ? acc.savings.monthlyDeposit : undefined;
   const monthsLeft = Math.max(1, monthsBetween(CUR_MONTH, goal.target!.date.slice(0, 7)));
-  const projected = saved + monthly * monthsLeft;
-  const gap = Math.max(0, goal.target!.amount - projected);
+  const projected = saved!==undefined&&monthly!==undefined?saved+monthly*monthsLeft:undefined;
+  const gap = projected!==undefined?Math.max(0,goal.target!.amount-projected):undefined;
   return {
-    goalId: goal.id,
-    title: goal.title,
-    target: goal.target!.amount,
-    targetDate: goal.target!.date,
-    saved: round(saved),
-    remainingToTargetNow: round(Math.max(0, goal.target!.amount - saved)),
-    monthlyGoingIn: monthly,
-    monthsLeft,
-    projectedByTargetDate: round(projected),
-    shortBy: round(gap, 10),
-    onTrack: gap <= 0,
-    extraPerMonthNeeded: gap > 0 ? round(gap / monthsLeft, 10) : 0,
-    percentSaved: Math.min(100, Math.round((saved / goal.target!.amount) * 100)),
+    goalId:goal.id,title:goal.title,target:goal.target!.amount,targetDate:goal.target!.date,
+    saved:saved===undefined?undefined:round(saved),monthlyGoingIn:monthly,
+    remainingToTargetNow:saved===undefined?undefined:round(Math.max(0,goal.target!.amount-saved)),
+    monthsLeft,projectedByTargetDate:projected===undefined?undefined:round(projected),
+    shortBy:gap===undefined?undefined:round(gap,10),onTrack:gap===undefined?undefined:gap<=0,
+    extraPerMonthNeeded:gap===undefined?undefined:gap>0?round(gap/monthsLeft,10):0,
+    percentSaved:saved===undefined?undefined:Math.min(100,Math.round(saved/goal.target!.amount*100)),
+    source: isPrimary?'demo-linked-savings-account':goal.goalType==='car'&&saved!==undefined?'car-fund-account':'unlinked',
+    ...(!isPrimary?{note:'No monthly contribution is linked to this goal. Missing amounts are unknown, not zero. Do not infer saving progress or forecast.'}:{})
   };
 }
 

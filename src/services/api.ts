@@ -94,11 +94,11 @@ export async function deleteCabinetEntry(
   return res.json();
 }
 
-export async function undoCabinetAction(undoToken: string): Promise<{ success: boolean; message: string }> {
+export async function undoCabinetAction(undoToken: string,userId:string): Promise<{ success: boolean; message: string }> {
   const res = await fetch('/api/cabinet/undo', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ undoToken }),
+    body: JSON.stringify({ undoToken,userId }),
   });
   if (!res.ok) throw new Error('Failed to undo action');
   return res.json();
@@ -166,8 +166,8 @@ export async function sendMessage(
 // ---------- v14 ----------
 
 export interface GoalStatus {
-  goalId: string; title: string; target: number; targetDate: string; saved: number; monthlyGoingIn: number;
-  monthsLeft: number; projectedByTargetDate: number; shortBy: number; onTrack: boolean; extraPerMonthNeeded: number; percentSaved: number;
+  goalId: string; title: string; target: number; targetDate: string; saved?: number; monthlyGoingIn?: number;
+  monthsLeft: number; projectedByTargetDate?: number; shortBy?: number; onTrack?: boolean; extraPerMonthNeeded?: number; percentSaved?: number;
 }
 export interface AppState {
   user: User;

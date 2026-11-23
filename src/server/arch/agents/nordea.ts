@@ -7,7 +7,7 @@
  */
 import { now } from '../types.js';
 import type { AgentMessage, NordeaDb } from '../types.js';
-import { words, overlaps, CATEGORY_HINTS } from '../text.js';
+import { words, overlaps, CATEGORY_HINTS, sourceRevision } from '../text.js';
 import { loadNordeaDb, saveNordeaDb, saveBalances, putBankAccount, putBalanceSnapshot, putImportBatch } from '../store/nordeaStore.js';
 import { readSectionRows, writeNordeaSection } from '../store/contextStore.js';
 import type { ContextRow } from '../store/contextStore.js';
@@ -78,7 +78,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
       const qdetail = qa.spendingTotal > 0
         ? `${qm.length} transaction${qm.length === 1 ? '' : 's'} totalling ${qa.spendingTotal} EUR of related spending${creditTotal > 0 ? ` (a further ${creditTotal} EUR of credits or transfers between your own accounts is not spending)` : ''}`
         : `${qm.length} transaction${qm.length === 1 ? '' : 's'} matched, ${creditTotal} EUR of credits or transfers between your own accounts - none of it spending`;
-      if (qm.length) sectionRows.push({ id: `nq-${payload.roundId as string}`, title: 'Relevant to your question', detail: qdetail, source: 'nordea', observed: 'observed', evidence: { total: totalOf(qm), matched: qm.length, transactionIds: qm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(qm.map((t) => t.id)) }, at: now() });
+      if (qm.length) sectionRows.push({ id: `nq-${payload.roundId as string}`, title: 'Relevant to your question', detail: qdetail, source: 'nordea', observed: 'observed', evidence: { bankRevision:sourceRevision(nordea),total: totalOf(qm), matched: qm.length, transactionIds: qm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(qm.map((t) => t.id)) }, at: now() });
     }
     for (const goal of goals) {
       const matches = matchForTitles(nordea, [goal.title, ...(llmTerms[goal.title] ?? [])]);
@@ -91,7 +91,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
       const analysis = analyseMatches(matches, goal.title);
       const card = buildGoalCard(goal.title, analysis);
       const evidence = { total, matched: matches.length, transactionIds: matches.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(matches.map((t) => t.id)), monthlyAvg: analysis.monthlyAvg, coverageMonths: analysis.coverageMonths, changePct: analysis.changePct, topCategories: analysis.topCategories, sparse: card.sparse };
-      sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: card.text, source: 'nordea', evidence, evidenceText: card.evidence || undefined, at: now() });
+      sectionRows.push({ id: `nagg-${goal.id}`, title: goal.title, detail: card.text, source: 'nordea', evidence:{...evidence,bankRevision:sourceRevision(nordea)}, evidenceText: card.evidence || undefined, at: now() });
       const title = `Activity related to goal "${goal.title}"`;
       if (alreadyPending.has(title)) continue; // no duplicate pending proposals
       const detail = `${card.text} (Matched on category and description keywords; proposed by the Nordea agent from the Nordea DB only - the raw transactions stay there. Evidence: ${matches.length} matched, ${total} EUR total.)`;
@@ -191,7 +191,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
         if (gm.length) {
         const ra = analyseMatches(gm, g.title);
         const rc2 = buildGoalCard(g.title, ra);
-        rows.push({ id: `nagg-${g.id}`, title: g.title, detail: `${rc2.text} (Refreshed against current bank data.)`, evidenceText: rc2.evidence || undefined, source: 'nordea', evidence: { total: totalOf(gm), matched: gm.length, transactionIds: gm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(gm.map((t) => t.id)), monthlyAvg: ra.monthlyAvg, coverageMonths: ra.coverageMonths, changePct: ra.changePct, topCategories: ra.topCategories }, at: now() });
+        rows.push({ id: `nagg-${g.id}`, title: g.title, detail: `${rc2.text} (Refreshed against current bank data.)`, evidenceText: rc2.evidence || undefined, source: 'nordea', evidence: { bankRevision:sourceRevision(nordea),total: totalOf(gm), matched: gm.length, transactionIds: gm.slice(0, 25).map((t) => t.id), transactionIdsHash: hashIds(gm.map((t) => t.id)), monthlyAvg: ra.monthlyAvg, coverageMonths: ra.coverageMonths, changePct: ra.changePct, topCategories: ra.topCategories }, at: now() });
       }
       }
       // F18: maintenance merges - refreshed figures update matching rows, no row is dropped.
@@ -289,6 +289,9 @@ function handleMessage(uid: string, msg: AgentMessage) {
     appendMessage(uid, { from: 'nordea', to: 'app', type: 'reply', summary: 'Nordea agent dropped the removed goal from its section of context.md.', payload: { inReplyTo: msg.id, ok: true } });
     updateMessage(uid, msg.id, { status: 'answered' });
     return;
+  }
+  if (msg.type === 'control' && payload.control === 'source-revision') {
+    appendMessage(uid,{from:'nordea',to:'app',type:'reply',summary:'Current bank source revision.',payload:{inReplyTo:msg.id,revision:sourceRevision(loadNordeaDb(uid))}});updateMessage(uid,msg.id,{status:'answered'});return;
   }
   if (msg.type === 'control' && payload.control === 'prepare') {
     const counts = prepare(uid);

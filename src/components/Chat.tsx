@@ -386,7 +386,7 @@ export const Chat: React.FC<Props> = (p) => {
               </div>
             )}
             {!open && m.resolved && <div className="of-done adv-done">✓ {m.resolved}</div>}
-            <div className="of-fee"><Icon name="shield" /><span>{d.note}</span></div>
+            <div className="of-fee"><Icon name="shield" /><span>{open ? d.note : m.resolved === 'Continued in the question below' ? 'Use the current question below. No answer was saved here.' : m.resolved === 'Not sure' ? 'No yes/no answer was saved. Nora will leave this question for now.' : 'You can review or change saved answers in Nora knows.'}</span></div>
           </div>
         );
       }
@@ -427,6 +427,19 @@ export const Chat: React.FC<Props> = (p) => {
             {!open && m.resolved && <div className="of-done adv-done">✓ {m.resolved}</div>}
           </div>
         );
+      }
+      case 'goal_confirm': {
+        const dr=d.draft||{};const tg=dr.target;const fi=d.language==='fi';
+        const audience=d.readableBy;
+        return <div className="offer">
+          <div className="of-b" style={{paddingTop:14}}><b>{dr.title}</b></div>
+          <div className="of-row"><span>{fi?'Tavoitesumma:':'Goal amount:'} {tg?eur(tg.amount):'Not supplied'}<br/>{fi?'Määräpäivä:':'Deadline:'} {tg?.date||'Not supplied'}</span></div>
+          {d.existing&&<div className="of-row"><span>{fi?'Ennen:':'Before:'} {d.existing.title}{d.existing.target?` · ${eur(d.existing.target.amount)} ${fi?'mennessä':'by'} ${d.existing.target.date}`:''}{d.existing.detail?<><br/>{fi?'Kuvaus:':'Details:'} {d.existing.detail}</>:null}</span></div>}
+          {d.operation==='update'&&<div className="of-row"><span>{fi?'Uusi nimi:':'After name:'} {dr.title}<br/>{fi?'Uusi kuvaus:':'After details:'} {dr.detail||'(none)'}</span></div>}
+          <div className="of-fee"><span>{fi?<>{(d.operation==='duplicate'?d.existingPrivate:d.private)?'Yksityinen. ':''}{(dr.targetFields||dr.provenance?.targetFields)?.date?.normalization?'Määräpäivä on tulkittu mainitun kuukauden tai vuoden viimeiseksi päiväksi. ':''}{d.operation==='archive'?'Tavoite poistetaan aktiivisista tavoitteista. Historia säilyy ja muutoksen voi kumota. ':''}Käyttöoikeudet {audience?'säilyvät':'uudelle tavoitteelle'}: Nora {audience?.abel===false?'ei näe':'näkee'}, tarjoukset {audience?.offers?'näkevät':'eivät näe'}. Mitään ei tallenneta ennen vahvistuksen napautusta. Ehdotus vanhenee 30 minuutissa.</>:<>{(dr.targetFields||dr.provenance?.targetFields)?.date?.normalization?`Date interpreted as ${(dr.targetFields||dr.provenance?.targetFields).date.normalization.replace(/-/g,' ')}. `:''}{(d.operation==='duplicate'?d.existingPrivate:d.private)?'Private. ':''}{audience?`Access stays unchanged: Nora ${audience.abel?'can':'cannot'} read, offers ${audience.offers?'can':'cannot'} read.`:'Nora can read; offers cannot read.'} {d.operation==='update'?'Only the fields shown as different above will change. Sharing stays unchanged. ':d.operation==='archive'?'This removes the goal from active goals. History is kept and you can undo it. ':d.operation==='duplicate'?`Update keeps the existing name (${d.existing?.title}), details and privacy. Keep both creates a separate ${d.private?'private ':''}goal named ${dr.title}, readable by Nora but not offers. `:''}Nothing saved until you tap. This proposal expires in 30 minutes.</>}</span></div>
+          {open&&<div className="of-act" style={{paddingBottom:12}}><button className="btn primary" onClick={()=>act('goal_confirm')}>{fi?(d.operation==='archive'?'Poista tavoite':d.operation==='add'?'Tallenna tavoite':'Vahvista muutos'):(d.operation==='archive'?'Remove goal':d.operation==='add'?'Save goal':'Confirm update')}</button>{d.operation==='duplicate'&&<button className="btn" onClick={()=>act('goal_both')}>{fi?'Säilytä molemmat':'Keep both goals'}</button>}<button className="btn" onClick={()=>act('goal_decline')}>{fi?'Älä tallenna':'Do not save'}</button></div>}
+          {!open&&m.resolved&&<div className="of-done">{m.resolved}</div>}
+        </div>;
       }
       case 'confirm_save':
         return (
@@ -589,7 +602,7 @@ export const Chat: React.FC<Props> = (p) => {
     const lastBot = [...items].reverse().find((it) => it.who === 'bot');
     // "Nora could see …" only under Nora's latest reply, so it isn't repeated down the whole chat.
     if (lastBot && m.id === latestAgentId) lastBot.after = usedLine(m);
-    if (m.resolved && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
+    if (m.resolved && m.resolved !== 'Continued in the question below' && !m.resolved.startsWith('bought:')) items.push({ who: 'me', key: `${m.id}-r`, node: m.resolved });
   });
 
   const last = p.messages[p.messages.length - 1];

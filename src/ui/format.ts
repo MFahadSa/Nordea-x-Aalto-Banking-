@@ -1,8 +1,8 @@
 // Finnish number format, like the Nordea app: 12 000,00 and 12 000 €.
 export const nfi = (n: number) =>
-  Number(n).toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/−/g, '−');
-export const eur = (n: number, d = 0) =>
-  Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
+  n===undefined?'Unknown':Number(n).toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/−/g, '−');
+export const eur = (n: number|undefined, d = 0) =>
+  n===undefined?'Unknown':Number(n).toLocaleString('fi-FI', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/−/g, '−') + ' €';
 export const eurP = (p: number) => eur(p, p % 1 ? 2 : 0);
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

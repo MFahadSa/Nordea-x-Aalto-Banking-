@@ -1,3 +1,4 @@
+import { getCabinetParkedMirror } from './arch/store/busStore.js';
 import { db } from './db.js';
 import { getAgentManifest } from './agentRegistry.js';
 import { CabinetEntry, AccessLogEntry } from '../types.js';
@@ -86,6 +87,13 @@ function evaluate(userId: string, agentId: string, preview: boolean, purposeCont
   const shareRequired = agentId === 'adviser' && !preview && !hasActiveShare(userId, agentId);
 
   for (const entry of allEntries) {
+    if (entry.type !== 'goal' && getCabinetParkedMirror(userId)) {blocked.push({title:entry.title,reason:'The context cabinet is parked'});continue;}
+    const dependencyBlocked = (entry.sourceGoalIds || []).some(id => {
+      const source=allEntries.find(e=>e.id===id&&e.type==='goal');
+      return !source || source.status==='archived' || source.status==='disputed' || source.readableBy?.[agentId]===false || ((agentId==='offers'||agentId==='adviser')&&source.private) || (source.source==='nordea'&&!source.reviewed);
+    });
+    if(dependencyBlocked){blocked.push({title:entry.title,reason:'An owning goal was removed or is not shared for this purpose'});continue;}
+
     if (shareRequired) {
       blocked.push({ title: entry.title, reason: 'No active share: the customer has not shared, or stopped sharing' });
       continue;

@@ -210,7 +210,7 @@ export const HomePage: React.FC<Props> = (p) => {
             <span className="n-l">
               <span className="n-name b">Save and invest</span>
               <span className="n-sub">
-                {mainGoal ? `${mainGoal.title}: ${eur(mainGoal.saved)} of ${eur(mainGoal.target)} · ${goals.length} ${goals.length === 1 ? 'goal' : 'goals'}` : 'Create or view a savings goal'}
+                {mainGoal ? `${mainGoal.title}: ${mainGoal.saved===undefined?'target '+eur(mainGoal.target)+', saved balance not linked':eur(mainGoal.saved)+' of '+eur(mainGoal.target)} · ${goals.length} ${goals.length === 1 ? 'goal' : 'goals'}` : 'Create or view a savings goal'}
               </span>
             </span>
             <NChev />

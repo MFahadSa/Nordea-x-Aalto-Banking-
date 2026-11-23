@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+process.env.CABINET_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'weak-transfer-'));delete process.env.SUPABASE_URL;delete process.env.LLM_API_KEY;delete process.env.GEMINI_API_KEY;
+const {db}=await import('../src/server/db.js');const {setProvider}=await import('../src/server/llm.js');const {abelTurn}=await import('../src/server/abel.js');await db.init();
+let amount=100,step=0;setProvider({name:'weak-transfer-fixture',isConfigured:()=>true,step:async()=>({calls:step++===0?[{name:'offerTransfer',args:{amountPerMonth:amount,once:true}}]:[{name:'finishReply',args:{text:'Nothing has been prepared. Please confirm the final amount or tell me if you want to continue.',suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]})});
+for(const text of ['move 100 to savings, scratch that','move 100 to savings, scrap that','move 100 to savings, ignore that','move 100 to savings, forget it','siirrä 100 säästötilille, unohda se','siirrä 100 säästötilille, ei sittenkään','move 100 to savings, actually make it 200','move 200 to savings, actually make it 100','siirrä 100 säästötilille, tarkoitin 200','siirrä 200 säästötilille, siis 100'])for(const value of [100,200]){amount=value;step=0;const r=await abelTurn('lauri','weak-'+Math.random(),'abel',text);assert.ok(!r.cards.some(c=>c.type==='confirm_plan'),text+' model='+value);}
+console.log('PASS actual abelTurn weak-model transfer cards: later retractions EN/FI and bidirectional amount revisions cannot prepare either guessed amount.');
+
+const {transferClarification}=await import('../src/server/transfers.js');assert.equal(transferClarification("Move 100 to savings, don't forget it"),null);

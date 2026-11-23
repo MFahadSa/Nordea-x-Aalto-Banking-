@@ -440,6 +440,14 @@ function handleMessage(uid: string, msg: AgentMessage) {
   if (msg.type === 'control') {
     const control = payload.control as string;
 
+    if (control === 'abel-readable-rows') {
+      const cm = loadCmDb(uid);
+      const entries = cm.parked ? [] : cm.entries.filter(e => e.status === 'active' && e.doc?.readableBy?.abel !== false && !(e.doc?.source === 'nordea' && !e.doc.reviewed) && (!e.doc || e.doc.status === 'active'));
+      appendMessage(uid, { from: 'cm', to: 'app', type: 'reply', summary: 'Current memory row permissions for Nora.', payload: { inReplyTo: msg.id, entries: entries.map(e => ({ id: e.id, goalIds: e.goalIds, title:e.title, detail:e.detail })) } });
+      updateMessage(uid, msg.id, { status: 'answered' });
+      return;
+    }
+
     if (control === 'regate-proposals') {
       // D9: the Nordea AI assessed the waiting bank-side proposals: re-apply standing permissions.
       autoStoreRoundProposals(uid);
@@ -776,7 +784,7 @@ export function publishParkState(uid: string) {
  * PROPOSES which goals need fresh Nordea evidence. Code validates (subset, cap 3) before
  * the round uses it; null = scripted fallback (all goals).
  */
-export async function llmPlanRetrieval(uid: string, question: string, goalTitles: string[]): Promise<import('../llm.js').PlanOutcome<string[]>> {
+export async function llmPlanRetrieval(uid: string, question: string, goalTitles: string[], permittedGoalIds?: string[]): Promise<import('../llm.js').PlanOutcome<string[]>> {
   const { archLlmEnabled, runAgentReasoning, cleanTerms } = await import('../llm.js');
   if (!archLlmEnabled() || !goalTitles.length) return { plan: null, status: 'scripted' };
   const { result: out, error, answeredBy } = await runAgentReasoning({
@@ -794,7 +802,7 @@ export async function llmPlanRetrieval(uid: string, question: string, goalTitles
       { name: 'finishRetrievalPlan', description: 'Finish with the goal titles that need fresh bank evidence.', parameters: { type: 'object', properties: { goalTitles: { type: 'array', items: { type: 'string' } }, reason: { type: 'string' } }, required: ['goalTitles'] } },
     ],
     runTool: (call) => call.name === 'listMyEntries'
-      ? loadCmDb(uid).entries.filter((e) => e.status === 'active').map((e) => ({ title: e.title, status: e.status, detail: e.detail.slice(0, 120) }))
+      ? loadCmDb(uid).entries.filter((e) => e.status === 'active' && e.doc?.readableBy?.abel !== false && (!e.doc || e.doc.status === 'active') && !(e.doc?.source === 'nordea' && !e.doc.reviewed) && (!permittedGoalIds || e.goalIds.every(id => permittedGoalIds.includes(id)))).map((e) => ({ title: e.title, status: e.status, detail: e.detail.slice(0, 120) }))
       : { error: 'unknown tool' },
     finishTool: 'finishRetrievalPlan',
   });
