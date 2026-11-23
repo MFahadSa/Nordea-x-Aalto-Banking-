@@ -196,3 +196,8 @@ const adviceBefore=JSON.stringify(db.getUser('alex')?.advice);
 await ask("I paid a cleaning company. Don't note this down",'alex');
 assert.equal(JSON.stringify(db.getUser('alex')?.advice),adviceBefore,'No inferred rule display/reason snapshots after storage refusal');
 await ask('Our electricity bill is too high','offers-off');assert.match(captured,/PARTNER OFFERS ARE OFF/);
+
+for(const t of ['No need to save', "Don't write this down", "Don't keep a note", "Forget this, don't keep it"]){assert.ok(refusesStorage(t),t);const before=db.getCabinetEntries('alex').length;await ask(t+', I just started at Aalto','alex');assert.equal(db.getCabinetEntries('alex').length,before,t);}
+for(const t of ["We're not going to need movers", "We aren't hiring movers", 'no thanks to movers', 'Not needing movers, but need insurance']){assert.ok(declinesPartner(t,'movers'),t);assert.ok(!intentsOf(t).some(i=>i.partner==='movers'),t);}
+for(const t of ["we won't hire movers but need packing help", "I don't need movers' prices but need a moving company"]){assert.equal(declinesPartner(t,'movers'),false,t);assert.ok(intentsOf(t).some(i=>i.partner==='movers'),t);}
+console.log('PASS independent reviewer consent and clause-boundary probes');

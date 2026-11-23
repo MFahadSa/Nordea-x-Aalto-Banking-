@@ -12,22 +12,32 @@ export function purposeOf(text: string): Purpose {
 
 /** A refusal is not the idiom 'never remember to save money'. */
 export function refusesStorage(text: string): boolean {
-  return /\b(?:don't|don’t|do not|never)\s+(?:note\s+(?:this|that|it|anything)\s+down|make\s+(?:a\s+)?note)|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(text)
-    || /\b(?:don't|don’t|do not)\s+keep\s+(?:a\s+)?note\s+of\s+(?:this|that|it)\b|\bno need to (?:save|store|remember|keep)\s+(?:this|that|it|anything|a note)\b/i.test(text)
+  return /\b(?:don't|don’t|do not|never)\s+(?:(?:note|write)\s+(?:this|that|it|anything)\s+down|make\s+(?:a\s+)?note)|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(text)
+    || /\b(?:don't|don’t|do not)\s+keep\s+(?:(?:a\s+)?note(?:\s+of\s+(?:this|that|it))?|this|that|it)\b|\bno need to (?:save|store|remember|keep)(?:\s+(?:this|that|it|anything|a note)\b|(?=\s*(?:$|[.!?,;])))/i.test(text)
     || /\b(?:do not|don't|don’t|never)\s+(?:(?:want|allow)\s+(?:you|nora)\s+to\s+)?(?:save|remember|store)\s+(?:this|that|it|anything|my|our|what|the|these)\b/i.test(text)
     || /\b(?:do not|don't|don’t)\s+want\s+(?:this|that|it|my\s+\w+)\s+(?:saved|stored|remembered)\b/i.test(text);
 }
 
 /** Only an explicit positive service request may create a partner card. */
 export function declinesPartner(text: string, partner: string): boolean {
-  const terms: Record<string, string> = { movers: 'movers?|moving company|packing help', homes: 'homes?|houses?|flats?|listings?', energy: 'energy|electricity|offers?', insure: 'insurance|cover', planner: 'planner|planning|offers?' };
-  const object = terms[partner] || partner;
-  // Match refusal of the service itself, not stopping its costs or declining a different object.
-  const service = `(?:${object})`;
-  return new RegExp(`\\b(?:do not|don't|don’t|won't|won’t|will not)\\s+(?:be\\s+)?(?:need(?:ing)?|want(?:ing)?|hir(?:e|ing)|us(?:e|ing)|show|suggest)\\s+(?:(?:any|a|an|the)\\s+)?${service}\\b`, 'i').test(text)
-    || new RegExp(`\\b(?:not interested in|not looking for|no need for|skip|avoid|hide|decline|stop showing|stop suggesting)\\s+(?:the\\s+|any\\s+)?${service}\\b`, 'i').test(text)
-    || new RegExp(`\\bno\\s+${service}\\b|\\b${service}\\s*[?!,:]\\s*no thanks(?:[.!]|$)`, 'i').test(text)
-    || (partner === 'movers' && /\ben (?:tarvitse|halua)\s+(?:muutto\w*|pakkausapu\w*)/i.test(text));
+  const terms: Record<string, string> = { movers: 'movers?|moving compan(?:y|ies)|packing help|moving van', homes: 'homes?|houses?|flats?|listings?', energy: 'energy|electricity|offers?', insure: 'insurance|cover', planner: 'planner|planning|offers?' };
+  const service = `(?:${terms[partner] || partner})`;
+  // Contrast clauses can change the customer's request. A later explicit positive request
+  // wins for that service; money/cost talk is never itself a refusal of the service.
+  const clauses = text.split(/(?:[.!?;]|,?\s+\b(?:but|however|instead|although|though)\b\s*)/i).map(s=>s.trim()).filter(Boolean);
+  let declined = false;
+  for (const clause of clauses) {
+    const object = `${service}(?!['’]s?\\s+(?:prices?|costs?))\\b`;
+    const negative = new RegExp(`\\b(?:do not|don't|don’t|won't|won’t|will not|aren't|aren’t|are not|isn't|isn’t|not going to)\\s+(?:be\\s+|going to\\s+)?(?:need(?:ing)?|want(?:ing)?|hir(?:e|ing)|us(?:e|ing)|show|suggest)\\s+(?:(?:any|a|an|the)\\s+)?${object}`, 'i').test(clause)
+      || new RegExp(`\\b(?:not interested in|not looking for|not needing|no need for|no thanks to|skip|avoid|hide|decline|stop showing|stop suggesting)\\s+(?:the\\s+|any\\s+)?${object}`, 'i').test(clause)
+      || new RegExp(`\\bno\\s+${object}|^${service}\\s*[,?:]?\\s*no thanks$`, 'i').test(clause)
+      || (partner === 'movers' && /\ben (?:tarvitse|halua)\s+(?:muutto\w*|pakkausapu\w*)/i.test(clause));
+    if (negative) declined = true;
+    else if (new RegExp(`\\b(?:need|want|hire|find|book|compare|show|get|looking for)\\s+(?:(?:a|an|some|any|the|cheaper)\\s+)?${service}\\b`, 'i').test(clause)) declined = false;
+  }
+  // Preserve the short two-sentence refusal without matching a refusal of another object.
+  if (new RegExp(`^${service}\\s*[?!,:]\\s*no thanks[.!]?$`, 'i').test(text.trim())) return true;
+  return declined;
 }
 
 /** A requested service/rule is considered separately from incidental money words. */
