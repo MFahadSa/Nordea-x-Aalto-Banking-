@@ -227,6 +227,24 @@ export async function generateWith(
   throw last;
 }
 
+/** Foreign-provider calls have no Gemini thought signature. Preserve them as labelled
+ * historical data, not fabricated Gemini function calls/responses. Native raw parts stay exact. */
+export function geminiContents(turns: Turn[]): any[] {
+  const contents: any[] = [];
+  let nativeCalls = false;
+  for (const t of turns) {
+    if (t.role === 'user') contents.push({role:'user',parts:[...(t.files || []).map(f=>({inlineData:{mimeType:f.mimeType,data:f.data}})),{text:t.text}]});
+    else if (t.role === 'model') contents.push({role:'model',parts:[{text:t.text}]});
+    else if (t.role === 'model_calls') {
+      const raw = t.raw as any;
+      nativeCalls = !!raw && raw.role === 'model' && Array.isArray(raw.parts) && raw.parts.some((p:any)=>p.functionCall);
+      contents.push(nativeCalls ? raw : {role:'model',parts:[{text:'Earlier tool calls from a different model (history only): '+JSON.stringify(t.calls)}]});
+    } else if (nativeCalls) contents.push({role:'user',parts:t.results.map(r=>({functionResponse:{id:r.call.id,name:r.call.name,response:{result:r.result}}}))});
+    else contents.push({role:'user',parts:[{text:'Results of the earlier historical tool calls: '+JSON.stringify(t.results.map(r=>({name:r.call.name,result:r.result})))}]});
+  }
+  return contents;
+}
+
 export const gemini: LlmProvider = {
   name: 'gemini',
   label: 'Gemini',
@@ -235,19 +253,7 @@ export const gemini: LlmProvider = {
   ping: () => geminiPing(),
   isConfigured: geminiConfigured,
   async step({ system, turns, tools, temperature = 0.3, timeoutMs }) {
-    const contents: any[] = [];
-    for (const t of turns) {
-      if (t.role === 'user')
-        contents.push({ role: 'user', parts: [...(t.files || []).map((f) => ({ inlineData: { mimeType: f.mimeType, data: f.data } })), { text: t.text }] });
-      else if (t.role === 'model') contents.push({ role: 'model', parts: [{ text: t.text }] });
-      else if (t.role === 'model_calls')
-        contents.push((t.raw as any) || { role: 'model', parts: t.calls.map((c) => ({ functionCall: { id: c.id, name: c.name, args: c.args } })) });
-      else
-        contents.push({
-          role: 'user',
-          parts: t.results.map((r) => ({ functionResponse: { id: r.call.id, name: r.call.name, response: { result: r.result } } })),
-        });
-    }
+    const contents = geminiContents(turns);
     const res = await generate({ system, contents, tools, temperature, timeoutMs });
     const calls: ToolCall[] = (res.functionCalls || []).map((c: any) => ({ id: c.id, name: c.name || '', args: (c.args as any) || {} }));
     return { calls, text: res.text, raw: res.candidates?.[0]?.content };

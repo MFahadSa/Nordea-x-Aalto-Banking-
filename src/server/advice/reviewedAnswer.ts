@@ -31,7 +31,7 @@ export function reviewedContext(text: string, age: number | undefined, today: st
   });
   for (const intent of intentsOf(text)) if (intent.partner && shownPartners.has(intent.partner)) {
     const p = getPartner(intent.partner);
-    if (p) facts.push(`Fictional partner ${p.name}: ${p.kind}. Options: ${p.items.map(i => `${i.title}, ${i.price} €`).join('; ')}. Incentive: ${p.feeText}. Use only these stated prices. Do not promise a free paid service, guaranteed coverage, live listings or guaranteed savings. No availability is checked; no external action occurs just by showing a card.`);
+    if (p) facts.push(`Fictional partner ${p.name}: ${p.kind}. Options: ${p.items.map(i => `${i.title}: ${i.sub || ''}, ${i.price} €${i.per || ''}`).join('; ')}. Incentive: ${p.feeText}. Use only these stated prices. Do not promise a free paid service, guaranteed coverage, live listings or guaranteed savings. No availability is checked; no external action occurs just by showing a card. Terms not in this manifest, including cancellation rights, exclusions and binding coverage, are unknown. The offer card has only the stated browse CTA, not an adviser link or Connect me button.`);
   }
   if (topics.has('ps-account')) facts.push('PS means the restricted long-term savings product, not the sum of current, savings and car-fund accounts. Ordinary account balances must never be used as a PS balance. If no PS account or exact historical snapshot is provided, say personal eligibility is unknown and explain the conditional rule; do not promise withdrawal.');
   if (!facts.length) return '';

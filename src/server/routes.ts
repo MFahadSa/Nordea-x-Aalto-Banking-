@@ -194,7 +194,7 @@ export function registerV14Routes(app: Express) {
       const offer = consentOffer(refunds(), userId);
       const a = open || !offer.length
         ? agentMsg(userId, conv.id, conv.helperId, open ? 'Nora is already looking into this refund. You can see it on Home.' : 'I have nothing I could read for that refund.', { answeredBy: 'bank_code', ...(requestId ? { replyToRequestId: requestId } : {}) })
-        : agentMsg(userId, conv.id, conv.helperId, 'I can look into your Tuulikki Electronics refund. Tick what Nora may read.', { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Nora look into your Tuulikki Electronics refund?', data: { items: offer, demo: 'Nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
+        : agentMsg(userId, conv.id, conv.helperId, `I can look into your Tuulikki Electronics refund. Tick what Nora may read.${intake.statedAmount !== undefined ? ' Your approximate amount is not yet matched. I will check it against only the records you allow, not assume the demo purchase is yours.' : ''}`, { answeredBy: 'bank_code', cards: [{ type: 'refund_consent', title: 'Let Nora look into your Tuulikki Electronics refund?', data: { items: offer, statedAmount: intake.statedAmount, demo: 'Nothing is really sent or claimed.' } }], ...(requestId ? { replyToRequestId: requestId } : {}) });
       return { status: 201, body: { conversationId: conv.id, messages: [u, a], error: undefined } };
     }
     // His three agents gather what Nora may see for this conversation (User DB via the personal agent,
@@ -561,7 +561,10 @@ export function registerV14Routes(app: Express) {
         if (!items.length || items.some((i: string) => !offered.has(i))) return res.status(400).json({ error: 'Tick at least one offered item' });
         let made: { id: string }; try { made = refunds().openCustomerCase({ userId, consentItems: items, reasons: ['refund_not_received'], country: 'FI' }); } catch (e: any) { return res.status(400).json({ error: e?.message || 'Could not start' }); }
         db.updateMessage(msg.id, { resolved: `Allowed ${items.length}`, cards: (msg.cards || []).map((x) => x.type === 'refund_consent' ? { ...x, data: { ...(x.data || {}), caseId: made.id } } : x) });
-        out.push(agentMsg(userId, conv, helper, 'Done. Nora looks into this refund and watches for it. You can withdraw any time under Nora knows.'));
+        const opened = caseView(refunds(), refunds().data.cases.find((x) => x.id === made.id)!);
+        const stated = Number(c.data?.statedAmount);
+        const mismatch = stated > 0 && opened.expected != null && Math.abs(stated - opened.expected) > 0.01;
+        out.push(agentMsg(userId, conv, helper, mismatch ? `The allowed demo records show ${fmt(opened.expected, 2)}, not your approximate ${fmt(stated, 2)}. This is only the fictional Tuulikki example, not a match to your stated amount. You can withdraw and start again if it is not the right purchase.` : 'Done. Nora looks into this refund and watches for it. You can withdraw any time under Nora knows.'));
         break;
       }
       default:
