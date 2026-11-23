@@ -303,7 +303,7 @@ export function registerV14Routes(app: Express) {
           db.updateMessage(msg.id, { resolved: p.cta });
           const h = offerHeadline(userId, p.id);
           const home = h.used.length ? db.getCabinetEntry(h.used[0]) : undefined;
-          out.push(agentMsg(userId, conv, helper, home?.target ? `Here are three on Kotiväli that work with a ${fmt(home.target.amount)} deposit:` : `Here’s what ${p.name} has:`, {
+          out.push(agentMsg(userId, conv, helper, p.id === 'homes' ? 'Here are fictional example homes, not live listings or an affordability assessment:' : `Here are the fictional ${p.name} options:`, {
             cards: [{ type: 'offer_list', data: { partnerId: p.id, name: p.name, initials: p.initials, color: p.color, items: p.items, view: p.view, buy: p.buy, verb: p.verb, feeText: p.feeText } }],
             usedEntryIds: h.used,
           }));

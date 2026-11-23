@@ -1,12 +1,12 @@
 {
   "id": "gift-limit",
   "version": "2026-01-01",
-  "title": "Bigger tax-free gifts to family",
+  "title": "Finnish gift tax: same donor over three years",
   "kind": "tax",
   "validFrom": "2026-01-01",
   "validTo": null,
   "source": {
-    "url": "https://vero.fi/henkiloasiakkaat/omaisuus/lahja/milloin-pit%C3%A4%C3%A4-maksaa-lahjaveroa/kuinka-paljon-voi-lahjoittaa-verovapaasti/",
+    "url": "https://www.vero.fi/en/individuals/property/gifts/when-do-i-need-to-pay-gift-tax/",
     "checkedAt": "2026-11-20",
     "owner": "Tax rules owner (demo)"
   },
@@ -30,10 +30,11 @@
   "params": {
     "limit": 7500,
     "years": 3,
-    "oldLimit": 5000
+    "oldLimit": 5000,
+    "figure3": "2026,"
   },
   "message": "Since this year you can give each person gifts worth less than {limit} € in total every {years} years without gift tax. Before, the limit was {oldLimit} €. The limit counts per giver, so two grandparents can each give.",
-  "explain": "The limit is per receiver and per giver: gifts from the same giver to the same person over {years} years are added together, and gift tax applies only from {limit} € upwards. If the customer names an amount, say in words whether it is below {limit} € or not. Never work out the tax itself; for that, point to the Tax Administration (vero.fi).",
+  "explain": "From {figure3} gifts totalling less than {limit} € from the same donor to the same recipient over a rolling {years}-year period can be exempt. At {limit} € or more, gift tax applies to the combined taxable value, not only the excess above the threshold. It is not a calendar-year allowance and is not restricted to family. Check gift dates and earlier gifts; use Vero for tax calculations. Never work out the tax itself; point to the Tax Administration.",
   "earns": "Nordea earns nothing from this.",
   "tests": [
     {

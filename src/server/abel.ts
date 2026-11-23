@@ -18,6 +18,7 @@ import { relevantForLoan, isLoanContext } from './pipeline/loan.js';
 import { candidatesFor, remember, snapshot } from './advice/guard.js';
 import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { intentsOf } from './advice/intent.js';
+import { reviewedAnswer } from './advice/reviewedAnswer.js';
 import { ruleCardFor, earlierRuleExplain } from './advice/chatCard.js';
 import { cardFor } from './advice/cards.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
@@ -194,7 +195,7 @@ function factsFor(userId: string, allowed: Set<string>) {
     accounts: strip(fin.accounts(userId)),
     salary: fin.salaryInfo(userId),
     spendingLast3Months: strip(fin.spending(userId, 3)),
-    goals: fin.activeGoals(userId).filter((g) => allowed.has(g.id)).map((g) => fin.goalStatus(userId, g)),
+    goals: fin.activeGoals(userId).filter((g) => allowed.has(g.id)).map((g) => ({ ...fin.goalStatus(userId, g), goalType: g.goalType })),
     paydayPlan: strip(fin.payPlan(userId)),
   };
 }
@@ -241,7 +242,7 @@ HOW YOU TALK
 - You can't browse, give live rates or forecasts, or move money. Unhappy customer: apologise, repair, offer a person.${calm ? '\n- CALM view: very short warm sentences, at most two suggestions, always offer a person.' : ''}
 
 RULES
-- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly). In goals, monthlyGoingIn is what goes in now; extraPerMonthNeeded is what's missing on top. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
+- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly). In goals, remainingToTargetNow is target minus saved today; shortBy is the projected shortfall at the target date, NOT money remaining to save today. Never confuse them. In goals, monthlyGoingIn is what goes in now; extraPerMonthNeeded is what's missing on top. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
 - One step: finishReply, plus any action tool in the same step.
 - Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts); never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
 - Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
@@ -508,7 +509,7 @@ export function offerHeadline(userId: string, partnerId: string) {
   const read = readCabinetThroughGateway(userId, 'offers', `Partner offer: ${partnerId}`);
   const home = read.allowed.find((e) => e.type === 'goal' && e.goalType === 'home' && e.target);
   const p = getPartner(partnerId)!;
-  if (partnerId === 'homes' && home) return { headline: `Flats that fit a ${fmt(home.target!.amount)} deposit`, used: [home.id] };
+  if (partnerId === 'homes' && home) return { headline: 'Example homes to explore, not an affordability assessment', used: [home.id] };
   const generic: Record<string, string> = {
     homes: 'Homes for sale in the Helsinki area',
     movers: 'Movers for a 2–3 room home',
@@ -538,6 +539,7 @@ function partnerCard(ctx: TurnCtx, partnerId: string): string {
 /** v28: the one card of this reply, from the customer's words (intent.ts). Returns what the model is told. */
 function codeCard(ctx: TurnCtx): string {
   for (const it of intentsOf(ctx.userText)) {
+    if (it.id === 'gift-information') continue; // Receiving a gift does not imply supporting children.
     if (it.rule) {
       const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
       if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; return r.describe; }
@@ -575,6 +577,11 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
     case 'proposeCabinetChange': {
       if (ctx.changes >= 3) return { saved: false, error: 'At most 3 changes per reply.' };
       const action = String(a.action);
+      if (action !== 'archive' && /\b(do not|don't|don’t|never)\s+(save|remember|store)\b/i.test(ctx.userText))
+        return { saved: false, error: 'The customer asked not to save. Nothing was saved.' };
+      if (action === 'add' && a.type === 'goal' && /[?]|\b(maybe|hypothetical|what if|thinking about)\b/i.test(ctx.userText)
+        && !/\b(save|remember|create|add)\b[^.?!]{0,35}\b(goal|plan|this|it)\b/i.test(ctx.userText))
+        return { saved: false, error: 'This is an exploratory question, not consent to create a goal. Ask before saving.' };
       if (action === 'archive' && DELETE_ALL.test(ctx.userText)) return { saved: false, error: 'Not done: Nora never removes everything at once. Tell the customer they can remove each item, or turn sharing off, in "Nora knows".' };
       const sensitive = !!a.sensitive || SENSITIVE.test(`${a.title || ''} ${a.detail || ''}`);
       // v29: Nora cannot set reminders, so a reminder is never saved as a note.
@@ -817,7 +824,12 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const ctx: TurnCtx = { userId, conversationId, allowedIds: new Set(read.allowed.map((e) => e.id)), cards: [], notes: [], changes: 0, offersShown: 0, extraUsed: [], userText, helperId };
   const facts = factsFor(userId, ctx.allowedIds);
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
-  const cardNote = helperId === 'person' ? '' : codeCard(ctx);
+  const cardNote = helperId === 'person' || FRAUD.test(userText) ? '' : codeCard(ctx);
+  // Reviewed factual paths do not depend on the model recalling current tax/product rules.
+  // Keep action, adviser, correction and removal turns on their existing tool/consent paths.
+  const actionTurn = /\b(transfer|set up|move \d|every month|monthly transfer|remember|save this|forget|remove|delete|undo|adviser|advisor|mortgage|home loan|pre.?approval)\b/i.test(userText);
+  const reviewed = helperId !== 'person' && !actionTurn && !FRAUD.test(userText) ? reviewedAnswer(userText, ctx.cards, facts.goals) : null;
+  if (reviewed) return { text: reviewed, suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: ctx.extraUsed, topic: 'other', couldHelp: true };
   const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote);
   const t0 = Date.now();
   let modelCalls = 0;

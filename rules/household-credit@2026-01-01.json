@@ -6,7 +6,7 @@
   "validFrom": "2026-01-01",
   "validTo": "2028-01-01",
   "source": {
-    "url": "https://www.vero.fi/henkiloasiakkaat/vahennykset/kotitalousvahennys/kotitalousvahennyksen-maara/",
+    "url": "https://www.vero.fi/en/individuals/deductions/Tax-credit-for-household-expenses/tax-credit-amount/",
     "checkedAt": "2026-11-20",
     "owner": "Tax rules owner (demo)"
   },
@@ -30,9 +30,13 @@
   "params": {
     "rate": 40,
     "max": 2100,
-    "ownShare": 150
+    "ownShare": 150,
+    "figure3": "2026",
+    "figure4": "2027,",
+    "figure5": "2026",
+    "figure6": "2027,"
   },
-  "message": "You get {rate} % of the work part of the bill back in tax, up to {max} € a person a year, after an own share of {ownShare} €. Keep invoices that show the work part separately.",
+  "message": "In {figure3} and {figure4} qualifying company labour costs including VAT can give a {rate} % credit against tax, less a {ownShare} € annual own liability, up to {max} € per person per year. Not materials or travel, and not a guaranteed refund.",
   "earns": "Nordea earns nothing from this.",
   "tests": [
     {
@@ -67,5 +71,6 @@
       "expect": "ask:paysForHouseholdWork"
     }
   ],
-  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice."
+  "_note": "Student concept. Figures read on the official source on the checkedAt date; not tax or legal advice.",
+  "explain": "In {figure5} and {figure6} qualifying company labour costs including VAT can give a {rate} % credit against tax, less a {ownShare} € annual own liability, up to {max} € per person per year. Not materials or travel, and not a guaranteed refund. The company must be in the prepayment register and the work must qualify. The employee route and oil-heating replacement have different rules. The credit reduces tax, not taxable income, and is limited by available tax. Keep an itemised invoice."
 }

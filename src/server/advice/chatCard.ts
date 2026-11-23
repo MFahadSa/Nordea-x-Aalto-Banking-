@@ -75,8 +75,9 @@ export function ruleCardFor(userId: string, conversationId: string, intent: Inte
 export function explainFor(ruleId: string, today: string): string {
   const versions = catalogue().filter((r) => r.id === ruleId && r.validFrom <= today && (!r.validTo || r.validTo >= today));
   const r = versions.sort((a, b) => b.version.localeCompare(a.version))[0];
-  if (!r?.explain) return '';
-  const text = r.explain.replace(/\{(\w+)\}/g, (m, k) => {
+  if (!r) return '';
+  const explanation = r.explain || r.message;
+  const text = explanation.replace(/\{(\w+)\}/g, (m, k) => {
     const v = (r.params as Record<string, unknown>)[k];
     return typeof v === 'number' ? v.toLocaleString('fi-FI').replace(/\u00a0/g, ' ') : String(v ?? m);
   });

@@ -27,7 +27,7 @@ export const shortDay = (d: string) => {
 function valueWords(k: FactKey, v: unknown): string {
   if (typeof v === 'boolean') return v ? 'yes' : 'no';
   if (FACTS[k].type === 'date' && typeof v === 'string') return shortDay(v);
-  if (k === 'psBalance' && typeof v === 'number') return `${Math.round(v).toLocaleString('fi-FI').replace(/ /g, ' ')} €`;
+  if ((k === 'psBalance' || k === 'psBalanceAt2027Start') && typeof v === 'number') return `${Math.round(v).toLocaleString('fi-FI').replace(/ /g, ' ')} €`;
   if (k === 'incomeType') return ({ salary: 'salary', pension: 'pension', student_aid: 'student aid', none: 'none' } as Record<string, string>)[String(v)] ?? String(v);
   return String(v);
 }

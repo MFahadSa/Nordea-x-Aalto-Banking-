@@ -20,6 +20,7 @@ export const FACTS = {
   savesMonthly: { type: 'boolean', origin: 'nordea', label: 'Saves every month' },
   hasAspAccount: { type: 'boolean', origin: 'nordea', label: 'Has an ASP account' },
   hasPsAccount: { type: 'boolean', origin: 'nordea', label: 'Has a PS account' },
+  psBalanceAt2027Start: { type: 'number', origin: 'nordea', label: 'PS balance on 1 January 2027' },
   psBalance: { type: 'number', origin: 'nordea', label: 'PS account balance' },
   hasEquitySavingsAccount: { type: 'boolean', origin: 'nordea', label: 'Has an equity savings account' },
   savingForHome: { type: 'boolean', origin: 'customer', label: 'Saving towards a home' },
@@ -27,6 +28,7 @@ export const FACTS = {
   helpsFamilyWithMoney: { type: 'boolean', origin: 'customer', label: 'Helps children or grandchildren with money' },
   paysForHouseholdWork: { type: 'boolean', origin: 'customer', label: 'Pays for cleaning, care or renovation work at home' },
   isHigherEducationStudent: { type: 'boolean', origin: 'customer', label: 'Studies at a university or UAS' },
+  firstAttendanceDate: { type: 'date', origin: 'customer', label: 'First registration as attending higher education' },
   firstStudyPlaceDate: { type: 'date', origin: 'customer', label: 'Date of first higher-education study place' },
   interestedInInvesting: { type: 'boolean', origin: 'customer', label: 'Interested in investing in shares or funds' },
   psWithdrawalsStarted: { type: 'boolean', origin: 'customer', label: 'Has started regular PS withdrawals' },
@@ -104,6 +106,9 @@ export function buildFacts(x: FactInputs): Facts {
   if (ps) {
     const snap = x.balances.filter((b) => b.accountKey === ps.key && b.at.slice(0, 10) <= today).sort((a, b) => b.at.localeCompare(a.at))[0];
     if (snap) facts.psBalance = known('psBalance', snap.balance, 'PS account balance', snap.at.slice(0, 10));
+    // Never substitute a later balance for the statutory snapshot date.
+    const start = x.balances.filter((b) => b.accountKey === ps.key && b.at.slice(0, 10) === '2027-01-01' && b.at.slice(0, 10) <= today).sort((a, b) => b.at.localeCompare(a.at))[0];
+    if (start) facts.psBalanceAt2027Start = known('psBalanceAt2027Start', start.balance, 'PS balance on 1 January 2027', '2027-01-01');
   }
   facts.hasEquitySavingsAccount = known('hasEquitySavingsAccount', hasType(/equity savings|osakesäästö/i), products);
 
