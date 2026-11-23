@@ -263,3 +263,5 @@ for(const [t,id,want] of [["Don't show me listings, just my goal",'homes',true],
 console.log('PASS round5 refusal runtime, scoped sanitized goal and partner edges');
 
 for(const t of ["Don't keep my data; please save a goal of 5000 for an emergency fund by June", "Don't save my address; save a goal of 5,00 for an emergency fund by June", "Don't save my address; save a goal of 5000 for an emergency fund by June 2025"]){assert.equal(scopedGoalOnRefusal(t,'2026-11-23'),null,t);}
+
+for(const t of ["Don't save my address; maybe save a goal of 5000 for an emergency fund by June", "Don't save my address; save a private goal of 5000 for an emergency fund by June", "Don't save my address; save a goal of 5000 for an emergency fund by June if I decide later"]){assert.equal(scopedGoalOnRefusal(t,'2026-11-23'),null,t);}

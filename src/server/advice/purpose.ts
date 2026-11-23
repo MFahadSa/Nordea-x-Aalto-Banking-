@@ -109,6 +109,7 @@ export function scopedGoalOnRefusal(text: string, today: string): {title: string
   const positives=clauses.filter(c=>/\b(?:please\s+)?(?:save|set|create|add)\s+(?:a\s+)?goal\b/i.test(c) && !refusesStorage(c) && !/\b(?:don't|do not|not|never)\b/i.test(c));
   if(positives.length!==1)return null;
   const c=positives[0];
+  if (/\b(?:if|unless|maybe|hypothetical|private|privately|secret|sensitive|only after|not yet)\b/i.test(c)) return null;
   const kinds=[{re:/\bemergency (?:fund|saving)/i,title:'Emergency fund',type:'other'},{re:/\bcar\b/i,title:'Car savings',type:'car'},{re:/\b(?:home|flat|house)\b/i,title:'Home savings',type:'home'}].filter(k=>k.re.test(c));
   if(kinds.length!==1)return null;
   const kind=kinds[0];

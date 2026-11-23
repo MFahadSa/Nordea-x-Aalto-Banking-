@@ -592,7 +592,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       const action = String(a.action);
       if (action !== 'archive' && refusesStorage(ctx.userText)) {
         const scoped = action === 'add' && a.type === 'goal' ? scopedGoalOnRefusal(ctx.userText, fin.DEMO_TODAY) : null;
-        if (!scoped || Number(a.targetAmount) !== scoped.targetAmount || (scoped.goalType !== 'other' && a.goalType !== scoped.goalType)) return { saved: false, error: 'Privacy restriction: this proposed change is not explicitly authorized. Nothing from this proposal was saved. Ask only if the scope needs clarification.' };
+        if (!scoped || a.sensitive === true || Number(a.targetAmount) !== scoped.targetAmount || (scoped.goalType !== 'other' && a.goalType !== scoped.goalType)) return { saved: false, error: 'Privacy restriction: this proposed change is not explicitly authorized. Nothing from this proposal was saved. Ask only if the scope needs clarification.' };
         // Never persist model-authored details alongside the independently identified goal.
         a = { action: 'add', type: 'goal', ...scoped, sensitive: false };
       }
