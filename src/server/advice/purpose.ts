@@ -12,19 +12,20 @@ export function purposeOf(text: string): Purpose {
 
 /** A refusal is not the idiom 'never remember to save money'. */
 export function refusesStorage(text: string): boolean {
-  // Privacy is a high-stakes boundary. Prefer withholding automatic retention when
-  // negated recording language is ambiguous, while leaving saving-money idioms alone.
-  const t = text.replace(/[’]/g, "'");
-  if (/\boff the record\b|\bkeep this private\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
-  const clauses=t.split(/[.!?;,]|\bbut\b/i);
-  const recording=/\b(?:sav(?:e|ed|ing)|stor(?:e|ed|ing)|remember(?:ed|ing)?|not(?:e|ed|ing)|log(?:ged|ging)?|record(?:ed|ing)?|keep|kept|writ(?:e|ing|ten)|add(?:ed|ing)?\s+.{0,18}notes?)\b/i;
-  const negative=/\b(?:don't|do not|never|no need|didn't|wouldn't|rather.{0,10}not|not want|not.{0,12}(?:saved|stored|noted|recorded|kept))\b/i;
-  return clauses.some(clause=>{
-    // Only discard clearly financial saving, not a memory request about money.
-    const c=clause.replace(/\b(?:remember|forget)\s+to\s+save\s+(?:money|euros?)\b/gi,'').replace(/\bsave\s+(?:money|euros?)\b/gi,'');
-    if (negative.test(c) && recording.test(c)) return true;
-    return /\b(?:don't|do not|never)\s+want\b.{0,35}\b(?:saved|stored|noted|recorded|kept)\b/i.test(c);
-  });
+  const t = text.toLowerCase().replace(/[’]/g, "'").replace(/\bdont\b/g,"don't");
+  if (/\boff the record\b|\b(?:keep this private|this stays between us)\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
+  if (/\b(?:nora[, ]+)?forget (?:i said|this|that|what i said)\b/.test(t)) return true;
+  // Directed commands, not descriptions such as "I don't save much" or "I don't remember my PIN".
+  const verb = '(?:save|store|remember|note|log|record|keep|write|add|make)';
+  const object = '(?:this|that|it|anything|what|i said|my (?:salary|data|details|information)|our (?:data|details)|a (?:note|record)|notes?)';
+  for(const raw of t.split(/[.!?;,]|\bbut\b/)) {
+    const c=raw.trim();
+    if (/\b(?:i|we)\s+(?:don't|do not|didn't|never)\s+(?:save|remember|keep|record|log)\b/.test(c) && !/\b(?:you|nora)\b/.test(c)) continue;
+    if (new RegExp(`\\b(?:don't|do not|never|no need to|didn't)\\s+(?:(?:want|allow)\\s+(?:you|nora)\\s+to\\s+)?${verb}(?:\\s+${object}\\b|\\s*$)`).test(c)) return true;
+    if (/\b(?:don't|do not) want\s+(?:this|that|it|my data|my salary)\s+(?:saved|stored|noted|recorded|kept)\b/.test(c)) return true;
+    if (/\brather you (?:didn't|did not)\s+(?:save|store|remember|note|log|record|keep|write)\b/.test(c)) return true;
+  }
+  return false;
 }
 
 /** Only an explicit positive service request may create a partner card. */
@@ -33,11 +34,15 @@ export function declinesPartner(text: string, partner: string): boolean {
   if (partner === 'movers') {
     const objects=[/\bmovers?\b|\bmoving compan(?:y|ies)\b|\bmuutto\w*/i,/\bpacking help\b|\bpakkausapu\w*/i,/\bmoving van\b/i];
     const states: (boolean | undefined)[] = objects.map(()=>undefined);
-    const clauses=text.replace(/[’]/g,"'").split(/[.!?;,]|\b(?:but|however|instead|although|though|and)\b/i);
+    const clauses=text.toLowerCase().replace(/[’]/g,"'").split(/[.!?;,]|\b(?:but|however|instead|although|though|and)\b/i);
     let last:number[]=[];
     for(const raw of clauses){const c=raw.trim();if(!c)continue;
       const matches=objects.map((re,i)=>re.test(c)?i:-1).filter(i=>i>=0);
-      const neg=/^no\b|\b(?:don't|do not|won't|will not|aren't|are not|not|no thanks|without|skip|avoid|hide|decline|stop|en tarvitse|en halua)\b/i.test(c);
+      const refusal = /\b(?:don't|do not|won't|will not|aren't|are not|not)\s+(?:be\s+|going to\s+)?(?:need(?:ing)?|want(?:ing)?(?: to hire)?|hir(?:e|ing)|us(?:e|ing)|plan to use)\b/.test(c)
+        || /\b(?:not interested in|not looking for|no need for|no thanks to|skip|avoid|hide|decline|stop showing|stop suggesting|en tarvitse|en halua)\b/.test(c)
+        || /^no\b/.test(c)
+        || (/\b(?:manage|do|cope)\b.{0,12}\bwithout\b/.test(c) && !/\b(?:can't|cannot|won't|will not|not)\b/.test(c));
+      const neg=refusal;
       if(matches.length){for(const i of matches)states[i]=!neg;last=matches;}
       else if(last.length && /^(?:no(?: thanks)?|i'?d rather not|rather not|no thank you)$/i.test(c))for(const i of last)states[i]=false;
     }

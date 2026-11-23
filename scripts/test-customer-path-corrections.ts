@@ -221,3 +221,18 @@ for(const t of ["Don't save", "Don't remember I said that", "I'd rather you didn
 for(const t of ["I don't want to hire movers, I'll do it myself", "We don't plan to use movers", 'We will manage without movers', 'Hire movers? No.', "Do we need movers? I'd rather not"]){assert.ok(declinesPartner(t,'movers'),t);}
 for(const t of ["We need a moving company, don't need packing help", "We won't hire movers but need packing help"]){assert.equal(declinesPartner(t,'movers'),false,t);}
 console.log('PASS structural privacy and service-item choice probes');
+
+for(const t of ["I don't save much, should I open an ASP account?", "I didn't save anything last month, help me plan", "I don't remember my PIN, how do I reset it?", "I never keep more than 500 in checking", "I don't want to keep paying rent, should we open an ASP account?", "We don't record our spending, is there an easy way?", "Don't forget to note that I'm saving for a car", "I don't log in often, how do I add notes?"]){assert.equal(refusesStorage(t),false,t);}
+for(const t of ['Nora, forget I said that','This stays between us','Pls dont save'])assert.ok(refusesStorage(t),t);
+for(const t of ["I don't know any good movers, can you find some?", "We can't do it without movers", "We won't manage without a moving company", "I don't have time to find movers, please help"]){assert.equal(declinesPartner(t,'movers'),false,t);}
+console.log('PASS directed privacy versus ordinary banking and service need');
+
+// Ordinary financial self-description must not prevent the requested ASP card.
+setProvider({name:'directed-boundary-review',isConfigured:()=>true,step:async({system})=>{captured=system;calls++;return {calls:[finish]}}});
+const normalAsp=await abelTurn('lauri','normal-asp-directed','abel',"I don't save much, should I open an ASP account?");
+assert.ok(normalAsp.cards.some(c=>c.data?.ruleId==='asp-account'));
+planned=[{name:'proposeCabinetChange',args:{action:'add',type:'goal',title:'Affirmative reminder car goal',detail:'Saving for a car',targetAmount:5000,targetDate:'2028-12-31',goalType:'car',sensitive:false}},finish];
+setProvider({name:'positive-note-review',isConfigured:()=>true,step:async()=>({calls:planned.length?planned.splice(0):[finish]})});
+const positiveNote=await abelTurn('alex','positive-note-review','abel',"Don't forget to note that I'm saving 5000 for a car by 2028");
+assert.ok(positiveNote.notes.length||positiveNote.cards.some(c=>c.type==='duplicate'));
+console.log('PASS normal ASP and affirmative note runtime paths');
