@@ -8,7 +8,7 @@
  *
  * The AI is only told which card the app shows, so its words can introduce it in one sentence.
  */
-import { purposeOf, declinesPartner } from './purpose.js';
+import { purposeOf, declinesPartner, explicitlyRequests } from './purpose.js';
 import type { FactKey } from './facts.js';
 
 export interface Intent {
@@ -47,6 +47,7 @@ export function intentsOf(text: string): Intent[] {
   const t = String(text || '');
   // A question about progress is not a request for offers ("am I on track for the flat?").
   const purpose = purposeOf(t);
-  if (purpose === 'banking' || purpose === 'plan') return [];
-  return T.filter((x) => x.re.test(t) && (!x.partner || !declinesPartner(t, x.partner))).map(({ id, partner, rule, implies }) => ({ id, ...(partner ? { partner } : {}), ...(rule ? { rule } : {}), ...(implies ? { implies } : {}) }));
+  return T.filter((x) => x.re.test(t)
+    && (!(purpose === 'banking' || purpose === 'plan') || explicitlyRequests(t, x.partner || x.rule || ''))
+    && (!x.partner || !declinesPartner(t, x.partner))).map(({ id, partner, rule, implies }) => ({ id, ...(partner ? { partner } : {}), ...(rule ? { rule } : {}), ...(implies ? { implies } : {}) }));
 }

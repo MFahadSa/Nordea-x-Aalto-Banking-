@@ -198,6 +198,12 @@ function factsFor(userId: string, allowed: Set<string>) {
     spendingLast3Months: strip(fin.spending(userId, 3)),
     goals: fin.activeGoals(userId).filter((g) => allowed.has(g.id)).map((g) => ({ ...fin.goalStatus(userId, g), goalType: g.goalType })),
     paydayPlan: strip(fin.payPlan(userId)),
+    psAccount: (() => {
+      const ps = db.getBankAccounts(userId).find(a => /^ps\b|long-term savings|pitkäaikaissäästö/i.test(a.type || ''));
+      if (!ps) return { heldAtThisBank: false, balance: null, balanceOn1January2027: null, note: 'Do not substitute ordinary account totals. An external PS account is not established here.' };
+      const snapshots = db.getBalanceSnapshots(userId).filter(b => b.accountKey === ps.key && b.at.slice(0,10) <= fin.DEMO_TODAY).sort((a,b)=>b.at.localeCompare(a.at));
+      return { heldAtThisBank: true, balance: snapshots[0]?.balance ?? null, asOf: snapshots[0]?.at ?? null, balanceOn1January2027: snapshots.find(b=>b.at.slice(0,10)==='2027-01-01')?.balance ?? null };
+    })(),
   };
 }
 
@@ -543,7 +549,7 @@ function codeCard(ctx: TurnCtx): string {
     if (it.rule === 'asp-account' && /\b(?:already have|already own|have got)\b[^.?!]{0,30}\b(?:one|asp|account)\b|\bmy (?:existing )?asp account\b/i.test(ctx.userText)) continue;
     if (it.id === 'gift-information') continue; // Receiving a gift does not imply supporting children.
     if (it.rule) {
-      const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
+      const r = ruleCardFor(ctx.userId, ctx.conversationId, refusesStorage(ctx.userText) ? { ...it, implies: undefined } : it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
       if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; return r.describe; }
     } else if (it.partner) {
       const d = partnerCard(ctx, it.partner);

@@ -31,10 +31,10 @@
   ],
   "params": {
     "max": 5000,
-    "lastDeductionYear": 2026,
+    "lastDeductionYear": "2026",
     "endDate": "1 January 2027",
-    "firstWithdrawalYear": 2027,
-    "lastWithdrawalYear": 2028
+    "firstWithdrawalYear": "2027",
+    "lastWithdrawalYear": "2028"
   },
   "message": "{lastDeductionYear} is the last year for eligible PS contributions to qualify for a deduction, generally within a {max} € combined annual cap and other conditions. The existing balance is not deductible. Check eligibility before paying in more.",
   "earns": "Nordea earns nothing from this information.",

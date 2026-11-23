@@ -94,3 +94,42 @@ assert.ok(idiom.notes.length || idiom.cards.some(c=>c.type==='duplicate'),'Idiom
 console.log('PASS actual goal, monthly transfer, no-save and idiom tool paths');
 
 assert.equal(reviewedContext('What is gift tax?',31,'2030-01-01'),'','Stale checked facts fail closed');
+
+// Second independent review: refusal, explicit requests and PS context.
+answer = 'I can help with the request.';
+setProvider({name:'second-review-probe',isConfigured:()=>true,step:async({system})=>{captured=system;calls++;return {calls:[{name:'finishReply',args:{text:answer,suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]}}});
+for (const t of ["We won't hire movers, thanks", "We won't need any movers", 'Please skip the movers offer, I just need to know when to tell my landlord', 'We are not interested in movers', 'Movers? No thanks']) await ask(t);
+for (const [t,id] of [
+ ['I spend a lot on electricity, can you help me get a cheaper contract?','energy'],
+ ['I plan to move in a month and need a moving company','movers'],
+ ['We want to save for our first home by 2028, should we open an ASP account?','asp-account'],
+ ['I returned to university this autumn, can Kela help with my student loan?','kela-loan-writeoff'],
+ ['I paid 600 euros to a cleaning company, can I claim the household credit on those payments?','household-credit'],
+] as const) {
+ const r=await ask(t,'lauri',false);
+ assert.ok(r.cards.some(c=>c.data?.partnerId===id||c.data?.ruleId===id),`Explicit request missing ${id}`);
+}
+await ask('Is my PS balance under 5,000? Can I withdraw it all in 2027?');
+assert.match(captured,/historical test[\s\S]*1 January 2027/,'PS balance question gets checked historical rule');
+assert.equal(reviewedContext('Should I invest some of my pension savings in funds?',72,'2026-11-23'),'','Generic pension investing is not PS');
+for(const t of ["Don't keep a note of this", 'No need to save it', "don't remember that I'm pregnant", 'do not save anything']) assert.ok(refusesStorage(t),t);
+// All original factual paths carry applicable checked context, never canned replies.
+for(const [t,source] of [
+ ['Are we too old at 31 for ASP?','asp-account.html'],
+ ['How can I start investing at 26?','equity-savings-account.html'],
+ ['Can Kela repay my student loan if I graduate on time?','student-loan-compensation'],
+ ['My mother wants to give me 7500 euros, is gift tax due?','when-do-i-need-to-pay-gift-tax'],
+ ['Can I claim household tax credit for cleaning?','tax-credit-amount'],
+ ['Can I deduct PS contributions in 2026?','tax-change-to-ps-accounts'],
+ ['Can I withdraw my PS balance in 2027?','tax-change-to-ps-accounts'],
+] as const){await ask(t,'alex');assert.ok(captured.includes(source),`Missing source ${source}`);assert.ok(!/\b2[,\u00a0 ]0\d{2}\b/.test(captured.split('CHECKED BACKGROUND')[1]||''),'No grouped years in checked background');}
+console.log('PASS second-review cases, seven factual paths and shared rendered background');
+
+const retained = db.getCabinetEntries('alex').length;
+await ask("I paid a cleaning company. Don't keep a note of this",'alex');
+assert.equal(db.getCabinetEntries('alex').length, retained, 'Storage refusal also blocks code-inferred fact saves');
+
+await ask('Is my PS balance under 5,000? Can I withdraw it in 2027?');
+assert.match(captured, /Ordinary account balances must never be used as a PS balance/);
+assert.match(captured, /"psAccount":\s*\{[\s\S]*?"heldAtThisBank":\s*false[\s\S]*?"balance":\s*null/);
+console.log('PASS PS product boundary and unknown personal balance in model context');

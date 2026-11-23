@@ -30,7 +30,7 @@
   "params": {
     "limit": 7500,
     "years": 3,
-    "effectiveYear": 2026
+    "effectiveYear": "2026"
   },
   "message": "From {effectiveYear}, gifts totalling less than {limit} € from the same donor to the same recipient over a rolling {years}-year period can be exempt. At the threshold, tax applies to the combined taxable value, not just the excess.",
   "explain": "From {effectiveYear}, gifts totalling less than {limit} € from the same donor to the same recipient over a rolling {years}-year period can be exempt. At the threshold, tax applies to the combined taxable value, not just the excess. Check earlier gifts and gift dates. This is not a calendar-year allowance or a family-only exemption. Never work out the tax itself; point to the Tax Administration.",
