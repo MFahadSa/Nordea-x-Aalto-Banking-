@@ -4,6 +4,7 @@ import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
 import { RefundCasePage, EVT as REFUND_EVT } from './components/Refund.js';
 import { HomePage } from './components/HomePage.js';
+import { MemoryPage } from './components/MemoryPage.js';
 import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, PresenterPage, DeleteDocSheet, ConfirmSheet, PayPage, InvestPage, ServicesPage } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
 import { SuggestSettingSheet } from './components/Advice.js';
@@ -41,7 +42,7 @@ import {
   deleteChat,
 } from './services/api.js';
 
-type Page = 'home' | 'pay' | 'invest' | 'services' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter' | 'refund';
+type Page = 'home' | 'pay' | 'invest' | 'services' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter' | 'refund' | 'memory';
 
 function initialDark() {
   try {
@@ -374,7 +375,7 @@ export default function App() {
   const tab = (k: Page, icon: string, label: string) => {
     // Back to the earlier five tabs. Sub-pages (pay, invest, services, privacy, presenter, autopilot,
     // refund) are reached from More or rows, so the More tab stays selected on them.
-    const on = page === k || (k === 'more' && ['privacy', 'presenter', 'pay', 'invest', 'services', 'autopilot'].includes(page));
+    const on = page === k || (k === 'more' && ['privacy', 'memory', 'presenter', 'pay', 'invest', 'services', 'autopilot'].includes(page));
     return (
       <button key={k} role="tab" aria-selected={on} onClick={() => goPage(k)}>
         <Icon name={icon} />
@@ -523,13 +524,8 @@ export default function App() {
               onWrong={(e) => update(e, { status: 'disputed' })}
               onArchive={archive}
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
-              adviceBusy={adviceBusy}
-              onAdviceAnswer={adviceAnswer}
-              onAdviceShow={adviceShowMe}
-              onAdviceNotNow={adviceNotNow}
               getMore={<GetMoreCard view={about} onAdd={() => goPage('knows')} />}
               offers={<OffersForYou userId={state.user.id} refreshKey={offersKey}
-                skip={state.advice?.forYou?.data?.ruleId === 'asp-account' ? ['asp'] : []}
                 onAsk={(o) => startChat('abel', `Tell me about the ${o.title} for my situation`)}
                 onToast={(m, undo) => setToast({ message: m, action: undo ? { label: 'Undo', run: undo } : undefined })} />}
             />
@@ -569,6 +565,9 @@ export default function App() {
             />
           )}
           {page === 'refund' && <RefundCasePage userId={state.user.id} onBack={() => goPage('home')} />}
+          {page === 'memory' && (
+            <MemoryPage state={state} onBack={() => goPage('more')} onOpenKnows={() => { refresh(); goPage('knows'); }} onToast={(m) => setToast({ message: m })} />
+          )}
           {page === 'presenter' && (
             <PresenterPage
               state={state}

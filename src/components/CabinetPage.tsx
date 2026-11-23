@@ -224,11 +224,12 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
           ))}
           {approvals.map((c) => (
             <div className="cb-item" key={c.id}>
-              <span className="cb-src you"><Icon name="shield" size={13} />Nora asks before using this</span>
-              <span className="cb-t"><span className="n-name">{c.summary.replace(/^Customer goal: /, 'Goal: ')}</span></span>
+              <span className="cb-src you"><Icon name="person" size={13} />Your goal</span>
+              <span className="cb-t"><span className="n-name">{c.summary.replace(/^Customer goal: /, 'Goal: ')}</span>
+                <span className="n-sub">Can Nora use this goal in her advice and offers? If not, it stays only in your goals.</span></span>
               <div className="cb-btns">
-                <button className="btn small primary" onClick={() => decideApproval(c, true)}>Allow</button>
-                <button className="btn small" onClick={() => decideApproval(c, false)}>Don’t allow</button>
+                <button className="btn small primary" onClick={() => decideApproval(c, true)}><Icon name="check" size={15} strokeWidth={2.6} />Yes, use it</button>
+                <button className="btn small" onClick={() => decideApproval(c, false)}>Keep it private</button>
               </div>
             </div>
           ))}

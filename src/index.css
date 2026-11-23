@@ -1127,3 +1127,15 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .cb-item:has(> .cb-more){padding-right:44px}
 .cb-more{position:absolute;top:10px;right:-6px;width:40px;height:40px;border:0;border-radius:50%;background:none;color:var(--ink-2);display:grid;place-items:center;cursor:pointer}
 .cb-more:hover,.cb-more:focus-visible{background:var(--surface-2)}
+
+/* More → Memory */
+.mem{padding:0}
+.mem-row{display:flex;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid var(--line)}
+.mem-row:first-child{border-top:0}
+.mem-t{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.mem-t b{font-size:15px;color:var(--ink)}
+.mem-t span{font-size:13px;line-height:1.4;color:var(--muted)}
+.mem-r{flex:none}
+.mem-r .btn{white-space:nowrap}
+.mem-prompt{white-space:pre-wrap;font:inherit;font-size:13px;line-height:1.45;background:var(--surface-2);color:var(--ink-2);border-radius:10px;padding:10px 12px;margin:0;max-height:180px;overflow-y:auto}
+.mem-paste{font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);resize:vertical;width:100%;box-sizing:border-box}

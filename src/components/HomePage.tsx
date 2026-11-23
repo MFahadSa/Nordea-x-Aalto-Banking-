@@ -1,12 +1,11 @@
-import { RefundHomeCard, RefundNoraCard, useRefundNoraCount } from './Refund.js';
-import React, { useEffect, useRef, useState } from 'react';
+import { RefundHomeCard } from './Refund.js';
+import React, { useState } from 'react';
 import { AppState } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
 import { Icon, Bell } from '../ui/icons.js';
 import { nfi, eur, ago } from '../ui/format.js';
 import { HELPERS, HELPER_ORDER } from '../ui/helpers.js';
 import { BAND_BG, NRow, Band, NChev } from './Nordea.js';
-import { ForYou } from './Advice.js';
 
 interface Props {
   state: AppState;
@@ -21,11 +20,6 @@ interface Props {
   onWrong: (e: CabinetEntry) => void;
   onArchive: (e: CabinetEntry) => void;
   onKeep: (e: CabinetEntry) => void;
-  /** v27: the Home "For you" card. */
-  adviceBusy?: boolean;
-  onAdviceAnswer?: (value: string) => void;
-  onAdviceShow?: () => void;
-  onAdviceNotNow?: () => void;
   /** Get more from Nora (setup checklist) and Offers for you. */
   getMore?: React.ReactNode;
   offers?: React.ReactNode;
@@ -98,36 +92,14 @@ export const QuickActions: React.FC<{ onFrame: (w: string) => void }> = ({ onFra
 
 export const HomePage: React.FC<Props> = (p) => {
   const { state } = p;
-  const [feedAll, setFeedAll] = useState(false);
   const [accOpen, setAccOpen] = useState(false);
-  // v30: the bell takes you to "From Nora", opened and marked (it used to open it off screen).
-  const [fromBell, setFromBell] = useState(false);
-  const abelRef = useRef<HTMLDivElement>(null);
-  const bell = () => {
-    setFeedAll(true);
-    setFromBell(true);
-    requestAnimationFrame(() => abelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-  };
-  useEffect(() => {
-    if (!fromBell) return;
-    const t = setTimeout(() => setFromBell(false), 4000);
-    return () => clearTimeout(t);
-  }, [fromBell]);
-  const [whyId, setWhyId] = useState<string | null>(null);
   const feed = feedItems(state.entries);
   const acc = state.accounts;
   const available = acc.current.balance + acc.savings.balance + (acc.carFund?.balance || 0);
   const carGoal = state.entries.find((e) => e.goalType === 'car' && e.status !== 'archived');
 
-  const forYou = state.advice?.forYou && p.onAdviceAnswer ? state.advice.forYou : null;
-  const refundN = useRefundNoraCount(state.user.id);
-  const abelCount = feed.length + (forYou ? 1 : 0) + refundN;
-  // On Home the refund already has its own row, so the list counts it only once the bell has opened the full list.
-  const listCount = abelCount - (feedAll ? 0 : refundN);
-  const forYouCard = forYou && (
-    <ForYou key={`${forYou.data?.ruleId}-${forYou.type}-${forYou.data?.fact || ''}`} card={forYou} busy={!!p.adviceBusy} inList
-      onAnswer={p.onAdviceAnswer!} onShow={p.onAdviceShow!} onNotNow={p.onAdviceNotNow!} />
-  );
+  // The bell counts what waits for the customer (Nordea noticed, old goals) and opens Nora knows → Waiting for you.
+  const waitingCount = feed.length;
   const goals = state.goals || [];
   const mainGoal = goals.find((g) => /flat|home|house|apartment/i.test(g.title)) || goals[0];
   const accounts = [
@@ -135,35 +107,6 @@ export const HomePage: React.FC<Props> = (p) => {
     { name: 'Savings account', a: acc.savings },
     ...(acc.carFund && carGoal ? [{ name: 'Car fund', a: acc.carFund }] : []),
   ];
-
-  const card = (e: CabinetEntry) =>
-    e.status === 'stale' ? (
-      <div className="card" key={e.id}>
-        <span className="from you">Your goal</span>
-        <div>
-          <h3>Is “{e.title}” still a plan?</h3>
-          <p>Its date has passed and no money has been added for a long time.</p>
-        </div>
-        <div className="btns">
-          <button className="btn primary" onClick={() => p.onArchive(e)}>No, remove it</button>
-          <button className="btn" onClick={() => p.onKeep(e)}>Yes, keep it</button>
-        </div>
-      </div>
-    ) : (
-      <div className="card" key={e.id}>
-        <span className="from bank">Nordea noticed</span>
-        <div>
-          <h3>{e.title}</h3>
-          <p>{e.detail.replace(/\s*Is this right\?$/, '')}</p>
-        </div>
-        <div className="btns">
-          <button className="btn primary" onClick={() => p.onConfirm(e)}>Confirm</button>
-          <button className="btn" onClick={() => p.onWrong(e)}>That’s wrong</button>
-          {e.why && <button className="btn quiet" onClick={() => setWhyId(whyId === e.id ? null : e.id)}>{whyId === e.id ? 'Hide' : 'How do we know?'}</button>}
-        </div>
-        {e.why && whyId === e.id && <p className="why">{e.why}</p>}
-      </div>
-    );
 
   const saveCard = (
     <div className="ncard">
@@ -181,7 +124,7 @@ export const HomePage: React.FC<Props> = (p) => {
 
   return (
     <>
-      <HomeHeader state={state} feedCount={abelCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onMore={p.onOpenMore} onBell={bell}
+      <HomeHeader state={state} feedCount={waitingCount} onFrame={p.onFrame} onAsk={() => p.onOpenHelper('abel')} onMore={p.onOpenMore} onBell={() => p.onOpenPage('knows')}
         onHelper={(k) => (k === 'autopilot' ? p.onOpenPage('autopilot') : p.onOpenHelper(k))} />
       <div className="nbody">
         {(state.notices || []).map((n) => (
@@ -234,28 +177,6 @@ export const HomePage: React.FC<Props> = (p) => {
         {p.offers}
         <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         {p.getMore}
-
-        {/* v30: one place for everything from Nora (what Nordea noticed, old goals, and the one question or
-            suggestion). Home shows the first; the rest are one tap away. */}
-        <div ref={abelRef} className={`abel-anchor${fromBell ? ' from-bell' : ''}`}>
-          {listCount > 0 ? (
-            <Band left={fromBell ? `From Nora · ${listCount} new` : 'From Nora'} right={fromBell ? 'From the bell' : feedAll || listCount === 1 ? `${listCount} for you` : `1 of ${listCount}`} />
-          ) : fromBell ? (
-            <><Band left="From Nora" /><p className="abel-none">Nothing new from Nora right now.</p></>
-          ) : null}
-        </div>
-        {feedAll ? (
-          <>
-            <RefundNoraCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
-            {feed.map(card)}
-            {forYouCard}
-          </>
-        ) : feed.length ? card(feed[0]) : forYouCard}
-        {!feedAll && listCount > 1 && (
-          <button className="nshowall plain" onClick={() => setFeedAll(true)}>
-            See all {listCount} from Nora
-          </button>
-        )}
 
         <p className="foot-note">You can see and remove what Nora uses in Nora knows.</p>
       </div>

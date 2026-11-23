@@ -50,6 +50,7 @@ const fmt = (n: number, d = 0) =>
 // F21/F23: the narrow Nora list lives shared and word-bounded in ./sensitive.js (the wider
 // SENSITIVE_TOPIC is for the AC7 risk rules only - it would make everyday loan talk "private").
 import { ABEL_PRIVATE_TOPIC as SENSITIVE } from './sensitive.js';
+import { memoryOf } from './memorySettings.js';
 
 /** Dates from the model as YYYY-MM-DD. "2027-08", "08/2027" and "August 2027" become the last day of that month. */
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -587,6 +588,13 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       // v29: Nora cannot set reminders, so a reminder is never saved as a note.
       if (/\bremind(er|ers|ing)?\b/i.test(`${a.title || ''}`) || (/\bremind me\b/i.test(ctx.userText) && action !== 'archive'))
         return { saved: false, error: 'You cannot set reminders. Say so kindly and suggest their phone\'s calendar. Nothing was saved.' };
+      // Memory settings (More → Memory): the customer decides whether Nora saves from chats at all,
+      // and whether private topics may be saved. Removing (archive) always works.
+      const mem = memoryOf(ctx.userId);
+      if (action !== 'archive' && !mem.fromChats)
+        return { saved: false, error: 'The customer turned off "Remember things from chats" in More → Memory. Nothing was saved. Say so briefly; they can add it themselves in Nora knows.' };
+      if (action === 'add' && sensitive && !mem.sensitive)
+        return { saved: false, error: 'Private topics are not saved: "Include private topics" is off in More → Memory. Nothing was saved. Do not say you saved or noted it.' };
       if (action === 'add') {
         const title = String(a.title || '').trim().slice(0, 80);
         if (!title) return { saved: false, error: 'title is required' };
@@ -830,7 +838,20 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const actionTurn = /\b(transfer|set up|move \d|every month|monthly transfer|remember|save this|forget|remove|delete|undo|adviser|advisor|mortgage|home loan|pre.?approval)\b/i.test(userText);
   const reviewed = helperId !== 'person' && !actionTurn && !FRAUD.test(userText) ? reviewedAnswer(userText, ctx.cards, facts.goals) : null;
   if (reviewed) return { text: reviewed, suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: ctx.extraUsed, topic: 'other', couldHelp: true };
-  const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote);
+  const baseSystem = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote);
+  // More → Memory → "Use your past chats": Nora sees only the titles of earlier chats, never their text.
+  const earlier = memoryOf(userId).searchChats
+    ? (() => {
+        const msgs = db.getMessages(userId);
+        return db.getConversations(userId).filter((c) => c.id !== conversationId)
+          .sort((x, y) => y.updatedAt.localeCompare(x.updatedAt)).slice(0, 5)
+          .map((c) => String(msgs.find((m) => m.conversationId === c.id && m.sender === 'user' && !m.attachment)?.text || '').slice(0, 60))
+          .filter(Boolean);
+      })()
+    : [];
+  const system = earlier.length
+    ? `${baseSystem}\nEARLIER CHATS (titles only; you may say "we talked about …" but never invent what was said): ${earlier.join('; ')}`
+    : baseSystem;
   const t0 = Date.now();
   let modelCalls = 0;
 

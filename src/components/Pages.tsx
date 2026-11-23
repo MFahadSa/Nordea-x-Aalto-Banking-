@@ -821,6 +821,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="You" />
       <div className="ncard flat">
         <NRow name="What Nora knows" sub="Goals, plans, preferences" onClick={() => onPage('knows')} />
+        <NRow name="Memory" sub="Past chats, private topics, import and export" onClick={() => onPage('memory')} />
         <NRow name="Who sees it" sub="Access, sharing, offers" onClick={() => onPage('privacy')} />
         <NRow name="Rewards" sub="Points and levels" onClick={() => onPage('rewards')} />
       </div>
