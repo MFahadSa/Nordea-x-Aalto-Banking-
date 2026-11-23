@@ -261,3 +261,5 @@ assert.equal(additions.length,1);assert.equal(additions[0].title,'Emergency fund
 for(const t of ["Don't save anything. Please save a goal of 5000 for an emergency fund by June", "Don't save my emergency fund; please save a goal of 5000 for an emergency fund by June", "Don't save my address; please save a goal of 5000 by June"]){assert.equal(scopedGoalOnRefusal(t,'2026-11-23'),null,t);}
 for(const [t,id,want] of [["Don't show me listings, just my goal",'homes',true],['Movers? Not this time','movers',true],['No movers yet, but we do need some for Friday','movers',false],["I don't need cover for my bike, but I do want home insurance",'insure',false]] as const)assert.equal(declinesPartner(t,id),want,t);
 console.log('PASS round5 refusal runtime, scoped sanitized goal and partner edges');
+
+for(const t of ["Don't keep my data; please save a goal of 5000 for an emergency fund by June", "Don't save my address; save a goal of 5,00 for an emergency fund by June", "Don't save my address; save a goal of 5000 for an emergency fund by June 2025"]){assert.equal(scopedGoalOnRefusal(t,'2026-11-23'),null,t);}

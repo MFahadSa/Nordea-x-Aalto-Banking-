@@ -113,10 +113,11 @@ export function scopedGoalOnRefusal(text: string, today: string): {title: string
   if(kinds.length!==1)return null;
   const kind=kinds[0];
   const restrictions=clauses.filter(x=>refusesStorage(x));
-  if (!restrictions.length || restrictions.some(x=>! /\b(?:my|our)\s+/i.test(x))) return null;
+  if (!restrictions.length || restrictions.some(x=>! /\b(?:my|our)\s+/i.test(x) || /\b(?:my|our)\s+(?:data|information|details|notes)\b/i.test(x))) return null;
   // A refusal that names this goal/category conflicts, even if another clause sounds positive.
   if(clauses.some(x=>refusesStorage(x)&&(/\b(?:goals?|anything|nothing|any of this|all of this|everything)\b|off the record|between us/i.test(x)||kind.re.test(x))))return null;
   const amount=c.match(/\b(?:of|for)\s+(\d[\d ,]*(?:\.\d{1,2})?)(?:\s*(?:euros?|€))?/i);
+  if (amount && !/^(?:\d+|\d{1,3}(?:[ ,]\d{3})+)(?:\.\d{1,2})?$/.test(amount[1].trim())) return null;
   const value=amount?Number(amount[1].replace(/[ ,]/g,'')):NaN;
   if(!Number.isFinite(value)||value<=0)return null;
   const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
