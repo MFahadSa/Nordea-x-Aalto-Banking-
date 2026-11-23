@@ -1,3 +1,7 @@
+# Superseded by round 5
+
+Read `CLAUDE-ROUND5-REVIEW.md` for the latest fixes and internal review record. This is a historical handoff, not the current acceptance result.
+
 # Nora correction round 4: independent review and release gates
 
 Status: independent code review found no release-blocking consent or routing defect on code head `355e5f87c221033b280cd2b458a171873870ee46`. This is not release approval. No merge, main update, revert or deployment is part of this work.
