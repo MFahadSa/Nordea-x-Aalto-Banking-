@@ -75,3 +75,45 @@ export interface AboutView {
   /** "Get more from Nora": what each answer turns on. */
   setup: { key: string; done: boolean; doneText: string; todoText: string; step: FieldKey | 'confirm' }[];
 }
+
+/**
+ * A correction is usually a fragment ("4000 euro", "paid on the 15th", "Product designer"), not a new sentence.
+ * Change only the part it is about and keep the rest: "UX designer, steady salary of 3 900 € a month, paid on
+ * the 25th" + "4000 euro" → "UX designer, steady salary of 4 000 € a month, paid on the 25th".
+ * A full sentence that already reads like the whole answer replaces it.
+ */
+export function mergeCorrection(base: string, typed: string): string {
+  const t = typed.trim().replace(/[.]+$/, '');
+  if (!base || !t) return t;
+  const words = (x: string) => new Set(x.toLowerCase().match(/[a-zåäö]{3,}/g) || []);
+  const bw = words(base), tw = [...words(t)];
+  // A rewrite of the whole thing: most of the old words are there again, or it is long.
+  if (tw.length >= 8 || (tw.length >= 3 && tw.filter((w) => bw.has(w)).length / tw.length >= 0.5 && /\d/.test(t) === /\d/.test(base))) return t;
+  const parts = base.split(/,\s*|;\s*/);
+  const AMOUNT = /(\d[\d\s.,]*\d|\d)\s*(k\b)?\s*(€|eur(?:o|os)?\b)?/i;
+  // A payday: "paid on the 15th", "payday 15", "15th".
+  const day = t.match(/\b(?:paid on the|payday(?: is)?(?: on the)?|on the)\s*(\d{1,2})(?:st|nd|rd|th)?\b/i) || t.match(/^(\d{1,2})(st|nd|rd|th)$/i);
+  if (day && /paid on the \d{1,2}(st|nd|rd|th)/i.test(base)) {
+    const d = Number(day[1]); const suf = [11, 12, 13].includes(d % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][d % 10] || 'th';
+    return base.replace(/paid on the \d{1,2}(st|nd|rd|th)/i, `paid on the ${d}${suf}`);
+  }
+  const m = t.match(AMOUNT);
+  if (m && AMOUNT.test(base)) {
+    const n = Number(m[1].replace(/\s/g, '').replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.')) * (m[2] ? 1000 : 1);
+    if (n > 0) {
+      // Which amount: the part that shares a word with the correction ("rent 1200" → the rent), else the first one.
+      const rest = tw.filter((w) => !/^(eur|euro|euros|month|about|around|per)$/.test(w));
+      const i = Math.max(0, parts.findIndex((p) => AMOUNT.test(p) && rest.some((w) => p.toLowerCase().includes(w.slice(0, 4)))));
+      const j = AMOUNT.test(parts[i]) ? i : parts.findIndex((p) => AMOUNT.test(p));
+      parts[j] = parts[j].replace(AMOUNT, `${Math.round(n).toLocaleString('fi-FI')} €`).replace(/€\s*€/, '€');
+      return parts.join(', ');
+    }
+  }
+  // A short phrase with no number replaces a short label at the start ("UX designer" → "Product designer").
+  if (!/\d/.test(t) && tw.length <= 5 && parts.length > 1 && parts[0].split(/\s+/).length <= 3 && !/\d/.test(parts[0])) {
+    parts[0] = t.charAt(0).toUpperCase() + t.slice(1);
+    return parts.join(', ');
+  }
+  return t;
+}
+

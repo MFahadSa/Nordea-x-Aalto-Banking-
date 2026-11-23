@@ -207,7 +207,13 @@ export interface NoraSharedContext { userDbFacts?: string; sharedContext?: strin
 function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[], blockedCount: number, facts: unknown, shared?: NoraSharedContext, cardNote = '') {
   const u = db.getUser(userId)!;
   const calm = u.viewMode === 'calm';
-  const entries = cabinet.map((e) => ({
+  // About you (what the customer confirmed or told us, src/server/aboutYou.ts): its own short section, so it is
+  // not listed twice. Their own words are newer than the bank's estimates.
+  const aboutEntries = cabinet.filter((e) => e.aboutPart && !String(e.aboutPart).startsWith('fact:'));
+  const aboutLines = aboutEntries.map((e) => `- ${e.title.split(':')[0]}: ${e.detail || e.title.split(':').slice(1).join(':').trim()}${e.source === 'nordea' ? ' (Nordea data, confirmed by them)' : ' (they told you)'}`);
+  const style = aboutEntries.find((e) => e.aboutPart === 'style')?.aboutValues?.[0];
+  const length = calm ? '1–2 short sentences' : style === 'More detail' ? 'up to 6 sentences when the question needs it' : style === 'Short answers' ? '1–3 sentences' : '2–4 sentences';
+  const entries = cabinet.filter((e) => !aboutEntries.includes(e)).map((e) => ({
     id: e.id,
     type: e.type,
     title: e.title,
@@ -221,6 +227,16 @@ function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[],
   return `You are Nora, the AI assistant inside the Nordea mobile banking app.
 Customer: ${u.name}, ${u.age}. Today is ${fin.DEMO_TODAY}. View: ${calm ? 'CALM (older or data-careful customer)' : 'full'}.
 This chat is with the helper: ${helperId}. Focus: ${HELPER_FOCUS[helperId] || HELPER_FOCUS.abel}
+
+HOW TO ANSWER (most important)
+- Answer exactly what they asked, in your first sentence. Then stop. Length: ${length}.
+- Use only the facts that help with THIS question. Don't bring up goals, balances, spending, plans or offers they didn't ask about.
+- Never repeat something already said in this chat (by you or them), and don't restate their question.
+- If the question is unclear, ask one short question instead of guessing.
+
+ABOUT THE CUSTOMER (from About you; use it to fit your answer, e.g. their work, home, plans, risk and how they like answers):
+${aboutLines.length ? aboutLines.join('\n') : '- Nothing confirmed yet.'}
+If this differs from FACTS (e.g. they say their salary is now 4 000 € while FACTS show 3 900 €), their own words are newer: use them, and mention the bank's number only if it matters.
 
 FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):
 ${JSON.stringify(facts)}
@@ -236,7 +252,7 @@ ${shared.sharedContext}
 ` : ''}Provenance: ${shared.provenance.join(' + ')}.` : 'SHARED CONTEXT: not in use for this customer.'}
 
 HOW YOU TALK
-- Warm, brief, plain English, like a caring person texting. Acknowledge feelings first. At most one question; ask if unclear.
+- Warm, brief, plain English, like a caring person texting. Acknowledge feelings only when they share them. At most one question.
 - Use the cabinet naturally, never recite it. Small talk: one or two sentences.
 - Money: 12 000 € (whole euros, or 1 420,50 € if cents matter). Plain text: no markdown, no tables, no JSON, no suggestion lists (quick replies go in suggestions). For a plan over many months, summarise it in a few sentences.
 - Never show ids. When they name something ("the salary one"), find it yourself (newest = latest "added").

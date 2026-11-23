@@ -3,7 +3,7 @@
 // one button. Answers are given in a short flow: one question per screen, a tap moves on by itself.
 // Wording rule: talk about what the customer gets, never about how much the bank knows.
 import React, { useState } from 'react';
-import { FIELDS, QUESTIONS, type AboutView, type FieldKey } from '../aboutParts.js';
+import { FIELDS, QUESTIONS, type AboutView, type FieldKey, mergeCorrection } from '../aboutParts.js';
 import { saveAbout } from '../services/aboutApi.js';
 import { Icon } from '../ui/icons.js';
 import { Band } from './Nordea.js';
@@ -95,7 +95,7 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
   const QS = Object.fromEntries(QUESTIONS.map((q) => [q.field, q]));
   const askFor = (k: FieldKey): Ask => {
     const b = view.bank.find((l) => l.key === k);
-    return QS[k] ? { kind: 'question', key: k, title: QS[k].title, value: QS[k].value } : { kind: 'check', key: k, label: FIELDS[k].label, text: b?.text || view.fields[k].text };
+    return QS[k] ? { kind: 'question', key: k, title: QS[k].title, value: QS[k].value } : { kind: 'check', key: k, label: FIELDS[k].label, text: (view.fields[k].source !== 'none' && view.fields[k].text) || b?.text || view.fields[k].text };
   };
   const asks: Ask[] = [
     ...view.bank.filter((l) => view.fields[l.key].source === 'none').map((l) => askFor(l.key)),
@@ -137,7 +137,10 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
           {fixing || editKey ? (
             <>
               <label className="sr" htmlFor="ab-fix">What’s right?</label>
-              <input id="ab-fix" className="ab-text one" autoFocus placeholder="What’s right? E.g. “Works part-time”" value={text} onChange={(e) => setText(e.target.value)} />
+              <input id="ab-fix" className="ab-text one" autoFocus placeholder="Just the part that changed, e.g. “4 000 €” or “paid on the 15th”" value={text} onChange={(e) => setText(e.target.value)} />
+              {text.trim() && mergeCorrection(cur.text, text) !== text.trim().replace(/[.]+$/, '') && (
+                <span className="ab-q-preview" aria-live="polite"><Icon name="check" size={14} />Nora will save: {mergeCorrection(cur.text, text)}</span>
+              )}
               <div className="ab-q-btns">
                 <button className="btn small primary" disabled={busy || !text.trim()} onClick={() => save({ [cur.key]: { values: [], text } })}>Save{fresh ? ' · +5' : ''}</button>
                 <button className="btn small quiet" onClick={skip}>{editKey ? 'Cancel' : 'Skip for now'}</button>

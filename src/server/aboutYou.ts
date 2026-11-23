@@ -18,7 +18,7 @@ import { loadBus } from './arch/store/busStore.js';
 import { decideProposal } from './arch/orchestrator.js';
 import type { CabinetEntry } from '../types.js';
 import { REWARDS } from './routes.js';
-import { FIELDS, QUESTIONS, type AboutView, type FieldKey, type FieldView } from '../aboutParts.js';
+import { FIELDS, QUESTIONS, mergeCorrection, type AboutView, type FieldKey, type FieldView } from '../aboutParts.js';
 
 const now = () => new Date().toISOString();
 const newId = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -225,7 +225,11 @@ function writeField(userId: string, key: FieldKey, values: string[], free: strin
   const old = entries.filter((e) => e.aboutPart === key && live(e));
   const def = FIELDS[key];
   const clean = values.filter((v) => def.options.includes(v) || key === 'money');
-  const text = (free || '').trim().slice(0, 400);
+  // A typed correction to a sentence (Nordea's or the customer's own) changes only what it is about.
+  const typed = (free || '').trim().slice(0, 400);
+  const base = !def.options.length || key === 'work' || key === 'home'
+    ? (old[0]?.detail || bankPicture(userId).lines.find((l) => l.key === key)?.text || '') : '';
+  const text = typed && base && !clean.length ? mergeCorrection(base, typed) : typed;
   // A new answer replaces the old one (not kept as a removed note: About you shows the current answer).
   for (const e of old) db.deleteCabinetEntry(e.id, { by: 'you', how: 'Replaced by your new answer', purge: true });
   if (!clean.length && !text) return; // cleared
