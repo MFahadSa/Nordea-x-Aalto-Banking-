@@ -52,6 +52,7 @@ function initialDark() {
 
 export default function App() {
   const [personaId, setPersonaId] = useState<PersonaId>('lauri');
+  const selectedCustomer = useRef<string>('lauri');
   const [state, setState] = useState<AppState | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [page, setPage] = useState<Page>('home');
@@ -85,10 +86,13 @@ export default function App() {
 
   const refresh = useCallback(async (id: string = personaId) => {
     try {
-      setState(await fetchState(id));
+      const next = await fetchState(id);
+      if (selectedCustomer.current !== id) return;
+      setState(next);
       setError(null);
       setNoData(false);
     } catch (e: any) {
+      if (selectedCustomer.current !== id) return;
       if (e?.code === 'NO_DATA') {
         setState(null);
         setError(null);
@@ -98,8 +102,9 @@ export default function App() {
       // Loaded data may not have this customer (e.g. no "lauri"): switch to the first one there is.
       if (e?.message === 'User not found') {
         const us = await fetchUsers().catch(() => [] as User[]);
+        if (selectedCustomer.current !== id) return;
         setUsers(us);
-        if (us.length && us[0].id !== id) { setPersonaId(us[0].id as PersonaId); return; }
+        if (us.length && us[0].id !== id) { selectedCustomer.current = us[0].id; setPersonaId(us[0].id as PersonaId); return; }
       }
       setError(e?.message || 'Could not load the app data');
     }
@@ -449,7 +454,7 @@ export default function App() {
                 onClose={() => setUsersOpen(false)}
                 users={users}
                 currentUserId={state.user.id}
-                onSelectPersona={(p) => { setPersonaId(p); setUsersOpen(false); setChatOpen(false); setPage('home'); }}
+                onSelectPersona={(p) => { selectedCustomer.current = p; setState(null); setPersonaId(p); setUsersOpen(false); setChatOpen(false); setPage('home'); }}
                 onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'Data reset' }); }}
               />
               <AddGoalModal

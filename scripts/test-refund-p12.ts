@@ -56,6 +56,15 @@ try {
   check('generic shop asks for name', /What is the shop called/.test(a.text), a);
   a = await chat('refund'); a = await chat('Zalando', a.cid);
   check('unsupported merchant is honest', /cannot look into refunds/.test(a.text) && !a.card, a);
+  // Actual published amount mismatch: no record detail before opt-in, discrepancy after.
+  const first = await fetch(BASE + '/api/chat', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({userId:'lauri',text:'I returned headphones and need my refund'})}).then(r=>r.json()) as any;
+  const mismatch = await fetch(BASE + '/api/chat', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({userId:'lauri',conversationId:first.conversationId,text:'It was Tuulikki Electronics, about 129 euros.'})}).then(r=>r.json()) as any;
+  const offerMsg=mismatch.messages.at(-1);
+  check('approximate amount is unverified before consent, no preset amount leaked', /not yet matched/.test(offerMsg.text) && !/89[,.]90/.test(offerMsg.text),offerMsg);
+  const allowed=await fetch(BASE+'/api/actions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({userId:'lauri',messageId:offerMsg.id,action:'refund_allow',payload:{items:offerMsg.cards[0].data.items.map((i:any)=>i.id)}})}).then(r=>r.json()) as any;
+  check('allowed-record mismatch explicitly disclosed, not a claimed match', /89[,.]90/.test(allowed.messages[0].text) && /129/.test(allowed.messages[0].text) && /not a match/.test(allowed.messages[0].text),allowed);
+  const mismatchCase=(await state()).find((c:any)=>!c.withdrawn);
+  await fetch(BASE+`/api/refund/case/${mismatchCase.id}/withdraw`,{method:'POST',headers:{'content-type':'application/json'},body:'{}'});
   // with an open case, "where is my refund" is answered from the case only
   const offerJ = (await (await fetch(BASE + '/api/refund/lauri')).json()) as any;
   await fetch(BASE + '/api/refund/lauri/cases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ consentItems: offerJ.offer.map((o: any) => o.id) }) });
@@ -64,7 +73,7 @@ try {
   check('with an open case, "where is my refund" is answered from the case', /89,90 €.*expected/.test(a.text) && /promised it by 12 Oct/.test(a.text) && /write to the shop/.test(a.text) && !a.card, a);
   a = await chat('where is my balance');
   check('a balance question is not taken as a refund question', !/expected/.test(a.text), a);
-  const cs = (await state());
+  const cs = (await state()).filter((c:any)=>!c.withdrawn);
   await fetch(BASE + `/api/refund/case/${cs[0].id}/withdraw`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const after = JSON.stringify(await (await fetch(BASE + `/api/conversations/${statusCid}/messages`)).json());
   check('after withdrawal the refund status Nora wrote in chat is removed, the customer\'s own words stay', !/89,90|TE-48213|40,00/.test(after) && /where is my refund/.test(after), after.slice(0, 300));

@@ -10,6 +10,6 @@ const LOAN_RELEVANT = /\b(flat|apartment|home|house|mortgage|loan|deposit|kalasa
 /** Only what matters for a home-loan pre-approval ("only what is useful"): the home goal, income, savings,
  *  spending changes, the flat itself, a partner's part. A car goal or a holiday stays out of the case. */
 export function relevantForLoan(entries: CabinetEntry[]): CabinetEntry[] {
-  return entries.filter((e) => (e.type === 'goal' ? e.goalType === 'home' || /\b(flat|apartment|home|house|deposit)\b/i.test(e.title) : LOAN_RELEVANT.test(`${e.title} ${e.detail}`)));
+  return entries.filter((e) => !/cleaning|household.tax.credit|studies at|university|uas|first higher.education/i.test(e.title) && (e.type === 'goal' ? e.goalType === 'home' || /\b(flat|apartment|home|house|deposit)\b/i.test(e.title) : LOAN_RELEVANT.test(`${e.title} ${e.detail}`)));
 }
 export const isLoanContext = (text: string) => LOAN_WORDS.test(text);

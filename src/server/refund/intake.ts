@@ -2,7 +2,7 @@
 export const REFUND_ASK = 'Which shop is the refund from? Name it and I can look into it.';
 export const REFUND_GENERIC = 'That does not tell me which shop. What is the shop called?';
 export const REFUND_NO_SHOP = 'I cannot look into refunds from that shop. For now I can look into one shop only, which you can name if it applies.';
-export type RefundDecision = { kind: 'reply'; text: string; active: boolean; lookup?: true; amount?: number } | { kind: 'consent' } | { kind: 'pass' };
+export type RefundDecision = { kind: 'reply'; text: string; active: boolean; lookup?: true; amount?: number } | { kind: 'consent'; statedAmount?: number } | { kind: 'pass' };
 
 export function refundIntake(text: string, active: boolean): RefundDecision {
   const t = text.trim();
@@ -14,7 +14,12 @@ export function refundIntake(text: string, active: boolean): RefundDecision {
   if (!refund && !active) return { kind: 'pass' };
   if (/^\s*(yes|yeah|yep|ok|okay|thanks|thank you|hello|hi|hey|bye)\W*$/i.test(t)) return { kind: 'pass' };
   if (/\bnot\s+tuulikki\b/i.test(t)) return { kind: 'pass' };
-  if (/\btuulikki\b/i.test(t)) return { kind: 'consent' };
+  if (/\btuulikki\b/i.test(t)) {
+    const amount = t.match(/(?:€|\bEUR)\s*(\d+(?:[.,]\d{1,2})?)(?!\d)|\b(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?\b|EUR\b)|(?:about|around|roughly|paid|was)\s+(\d+(?:[.,]\d{1,2})?)(?!\d)/i);
+    const stated = amount ? Number((amount[1] || amount[2] || amount[3]).replace(',', '.')) : undefined;
+    if (stated !== undefined) return { kind: 'consent', statedAmount: stated };
+    return { kind: 'consent' };
+  }
   if (/\b(nordea|visa|mastercard|debit|credit card|my card|bank transfer)\b/i.test(t)) {
     return { kind: 'reply', text: 'That tells me how you paid, not which shop. We need the original purchase first, not an incoming refund. Do you remember the shop name or roughly how much you paid?', active: true };
   }

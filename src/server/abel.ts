@@ -18,6 +18,7 @@ import { relevantForLoan, isLoanContext } from './pipeline/loan.js';
 import { candidatesFor, remember, snapshot } from './advice/guard.js';
 import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { intentsOf } from './advice/intent.js';
+import { reviewedReplyProblem } from './advice/reviewedReply.js';
 import { reviewedContext } from './advice/reviewedAnswer.js';
 import { refusesStorage, scopedGoalOnRefusal } from './advice/purpose.js';
 import { ruleCardFor, earlierRuleExplain } from './advice/chatCard.js';
@@ -606,6 +607,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
         return { saved: false, error: 'You cannot set reminders. Say so kindly and suggest their phone\'s calendar. Nothing was saved.' };
       if (action === 'add') {
         const title = String(a.title || '').trim().slice(0, 80);
+        if (a.type !== 'goal' && /^(?:started|starting|attends?|studies at|is (?:a )?student|higher.education student)(?:\s+(?:a|the))?\s*(?:university|college|uas|student)?(?:\s+this (?:autumn|fall|year))?$/i.test(title) && db.getCabinetEntries(ctx.userId).some(e => /Studies at a university or UAS/i.test(e.title))) return { saved: false, alreadyKnown: true, note: 'The structured student fact is already saved. Do not save a second general student note.' };
         if (!title) return { saved: false, error: 'title is required' };
         const type = ['goal', 'life_event', 'preference', 'fact'].includes(a.type) ? a.type : 'fact';
         // v28: an amount or a date the customer never said is not saved (the AI must not invent a goal's numbers).
@@ -743,7 +745,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       db.touchConversation(ctx.conversationId, { offered: [...(conv?.offered || []), p.id] });
       ctx.offersShown++;
       ctx.extraUsed.push(...h.used);
-      return { shown: true, note: 'The card appears right below your message and shows the partner, the offer, the fee and a link to a free Nordea adviser. Introduce it in one short sentence; don’t offer an adviser yourself.' };
+      return { shown: true, note: 'The card appears right below your message and shows the partner, the offer, the fee and its browse button only. It does not contain an adviser link. Introduce it in one short sentence; don’t offer an adviser yourself.' };
     }
     case 'getOpportunities': {
       if (call.id !== 'offline') return { items: [], note: 'The app decides suggestions itself. Do not mention suggestions.' };
@@ -953,9 +955,19 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
 
   let retried = false;
   let ruleRetried = false;
+  const reviewedRetries = new Set<string>();
+  const repeatedReviewedProblem = (text: string) => {
+    const p = reviewedReplyProblem(userText, text, checkedContext, ctx.cards);
+    if (!p) return false;
+    if (reviewedRetries.has(p)) return true;
+    reviewedRetries.add(p);
+    return false;
+  };
   /** What's wrong with a reply, told to the model so it can write it again itself. */
   const problemWith = (text: string): string | null => {
     if (!text.trim()) return 'Your reply was empty (maybe cut off). Answer again briefly with finishReply.';
+    const reviewedProblem = reviewedReplyProblem(userText, text, checkedContext, ctx.cards);
+    if (reviewedProblem) return reviewedProblem;
     if (looksLikeCode(text)) return 'Your reply was code or a tool call written as text. Call the tool properly, and give the customer plain words in finishReply.';
     if (ctx.cards.some((c) => c.type === 'confirm_save') && SAVED_CLAIM.test(text)) return 'This sensitive thing was NOT saved: the customer chooses with the Save privately card. Write the reply again: be kind, and do not say you added, saved or noted it.';
     if (PAY_OTHER.test(userText) && !ctx.cards.some((c) => c.type === 'confirm_plan') && PAY_CLAIM.test(text)) return 'You cannot pay or send money to another person, so do not offer to set it up or ask them to confirm. Write the reply again: say so kindly and point them to Payments in the app.';
@@ -1000,11 +1012,13 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       const j = jsonReplyIn(raw);
       const t = cleanReply(j ? String(j.text) : raw);
       const p = t ? problemWith(t) : null;
-      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known, money).length && (!p || ruleRetried)) {
+      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known, money).length && !p) {
         recordTurn(Date.now() - t0, modelCalls);
         return finish(t, j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
       }
       if (t && isGarbled(t)) return offline('The AI answer was garbled');
+      if (p && repeatedReviewedProblem(t)) return offline('Unverified reply after correction: ' + p);
+      if (p && ruleRetried && !reviewedReplyProblem(userText,t,checkedContext,ctx.cards)) return offline('Unverified reply after correction: ' + p);
       if (p) ruleRetried = true;
       turns.push({ role: 'model', text: t || '(empty)' });
       turns.push({ role: 'user', text: `(system) ${p || 'Please answer by calling finishReply, and use tools for any numbers.'}` });
@@ -1032,7 +1046,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
         // expecting it, so the model writes them again knowing what happened.
         const failed = results.find((r) => (r.result as any)?.error && ((r.result as any).shown === false || (r.result as any).saved === false));
         const p = problemWith(text) || (failed ? `Your reply was written before this result: ${(failed.result as any).error} Write the reply again to match.` : null);
-        if (p && !ruleRetried) {
+        if (p && repeatedReviewedProblem(text)) return offline('Unverified reply after correction: ' + p);
+        if (p && (!ruleRetried || reviewedReplyProblem(userText, text, checkedContext, ctx.cards))) {
           ruleRetried = true;
           results.push({ call, result: { accepted: false, error: p } });
           continue;
