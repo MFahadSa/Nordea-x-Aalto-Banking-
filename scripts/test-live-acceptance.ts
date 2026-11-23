@@ -88,3 +88,10 @@ for (const [i,[request,unsafe]] of unsafeClauses.entries()) {
  assert.equal(count,2,`Unsafe first answer accepted: ${unsafe}`);assert.notEqual(result.text,unsafe);
 }
 console.log('PASS predicate-scoped negation, independent unsafe clauses, direct denials and first-answer runtime rejection');
+
+for (const text of ['The card has no adviser link.','The card contains no adviser link.','This card includes no adviser link.']) assert.equal(problem('planner',text,energy),null,text);
+assert.equal(problem('gift tax','It is not true that 7,500 euros is tax-free.',gift),null);
+assert.equal(problem('gift tax','It is not true that a single gift of 7,500 euros is tax-free.',gift),null);
+assert.ok(problem('gift tax','It is not true that reporting is needed, but 7,500 euros is tax-free.',gift));
+assert.ok(problem('planner','The card has no fee and has an adviser link.',energy));
+console.log('PASS scoped internal absent-link and explicit exact-gift denial controls');

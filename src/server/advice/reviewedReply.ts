@@ -14,7 +14,7 @@ export function reviewedReplyProblem(request: string, reply: string, checked: st
     const directNo = /\bno\s*$/.test(before) && /^(?:guaranteed|adviser|advisor)/i.test(m[0]);
     const prefixDenial = /(?:\b(?:not|never|cannot|can't|doesn't|don't)|\b(?:do|does) not (?:say|state|confirm|specify) whether)(?:\s+(?:a|an|the|any|you|can|have|offer|confirm|promise|guarantee|include|provide|receive|enjoy|that|it|is|are|be|treated|as|simply|necessarily|fully|eligible|for|gifts?|of|amounts?|up|to))*\s*$/i.test(before);
     const suffixDenial = /^\s*(?:euros?|€)?\s*(?:(?:is|are|would be|will be)\s+(?:not|never)\b|(?:do|does) not exist\b|(?:is|are) (?:unknown|unspecified|unverified)\b)/i.test(after);
-    const internalDenial = /\b(?:does not|doesn't|do not|don't) (?:include|provide|contain|have|offer)\b|\b(?:is not|isn't|are not|aren't)\b/i.test(m[0]);
+    const internalDenial = /\b(?:does not|doesn't|do not|don't) (?:include|provide|contain|have|offer)\b|\b(?:is not|isn't|are not|aren't)\b|\b(?:has|contains|includes|provides) no (?:an? )?(?:adviser|advisor)\b/i.test(m[0]);
     return !directNo && !prefixDenial && !suffixDenial && !internalDenial;
   });
   if ( /\b(?:Advis|becau|with the|such as|would like to|you can|want to|for example|would you like me to:?)\s*$/i.test(reply)) return fix('it ends mid-word or mid-sentence');
@@ -24,7 +24,8 @@ export function reviewedReplyProblem(request: string, reply: string, checked: st
     const inclusive = asserted(/(?:up to|including|only (?:the )?(?:amount|part|portion) (?:above|over)|exceeds?)\s*(?:€\s*)?7[\s,.]?500|7[\s,.]?500\s*(?:euros?|€)?\s*(?:or less|and below)/i);
     const exact = [...reply.matchAll(/7[\s,.]?500\s*(?:euros?|€)?\s*(?:is|are|would be|will be)\s*(?:tax.free|exempt)/gi)].some(m => {
       const before=reply.slice(0,m.index);
-      return !/\b(?:under|below|less than)\s*(?:€\s*)?$/i.test(before);
+      const directDenial = /\b(?:it is not true that|it isn't true that|it is false that|it is incorrect that|it is wrong to say that)\s*(?:a (?:single )?gift of\s*)?$/i.test(before);
+      return !directDenial && !/\b(?:under|below|less than)\s*(?:€\s*)?$/i.test(before);
     });
     if (inclusive || exact) return fix('the exemption is strictly less than 7,500, and at the threshold the combined taxable value matters, not only the excess');
   }
