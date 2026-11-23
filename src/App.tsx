@@ -355,9 +355,9 @@ export default function App() {
 
   const isCalm = state.user.viewMode === 'calm';
   const tab = (k: Page, icon: string, label: string) => {
-    // v31: the five reference tabs. Sub-pages (knows, rewards, more, privacy, presenter, autopilot,
-    // refund) are reached from the person icon, Services or rows, so no tab stays selected on them.
-    const on = page === k || (k === 'services' && page === 'autopilot');
+    // Back to the earlier five tabs. Sub-pages (pay, invest, services, privacy, presenter, autopilot,
+    // refund) are reached from More or rows, so the More tab stays selected on them.
+    const on = page === k || (k === 'more' && ['privacy', 'presenter', 'pay', 'invest', 'services', 'autopilot'].includes(page));
     return (
       <button key={k} role="tab" aria-selected={on} onClick={() => goPage(k)}>
         <Icon name={icon} />
@@ -388,11 +388,11 @@ export default function App() {
           statusBarTheme={chatOpen ? 'light' : 'brand'}
           bottom={
             <nav className="nav nav5" role="tablist">
-              {tab('home', 'home', 'Overview')}
-              {tab('pay', 'paytab', 'Pay')}
-              {tab('invest', 'invest', 'Invest')}
-              {tab('services', 'grid', 'Services')}
-              {tab('contact', 'help', 'Help')}
+              {tab('home', 'home', 'Home')}
+              {tab('knows', 'cab', 'Nora knows')}
+              {tab('rewards', 'star', 'Rewards')}
+              {tab('contact', 'contact', 'Contact')}
+              {tab('more', 'more', 'More')}
             </nav>
           }
           overlay={
