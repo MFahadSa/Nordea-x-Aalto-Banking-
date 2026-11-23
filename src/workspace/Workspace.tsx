@@ -180,11 +180,11 @@ const CaseView: React.FC<{ id: string; sid: string; onToast: (s: string) => void
             </div>
             {a.goal && (
               <div style={{ marginTop: 14 }}>
-                <div className="row small" style={{ justifyContent: 'space-between' }}><span>Deposit: {eur(a.goal.projected)} by {a.goal.targetDate.slice(0, 7)} towards {eur(a.goal.target)}</span><b>{a.goal.percentSaved} % saved now</b></div>
-                <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${Math.min(100, a.goal.percentSaved)}%` }} /></div>
+                <div className="row small" style={{ justifyContent: 'space-between' }}><span>{a.goal.projected===undefined?<>Deposit forecast unavailable · target {eur(a.goal.target)} by {a.goal.targetDate.slice(0,7)}</>:<>Deposit: {eur(a.goal.projected)} by {a.goal.targetDate.slice(0, 7)} towards {eur(a.goal.target)}</>}</span><b>{a.goal.percentSaved===undefined?'Progress unknown':a.goal.percentSaved+' % saved now'}</b></div>
+                <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${a.goal.percentSaved===undefined?0:Math.min(100, a.goal.percentSaved)}%` }} /></div>
               </div>
             )}
-            <p className="muted small" style={{ marginTop: 10 }}>Demo rules: the payment at a {a.rules.stressRate * 100} % stress rate over {a.rules.years} years may be at most {a.rules.paymentShare * 100} % of income ({eur(a.maxPayment)} a month → loan up to {eur(a.maxLoan)}); at least {a.rules.depositShare * 100} % deposit.{a.price ? ` Price ${eur(a.price)} (from ${a.priceSource}) → loan ${eur(a.loanNeeded)} → ${eur(a.paymentAtStress)} a month at the stress rate.` : ''}</p>
+            <p className="muted small" style={{ marginTop: 10 }}>Demo rules: the payment at a {a.rules.stressRate * 100} % stress rate over {a.rules.years} years may be at most {a.rules.paymentShare * 100} % of income ({eur(a.maxPayment)} a month → loan up to {eur(a.maxLoan)}); at least {a.rules.depositShare * 100} % deposit.{a.price&&typeof a.paymentAtStress!=='number'?' Price-specific loan and stress payment not computed: linked deposit data is needed.':a.price ? ` Price ${eur(a.price)} (from ${a.priceSource}) → loan ${eur(a.loanNeeded)} → ${eur(a.paymentAtStress)} a month at the stress rate.` : ''}</p>
           </div>
           <div className="ai">
             <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>

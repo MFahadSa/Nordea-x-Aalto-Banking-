@@ -86,16 +86,16 @@ export function affordability(userId: string, price?: number) {
   const n = RULES.years * 12;
   const maxPayment = Math.round(income * RULES.paymentShare);
   const maxLoan = Math.round((maxPayment * (1 - Math.pow(1 + r, -n))) / r / 1000) * 1000;
-  const depositAtTarget = gs ? gs.projectedByTargetDate : acc.savings.balance;
-  const maxByDeposit = Math.round(depositAtTarget / RULES.depositShare / 1000) * 1000;
-  const maxPrice = Math.min(maxLoan + depositAtTarget, maxByDeposit);
+  const depositAtTarget = gs?.projectedByTargetDate;
+  const maxByDeposit = depositAtTarget===undefined?undefined:Math.round(depositAtTarget / RULES.depositShare / 1000) * 1000;
+  const maxPrice = depositAtTarget===undefined||maxByDeposit===undefined?undefined:Math.min(maxLoan + depositAtTarget, maxByDeposit);
   const paymentFor = (loan: number) => Math.round((loan * r) / (1 - Math.pow(1 + r, -n)));
   return {
     income, spending: spend, monthlySaving, leftOver: Math.round((income - spend - monthlySaving) / 10) * 10,
     savings: acc.savings.balance,
     goal: gs ? { title: gs.title, target: gs.target, targetDate: gs.targetDate, projected: gs.projectedByTargetDate, shortBy: gs.shortBy, percentSaved: gs.percentSaved } : null,
-    maxPayment, maxLoan, depositAtTarget, maxPrice: Math.floor(maxPrice / 5000) * 5000,
-    ...(price ? { price, loanNeeded: Math.max(0, price - depositAtTarget), paymentAtStress: paymentFor(Math.max(0, price - depositAtTarget)) } : {}),
+    maxPayment, maxLoan, depositAtTarget, maxPrice: maxPrice===undefined?undefined:Math.floor(maxPrice / 5000) * 5000,
+    ...(price&&depositAtTarget!==undefined ? { price, loanNeeded: Math.max(0, price - depositAtTarget), paymentAtStress: paymentFor(Math.max(0, price - depositAtTarget)) } : {}),
     rules: RULES,
   };
 }
@@ -119,11 +119,12 @@ export function caseDetail(caseId: string, sid: string) {
   const checks = [
     { ok: true as boolean | null, label: 'Identity verified', sub: 'BankID' },
     { ok: incomeMatches, label: 'Income matches bank data', sub: sal.found ? `${fmt(sal.latest)} a month on the account` : 'No salary on the account' },
-    { ok: price ? (aff as any).paymentAtStress <= aff.maxPayment : aff.maxLoan > 0, label: `Stress test (${pct(RULES.stressRate)} for ${RULES.years} years)`, sub: price ? `${fmt((aff as any).paymentAtStress)} a month vs ${fmt(aff.maxPayment)} limit` : `Payment limit ${fmt(aff.maxPayment)} a month` },
-    { ok: price ? aff.depositAtTarget >= price * RULES.depositShare : aff.goal ? aff.goal.shortBy === 0 : null, label: 'Deposit', sub: aff.goal ? `${fmt(aff.goal.projected)} by ${aff.goal.targetDate.slice(0, 7)} towards ${fmt(aff.goal.target)}` : `${fmt(aff.savings)} saved` },
+    { ok: price ? typeof (aff as any).paymentAtStress==='number'?(aff as any).paymentAtStress <= aff.maxPayment:null : aff.maxLoan > 0, label: `Stress test (${pct(RULES.stressRate)} for ${RULES.years} years)`, sub: price ? typeof (aff as any).paymentAtStress==='number'?`${fmt((aff as any).paymentAtStress)} a month vs ${fmt(aff.maxPayment)} limit`:'Not computed: linked deposit forecast is needed'  : `Payment limit ${fmt(aff.maxPayment)} a month` },
+    { ok: price ? aff.depositAtTarget===undefined?null:aff.depositAtTarget >= price * RULES.depositShare : aff.goal&&typeof aff.goal.shortBy==='number' ? aff.goal.shortBy === 0 : null, label: 'Deposit', sub: aff.goal&&aff.goal.projected!==undefined ? `${fmt(aff.goal.projected)} by ${aff.goal.targetDate.slice(0, 7)} towards ${fmt(aff.goal.target)}` : 'Not computed: saved balance and contribution are not linked to a goal' },
     { ok: null as boolean | null, label: 'Second approver', sub: `Needed above ${fmt(RULES.secondApproverAbove)}` },
   ];
   const missing: { key: string; label: string; sub: string; ask: string }[] = [];
+  if(aff.depositAtTarget===undefined)missing.push({key:'linked-goal-saving',label:'Goal saving data not linked',sub:'Deposit forecast and maximum price are unknown, not zero.',ask:'What saved balance and monthly contribution are linked to this goal?'});
   const partnerIncome = items.some((e) => /\b(mia|partner)\b/i.test(`${e.title} ${e.detail}`) && /\b(salary|income|earns|job)\b/i.test(`${e.title} ${e.detail}`));
   if (/\b(partner|mia|joint|together)\b/i.test(sharedText) && !partnerIncome)
     missing.push({ key: 'partner', label: 'Partner’s income (joint application)', sub: 'The goal is shared with a partner; their income is not in the case', ask: 'Is this a joint application? If so, could your partner share their income with us through Nora?' });
@@ -138,7 +139,7 @@ export function caseDetail(caseId: string, sid: string) {
   };
 }
 
-const fmt = (n: number) => `${Math.round(n).toLocaleString('fi-FI').replace(/ /g, ' ')} €`;
+const fmt = (n: number|undefined) => n===undefined?'Unknown':`${Math.round(n).toLocaleString('fi-FI').replace(/ /g, ' ')} €`;
 const pct = (x: number) => `${Math.round(x * 1000) / 10} %`;
 
 // ---------------- the AI draft summary (words only, cited, number-checked) ----------------
@@ -152,13 +153,14 @@ const SUMMARY_TOOL: ToolDecl = {
 export async function draftSummary(caseId: string, sid: string): Promise<{ text: string; by: 'ai' | 'code'; note?: string }> {
   const d = caseDetail(caseId, sid);
   const a = d.affordability;
-  const figures: Record<string, number> = { income: a.income, spendingPerMonth: a.spending, savingPerMonth: a.monthlySaving, leftOver: a.leftOver, savings: a.savings, maxPaymentPerMonth: a.maxPayment, indicativeMaxLoan: a.maxLoan, indicativeMaxPrice: a.maxPrice, depositAtTarget: a.depositAtTarget, ...(a.goal ? { goalTarget: a.goal.target, goalShortBy: a.goal.shortBy, goalPercentSaved: a.goal.percentSaved } : {}) };
+  const rawFigures = { income: a.income, spendingPerMonth: a.spending, savingPerMonth: a.monthlySaving, leftOver: a.leftOver, savings: a.savings, maxPaymentPerMonth: a.maxPayment, indicativeMaxLoan: a.maxLoan, indicativeMaxPrice: a.maxPrice, depositAtTarget: a.depositAtTarget, ...(a.goal ? { goalTarget: a.goal.target, goalShortBy: a.goal.shortBy, goalPercentSaved: a.goal.percentSaved } : {}) };
+  const figures:Record<string,number>=Object.fromEntries(Object.entries(rawFigures).filter((x):x is [string,number]=>typeof x[1]==='number'));
   const itemsText = d.items.map((e, i) => `[${i + 1}] ${e.title}: ${e.detail}`).join('\n');
   const known = [...Object.values(figures), ...((itemsText.match(/\d[\d\s.,]*/g) || []).map((x) => Number(x.replace(/[\s,]/g, '')))).filter((x) => Number.isFinite(x))];
   const codeSummary = () => {
     const parts = [`${d.customer?.name ?? 'The customer'} earns ${fmt(a.income)} a month and saves ${fmt(a.monthlySaving)} a month; about ${fmt(a.leftOver)} is left after spending and saving.`];
-    if (a.goal) parts.push(`At this pace the deposit reaches about ${fmt(a.goal.projected)} by ${a.goal.targetDate.slice(0, 7)}, ${a.goal.shortBy ? `${fmt(a.goal.shortBy)} short of` : 'on track for'} the ${fmt(a.goal.target)} goal.`);
-    parts.push(`Under these rules the indicative maximum price is about ${fmt(a.maxPrice)}.`);
+    if (a.goal&&a.goal.projected!==undefined&&a.goal.shortBy!==undefined) parts.push(`At this pace the deposit reaches about ${fmt(a.goal.projected)} by ${a.goal.targetDate.slice(0, 7)}, ${a.goal.shortBy ? `${fmt(a.goal.shortBy)} short of` : 'on track for'} the ${fmt(a.goal.target)} goal.`);
+    if(a.maxPrice!==undefined)parts.push(`Under these rules the indicative maximum price is about ${fmt(a.maxPrice)}.`);
     if (d.missing.length) parts.push(`Missing for a full decision: ${d.missing.map((m) => m.label.toLowerCase()).join(' and ')}.`);
     return parts.join(' ');
   };

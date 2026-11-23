@@ -1,0 +1,4 @@
+import assert from 'node:assert/strict';import {knowledgeAbsenceClaim as claim} from '../src/server/advice/knowledgeAbsence.js';
+for(const t of ["You've saved 14 600 € towards the flat, out of a 30 000 € target. And yes, I do know the deadline: 30 April 2028, about 18 months away. Nothing has been changed.",'Mitään ei muutettu. Tavoite on 30 000 euroa.','En siirtänyt rahaa.','No changes were made.','Nothing was transferred.'])assert.equal(claim(t),false,t);
+for(const t of ['Nothing saved about your flat.','No saved notes about that.','I could not find the goal.','En tiedä mitään tavoitteestasi.','Ei ole tallennettua tietoa.','Nothing has been changed. I do not know your goal.'])assert.equal(claim(t),true,t);
+console.log('PASS unchanged-state acknowledgment distinct from unsupported knowledge absence, paired EN/FI and mixed clauses.');

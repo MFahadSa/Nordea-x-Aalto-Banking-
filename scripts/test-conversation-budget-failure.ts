@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+process.env.CABINET_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'conversation-budget-'));delete process.env.SUPABASE_URL;delete process.env.LLM_API_KEY;delete process.env.GEMINI_API_KEY;
+const {db}=await import('../src/server/db.js');const {setProvider}=await import('../src/server/llm.js');const {abelTurn}=await import('../src/server/abel.js');await db.init();
+let calls=0;let prompts:string[]=[];
+const finish={name:'finishReply',args:{text:'We can work through your next step.',suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}};
+function provider(fn:()=>any){calls=0;prompts=[];setProvider({name:'budget-failure-fixture',isConfigured:()=>true,step:async({system,turns})=>{calls++;prompts.push(system+JSON.stringify(turns));return fn();}});}
+function add(id:string,text:string,sender='user'){db.addMessage({id,userId:'lauri',conversationId:'budget-case',sender,text,createdAt:new Date().toISOString()} as any);}
+add('old-useful','CONTINUITY_ANCHOR: I prefer a quiet wedding rather than a large party.');add('oversized-middle','x'.repeat(22000));add('recent','I want to keep that preference.');add('current','Can we continue with the same plan?');
+provider(()=>({calls:[finish]}));await abelTurn('lauri','budget-case','abel','Can we continue with the same plan?');assert.ok(prompts[0].includes('CONTINUITY_ANCHOR'));assert.ok(!prompts[0].includes('x'.repeat(100)));assert.ok(prompts.every(p=>p.length<=48000));
+provider(()=>calls===1?{incomplete:true,finishReason:'MAX_TOKENS',calls:[]}:{calls:[finish]});let r=await abelTurn('lauri','retry-case','abel','Can you help me think through next steps?');assert.equal(calls,2);assert.ok(!r.offline);assert.equal(r.text,finish.args.text);
+provider(()=>({incomplete:true,finishReason:'MAX_TOKENS',calls:[]}));r=await abelTurn('lauri','repeat-failure','abel','Can you help me think through next steps?');assert.equal(calls,2);assert.equal(r.offline,true);assert.equal(r.couldHelp,false);assert.match(r.text,/request is still open/);
+provider(()=>{throw Error('fixture network failure');});r=await abelTurn('lauri','throw-case','abel','Tell me how to handle a change in my plans');assert.equal(calls,1);assert.equal(r.couldHelp,false);assert.match(r.text,/request is still open/);assert.match(r.text,/couldn.t reach/);assert.doesNotMatch(r.text,/adviser|verify/);
+console.log('PASS complete-request character guard, oversized-middle continuity, bounded incomplete retry and truthful provider-failure UX. Scripted fixtures, no model-quality acceptance.');

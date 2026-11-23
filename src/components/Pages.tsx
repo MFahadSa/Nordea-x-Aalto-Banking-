@@ -324,23 +324,23 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 <button className="nrow2 goal" onClick={() => setGoalOpen(goalOpen === g.goalId ? null : g.goalId)}>
                   <span className="n-l">
                     <span className="n-name">{g.title}</span>
-                    <span className="n-sub">Saved now <b>{eur(g.saved)}</b> of {eur(g.target)} · goal {monthShort(g.targetDate.slice(0, 7))}</span>
-                    <span className="gbar"><i style={{ width: `${g.percentSaved}%` }} /></span>
+                    <span className="n-sub">{g.saved===undefined?<>Saved balance not linked · target {eur(g.target)}</>:<>Saved now <b>{eur(g.saved)}</b> of {eur(g.target)}</>} · goal {monthShort(g.targetDate.slice(0, 7))}</span>
+                    <span className="gbar">{g.percentSaved!==undefined&&<i style={{ width: `${g.percentSaved}%` }} />}</span>
                   </span>
-                  <span className="n-r"><span className={`npill ${g.onTrack ? 'up' : 'down'}`}>{g.onTrack ? 'On track' : `Forecast: ${eur(g.shortBy)} short`}</span></span>
+                  <span className="n-r"><span className={`npill ${g.onTrack===undefined?'grey':g.onTrack ? 'up' : 'down'}`}>{g.onTrack===undefined?'Forecast unknown':g.onTrack ? 'On track' : `Forecast: ${eur(g.shortBy)} short`}</span></span>
                   <span className="nchev" aria-hidden="true"><Icon name="chev" /></span>
                 </button>
                 {goalOpen === g.goalId && (
                   <div className="goal-more">
                     <div className="gm-stats">
-                      <div><b>{eur(g.monthlyGoingIn)}</b><span>saved a month</span></div>
+                      <div><b>{g.monthlyGoingIn===undefined?'Not linked':eur(g.monthlyGoingIn)}</b><span>monthly contribution</span></div>
                       <div><b>{g.monthsLeft}</b><span>months left</span></div>
-                      <div className={g.onTrack ? 'ok' : 'gap'}><b>{g.onTrack ? '✓' : `+${eur(g.extraPerMonthNeeded)}`}</b><span>{g.onTrack ? 'on track' : 'more a month closes the forecast gap'}</span></div>
+                      <div className={g.onTrack===undefined?'':g.onTrack ? 'ok' : 'gap'}><b>{g.onTrack===undefined?'Unknown':g.onTrack ? '✓' : `+${eur(g.extraPerMonthNeeded)}`}</b><span>{g.onTrack===undefined?'linked saving data needed':g.onTrack ? 'on track' : 'more a month closes the forecast gap'}</span></div>
                     </div>
                     <p className="gm-note">
                       {/* v30: current progress and the forecast are kept apart (PDF proposal 2). Same numbers as before. */}
-                      <b>Forecast</b> at {eur(g.monthlyGoingIn)} a month: about {eur(g.projectedByTargetDate)} by {monthLong(g.targetDate.slice(0, 7))}{g.onTrack ? '.' : `, so ${eur(g.shortBy)} short.`} An estimate, not a guarantee.
-                      {g.target > g.saved && <><br /><b>Still to save today:</b> {eur(g.target - g.saved)}.</>}
+                      {g.projectedByTargetDate===undefined?'Forecast unavailable. Link the saved balance and monthly contribution to assess progress.':<><b>Forecast</b> at {eur(g.monthlyGoingIn)} a month: about {eur(g.projectedByTargetDate)} by {monthLong(g.targetDate.slice(0, 7))}{g.onTrack ? '.' : `, so ${eur(g.shortBy)} short.`} An estimate, not a guarantee.</>}
+                      {g.saved!==undefined&&g.target > g.saved && <><br /><b>Still to save today:</b> {eur(g.target - g.saved)}.</>}
                     </p>
                     <div className="gm-act">
                       <button className="btn small primary" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Nora about this</button>
@@ -901,7 +901,7 @@ export const InvestPage: React.FC<{ state: AppState; onAddGoal: () => void; onOp
       <Band left="Your goals" right={state.goals.length ? String(state.goals.length) : undefined} />
       <div className="ncard flat">
         {state.goals.map((g) => (
-          <NRow key={g.goalId} name={g.title} sub={`${eur(g.saved)} of ${eur(g.target)}`} amount={`${Math.round(g.percentSaved)} %`} onClick={() => onOpenPage('knows')} />
+          <NRow key={g.goalId} name={g.title} sub={g.saved===undefined?`Target ${eur(g.target)} · saved balance not linked`:`${eur(g.saved)} of ${eur(g.target)}`} amount={`${g.percentSaved===undefined?'Progress unknown':Math.round(g.percentSaved)+' %'}`} onClick={() => onOpenPage('knows')} />
         ))}
         {!state.goals.length && <NRow name="No goals yet" sub="Add one below" chevron={false} />}
         <NRow name="Open an ASP account" sub="Ask Nora whether it fits you" onClick={() => onAskAbout('Can I open an ASP account?')} />

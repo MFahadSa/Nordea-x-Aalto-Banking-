@@ -1,5 +1,7 @@
+import {consumeGoalProposal} from './advice/goalCommit.js';
 // v14 routes: conversations with helpers, the real Nora, customer button actions, partner offers,
 // one-time sharing, imports and the data the screens need. Money and fees are computed in code.
+import {sourceRevision} from './arch/text.js';
 import type { Express, Request, Response } from 'express';
 import { db } from './db.js';
 import { previewCabinetForAgent, readCabinetThroughGateway } from './accessGateway.js';
@@ -13,6 +15,8 @@ import { recordChatImport, settleChatImport, recordBankRun } from './pipeline/en
 import * as fin from './finance.js';
 import { proposeFromContent, SAMPLE_CHAT, ImportItem } from './importPropose.js';
 import { runOnce, requestState } from './chatRequests.js';
+import {goalNameInText} from './advice/goalWriteEvidence.js';
+import {goalRevision} from './advice/goalConfirmation.js';
 import { abelTurn, offerHeadline } from './abel.js';
 import { getProvider, aiStatus, aiPing } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } from '../types.js';
@@ -63,10 +67,11 @@ function docInfo(d: StoredDocument) {
 
 /** Make a cabinet entry from a draft the customer approved on a card. */
 function entryFromDraft(userId: string, d: any, extra: Partial<CabinetEntry> = {}): CabinetEntry {
+  const provenance={channel:'app' as const,...extra.provenance,...(d.target?{targetOrigin:{amount:'customer-confirmed-proposal' as const,date:'customer-confirmed-proposal' as const}}:{}),...(d.targetFields?{targetFields:d.targetFields}:{})};
   return {
     id: id('entry'), userId, type: d.type, title: d.title, detail: d.detail || '', source: 'customer', status: 'active', private: false,
-    readableBy: { abel: true, offers: false }, provenance: { channel: 'app' }, target: d.target, goalType: d.goalType,
-    reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(), ...extra,
+    readableBy: { abel: true, offers: false }, target: d.target, goalType: d.goalType,
+    reviewed: true, confirmedAt: now(), createdAt: now(), updatedAt: now(), ...extra, provenance,
   };
 }
 
@@ -164,7 +169,50 @@ export function registerV14Routes(app: Express) {
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
+    const namedUnlinked=previewCabinetForAgent(userId,'abel').allowed.filter(e=>e.type==='goal'&&e.status!=='archived'&&e.target&&goalNameInText(e.title,text)&&fin.primaryGoal(userId)?.id!==e.id&&e.goalType!=='car');
+    const missingLinkQuestion=/(?:\?|^(?:how|what|am I|do I|paljonko|kuinka|olenko))/iu.test(text)&&/(?:saved|saving|save|short|remain|on track|extra|sääst|puuttu)/iu.test(text)&&!/(?:change|update|set|create|add|rename|muuta|vaihda|nosta|poista|note)/iu.test(text);
+    if(namedUnlinked.length===1&&missingLinkQuestion&&!/\band\b|also|payday|salary/iu.test(text)){
+      const e=namedUnlinked[0],fi=/(?:paljonko|mitä|kuinka|sääst|tavoite|sohva)/iu.test(text);
+      const a=agentMsg(userId,conv.id,conv.helperId,fi?`Tallennettu tavoite "${e.title}" on ${e.target!.amount} euroa, määräpäivä ${e.target!.date}. Tavoitteeseen ei ole yhdistetty säästösaldoa ja kuukausisummaa. Tämä ei tarkoita, että säästösi olisivat nolla. Paljonko olet säästänyt ja paljonko lisäät kuukaudessa?`:`The saved "${e.title}" target is ${e.target!.amount} EUR by ${e.target!.date}. I do not have a linked saved balance and monthly contribution for this goal. That does not mean your savings are zero. How much have you saved and how much do you add each month?`);
+      const pm=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.cards?.some(c=>c.type==='goal_confirm')).at(-1);const pd=pm&&!pm.resolved?pm.cards?.find(c=>c.type==='goal_confirm')?.data:undefined;
+      if(pd?.entryId===e.id&&pd.existingRevision===goalRevision(e)&&pd.expiresAt&&Date.parse(pd.expiresAt)>Date.now()&&pd.draft?.target){a.text+=' '+(fi?`Ehdotettu tavoite ${pd.draft.target.amount} euroa ei ole tallennettu. Muutos vaatii kortin vahvistuksen.`:`The proposed target ${pd.draft.target.amount} EUR is not saved. Only tapping the card confirmation would apply it.`);db.updateMessage(a.id,{text:a.text});}
+      return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
+    }
     const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent').slice(-1)[0];
+    const pendingGoal=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.sender==='agent'&&m.cards?.some(c=>c.type==='goal_confirm')).at(-1);
+    if(pendingGoal&&!pendingGoal.resolved){
+      const data=pendingGoal.cards!.find(c=>c.type==='goal_confirm')?.data;
+      const current=data?.entryId?previewCabinetForAgent(userId,'abel').allowed.find(e=>e.id===data.entryId&&e.type==='goal'&&e.status!=='archived'):undefined;
+      if(current?.target&&goalNameInText(current.title,text)&&/save|saving|sääst/iu.test(text)&&/per month|monthly|a month|kuukaudessa|kuussa/iu.test(text)&&fin.primaryGoal(userId)?.id!==current.id){
+        const a=agentMsg(userId,conv.id,conv.helperId,`I do not have an explicitly linked monthly contribution for "${current.title}". The saved target is ${current.target.amount} EUR by ${current.target.date}; that does not establish a zero monthly contribution. The pending proposal is not saved.`);return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
+      }
+      const singleGoalRequest=text.replace(/(?:target|amount) and (?:deadline|date)/giu,'target deadline');
+      const pendingRecall=/(?:amount|target|deadline|date|go through|after my change|after.*confirm|paljonko|määräpäiv|tallennu)/iu.test(text)&&!/(?:per month|monthly|a month|kuukaudessa|kuussa|how many|how long|compare|calculate|payday|salary|\band\b|also)/iu.test(singleGoalRequest);
+      if(current?.target&&data?.draft?.target&&(goalNameInText(current.title,text)||(/sofa/iu.test(current.title)&&/sohva/iu.test(text)))&&pendingRecall){
+        const fi=/(?:paljonko|sohva|tavoite|määräpäiv|tallennu)/iu.test(text);
+        const fresh=data.existingRevision===goalRevision(current)&&!!data.expiresAt&&Date.parse(data.expiresAt)>Date.now();
+        const saved=fi?`Tallennettu tavoite "${current.title}" on ${current.target.amount} euroa, määräpäivä ${current.target.date}.`:`The currently saved "${current.title}" target is ${current.target.amount} EUR by ${current.target.date}.`;
+        const pending=fresh?(fi?`Ehdotettu muutos on ${data.draft.target.amount} euroa, määräpäivä ${data.draft.target.date}. Sitä ei ole tallennettu. Se toteutuu vain, jos napautat kortin vahvistusta.`:`The proposed change is ${data.draft.target.amount} EUR by ${data.draft.target.date}. It has not been saved. Only tapping the card confirmation would apply it.`):(fi?'Aiempi ehdotus on vanhentunut tai tavoite on muuttunut. Pyydä uusi ehdotus.':'The earlier proposal expired or the saved goal changed. Ask for a fresh proposal.');
+        const a=agentMsg(userId,conv.id,conv.helperId,saved+' '+pending);db.updateMessage(a.id,{usedEntryIds:[current.id]});return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
+      }
+      if(/^(?:no(?: thanks)?|do not save|don't save(?: it)?|cancel|not now|ei|älä tallenna)[.! ]*$/iu.test(u.text.trim())){
+        try{consumeGoalProposal(userId,pendingGoal.id,true);}catch{db.updateMessage(pendingGoal.id,{resolved:'Declined or expired, no save'});}
+        const fi=pendingGoal.cards!.find(c=>c.type==='goal_confirm')?.data?.language==='fi';
+        const a=agentMsg(userId,conv.id,conv.helperId,fi?'Mitään ei tallennettu. Tavoitteesi eivät muuttuneet.':'Nothing saved. Your goals are unchanged.');
+        return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
+      }
+      if(/^(?:(?:yes|yeah|ok|okay|sure|kyllä|joo|selvä)(?:[, ]+(?:please|save|it|thanks|thank you|go ahead|do it|tallenna|se|poista|kiitos))*|save it|confirm|go ahead(?: and (?:remove|save|change) it)?|please (?:save|remove|change) it)[.! ]*$/iu.test(u.text.trim())){
+        const deadline=pendingGoal.cards!.find(c=>c.type==='goal_confirm')?.data?.expiresAt;
+        if(!deadline||!Number.isFinite(Date.parse(deadline))||Date.parse(deadline)<Date.now()){
+          const fi=pendingGoal.cards!.find(c=>c.type==='goal_confirm')?.data?.language==='fi';
+          const a=agentMsg(userId,conv.id,conv.helperId,fi?'Ehdotus on vanhentunut. Pyydä uusi ehdotus. Mitään ei tallennettu.':'That proposal has expired. Please ask for a fresh goal proposal. Nothing was saved.');
+          return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
+        }
+        const fi=pendingGoal.cards!.find(c=>c.type==='goal_confirm')?.data?.language==='fi';
+        const a=agentMsg(userId,conv.id,conv.helperId,fi?'Napauta kortin vahvistusta. En ole tallentanut tai muuttanut tavoitettasi.':pendingGoal.cards!.find(c=>c.type==='goal_confirm')?.data?.operation==='archive'?'Please tap Remove goal on the card. I have not removed your goal.':'Please tap the goal confirmation on the card to save it. I have not changed your goal.');
+        return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
+      }
+    }
     const afterAsk = !!lastAgent?.refundIntake || [REFUND_ASK, REFUND_GENERIC, REFUND_NO_SHOP].includes(lastAgent?.text ?? '');
     const negated = /\b(cancel|stop|forget|never ?mind)\b|\b(don['’]?t|do not) want\b/i;
     // "Where is my refund": with an open case, Nora answers from the case only.
@@ -199,7 +247,7 @@ export function registerV14Routes(app: Express) {
     }
     // His three agents gather what Nora may see for this conversation (User DB via the personal agent,
     // the session's finalised context.md); Nora writes the reply, with cards and the reply checks.
-    const shared = await abelSharedContext(userId, conv.id, u.text);
+    const shared = await abelSharedContext(userId, conv.id, u.text, true);
     const reply = await abelTurn(userId, conv.id, conv.helperId, u.text, shared);
     db.addTopicLogEntry({ id: id('topic'), timestamp: now(), userId, topic: reply.topic, couldHelp: reply.couldHelp });
     const a = agentMsg(userId, conv.id, conv.helperId, reply.text, {
@@ -207,7 +255,13 @@ export function registerV14Routes(app: Express) {
       cards: reply.cards,
       notes: reply.notes,
       usedEntryIds: reply.usedEntryIds,
-      supplied: { ...(reply.supplied || { notes: 0, accountData: true }), source: reply.offline ? 'scripted' : 'model', category: classifyQuestion(u.text, shared.sharedContext ? [shared.sharedContext] : []), ...(shared.sharedContext ? { shared: true } : {}) },
+      quotedSources: reply.quotedSources,
+      suppliedSources:reply.suppliedSources,
+      exposedSources:reply.exposedSources,
+      exposedContentKeys:reply.exposedContentKeys,
+      savedContextPage:reply.savedContextPage,
+      suppliedSharedRevision:reply.suppliedSharedRevision,
+      supplied: { ...(reply.supplied || { notes: 0, accountData: true }), source: reply.offline ? 'scripted' : 'model', provider: reply.provider, category: classifyQuestion(u.text, shared.sharedContext ? [shared.sharedContext] : []), ...(shared.sharedContext ? { shared: true } : {}) },
       errorInfo: reply.errorDetail,
       answeredBy: reply.offline ? 'bank_code' : undefined,
       ...(requestId ? { replyToRequestId: requestId } : {}),
@@ -293,6 +347,17 @@ export function registerV14Routes(app: Express) {
     const card = (t: MessageCard['type']) => msg.cards?.find((c) => c.type === t);
 
     switch (action) {
+      case 'goal_confirm':
+      case 'goal_both':
+      case 'goal_decline': {
+        if(!card('goal_confirm'))return res.status(400).json({error:'No goal proposal on this message'});
+        try{
+          const e=consumeGoalProposal(userId,msg.id,action==='goal_decline',action==='goal_both'?'both':'update');
+          const fi=card('goal_confirm')?.data?.language==='fi';
+          out.push(agentMsg(userId,conv,helper,fi?(e?(e.status==='archived'?`Tavoite "${e.title}" poistettiin aktiivisista tavoitteista.`:`Tallennettu: "${e.title}"${e.target?' '+e.target.amount+' euroa, '+e.target.date:''}.`):'Mitään ei tallennettu. Tavoitteesi eivät muuttuneet.'):e?(e.status==='archived'?`Removed "${e.title}" from active goals.`:`Saved "${e.title}"${e.target?': '+e.target.amount+' EUR by '+e.target.date:''}.`):'Nothing saved. Your goals are unchanged.',e?{notes:[{text:'Goal '+(e.status==='archived'?'removed':'saved'),undoToken:'undo-goal-'+msg.id,entryId:e.id}]}:{}));
+        }catch(err:any){return res.status(409).json({error:err.message+' Nothing changed.'});}
+        break;
+      }
       case 'offer_show':
       case 'offer_no':
       case 'offer_off': {
@@ -386,12 +451,13 @@ export function registerV14Routes(app: Express) {
           out.push(agentMsg(userId, conv, helper, 'Okay, I won’t keep it. 💙'));
           break;
         }
+        if(c.data!.draft?.type==='goal')return res.status(409).json({error:'This older goal card is no longer valid. Ask Nora for a fresh goal confirmation. Nothing saved.'});
         const e = entryFromDraft(userId, c.data!.draft, { private: true, provenance: { channel: 'app', messageId: msg.id } });
         db.addCabinetEntry(e, { by: 'you', how: 'Saved privately in chat' });
         const undoToken = id('undo');
         db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}" (private)`, previousEntry: null, entryId: e.id });
         db.updateMessage(msg.id, { resolved: 'Save privately' });
-        out.push(agentMsg(userId, conv, helper, 'Saved privately 🔒 Only I can read it, never offers.', { notes: [{ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
+        out.push(agentMsg(userId, conv, helper, `Saved privately. Only I can read it, never offers.${e.target?` Target: ${e.target.amount} EUR by ${e.target.date}.`:''}`, { notes: [{ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
         break;
       }
       case 'case_answer': {
@@ -503,6 +569,7 @@ export function registerV14Routes(app: Express) {
         const c = card('duplicate');
         if (!c) return res.status(400).json({ error: 'No choice on this message' });
         const { existing, draft, sensitive } = c.data!;
+        if(draft?.type==='goal'||db.getCabinetEntry(existing?.id)?.type==='goal')return res.status(409).json({error:'This choice cannot change a saving goal. Ask Nora for a fresh goal confirmation showing its fields. Nothing changed.'});
         if (action === 'dup_keep') {
           db.updateMessage(msg.id, { resolved: 'Leave it as it is' });
           out.push(agentMsg(userId, conv, helper, `Okay, I’ll keep “${existing.title}” as it is.`));
@@ -514,20 +581,21 @@ export function registerV14Routes(app: Express) {
           const undoToken = id('undo');
           db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}"`, previousEntry: null, entryId: e.id });
           db.updateMessage(msg.id, { resolved: 'Keep both' });
-          out.push(agentMsg(userId, conv, helper, `Saved “${e.title}” next to “${existing.title}”.${sensitive ? ' 🔒 Only I can read it.' : ''}`, { notes: [{ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
+          out.push(agentMsg(userId, conv, helper, `Saved “${e.title}” next to “${existing.title}”.${e.target?` Target: ${e.target.amount} EUR by ${e.target.date}.`:''}${sensitive ? ' 🔒 Only I can read it.' : ''}`, { notes: [{ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
           break;
         }
         const old = db.getCabinetEntry(existing.id);
         if (!old || old.userId !== userId) return res.status(404).json({ error: 'That entry no longer exists' });
         const prev = { ...old };
+        if(!c.data!.existingRevision||c.data!.existingRevision!==sourceRevision([old.title,old.detail,old.target,old.private,old.readableBy,old.status]))return res.status(409).json({error:'This goal changed after the choice was shown. Please ask Nora to show the current goal and proposed change again. Nothing changed.'});
         const updates: Partial<CabinetEntry> = { title: draft.title || old.title, detail: draft.detail || old.detail, confirmedAt: now() };
-        if (draft.target) updates.target = draft.target;
+        if (draft.target) {updates.target = draft.target;if(draft.targetFields)updates.provenance={...old.provenance,targetOrigin:{amount:'customer-confirmed-proposal',date:'customer-confirmed-proposal'},targetFields:draft.targetFields};}
         if (old.status === 'stale') updates.status = 'active';
         db.updateCabinetEntry(old.id, updates, { by: 'you', how: 'In chat' });
         const undoToken = id('undo');
         db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'update', description: `Updated "${old.title}"`, previousEntry: prev, entryId: old.id });
         db.updateMessage(msg.id, { resolved: 'Update it' });
-        out.push(agentMsg(userId, conv, helper, `Updated ✓ “${updates.title}”${draft.target ? ` is now ${fmt(draft.target.amount)} by ${fmtDay(draft.target.date)}` : ''}. The old version is in its history.`, {
+        out.push(agentMsg(userId, conv, helper, `Updated ✓ “${updates.title}”${draft.target ? ` is now ${fmt(draft.target.amount)} by ${draft.target.date}` : ''}. The old version is in its history.`, {
           notes: [{ text: `📌 Updated: ${updates.title}`, undoToken, entryId: old.id }],
         }));
         break;
@@ -564,7 +632,7 @@ export function registerV14Routes(app: Express) {
         const opened = caseView(refunds(), refunds().data.cases.find((x) => x.id === made.id)!);
         const stated = Number(c.data?.statedAmount);
         const mismatch = stated > 0 && opened.expected != null && Math.abs(stated - opened.expected) > 0.01;
-        out.push(agentMsg(userId, conv, helper, mismatch ? `The records you allowed show ${fmt(opened.expected, 2)}, not your approximate ${fmt(stated, 2)}. This is not a match to your stated amount. You can withdraw and start again if it is not the right purchase.` : 'Done. Nora looks into this refund and watches for it. You can withdraw any time under Nora knows.'));
+        out.push(agentMsg(userId, conv, helper, mismatch ? `The records you allowed show ${fmt(opened.expected, 2)}, not your approximate ${fmt(stated, 2)}. This is not a match to your stated amount. You can withdraw and start again if it is not the right purchase.` : 'Done. Nora looks into this refund and watches for it. You can withdraw any time under Nora knows.', {refundCaseId:made.id} as any));
         break;
       }
       default:

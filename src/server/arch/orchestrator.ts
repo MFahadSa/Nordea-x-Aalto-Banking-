@@ -6,7 +6,8 @@
  */
 import { ArchError, newId, now } from './types.js';
 import type { AgentId, AgentMessage, ArchEntry, BuildRound, Goal } from './types.js';
-import { overlaps, words } from './text.js';
+import type { ContextSource } from '../contextRetrieval.js';
+import { sourceRevision, overlaps, words } from './text.js';
 import { addGoalDirect } from './agents/personal.js';
 import { dispatchPending } from './dispatcher.js';
 import { runRound, loadLatestRound } from './rounds.js';
@@ -384,46 +385,70 @@ function figuresGrounded(reply: string, factSources: string[]): boolean {
  * build round when the agents can run one - and is otherwise simply not served (never wiped,
  * never leaked across sessions). Nothing here opens an agent's store for fact assembly.
  */
-export async function abelSharedContext(uid: string, sessionId: string, question: string): Promise<{ userDbFacts?: string; sharedContext?: string; provenance: string[] }> {
-  const out: { userDbFacts?: string; sharedContext?: string; provenance: string[] } = { provenance: [] };
+export async function abelSharedContext(uid: string, sessionId: string, question: string, bounded = false): Promise<{ userDbFacts?: string; sharedContext?: string; provenance: string[]; sources?: ContextSource[] }> {
+  const out: { userDbFacts?: string; sharedContext?: string; provenance: string[]; sources?: ContextSource[] } = { provenance: [], ...(bounded?{sources:[]}: {}) };
   if (!nordeaFileExists(uid)) return out; // the architecture is not in use for this customer
   const off = getOff(uid);
+  const permittedGoalIds = new Set<string>();
+  const currentGoals = new Map<string,{id:string;title:string;detail:string;revision?:string}>();
   if (!off.includes('personal')) {
     const r = controlRoundTrip(uid, 'personal', 'The in-app Nora asks the personal agent for the customer facts in its own User DB.', { control: 'abel-facts' }) as {
-      goals?: { title: string; detail: string }[]; facts?: { text: string; source: string }[];
+      goals?: { id: string; title: string; detail: string }[]; facts?: { text: string; source: string }[];
     };
+    for (const g of r.goals ?? []) { permittedGoalIds.add(g.id); currentGoals.set(g.id,g); }
     const bits: string[] = [];
     if (r.goals?.length) bits.push(`Goals: ${r.goals.map((g) => g.detail ? `${g.title} (${g.detail})` : g.title).join('; ')}`);
     if (r.facts?.length) bits.push(`Facts: ${r.facts.map((f) => f.text).join('; ')}`);
     if (bits.length) {
-      out.userDbFacts = bits.join('\n');
+      if (bounded) {
+        for (const g of r.goals || []) out.sources!.push({owner:'personal',id:g.id,revision:sourceRevision(g),title:g.title,detail:g.detail});
+        for (const f of r.facts || []) out.sources!.push({owner:'personal',id:'fact-'+sourceRevision(f),revision:sourceRevision(f),title:'Saved personal fact',detail:f.text});
+      } else out.userDbFacts = bits.join('\n');
       out.provenance.push('user-db via the personal agent');
     }
   }
   const parked = getCabinetParkedMirror(uid);
   if (!parked && !off.some((a) => a === 'personal' || a === 'cm' || a === 'nordea')) {
+    if (bounded) {
+      const current = controlRoundTrip(uid,'cm','Current permitted source rows for bounded Nora retrieval.',{control:'abel-readable-rows'}) as {entries?:{id:string;goalIds:string[];title:string;detail:string}[]};
+      for (const row of current.entries || []) if (row.goalIds.every(id=>permittedGoalIds.has(id))) out.sources!.push({owner:'cm',id:row.id,revision:sourceRevision(row),title:row.title,detail:row.detail,dependencies:row.goalIds.flatMap(id=>out.sources!.filter(s=>s.owner==='personal'&&s.id===id).map(({owner,id,revision})=>({owner,id,revision})))});
+    }
     const doc = loadContext(uid);
     if (!doc || doc.sessionId !== sessionId || !doc.finalisedAt) {
       // AC2: this session has no finished document - build one (fresh, stamped with its id).
       resetContextForSession(uid, sessionId);
-      runRound(uid, 'session', { question, sessionId, llm: await planRoundLlm(uid, question) });
-      await levelUserCards(uid); // R2
-      await levelNordeaProposals(uid); // D9
+      runRound(uid, 'session', { question, sessionId, ...(bounded?{}:{llm: await planRoundLlm(uid, question)}) });
+      if(!bounded){await levelUserCards(uid);await levelNordeaProposals(uid);} // bounded retrieval does not expose all cards to assessment models
     }
     const fresh = loadContext(uid);
     if (fresh && fresh.sessionId === sessionId && fresh.finalisedAt) {
+      const memory = !off.includes('cm') ? controlRoundTrip(uid, 'cm', 'Recheck current memory row permissions for Nora.', { control: 'abel-readable-rows' }) as { entries?: {id:string; goalIds:string[]; title:string;detail:string}[] } : {};
+      const currentMemory = new Map((memory.entries ?? []).map(e=>[e.id,e]));
+      const permittedMemoryIds = new Set((memory.entries ?? []).filter(e => e.goalIds.every(id => permittedGoalIds.has(id))).map(e => e.id));
+      const bankSource = controlRoundTrip(uid,'nordea','Recheck bank aggregate source revision.',{control:'source-revision'}) as {revision?:string};
+      const rowReadableNow = (row: {id:string;at?:string;evidence?:Record<string,unknown>|null}, section: 'customer'|'memory'|'nordea') => {
+        if (section === 'customer') return permittedGoalIds.has(row.id);
+        if (section === 'memory') return permittedMemoryIds.has(row.id);
+        if (section==='nordea' && (typeof bankSource.revision !== 'string' || row.evidence?.bankRevision !== bankSource.revision)) return false;
+        if (row.id.startsWith('nagg-')) {const goal=currentGoals.get(row.id.slice(5));return !!goal && (!goal.revision || !!row.at && Date.parse(row.at)>=Date.parse(goal.revision));}
+        // Question-specific bank aggregates have no cabinet source and remain ordinary bank context.
+        return row.id.startsWith('nq-');
+      };
       // F30: Nora sees ACTIVE rows only - a stale or disputed row must not be served as a
       // fact (its numbers would also pass the grounding guard). Only Nora's copy is
       // filtered; the stored document keeps the marks and its history.
       const activeOnly = {
         ...fresh,
         sections: {
-          customer: { ...fresh.sections.customer, rows: fresh.sections.customer.rows.filter((r) => !r.status || r.status === 'active') },
-          memory: { ...fresh.sections.memory, rows: fresh.sections.memory.rows.filter((r) => !r.status || r.status === 'active') },
-          nordea: { ...fresh.sections.nordea, rows: fresh.sections.nordea.rows.filter((r) => !r.status || r.status === 'active') },
+          customer: { ...fresh.sections.customer, rows: fresh.sections.customer.rows.filter((r) => (!r.status || r.status === 'active') && rowReadableNow(r, 'customer')).map(r=>({...r,title:currentGoals.get(r.id)!.title,detail:''})) },
+          memory: { ...fresh.sections.memory, rows: fresh.sections.memory.rows.filter((r) => (!r.status || r.status === 'active') && rowReadableNow(r, 'memory')).map(r=>({...r,title:currentMemory.get(r.id)!.title,detail:currentMemory.get(r.id)!.detail})) },
+          nordea: { ...fresh.sections.nordea, rows: fresh.sections.nordea.rows.filter((r) => (!r.status || r.status === 'active') && rowReadableNow(r, 'nordea')) },
         },
       };
-      out.sharedContext = renderContextMd(uid, activeOnly);
+      if (bounded) {
+        for (const row of activeOnly.sections.memory.rows.filter(r=>!out.sources!.some(s=>s.owner==='cm'&&s.id===r.id))) out.sources!.push({owner:'cm',id:row.id,revision:sourceRevision(row),title:row.title,detail:row.detail});
+        for (const row of activeOnly.sections.nordea.rows) out.sources!.push({owner:'nordea',id:row.id,revision:sourceRevision([row.id,row.title,row.detail,row.evidence]),title:row.title,detail:row.detail,dependencies:row.id.startsWith('nagg-')?out.sources!.filter(s=>s.owner==='personal'&&s.id===row.id.slice(5)).map(({owner,id,revision})=>({owner,id,revision})):[]});
+      } else out.sharedContext = renderContextMd(uid, activeOnly);
       out.provenance.push(`context.md session ${sessionId} (the shared document, finalised ${fresh.finalisedAt.slice(0, 10)})`);
     }
   }
@@ -459,14 +484,15 @@ async function planRoundLlm(uid: string, question: string): Promise<NonNullable<
   // The goal titles the personal agent will share this round (same code rule as the
   // scripted round: question-relevant for a session, all for a contribution). The models
   // receive them exactly as they would via the in-round inform message - titles only.
-  const u = loadUserDb(uid);
+  const current = controlRoundTrip(uid, 'personal', 'Current permitted goals for retrieval planning.', { control: 'abel-facts' }) as {goals?: {id:string;title:string;detail:string}[]};
+  const goals = current.goals ?? [];
   const qw = question ? words(question) : [];
-  const relevant = question ? u.goals.filter((g) => overlaps(qw, words(`${g.title} ${g.detail}`))) : u.goals;
+  const relevant = question ? goals.filter((g) => overlaps(qw, words(`${g.title} ${g.detail}`))) : goals;
   const titles = relevant.map((g) => g.title);
   if (!titles.length) return undefined;
   const { llmPlanRetrieval } = await import('./agents/cm.js');
   const { llmProposeMatchTerms } = await import('./agents/nordea.js');
-  const [cmPlan, nordeaPlan] = await Promise.all([llmPlanRetrieval(uid, question, titles), llmProposeMatchTerms(uid, titles)]);
+  const [cmPlan, nordeaPlan] = await Promise.all([llmPlanRetrieval(uid, question, titles, goals.map(g => g.id)), llmProposeMatchTerms(uid, titles)]);
   // Insight cards ship code-assembled meaning only (adversarial QC 983be84): the model plans
   // retrieval and match terms here, but it never rewrites the goal card text.
   const { archLlmProviderName } = await import('./llm.js');

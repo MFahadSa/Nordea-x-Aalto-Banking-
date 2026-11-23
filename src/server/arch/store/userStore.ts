@@ -167,3 +167,12 @@ export function deleteAppRows(uid: string, table: 'app_conversations' | 'app_mes
     db.exec('COMMIT');
   } finally { db.close(); }
 }
+
+/** Goal confirmation's audit and undo are committed beside the goal, not after it in another store. */
+export function goalMetadata<T>(uid:string,prefix:'goal-audit:'|'goal-undo:'):T[]{
+ if(!fs.existsSync(fileFor(uid,'user')))return [];const db=openDb(fileFor(uid,'user'),'user');
+ try{return (db.prepare('SELECT v FROM kv WHERE k LIKE ?').all(prefix+'%') as {v:string}[]).map(r=>JSON.parse(r.v));}finally{db.close();}
+}
+export function removeGoalUndo(uid:string,token:string):boolean{
+ const db=openDb(fileFor(uid,'user'),'user');try{const r=db.prepare('DELETE FROM kv WHERE k=?').run('goal-undo:'+token);return Number(r.changes)>0;}finally{db.close();}
+}

@@ -1,3 +1,15 @@
+import {TurnFinancialEvidence} from './advice/turnFinancialEvidence.js';
+import {goalRevision,proposalDeadline,goalProposalText,finnishGoalRequest,finnishGoalProposal} from './advice/goalConfirmation.js';
+import {knowledgeAbsenceClaim} from './advice/knowledgeAbsence.js';
+import {recallToolScope} from './advice/toolScope.js';
+import {checkGoalWrite,goalNameInText} from './advice/goalWriteEvidence.js';
+import {financialGroundingProblem,type GroundingSource} from './advice/financialGrounding.js';
+import { TurnExposure, retrieveContext, referencesCurrent, broadSavedRequest, savedRecallRequest, mixedSavedRequest, discoverySources, personalContextQuestion, type ContextSource, type SourceRef } from './contextRetrieval.js';
+import { sourceRevision } from './arch/text.js';
+import { personalRoleProblem } from './advice/personalRoles.js';
+import { pendingQuestion, answerPendingQuestion } from './advice/questionAnswer.js';
+import { topicIsUsefulNow } from './advice/topicGate.js';
+import { conversationContracts } from './advice/conversation.js';
 // Nora: a real language model with tools. The model writes the words; code owns the facts and the actions.
 //
 // Guardrails that live in code (not in the prompt):
@@ -20,16 +32,16 @@ import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { intentsOf } from './advice/intent.js';
 import { reviewedReplyProblem } from './advice/reviewedReply.js';
 import { reviewedContext } from './advice/reviewedAnswer.js';
-import { refusesStorage, scopedGoalOnRefusal } from './advice/purpose.js';
-import { ruleCardFor, earlierRuleExplain } from './advice/chatCard.js';
+import { refusesStorage, scopedGoalOnRefusal, purposeOf, declinesPartner, explicitlyRequests } from './advice/purpose.js';
+import { ruleCardFor } from './advice/chatCard.js';
 import { cardFor } from './advice/cards.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
 import { getProvider, ToolDecl, ToolCall, Turn, lastErrorText, recordTurn, isBusy } from './llm.js';
 import { CabinetEntry, ChatMessage, MessageCard, UndoRecord } from '../types.js';
-import { findSimilar, compare, words } from './similar.js';
+import { findSimilar, findSimilarCandidates, compare, words } from './similar.js';
 import { FRAUD, SAFETY_SHOWN, safetyLinesFor } from './safety.js';
-import { transferIsOnce, transferTarget } from './transfers.js';
+import { transferIsOnce, transferTarget, transferClarification } from './transfers.js';
 import { notPast } from './importPropose.js';
 import { kvReplyIn, looksLikeCode } from './replyParse.js';
 import { offlineAnswer } from './abelOffline.js';
@@ -89,11 +101,22 @@ const targetOf = (amount: unknown, date: unknown) => {
 };
 
 // ---------- tool definitions (what the model can see) ----------
-const ACTION_TOOLS = new Set(['proposeCabinetChange', 'offerTransfer', 'suggestPartnerOffer', 'startHandoff', 'showOpportunity']);
+const ACTION_TOOLS = new Set(['selectConversationTopic', 'answerQuestion', 'proposeCabinetChange', 'offerTransfer', 'suggestPartnerOffer', 'startHandoff', 'showOpportunity']);
 // Balances, salary, goals and the payday plan are already in FACTS, so those tools aren't offered to the model
 // (fewer tokens per answer). The code still handles them if a model asks.
 const FACT_TOOLS = new Set(['getAccounts', 'getSalary', 'getGoalStatus', 'getPayPlan']);
 const ALL_TOOLS: ToolDecl[] = [
+  {name:'getMoreSaved',description:'Search permitted saved context when a relevant detail is not supplied. Use synonyms or Finnish terms from the customer request. A limited or empty search is not proof no related saved fact exists. broad=true only for an explicit request to inspect everything; use nextCursor for partial results.',parameters:{type:'object',properties:{query:{type:'string'},broad:{type:'boolean'},cursor:{type:'string'}}}},
+  {
+    name: 'selectConversationTopic',
+    description: 'When a customer describes a life need without knowing the product name, propose a relevant supported topic. This never creates a goal or assumes eligibility, home ownership, study dates or consent. Use only a current exact evidence span. Do not interrupt balances, spending, transfers or another primary task with an offer. Do not select for a declined service.',
+    parameters: { type: 'object', properties: { topic: { type: 'string', enum: ['asp-account', 'kela-loan-writeoff', 'equity-account-under-30', 'gift-limit', 'household-credit', 'ps-account', 'homes', 'movers', 'energy', 'insure', 'planner'] }, evidence: { type: 'string' } }, required: ['topic', 'evidence'] },
+  },
+  {
+    name: 'answerQuestion',
+    description: 'Resolve the currently displayed fact question from the customer reply. Use only the pending messageId and fact from CURRENT QUESTION. Never infer from a question, uncertainty, hypothetical, another person or an unrelated yes. Rich prose may need one confirmation before saving. Do not use proposeCabinetChange for a rule fact.',
+    parameters: { type: 'object', properties: { messageId: { type: 'string' }, fact: { type: 'string' }, value: { type: 'string', description: 'yes, no, notSure, or a full YYYY-MM-DD date' }, evidence: { type: 'string', description: 'Exact customer words supporting this meaning. For nonliteral prose the customer reviews the existing question card before anything is saved.' } }, required: ['messageId', 'fact', 'value'] },
+  },
   { name: 'getAccounts', description: 'Balances of the customer’s accounts and how much goes to savings each month.', parameters: { type: 'object', properties: {} } },
   {
     name: 'getSpending',
@@ -119,7 +142,7 @@ const ALL_TOOLS: ToolDecl[] = [
   {
     name: 'proposeCabinetChange',
     description:
-      'Remember, update or remove something in the cabinet.',
+      'Propose a goal save or change for customer tap confirmation, or remember other context. Never report a goal as saved before the tap.',
     parameters: {
       type: 'object',
       properties: {
@@ -179,6 +202,9 @@ const ALL_TOOLS: ToolDecl[] = [
         usedEntryIds: { type: 'array', items: { type: 'string' } },
         topic: { type: 'string', enum: ['goals', 'spending', 'income', 'saving_plan', 'afford', 'life_event', 'investing', 'home_buying', 'person', 'privacy', 'small_talk', 'complaint', 'out_of_scope', 'other'] },
         couldHelp: { type: 'boolean' },
+        financialAnswer:{type:'array',items:{type:'object',properties:{fact:{type:'string'},calculationJson:{type:'string',description:'JSON expression using fact handles, constant months_per_year, or op add/subtract/multiply/divide with left/right nested expressions.'}}},description:'For personal numeric or calendar answers use supplied FINANCIAL FACT HANDLES. Choose facts or calculations, never invent handles. The app renders amounts, units, source purpose and dates. Keep text free of those claims.'},
+        savedAnswerEvidence:{type:'object',properties:{sourceId:{type:'string'},quote:{type:'string'}},description:'For a narrow question about the customer saved context, cite a currently supplied source ID and an exact source detail span also included naturally in your reply. No negative knowledge conclusion is justified by a limited lookup.'},
+        savedLookupClaim:{type:'string',enum:['no_absence_claim','search_incomplete','claims_no_saved_fact'],description:'Never claim no saved fact from limited retrieval. claims_no_saved_fact is not accepted by this app.'},
       },
       required: ['text', 'suggestions', 'usedEntryIds', 'topic', 'couldHelp'],
     },
@@ -188,7 +214,7 @@ const ALL_TOOLS: ToolDecl[] = [
 // v28: the model never picks cards: partner offers and recommender cards are decided by code from the
 // customer's words (advice/intent.ts), so the same words always give the same card.
 const CODE_CARD_TOOLS = new Set(['suggestPartnerOffer', 'getOpportunities', 'showOpportunity']);
-const TOOLS: ToolDecl[] = ALL_TOOLS.filter((t) => !FACT_TOOLS.has(t.name) && !CODE_CARD_TOOLS.has(t.name));
+const TOOLS: ToolDecl[] = ALL_TOOLS.filter((t) => (!FACT_TOOLS.has(t.name) || t.name==='getGoalStatus') && !CODE_CARD_TOOLS.has(t.name));
 
 /** The figures Nora needs most often, computed by code. Given up front so most replies need one model call. */
 function factsFor(userId: string, allowed: Set<string>) {
@@ -211,7 +237,7 @@ function factsFor(userId: string, allowed: Set<string>) {
 }
 
 /** F10 phase 2 / AC11: what the three-agent architecture handed Nora for this turn (by message). */
-export interface NoraSharedContext { userDbFacts?: string; sharedContext?: string; provenance: string[] }
+export interface NoraSharedContext { userDbFacts?: string; sharedContext?: string; provenance: string[]; sources?: ContextSource[] }
 
 function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[], blockedCount: number, facts: unknown, shared?: NoraSharedContext, cardNote = '') {
   const u = db.getUser(userId)!;
@@ -245,7 +271,7 @@ ${shared.sharedContext}
 ` : ''}Provenance: ${shared.provenance.join(' + ')}.` : 'SHARED CONTEXT: not in use for this customer.'}
 
 HOW YOU TALK
-- Warm, brief, plain language in the customer’s language, like a caring person texting. Acknowledge feelings first. At most one question; ask if unclear.
+- Warm, brief, plain language in the customer’s language, like a caring person texting. For English chat, write complete English sentences. Keep each reply under 300 characters when possible; finish your thought rather than stopping mid-sentence. Continue with the next detail after the customer replies. Acknowledge feelings first. At most one question; ask if unclear.
 - Use the cabinet naturally, never recite it. Small talk: one or two sentences.
 - Money: 12 000 € (whole euros, or 1 420,50 € if cents matter). Plain text: no markdown, no tables, no JSON, no suggestion lists (quick replies go in suggestions). For a plan over many months, summarise it in a few sentences.
 - Never show ids. When they name something ("the salary one"), find it yourself (newest = latest "added").
@@ -254,7 +280,7 @@ HOW YOU TALK
 RULES
 - Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly). In goals, remainingToTargetNow is target minus saved today; shortBy is the projected shortfall at the target date, NOT money remaining to save today. Select the goal the customer names; if more than one home goal could fit, ask which one before quoting a goal amount. Never confuse them. In goals, monthlyGoingIn is what goes in now; extraPerMonthNeeded is what's missing on top. FACTS cover balances, salary, 3-month spending, goals and the payday plan; call a tool only for anything else (another period, whether an amount is affordable).
 - One step: finishReply, plus any action tool in the same step.
-- Save meaningful context quietly with proposeCabinetChange (goals with amount/date, life events, preferences, facts); never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
+- Goals always need a visible proposal and customer tap before save/change. proposeCabinetChange prepares that proposal only. Other meaningful context (life events, preferences, facts) may be saved quietly; never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
 - Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
 - Passed goal dates: ask if still a plan.
 ${u.offersOff ? '- PARTNER OFFERS ARE OFF: do not mention partner offers, prices, incentives or recommend a partner, even if earlier chat contains one. Help without a partner pitch.\n' : ''}- CARDS: the app decides partner offers, questions and suggestions itself, from what the customer said. You never offer partners, products or benefits on your own, never ask the app's questions yourself, and never write a card as text (no "[Card: …]"). THIS TURN: ${cardNote || 'No card. Do not mention any card, partner, offer or suggestion "below".'}
@@ -441,12 +467,16 @@ interface TurnCtx {
   changes: number;
   offersShown: number;
   extraUsed: string[];
+  goalWriteReplies?:string[];
   /** What the customer wrote this turn (for the checks below). */
   userText: string;
   helperId?: string;
+  retrieve?: (args: Record<string,unknown>) => unknown;
+  exposedIds?: Set<string>;
 }
 
 /** The customer asks for a person, or about borrowing, where an adviser is the right next step. */
+const DIRECT_PERSON = /\b(?:adviser|advisor|call me|real person|talk to (?:a |an |someone|a person|a human)|connect me|(?:bank|banking|nordea) (?:person|human)|(?:see|meet|speak (?:to|with)|talk (?:to|with))[^.!?]{0,20}(?:adviser|advisor|person|human|someone))\b/i;
 const ASKS_PERSON = /\b(person|human|someone|adviser|advisor|advice from|call me|meeting|talk to (a|an|someone)|real person|loan|mortgage|borrow|home loan|asuntolaina|neuvoja)\b/i;
 
 // "Delete everything you know about me": never done from chat in one go; the customer removes items in Nora knows.
@@ -507,6 +537,7 @@ function recentUserText(ctx: TurnCtx): string {
 export { transferIsOnce, transferTarget } from './transfers.js';
 /** v29: did the customer name this entry (a meaningful word of its title in their words)? */
 export function namesEntry(e: { title: string; goalType?: string }, said: string): boolean {
+  if(goalNameInText(e.title,said))return true;
   const mine = words(said);
   const title = words(e.title);
   if ([...title].some((w) => mine.has(w))) return true;
@@ -534,7 +565,9 @@ export function offerHeadline(userId: string, partnerId: string) {
 function partnerCard(ctx: TurnCtx, partnerId: string): string {
   const p = getPartner(partnerId);
   const u = db.getUser(ctx.userId);
-  if (!p || !u || u.offersOff || ctx.offersShown >= 1) return '';
+  if (!p || !u || u.offersOff || ctx.offersShown >= 1 || !topicIsUsefulNow(ctx.userText, partnerId)) return '';
+  const conversation = db.getConversation(ctx.conversationId);
+  if (conversation?.offered?.includes(p.id)) return ''; // At most once per partner per chat, including declined cards.
   const recent = db.getMessages(ctx.userId).filter((m) => m.conversationId === ctx.conversationId).slice(-4);
   if (recent.some((m) => !m.resolved && (m.cards || []).some((c) => c.type === 'offer' && c.data?.partnerId === p.id))) return '';
   const conv = db.getConversation(ctx.conversationId);
@@ -543,34 +576,98 @@ function partnerCard(ctx: TurnCtx, partnerId: string): string {
   db.touchConversation(ctx.conversationId, { offered: [...(conv?.offered || []), p.id] });
   ctx.offersShown++;
   ctx.extraUsed.push(...h.used);
-  return `The app shows ONE partner card below your words: ${p.name}, a partner (${p.kind}), with what Nordea earns and a link to a free Nordea adviser. Mention it in one short sentence; do not offer an adviser yourself and do not invent what the partner does.`;
+  return `The app shows ONE partner card below your words: ${p.name}, a partner (${p.kind}), with what Nordea earns and the browse button ${p.cta}. It has NO adviser link. Mention it in one short sentence; do not offer an adviser yourself and do not invent what the partner does.`;
 }
 
 /** v28: the one card of this reply, from the customer's words (intent.ts). Returns what the model is told. */
 function codeCard(ctx: TurnCtx): string {
   for (const it of intentsOf(ctx.userText)) {
+    if (!topicIsUsefulNow(ctx.userText, it.partner || it.rule || '')) continue;
     if (it.rule === 'asp-account' && /\b(?:already have|already own|have got)\b[^.?!]{0,30}\b(?:one|asp|account)\b|\bmy (?:existing )?asp account\b/i.test(ctx.userText)) continue;
     if (it.id === 'gift-information') continue; // Receiving a gift does not imply supporting children.
     if (it.rule) {
       // Rule cards persist answers, display state and reasons. An explicit no-save turn
       // stays educational only; do not route its facts into any of those stores.
       if (refusesStorage(ctx.userText)) continue;
-      const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
+      const r = ruleCardFor(ctx.userId, ctx.conversationId, it, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any),ctx.userText);
       if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; return r.describe; }
     } else if (it.partner) {
       const d = partnerCard(ctx, it.partner);
       if (d) return d;
     }
   }
-  // v29: no new card, but one shown earlier: keep its official explanation at hand for "how does the bonus work?".
-  const ex = earlierRuleExplain(ctx.userId, ctx.conversationId, fin.DEMO_TODAY);
-  return ex ? `No new card. Do not mention any card "below". ${ex}` : '';
+  // Follow-up contracts are restored later, after current readability and opt-out filtering.
+  return '';
 }
 
-function runTool(call: ToolCall, ctx: TurnCtx): unknown {
+function linkCurrentSource(ctx: TurnCtx, entryId: string) {
+  const m = db.getMessages(ctx.userId).filter(m => m.conversationId === ctx.conversationId && m.sender === 'user').at(-1);
+  if (!m || m.text !== ctx.userText) return;
+  db.updateMessage(m.id, { usedEntryIds: [...new Set([...(m.usedEntryIds || []), entryId])] });
+  const e = db.getCabinetEntry(entryId);
+  if (e) db.updateCabinetEntry(entryId, { provenance: { ...e.provenance, messageId: m.id } });
+}
+
+/** Rejected mutations own their customer-visible outcome, never model success prose. */
+function runTool(call:ToolCall,ctx:TurnCtx):unknown {
+ const result=runToolCore(call,ctx) as any;
+ if(call.name==='proposeCabinetChange'&&result?.saved===false&&!result.waitingForCustomer&&!ctx.goalWriteReplies?.length){
+  const fi=finnishGoalRequest(ctx.userText);
+  ctx.goalWriteReplies=[fi?'En tallentanut tai muuttanut mitään tästä ehdotuksesta. Tarkista tavoitteen nimi ja kerro, mitä haluat muuttaa.':result.alreadyKnown?'Nothing changed. The proposed information is already saved.':'I have not saved, changed or removed anything from this proposal. Please check the goal name and tell me what you want to change.'];
+ }
+ return result;
+}
+function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
   let a = call.args || {};
   const u = db.getUser(ctx.userId)!;
   switch (call.name) {
+    case 'getMoreSaved': return ctx.retrieve ? ctx.retrieve(a) : {error:'Bounded saved-context lookup is not active.'};
+    case 'selectConversationTopic': {
+      const topic = String(a.topic || '');
+      const evidence = String(a.evidence || '').trim();
+      const fail = (error: string) => ({ shown: false, error });
+      if (DIRECT_PERSON.test(ctx.userText)) return fail('The customer asked for a person. Support the handoff before adding product intake.');
+      if (!topicIsUsefulNow(ctx.userText, topic) || !topicIsUsefulNow(evidence, topic)) return fail('The topic is not supported by the current need. Answer the actual question or ask naturally whether help would be useful. No card.');
+      if (evidence.length < 4 || !ctx.userText.includes(evidence)) return fail('Use only an exact evidence span from this customer message. No card shown.');
+      if (ctx.offersShown || ctx.cards.length || pendingQuestion(ctx.userId, ctx.conversationId, fin.DEMO_TODAY)) return fail('Another card or unanswered question is already active. Continue that task; do not start another intake.');
+      if (['banking', 'plan'].includes(purposeOf(ctx.userText)) && !explicitlyRequests(ctx.userText, topic)) return fail('The current banking or planning task takes priority. Answer it without an offer.');
+      if (refusesStorage(ctx.userText)) return fail('No-save: explain relevant facts without creating a persistent rule state or offer.');
+      if (getPartner(topic)) {
+        if (declinesPartner(ctx.userText, topic)) return fail('The customer declined that service. No card.');
+        const note = partnerCard(ctx, topic);
+        return note ? { shown: true, note, checked: reviewedContext(ctx.userText, u.age, fin.DEMO_TODAY, new Set([topic]), true) } : fail('This partner is not currently allowed. No card.');
+      }
+      if (!['asp-account', 'kela-loan-writeoff', 'equity-account-under-30', 'gift-limit', 'household-credit', 'ps-account'].includes(topic)) return fail('Unsupported topic.');
+      const r = ruleCardFor(ctx.userId, ctx.conversationId, { id: 'conversation-topic', rule: topic }, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any),ctx.userText);
+      if (!r) return fail('This rule has no allowed current question or suggestion. Do not invent eligibility.');
+      ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++;
+      return { shown: true, note: r.describe, card: r.card };
+    }
+    case 'answerQuestion': {
+      const result = answerPendingQuestion(ctx.userId, ctx.conversationId, fin.DEMO_TODAY, ctx.userText, a);
+      if ('reviewCard' in result && result.reviewCard) {
+        ctx.cards.push(result.reviewCard);
+        if ('supersedesMessageId' in result && result.supersedesMessageId) db.updateMessage(result.supersedesMessageId, {resolved:'Continued in the question below'});
+        return { saved: false, shown: true, instruction: result.instruction };
+      }
+      if (!result.saved) return result;
+      const ids = result.savedIds || [];
+      for (const id of ids) {
+        const e = db.getCabinetEntry(id);
+        if (!e) continue;
+        linkCurrentSource(ctx, id);
+        ctx.allowedIds.add(id);
+        ctx.extraUsed.push(id);
+        const undoToken = recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${e.title}"`, previousEntry: null, entryId: id } as any);
+        ctx.notes.push({ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: id });
+      }
+      const next = result.replies?.flatMap(r => r.cards || []) || [];
+      // Replace a question chosen before the answer was processed. Never show stale intake beside its result.
+      ctx.cards = ctx.cards.filter(c => c.type !== 'ask_fact' && c.type !== 'opportunity');
+      ctx.cards.push(...next);
+      ctx.changes += ids.length;
+      return { ...result, facts: ids.map(id => { const e = db.getCabinetEntry(id); return e ? { fact: e.factKey, value: e.factValue, title: e.title } : null; }), instruction: 'The question was processed. Describe the result and actual next card only. Do not repeat the old question or invent eligibility. Saved facts are listed in savedIds; Undo is available.' };
+    }
     case 'getAccounts':
       return fin.accounts(ctx.userId);
     case 'getSpending':
@@ -578,24 +675,34 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
     case 'getSalary':
       return fin.salaryInfo(ctx.userId);
     case 'getGoalStatus': {
-      const goals = fin.activeGoals(ctx.userId).filter((g) => ctx.allowedIds.has(g.id) && (!a.goalId || g.id === a.goalId));
-      return goals.length ? goals.map((g) => fin.goalStatus(ctx.userId, g)) : { none: true, note: 'No active goal with an amount and date yet.' };
+      if(ctx.retrieve)ctx.retrieve({query:ctx.userText,goalId:a.goalId});
+      const goals = fin.activeGoals(ctx.userId).filter((g) => (!ctx.exposedIds || ctx.exposedIds.has(g.id)) && ctx.allowedIds.has(g.id) && (!a.goalId || g.id === a.goalId));
+      return goals.length ? goals.map((g) => fin.goalStatus(ctx.userId, g)) : ctx.exposedIds ? {checked:false,note:'No goal matched this bounded lookup. Other saved goals may exist. Search related terms rather than claiming none exist.'} : { none: true, note: 'No active goal with an amount and date yet.' };
     }
-    case 'getPayPlan':
-      return fin.payPlan(ctx.userId, Number(a.keepInCurrentAccount) || 500);
+    case 'getPayPlan': {
+      const plan=fin.payPlan(ctx.userId, Number(a.keepInCurrentAccount) || 500);
+      if(ctx.exposedIds)plan.towardsGoal=null;
+      return plan;
+    }
     case 'checkAffordability': {
       const amt = Number(a.amount);
       if (!(amt > 0)) return { error: 'amount must be a positive number' };
-      return fin.affordability(ctx.userId, amt);
+      const result=fin.affordability(ctx.userId, amt);
+      if(ctx.exposedIds)result.goalAffected=null;
+      return result;
     }
     case 'proposeCabinetChange': {
+      let validatedScopedGoal:ReturnType<typeof scopedGoalOnRefusal>=null;
       if (ctx.changes >= 3) return { saved: false, error: 'At most 3 changes per reply.' };
       const action = String(a.action);
+      if(ctx.cards.some(c=>c.type==='goal_confirm'))return {saved:false,error:'One goal proposal at a time. Review the displayed proposal before another change.'};
+      if (action === 'add' && pendingQuestion(ctx.userId, ctx.conversationId, fin.DEMO_TODAY) && a.type === 'fact') return { saved: false, error: 'A structured question is pending. Use answerQuestion for its answer, not an unstructured duplicate fact.' };
       if (action !== 'archive' && refusesStorage(ctx.userText)) {
         const scoped = action === 'add' && a.type === 'goal' ? scopedGoalOnRefusal(ctx.userText, fin.DEMO_TODAY) : null;
         if (!scoped || a.sensitive === true || Number(a.targetAmount) !== scoped.targetAmount || (scoped.goalType !== 'other' && a.goalType !== scoped.goalType)) return { saved: false, error: 'Privacy restriction: this proposed change is not explicitly authorized. Nothing from this proposal was saved. Ask only if the scope needs clarification.' };
         // Never persist model-authored details alongside the independently identified goal.
         a = { action: 'add', type: 'goal', ...scoped, sensitive: false };
+        validatedScopedGoal=scoped;
       }
       if (action === 'add' && a.type === 'goal' && /[?]|\b(maybe|hypothetical|what if|thinking about)\b/i.test(ctx.userText)
         && !/\b(save|remember|create|add)\b[^.?!]{0,35}\b(goal|plan|this|it)\b/i.test(ctx.userText))
@@ -611,49 +718,71 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
         if (!title) return { saved: false, error: 'title is required' };
         const type = ['goal', 'life_event', 'preference', 'fact'].includes(a.type) ? a.type : 'fact';
         // v28: an amount or a date the customer never said is not saved (the AI must not invent a goal's numbers).
-        const said = numbersIn(withoutDates(ctx.userText));
-        const amountSaid = Number(a.targetAmount) > 0 && said.some((n) => Math.abs(n - Number(a.targetAmount)) <= Math.max(1, Number(a.targetAmount) * 0.01));
-        const whenSaid = /\b(20\d\d|next|this|in \d+|by|until|before|january|february|march|april|may|june|july|august|september|october|november|december|spring|summer|autumn|fall|winter|christmas|months?|years?)\b/i.test(ctx.userText);
-        // v31: a new goal's date is never in the past ("Lisbon in March" said in November is next March).
-        const target = type === 'goal' && amountSaid && whenSaid ? targetOf(a.targetAmount, a.targetDate ? notPast(String(a.targetDate), fin.DEMO_TODAY) : a.targetDate) : undefined;
+        const fields=type==='goal'?(validatedScopedGoal?.targetDate?{amount:validatedScopedGoal.targetAmount,date:validatedScopedGoal.targetDate,amountEvidence:{quote:ctx.userText,precision:'exact' as const,kind:'customer-field-evidence' as const},dateEvidence:{quote:ctx.userText,precision:'month-end' as const,kind:'customer-field-evidence' as const,normalization:'end-of-named-month' as const},question:undefined}:checkGoalWrite(ctx.userText,{amount:a.targetAmount,date:a.targetDate},'add',fin.DEMO_TODAY)):null;
+        if(fields?.question){ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),fields.question];return {saved:false,error:fields.question};}
+        if(type==='goal'&&!validatedScopedGoal&&!namesEntry({title,goalType:a.goalType},ctx.userText)){
+          const question='What name should I use for this saving goal? I have not saved the proposed target.';ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),question];return {saved:false,error:question};
+        }
+        // Explicit field evidence belongs to this conversation and customer message.
+        const evidenceMessage=db.getMessages(ctx.userId).filter(m=>m.conversationId===ctx.conversationId&&m.sender==='user'&&m.text===ctx.userText).at(-1);
+        if(fields)for(const f of [fields.amountEvidence,fields.dateEvidence])if(f)Object.assign(f,{conversationId:ctx.conversationId,...(evidenceMessage?{messageId:evidenceMessage.id}:{})});
+        const target=fields?.amount&&fields.date?{amount:fields.amount,date:fields.date}:undefined;
         const draft = {
           type, title, detail: String(a.detail || '').slice(0, 200), target,
+          ...(fields?{targetOrigin:{amount:'customer-evidence' as const,date:'customer-evidence' as const},targetFields:{amount:fields.amountEvidence,date:fields.dateEvidence}}:{}),
           goalType: type === 'goal' ? (a.goalType || 'other') : undefined,
         };
         // Duplicate / contradiction check in code: never two copies of the same thing, never silently overwrite.
-        const twin = findSimilar(ctx.userId, { ...draft, sensitive });
-        if (twin) {
+        const candidates=type==='goal'?findSimilarCandidates(ctx.userId,{...draft,sensitive}).filter(e=>ctx.allowedIds.has(e.id)):[];
+        if(candidates.length>1){const question='More than one existing goal could match. Which goal do you mean: '+candidates.map(e=>'"'+e.title+'"').join(', ')+'? Nothing has been saved or changed.';ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),question];return {saved:false,error:question};}
+        const twin = type==='goal'?candidates[0]:findSimilar(ctx.userId, { ...draft, sensitive });
+        if (twin && ctx.allowedIds.has(twin.id)) {
           const how = compare(twin, draft);
           if (how === 'same') return { saved: false, alreadyKnown: true, entryId: twin.id, note: `Already known as "${twin.title}". Nothing new was saved. Say so briefly.` };
-          ctx.cards.push({ type: 'duplicate', title: how === 'conflict' ? 'This changes something Nora knows' : 'Nora already knows something similar', data: { how, existing: { id: twin.id, title: twin.title, detail: twin.detail, target: twin.target }, draft, sensitive } });
+          ctx.cards.push({ type: type==='goal'?'goal_confirm':'duplicate', title: how === 'conflict' ? 'This changes something Nora knows' : 'Nora already knows something similar', data: { language:finnishGoalRequest(ctx.userText)?'fi':'en',operation:'duplicate',private:!!sensitive,existingPrivate:twin.private,readableBy:twin.readableBy,entryId:twin.id,how, expiresAt:proposalDeadline(),existingRevision:type==='goal'?goalRevision(twin):sourceRevision([twin.title,twin.detail,twin.target,twin.private,twin.readableBy,twin.status]), existing: { id: twin.id, title: twin.title, detail: twin.detail, target: twin.target }, draft, sensitive } });
           ctx.allowedIds.add(twin.id);
+          if(target)ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),(finnishGoalRequest(ctx.userText)?finnishGoalProposal(title,target,'duplicate'):`Please check the proposed goal "${title}": target ${target.amount} EUR by ${target.date}${fields?.dateEvidence?.normalization?' ('+fields.dateEvidence.normalization.replace(/-/g,' ')+')':''}. Nothing has been saved yet. Choose whether to update the existing goal or keep both below.`)];
           return { saved: false, waitingForCustomer: true, similarTo: { id: twin.id, title: twin.title, detail: twin.detail, target: twin.target }, note: `Similar to "${twin.title}" (${how}). A choice card is shown: update it, keep both, or leave it. Do not say it was saved; ask in one short sentence.` };
+        }
+        if(type==='goal'&&!target){return {saved:false,error:'What total amount and deadline should this goal have? Nothing saved.'};}
+        if(type==='goal'&&target){
+          ctx.cards.push({type:'goal_confirm',title:'Check saving goal',data:{language:finnishGoalRequest(ctx.userText)?'fi':'en',operation:'add',draft:{...draft,detail:''},private:!!sensitive,expiresAt:proposalDeadline()}});
+          ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),(finnishGoalRequest(ctx.userText)?finnishGoalProposal(title,target,'add'):goalProposalText(title,target,'add',!!sensitive,fields?.dateEvidence?.normalization))];
+          return {saved:false,waitingForCustomer:true,note:'Goal proposal only. Not a saved fact. Wait for the customer tap.'};
         }
         if (sensitive) {
           ctx.cards.push({ type: 'confirm_save', title: 'Looks private', body: 'Only Nora could read it, never offers. Save it?', data: { draft } });
+          if(target)ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),`Please check "${title}": target ${target.amount} EUR by ${target.date}. Nothing is saved until you choose Save privately below.`];
           return { saved: false, waitingForCustomer: true, note: 'Sensitive: shown as a choice to the customer. Do not say it was saved.' };
         }
         const now = new Date().toISOString();
         const entry: CabinetEntry = {
           id: newId('entry'), userId: ctx.userId, type: draft.type as any, title: draft.title, detail: draft.detail,
           source: 'customer', status: 'active', private: false, readableBy: { abel: true, offers: false },
-          provenance: { channel: 'app' }, target: draft.target, goalType: draft.goalType as any, reviewed: true,
+          provenance: { channel: 'app',...(fields?{targetOrigin:{amount:'customer-evidence' as const,date:'customer-evidence' as const},targetFields:{amount:fields.amountEvidence,date:fields.dateEvidence}}:{}) }, target: draft.target, goalType: draft.goalType as any, reviewed: true,
           confirmedAt: now, createdAt: now, updatedAt: now,
         };
         db.addCabinetEntry(entry, { by: 'abel', how: 'From your chat' });
+        linkCurrentSource(ctx, entry.id);
         const undoToken = recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId: entry.id });
         ctx.notes.push({ text: `📌 Nora will remember this: ${title}`, undoToken, entryId: entry.id });
         ctx.allowedIds.add(entry.id);
         ctx.extraUsed.push(entry.id);
         ctx.changes++;
+        if(target)ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),`Saved "${title}" with target ${target.amount} EUR by ${target.date}${fields?.dateEvidence?.precision==='month-end'?' (end of the month you named)':fields?.dateEvidence?.precision==='year-end'?' (end of the year you named)':''}. You can undo it below.`];
         return { saved: true, entryId: entry.id };
       }
       const existing = a.entryId ? db.getCabinetEntry(String(a.entryId)) : undefined;
-      if (!existing || existing.userId !== ctx.userId || !ctx.allowedIds.has(existing.id)) return { saved: false, error: 'entryId not found in the cabinet' };
+      if (!existing || existing.status==='archived' || existing.userId !== ctx.userId || !ctx.allowedIds.has(existing.id)) return { saved: false, error: 'entryId not found in the cabinet' };
       // v29: change or remove only what the customer named (a private note only when named in this message).
       if (!namesEntry(existing, existing.private ? ctx.userText : `${ctx.userText} ${recentUserText(ctx)}`))
         return { saved: false, error: `Not done: the customer did not mention "${existing.title}". Never change or remove something they didn't name.` };
       const prev = { ...existing };
+      if (action === 'archive'&&existing.type==='goal') {
+        ctx.cards.push({type:'goal_confirm',title:'Confirm goal removal',data:{language:finnishGoalRequest(ctx.userText)?'fi':'en',operation:'archive',entryId:existing.id,existingRevision:goalRevision(existing),existing:{title:existing.title,target:existing.target},draft:existing,private:existing.private,readableBy:existing.readableBy,expiresAt:proposalDeadline()}});
+        ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),(finnishGoalRequest(ctx.userText)?finnishGoalProposal(existing.title,existing.target,'archive'):`Remove "${existing.title}" from active goals?${existing.target?' Current target: '+existing.target.amount+' EUR by '+existing.target.date+'.':''} Nothing changes until you tap Remove goal. History is kept and you can undo the removal.`)];
+        return {saved:false,waitingForCustomer:true,note:'Removal proposed, not done. Wait for tap.'};
+      }
       if (action === 'archive') {
         db.updateCabinetEntry(existing.id, { status: 'archived' }, { by: 'abel', how: 'From your chat' });
         const undoToken = recordUndo({ userId: ctx.userId, action: 'archive', description: `Removed "${existing.title}"`, previousEntry: prev, entryId: existing.id });
@@ -662,27 +791,39 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
         return { saved: true, archived: existing.id };
       }
       const updates: Partial<CabinetEntry> = {};
-      if (a.title) updates.title = String(a.title).slice(0, 80);
-      if (a.detail) updates.detail = String(a.detail).slice(0, 200);
-      {
-        // An update may change only the amount or only the date; keep the other one.
-        // v28: a new amount only if the customer said it.
-        const saidNow = numbersIn(withoutDates(ctx.userText));
-        const newAmount = a.targetAmount != null && saidNow.some((n) => Math.abs(n - Number(a.targetAmount)) <= Math.max(1, Number(a.targetAmount) * 0.01)) ? a.targetAmount : undefined;
-        if (a.targetAmount != null && newAmount === undefined) a.targetAmount = undefined;
-        const t = targetOf(newAmount ?? existing.target?.amount, a.targetDate ?? existing.target?.date);
-        if (t && (a.targetAmount != null || a.targetDate != null)) updates.target = t;
+      if (a.title&&(existing.type!=='goal'||/\b(?:rename|name|call)|nimeä|nimeksi/iu.test(ctx.userText)&&ctx.userText.toLocaleLowerCase().includes(String(a.title).toLocaleLowerCase()))) updates.title = String(a.title).slice(0, 80);
+      if (a.detail&&(existing.type!=='goal'||/\b(?:details?|description|note)|kuvau|tiedo|muistiinpano/iu.test(ctx.userText)&&ctx.userText.toLocaleLowerCase().includes(String(a.detail).toLocaleLowerCase()))) updates.detail = String(a.detail).slice(0, 200);
+      if(existing.type==='goal'&&(a.targetAmount!==undefined||a.targetDate!==undefined)){
+        const fields=checkGoalWrite(ctx.userText,{amount:a.targetAmount,date:a.targetDate},'update',fin.DEMO_TODAY,existing.title);
+        if(fields.question){ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),fields.question];return {saved:false,error:fields.question};}
+        const amount=fields.amount??existing.target?.amount,date=fields.date??existing.target?.date;
+        if(!amount||!date){const question='What total amount and deadline should this goal have? Nothing changed.';ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),question];return {saved:false,error:question};}
+        const evidenceMessage=db.getMessages(ctx.userId).filter(m=>m.conversationId===ctx.conversationId&&m.sender==='user'&&m.text===ctx.userText).at(-1);
+        for(const f of [fields.amountEvidence,fields.dateEvidence])if(f)Object.assign(f,{conversationId:ctx.conversationId,...(evidenceMessage?{messageId:evidenceMessage.id}:{})});
+        updates.target={amount,date};
+        updates.provenance={...existing.provenance,targetOrigin:{...existing.provenance.targetOrigin,...(fields.amountEvidence?{amount:'customer-evidence' as const}:{}),...(fields.dateEvidence?{date:'customer-evidence' as const}:{})},targetFields:{...existing.provenance.targetFields,...(fields.amountEvidence?{amount:fields.amountEvidence}:{}),...(fields.dateEvidence?{date:fields.dateEvidence}:{})}};
       }
       // Nothing actually changes (e.g. "am I on track?" with the same amount again): no update, no note.
       const same = (!updates.title || updates.title === existing.title) && (!updates.detail || updates.detail === existing.detail)
         && (!updates.target || (existing.target && updates.target.amount === existing.target.amount && updates.target.date === existing.target.date));
-      if (same && existing.status !== 'stale') return { saved: false, alreadyKnown: true, note: 'Nothing changed: it is already like this. Do not mention an update.' };
+      if (same && existing.status !== 'stale') {
+        if(updates.target)ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),`"${existing.title}" already has target ${existing.target!.amount} EUR by ${existing.target!.date}. I kept it unchanged.`];
+        return { saved: false, alreadyKnown: true, note: 'Nothing changed: it is already like this. Do not mention an update.' };
+      }
+      if(existing.type==='goal'){
+        if(!existing.target&&!updates.target){return {saved:false,error:'This goal has no complete target. Please edit it in Nora knows. Nothing changed.'};}
+        const draft={...existing,...updates};
+        ctx.cards.push({type:'goal_confirm',title:'Check goal change',data:{language:finnishGoalRequest(ctx.userText)?'fi':'en',operation:'update',entryId:existing.id,existingRevision:goalRevision(existing),existing:{title:existing.title,detail:existing.detail,target:existing.target},draft,private:existing.private,readableBy:existing.readableBy,expiresAt:proposalDeadline()}});
+        ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),(finnishGoalRequest(ctx.userText)?finnishGoalProposal(draft.title,draft.target,'update'):(draft.target?goalProposalText(draft.title,draft.target,'update',existing.private,undefined,existing.readableBy):'Please check this change. Nothing saved until you tap.')+' Please check the card for all changes; fields not listed stay unchanged.')];
+        return {saved:false,waitingForCustomer:true,note:'Proposed goal update, not saved. Wait for the customer tap.'};
+      }
       if (existing.status === 'stale') updates.status = 'active';
       updates.confirmedAt = new Date().toISOString();
       db.updateCabinetEntry(existing.id, updates, { by: 'abel', how: 'From your chat' });
       const undoToken = recordUndo({ userId: ctx.userId, action: 'update', description: `Updated "${existing.title}"`, previousEntry: prev, entryId: existing.id });
       ctx.notes.push({ text: `📌 Updated: ${updates.title || existing.title}`, undoToken, entryId: existing.id });
       ctx.changes++;
+      if(updates.target)ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),`Updated "${updates.title||existing.title}" to target ${updates.target.amount} EUR by ${updates.target.date}. Other target fields were kept unchanged unless explicitly stated. You can undo it below.`];
       return { saved: true, updated: existing.id };
     }
     case 'offerTransfer': {
@@ -690,6 +831,14 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
       // v29: once or every month is decided by the customer's own words, not by the model.
       const before = recentUserText(ctx);
       const lastNora = db.getMessages(ctx.userId).filter((m) => m.conversationId === ctx.conversationId && m.sender === 'agent').slice(-1).map((m) => String(m.text || '')).join(' ');
+      const informal = /\b\d+(?:[.,]\d+)?\s*k\b|\b(?:one|two|three|four|five|six|seven|eight|nine|ten) (?:hundred|thousand)\b/i.test(ctx.userText);
+      if (informal) return {shown:false,error:'No card prepared. Ask the customer to confirm the informal amount as an exact euro amount, rather than guessing or treating 1k as 1.'};
+      const saidAmount = numbersIn(withoutDates(ctx.userText));
+      const assent = /^\s*(?:yes|yeah|yep|sure|ok(?:ay)?|please|do it|go ahead|sounds good)\b/i.test(ctx.userText);
+      const offeredAmounts = assent ? numbersIn(withoutDates(lastNora)) : [];
+      if (![...saidAmount, ...offeredAmounts].some(n => n === amt)) return { shown: false, error: 'No card prepared: this amount was not stated by the customer or explicitly accepted from the last proposal. Ask the amount instead of choosing one.' };
+      const clarify = transferClarification(ctx.userText, before, lastNora);
+      if (clarify) return { shown: false, error: clarify };
       const once = transferIsOnce(ctx.userText, before, a.once, lastNora);
       // v31: where it goes is decided by the customer's words too (car fund or savings), never by the model.
       const dest = transferTarget(ctx.userText, before);
@@ -801,7 +950,7 @@ function runTool(call: ToolCall, ctx: TurnCtx): unknown {
           share: 'Shared once, for 7 days. You can stop it any time.',
         },
       });
-      return { shown: true, note: 'The card lists what would be shared. Nothing is shared until the customer taps Connect me.' };
+      return { shown: true, gets: gets.map(e => ({ title: e.title, source: e.source })), heldBack: prev.blocked.length + (prev.allowed.length - gets.length), sharing: 'Only these listed cabinet items, once for 7 days after Connect me. Do not claim salary, spending or account data are shared unless a listed item actually contains them.', note: 'The card lists the exact scope. Nothing is shared until the customer taps Connect me.' };
     }
     default:
       return { error: `unknown tool ${call.name}` };
@@ -824,16 +973,30 @@ export interface NoraReply {
   offline?: boolean;
   /** What Nora was given for this reply: the approved notes the gateway returned, and the demo account data. */
   supplied?: { notes: number; accountData: boolean };
+  provider?: string;
+  /** Code-observed exact source quotations, independent of model self-report. */
+  quotedSources?: {id:string;revision:string}[];
+  suppliedSources?: {id:string;revision:string}[];
+  suppliedSharedRevision?: string;
+  exposedSources?: SourceRef[];
+  exposedContentKeys?: string[];
+  savedContextPage?: {query:string;cursor?:string;complete?:boolean;count?:number;language?:string;viewRevision?:string;discovery?:boolean};
 }
 
 export async function abelTurn(userId: string, conversationId: string, helperId: string, userText: string, shared?: NoraSharedContext): Promise<NoraReply> {
-  const seen: { supplied?: NoraReply['supplied'] } = {};
+  const seen: { supplied?: NoraReply['supplied']; exposure?: TurnExposure } = {};
+  const sourceSnapshot=previewCabinetForAgent(userId,'abel').allowed.map(e=>({id:e.id,title:e.title,detail:e.detail,revision:e.updatedAt||e.createdAt}));
   const reply = await abelTurnInner(userId, conversationId, helperId, userText, seen, shared);
-  return { ...reply, supplied: seen.supplied };
+  const quotedSources=sourceSnapshot.filter(e=>(!seen.exposure || seen.exposure.snapshot().some(r=>r.owner==='cabinet'&&r.id===e.id)) && [e.title,e.detail].some(v=>v.trim().length>=8 && new RegExp('(?<![\\p{L}\\p{N}])'+v.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\p{L}\\p{N}])','iu').test(reply.text))).map(({id,revision})=>({id,revision}));
+  return { ...reply, supplied: seen.supplied, quotedSources, suppliedSources:seen.exposure ? seen.exposure.snapshot().filter(r=>r.owner==='cabinet').map(({id,revision})=>({id,revision})) : sourceSnapshot.map(({id,revision})=>({id,revision})), suppliedSharedRevision: seen.exposure ? undefined : sharedRevision(shared), exposedSources:seen.exposure?.snapshot(), exposedContentKeys:seen.exposure?.visibleKeys() };
 }
 
-async function abelTurnInner(userId: string, conversationId: string, helperId: string, userText: string, seen: { supplied?: NoraReply['supplied'] }, shared?: NoraSharedContext): Promise<NoraReply> {
+const sharedRevision = (shared?: NoraSharedContext): string => sourceRevision([shared?.userDbFacts || '', shared?.sharedContext || '']);
+
+async function abelTurnInner(userId: string, conversationId: string, helperId: string, userText: string, seen: { supplied?: NoraReply['supplied']; exposure?:TurnExposure }, shared?: NoraSharedContext): Promise<NoraReply> {
   const provider = getProvider();
+  const readScope=recallToolScope(userText);
+  const turnTools=readScope?TOOLS.filter(t=>readScope.has(t.name)):TOOLS;
 
   // Guardrail 1: read the cabinet through the gateway before every reply.
   const HELPER_NAMES: Record<string, string> = { abel: 'Nora', autopilot: 'Payday autopilot', budget: 'Budget helper', invest: 'Investing', life: 'Life events', leaks: 'Money leaks', person: 'Talk to a person' };
@@ -841,18 +1004,53 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   // What Nora is given, for the honest "Nora could see …" line under the reply. (Kept files are never given.)
   seen.supplied = { notes: read.allowed.length, accountData: true };
   const ctx: TurnCtx = { userId, conversationId, allowedIds: new Set(read.allowed.map((e) => e.id)), cards: [], notes: [], changes: 0, offersShown: 0, extraUsed: [], userText, helperId };
-  const facts = factsFor(userId, ctx.allowedIds);
+  const bounded=shared?.sources !== undefined;
+  const exposure=bounded ? new TurnExposure() : undefined;
+  if(exposure)seen.exposure=exposure;
+  const sources:ContextSource[] = bounded ? [
+    ...read.allowed.map(e=>({owner:'cabinet' as const,id:e.id,revision:sourceRevision([e.title,e.detail,e.target,e.goalType,e.updatedAt||e.createdAt]),title:e.title,detail:e.detail,data:{type:e.type,target:e.target,goalType:e.goalType}})),
+    ...(shared?.sources || []),
+  ] : [];
+  const bankFacts=factsFor(userId,new Set());
+  (bankFacts.paydayPlan as any).towardsGoal=null;
+  const bankCore:ContextSource={owner:'nordea',id:'app-bank-core',revision:sourceRevision([bankFacts,db.getTransactions(userId),db.getBankAccounts(userId),db.getBalanceSnapshots(userId)]),title:'Current bank facts',detail:'',data:bankFacts};
+  if(bounded){sources.push(bankCore);exposure!.include([bankCore]);}
+  if(bounded)sources.push(...discoverySources(sources));
+  const prior=db.getMessages(userId).filter(m=>m.conversationId===conversationId && m.sender==='agent').at(-1);
+  const validPrior=(prior?.exposedSources || []).filter(r=>referencesCurrent([r],sources));
+  const pageFollowup=!!prior?.savedContextPage && /^(?:(?:yes|yeah|ok|okay|joo|kyllä)[, ]+)?(?:more|next|continue|show more|go on|keep going|carry on|what else|anything else|lisää|seuraavat|jatka|entä muuta|vielä)[.! ]*$/iu.test(userText.trim());
+  const retrievalQuery=pageFollowup?prior!.savedContextPage!.query:userText;
+  const broad=pageFollowup||broadSavedRequest(userText);
+  const viewRevision=sourceRevision(sources.map(r=>[r.owner,r.id,r.revision]));
+  const completedPage=pageFollowup && prior!.savedContextPage!.complete && prior!.savedContextPage!.viewRevision===viewRevision;
+  const initial=bounded ? retrieveContext(sources.filter(r=>r.id!=='app-bank-core'&& (pageFollowup&&prior!.savedContextPage!.discovery ? !!r.discoveryOnly : !r.discoveryOnly)),{query:pageFollowup&&prior!.savedContextPage!.discovery?'':retrievalQuery,broad,...(pageFollowup?{cursor:prior!.savedContextPage!.cursor}:{}),sourceRefs:!broad && userText.trim().split(/\s+/).length<=8 ? validPrior : []}) : undefined;
+  if(initial && !initial.rows.length && !pageFollowup && bounded) {
+    const discovery=retrieveContext(sources.filter(r=>r.discoveryOnly),{broad:true});
+    initial.rows=discovery.rows;initial.note='No exact content match yet. These are currently permitted saved-topic titles only, not their details. Use getMoreSaved to read a relevant source; never infer the missing details or claim absence.';initial.truncated=discovery.truncated;initial.nextCursor=discovery.nextCursor;
+  }
+  if(initial && !completedPage)exposure!.include(initial.rows);
+  if(bounded)ctx.exposedIds=new Set(initial!.rows.filter(r=>r.owner==='cabinet').map(r=>r.id));
+  const selected=bounded ? read.allowed.filter(e=>!completedPage && initial!.rows.some(r=>r.owner==='cabinet'&&r.id===e.id)) : read.allowed;
+  const facts = factsFor(userId, new Set(selected.map(e=>e.id)));
+  if(bounded) (facts.paydayPlan as any).towardsGoal=null;
+  const suppliedShared=bounded ? {...shared,userDbFacts:undefined,sharedContext:JSON.stringify(initial!.rows.filter(r=>r.owner!=='cabinet'||r.discoveryOnly)),provenance:['bounded current source retrieval']} : shared;
+
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
-  const cardNote = helperId === 'person' || FRAUD.test(userText) ? '' : codeCard(ctx);
+  const cardNote = helperId === 'person' || FRAUD.test(userText) || DIRECT_PERSON.test(userText) ? '' : codeCard(ctx);
   // Reviewed facts constrain the model; they never replace the customer's task or tool turn.
+  for (const n of ctx.notes) if (n.entryId) linkCurrentSource(ctx, n.entryId);
   const shownPartners = new Set(ctx.cards.filter((c) => c.type === 'offer').map((c) => String(c.data?.partnerId)));
-  const checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
-  const groundedNote = checkedContext;
-  const system = systemPrompt(userId, helperId, read.allowed, read.blocked.length, facts, shared, cardNote) + '\n' + checkedContext;
+  let checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
+  let groundedNote = checkedContext;
+  const financialEvidence=new TurnFinancialEvidence(userId,conversationId,newId('financial-turn'),(id,revision)=>{if(id==='request:current')return sourceRevision(userText)===revision;if(id==='bank:getSpending')return sourceRevision({...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}})===revision;if(id==='bank:getPayPlan')return sourceRevision(fin.payPlan(userId))===revision;if(id==='bank:getAccounts')return sourceRevision(fin.accounts(userId))===revision;if(id==='bank:getSalary')return sourceRevision(fin.salaryInfo(userId))===revision;const current=previewCabinetForAgent(userId,'abel').allowed;if(id.startsWith('status:')){const e=current.find(e=>e.id===id.slice(7));return !!e&&e.status!=='archived'&&!!e.target&&sourceRevision({...fin.goalStatus(userId,e),goalType:e.goalType,...(e.status==='stale'?{stale:true,savingRateKnown:false}:{savingRateKnown:fin.primaryGoal(userId)?.id===e.id})})===revision;}const e=current.find(e=>e.id===id);return !!e&&sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy])===revision;});
+  selected.forEach(e=>financialEvidence.includeEntry(e));facts.goals.forEach(g=>financialEvidence.includeGoal({...g,savingRateKnown:fin.primaryGoal(userId)?.id===g.goalId}));selected.filter(e=>e.type==='goal'&&e.status==='stale'&&e.target).forEach(e=>financialEvidence.includeGoal({...fin.goalStatus(userId,e),goalType:e.goalType,stale:true,savingRateKnown:false}));financialEvidence.includeBank('getAccounts',fin.accounts(userId));financialEvidence.includeBank('getSalary',fin.salaryInfo(userId));financialEvidence.includeBank('getSpending',{...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}});financialEvidence.includeBank('getPayPlan',fin.payPlan(userId));
+  let system = systemPrompt(userId, helperId, selected, read.blocked.length, facts, suppliedShared, cardNote) + '\n' + checkedContext;
+  system += '\nFACT ROLES: Every figure has a role and unit. A number appearing somewhere is not permission to assign it to another field. For goals, saved, target, monthly contribution, shortfall and months left are separate. For products, opening/starting year, purchase/payment date, annual interest and one-time bonus are separate. PS annual contribution deduction cap and historical balance withdrawal test are separate. Energy monthly fee, usage price and spot margin are separate; never present just a fee as the total cost. Say unknown when coverage or a term is absent. Use the customer\'s language, but retain the exact meaning, threshold boundary and conditions. Do not expand an acronym unless CHECKED BACKGROUND provides the expansion. Do not invent screens, sections or availability; describe only actual controls in the displayed contract.';
   const t0 = Date.now();
   let modelCalls = 0;
+  let answerProvider: string | undefined;
 
-  // Earlier messages of this conversation: the newest 6, each kept short, so long chats stay cheap.
+  // Recent messages of this conversation; complete messages are bounded below.
   // The history is rebuilt from what the customer has approved NOW, not from the stored text:
   //  - a file shows only as its name; what came from it shows only if it was saved and is still shared
   //    (pending, "Not now" and unticked items never reach Nora);
@@ -861,10 +1059,26 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const history = db
     .getMessages(userId)
     .filter((m) => m.conversationId === conversationId)
-    .slice(-13, -1); // v29: the newest 12 messages, so "the payment I asked about" is still in view
+    .slice(-65, -1); // bounded candidate window; complete rendered messages share the 16k budget below
   const allEntries = db.getCabinetEntries(userId);
   const notShared = allEntries.filter((e) => !ctx.allowedIds.has(e.id));
   const notSharedIds = new Set(notShared.map((e) => e.id));
+  // Source messages carry explicit saved-entry ids. Removal withdraws that source
+  // exchange from historical reuse, without suppressing unrelated unsaved conversation.
+  const blockedHistoryIds = new Set<string>();
+  for (const e of notShared) if (e.provenance?.messageId) blockedHistoryIds.add(e.provenance.messageId);
+  const revoked = (id: string) => notSharedIds.has(id) || !db.getCabinetEntry(id);
+  for (const m of history) {
+    if (bounded && m.exposedSources && !referencesCurrent(m.exposedSources,sources)) blockedHistoryIds.add(m.id);
+    if (!bounded && m.suppliedSharedRevision !== undefined && m.suppliedSharedRevision !== sharedRevision(shared)) blockedHistoryIds.add(m.id);
+    if (!bounded && m.supplied?.shared && m.suppliedSharedRevision === undefined) blockedHistoryIds.add(m.id);
+    const refs = [...(m.usedEntryIds || []), ...(m.notes || []).flatMap(n => n.entryId ? [n.entryId] : []), ...(m.quotedSources||[]).map(q=>q.id)];
+    if (!bounded && (m.suppliedSources||m.quotedSources||[]).some(q=>{const e=db.getCabinetEntry(q.id);return !e||!ctx.allowedIds.has(q.id)||(e.updatedAt||e.createdAt)!==q.revision;})) blockedHistoryIds.add(m.id);
+    if (refs.some(revoked)) blockedHistoryIds.add(m.id);
+    // Source corrections outrank earlier wording derived from that source. An exchange
+    // recorded before the current revision is not reused as a competing current fact.
+    if (m.createdAt && refs.some(id => { const e=db.getCabinetEntry(id); return !!e?.updatedAt && Date.parse(e.updatedAt)>Date.parse(m.createdAt); })) blockedHistoryIds.add(m.id);
+  }
   const sharedNums: number[] = [];
   collectNumbers([facts, read.allowed.map((e) => [e.title, e.detail, e.target])], sharedNums);
   // Amounts that only exist in things Nora may not read: a reply quoting one of them is left out.
@@ -873,7 +1087,10 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     .filter((n) => n >= 100 && !sharedNums.some((k) => Math.abs(k - n) <= Math.max(1, k * 0.01)));
   const mentionsHidden = (t: string) => numbersIn(withoutDates(t)).some((n) => hiddenNums.some((h) => Math.abs(h - n) <= Math.max(1, h * 0.01)));
   const leftOut = (m: ChatMessage): string | null => {
-    if (m.sender === 'user') return null; // the customer's own words
+    if (bounded && m.sender !== 'user' && m.exposedSources === undefined) return '[older assistant context has no bounded exposure record and is not reused]';
+    if (m.sender !== 'user' && m.suppliedSources === undefined && !(m.usedEntryIds?.length || m.notes?.some(n=>n.entryId))) return '[an older assistant reply is not reused because its supplied source versions were not recorded; the customer history is unchanged]';
+    if (blockedHistoryIds.has(m.id)) return '[an earlier exchange is left out because the customer no longer shares its saved context]';
+    if (m.sender === 'user') return null; // source exchanges with withdrawn context were removed above
     const refs = [...(m.usedEntryIds || []), ...(m.notes || []).map((n) => n.entryId).filter(Boolean) as string[]];
     if ((m.notes || []).some((n) => n.text.startsWith('🗂')) && refs.every((id) => notSharedIds.has(id) || !db.getCabinetEntry(id)))
       return '[Nora removed something the customer asked to remove]';
@@ -884,6 +1101,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const cardLine = (m: ChatMessage) =>
     (m.cards || [])
       .map((c) => {
+        if(c.type==='goal_confirm')return m.resolved==='Confirmed goal'?'[customer confirmed a goal proposal; only current supplied saved goal facts may be used]':'[unconfirmed or declined goal proposal, not a saved fact; only a tap on an active proposal can save it]';
         if (c.type !== 'import') return `[card shown: ${c.type}]`;
         const src = c.data?.source || 'a file';
         if (!m.resolved) return `[Nora suggested things from “${src}”; the customer hasn’t decided yet, so they aren’t known]`;
@@ -893,24 +1111,72 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
         return `[saved from “${src}”, now in WHAT YOU KNOW: ${saved.map((e) => e.title).join('; ')}]`;
       })
       .join('\n');
-  const turns: Turn[] = history.map((m) => {
+  // If a source change removed the latest free-text antecedent, a short answer must
+  // not be interpreted against an invented or withdrawn question. Code-owned current
+  // question cards are handled separately. Ask one safe repair question, keeping all
+  // customer messages and the current cabinet intact, without replaying old prose.
+  const latestAssistant=[...history].reverse().find(m=>m.sender!=='user');
+  const shortDependentReply=userText.trim().split(/\s+/).length<=8 && /^(?:yes|no|yep|yeah|sure|ok(?:ay)?|the (?:first|second|third|other) one|that one|january|february|march|april|may|june|july|august|september|october|november|december|kyllä|joo|ei|tammikuu|maaliskuu)\b/i.test(userText.trim());
+  if(latestAssistant && leftOut(latestAssistant) && shortDependentReply && !pendingQuestion(userId,conversationId,fin.DEMO_TODAY)) {
+    return {text:'The context behind my earlier question has changed, so I need to check what you mean before changing anything. What would you like this choice to apply to?',suggestions:[],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true};
+  }
+  const allowedHistory = history.filter(m => !leftOut(m));
+  const contracts = conversationContracts(allowedHistory, userText, db.getUser(userId)?.age, fin.DEMO_TODAY, !!db.getUser(userId)?.offersOff, new Set(read.allowed.map(e => e.title)), new Set(Object.entries(db.getUser(userId)?.advice?.rules || {}).filter(([,v]) => ['never', 'notNow'].includes(v.last)).map(([id]) => id)));
+  checkedContext += '\n' + contracts.facts;
+  groundedNote = checkedContext;
+  system += '\n' + contracts.facts + '\n' + contracts.text;
+  // Keep complete recent messages within a fixed character budget. Include card/control
+  // rendering and resolved answers in the budget, not just the visible text.
+  const renderHistory = (m: ChatMessage) => {
     const out = leftOut(m);
-    if (out) return { role: 'model' as const, text: out };
-    return {
-      role: m.sender === 'user' ? ('user' as const) : ('model' as const),
-      text: (m.attachment ? `[sent a file: ${m.attachment.name}]` : String(m.text || '').slice(0, 400)) + (m.cards?.length ? `\n${cardLine(m)}` : '') + (m.resolved ? `\n[customer tapped: ${m.resolved}]` : ''),
-    };
-  }).filter((t) => t.text.trim());
+    if (out) return out;
+    if(m.cards?.some(c=>c.type==='goal_confirm')&&m.resolved!=='Confirmed goal')return '[a goal was proposed, not saved; proposal values are not established facts]';
+    return (m.attachment ? `[sent a file: ${m.attachment.name}]` : String(m.text || '')) + (m.cards?.length ? `\n${cardLine(m)}` : '') + (m.resolved ? `\n[customer tapped: ${m.resolved}]` : '');
+  };
+  // Whole request budget includes system, source facts, contracts, current question and history.
+  // Characters are a conservative transport bound, not an advertised tokenizer count.
+  const REQUEST_CHAR_LIMIT = 48000;
+  let historyBudget = Math.max(0, Math.min(16000, REQUEST_CHAR_LIMIT - system.length - userText.length - JSON.stringify(turnTools).length - 3000));
+  const boundedIds = new Set<string>();
+  for (const m of [...history].reverse()) {
+    const size = renderHistory(m).length;
+    if (size > historyBudget) continue; // One oversized middle message must not erase all older context.
+    historyBudget -= size;
+    boundedIds.add(m.id);
+  }
+  const turns: Turn[] = history.filter(m => boundedIds.has(m.id)).map((m) => ({
+    role: m.sender === 'user' ? ('user' as const) : ('model' as const), text: renderHistory(m),
+  })).filter(t => t.text.trim());
+  const pending = pendingQuestion(userId, conversationId, fin.DEMO_TODAY);
+  if (pending) system += '\nCURRENT QUESTION: ' + JSON.stringify({ messageId: pending.message.id, fact: pending.fact, type: pending.type, question: pending.question, interrupted: pending.interrupted }) + '\nWhen the customer answers this question, call answerQuestion. Do not save uncertain meaning. Ask one material clarification, never restart the whole intake.';
+  const updateSeen=()=> {if(exposure)seen.supplied={notes:exposure.visibleKeys().filter(k=>!k.startsWith('nordea:')).length,accountData:true};};
+  updateSeen();
+  // Direct saved-context inspection has a code-owned result state. Arbitrary model prose
+  // cannot turn a partial/empty lookup into false absence, including in another language.
+  if(bounded && ((savedRecallRequest(userText)&&!mixedSavedRequest(userText)&&!/^what do you keep about me[?.! ]*$/iu.test(userText)&&!/\b(?:store|retain|keep)\b[^.!?]{0,35}\b(?:chat|conversation|everything)|\bprivacy\b|tallennatko/iu.test(userText))||pageFollowup)) {
+    const rows=initial!.rows.filter((r,i,a)=>a.findIndex(x=>x.id===r.id || x.title.normalize('NFKC').toLowerCase()===r.title.normalize('NFKC').toLowerCase()&&x.detail===r.detail)===i);
+    const fi=prior?.savedContextPage?.language==='fi' && pageFollowup || /(?:mitä|kerro|minusta|autostani|tiedät|muistat|onko|sinulla|muistiin)/iu.test(userText);
+    const text=rows.length ? (fi?'Jaetusta tallennetusta tiedosta löytyi: ':'From the saved context currently shared: ')+'\n'+rows.map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n')+(initial!.truncated?(fi?' Tämä on vain osa tiedoista. Sano lisää tai rajaa aihetta.':' This is a partial view. Say more for the next page, or name a topic.'): '') : (fi?'En saanut sopivaa osumaa tällä haulla. Se ei tarkoita, ettei tietoa olisi tallennettu. Millä nimellä tai aiheella se tallennettiin?':'This search did not find a matching saved item. That does not mean it is not saved. What name or topic was it saved under?');
+    const currentText=completedPage ? (fi?'Tämä haku on jo käyty loppuun. Voit kysyä toisesta aiheesta.':'That saved-context search is complete. You can ask about another topic.') : text;
+    return {text:currentText,suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:rows.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true,savedContextPage:completedPage?prior!.savedContextPage!:{query:retrievalQuery,cursor:initial!.nextCursor,complete:!initial!.truncated,count:rows.length,language:fi?'fi':'en',viewRevision,discovery:rows.some(r=>r.discoveryOnly)}};
+  }
+  if(exposure) for(const m of history.filter(m=>boundedIds.has(m.id)&&!leftOut(m))) {exposure.inherit(m.exposedSources || []);exposure.inheritVisible(m.exposedContentKeys || []);}
+  updateSeen();
+  if(bounded)system+='\nBOUNDED SAVED CONTEXT: Only the supplied rows were looked up. Other saved context may exist. Use getMoreSaved for a missing related detail, with synonyms or translated terms. Never assert no saved fact exists from a missing row. Initial lookup: '+initial!.note;
+  financialEvidence.includeRequest(userText);
+  system+='\nFINANCIAL FACT HANDLES (current, role-bound, source-bound): '+JSON.stringify(financialEvidence.handles())+'\nFor personal financial numbers and dates, use financialAnswer in finishReply. text must not restate numeric/date claims; app renders the chosen facts/calculation with their purpose and units. If no relevant fact exists, quote the exact saved source or ask what is missing. Do not invent field roles.';
   turns.push({ role: 'user', text: userText });
 
   // Numbers Nora may use: FACTS, what the gateway returned this turn, the customer's own messages, and tool
   // results (added as tools run). Not Nora's own earlier replies or file contents.
-  const customerWords = [...history.filter((m) => m.sender === 'user' && !m.attachment).map((m) => String(m.text || '')), userText];
+  const customerWords = [...history.filter((m) => m.sender === 'user' && !m.attachment && !leftOut(m)).map((m) => String(m.text || '')), userText];
   const known: number[] = [];
-  collectNumbers(read.allowed.map((e) => [e.detail, e.target, e.title]), known);
+  collectNumbers(selected.map((e) => [e.detail, e.target, e.title]), known);
   collectNumbers(customerWords, known);
+  if(bounded)collectNumbers(history.filter(m=>boundedIds.has(m.id)&&!leftOut(m)).map(m=>m.text),known);
   collectNumbers(facts, known);
-  if (shared) collectNumbers([shared.userDbFacts ?? '', shared.sharedContext ?? ''], known); // F10: architecture facts are quotable
+  if (bounded) collectNumbers(exposure!.content().map(r=>[r.title,r.detail,r.data]),known);
+  else if (suppliedShared) collectNumbers([suppliedShared.userDbFacts ?? '', suppliedShared.sharedContext ?? ''], known); // F10: architecture facts are quotable
   collectNumbers([cardNote, groundedNote], known); // v29: the rule's official numbers (ASP 1 %, 4 %, 30 %…)
   // Partner fees as the percentages a card shows (a 2 % fee is stored as 0.02).
   for (const p of getAllPartners()) if (p.fee.type !== 'flat') known.push(Math.round(p.fee.value * 10000) / 100);
@@ -918,9 +1184,21 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   // For maths checks, only real amounts (not ids, IBANs or dates, which would make almost any number "derivable").
   const money: number[] = [];
   const numsOnly = (v: unknown) => { if (typeof v === 'number') money.push(v); else if (Array.isArray(v)) v.forEach(numsOnly); else if (v && typeof v === 'object') Object.values(v).forEach(numsOnly); };
+  let retrievalCalls=0;
+  ctx.retrieve = (args) => {
+    if(++retrievalCalls>3)return {error:'Saved-context lookup limit reached for this reply. No more source content was supplied. Explain the limited check.'};
+    if(!bounded)return {error:'Bounded retrieval is not active.'};
+    const allowBroad=broad && args.broad===true;
+    const page=retrieveContext(sources.filter(r=>r.id!=='app-bank-core' && !r.discoveryOnly && (!args.goalId || r.id===args.goalId)),{query:String(args.query || userText),broad:allowBroad,cursor:typeof args.cursor==='string'?args.cursor:undefined});
+    exposure!.include(page.rows);for(const row of page.rows){const e=read.allowed.find(e=>e.id===row.id);if(e){financialEvidence.includeEntry(e);if(e.type==='goal'&&e.status==='active'&&e.target)financialEvidence.includeGoal({...fin.goalStatus(userId,e),goalType:e.goalType,savingRateKnown:fin.primaryGoal(userId)?.id===e.id});}}
+    system+='\nUPDATED FINANCIAL FACT HANDLES: '+JSON.stringify(financialEvidence.handles());
+    for(const row of page.rows)if(row.owner==='cabinet')ctx.exposedIds!.add(row.id);updateSeen();
+    collectNumbers(page.rows.map(r=>[r.title,r.detail,r.data]),known);numsOnly(page.rows.map(r=>r.data));
+    return page;
+  };
   numsOnly(facts);
-  read.allowed.forEach((e) => e.target && money.push(e.target.amount));
-  for (const t of [...read.allowed.map((e) => `${e.title} ${e.detail}`), ...customerWords])
+  selected.forEach((e) => e.target && money.push(e.target.amount));
+  for (const t of [...selected.map((e) => `${e.title} ${e.detail}`), ...customerWords])
     money.push(...numbersIn(withoutDates(String(t))).filter((x) => x < 1e7));
 
   // v29: a scam or a lost card: the safety steps come first, once per conversation.
@@ -930,8 +1208,38 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
 
   // When no AI can answer, the bank's code answers the common questions with real numbers.
   const offline = (detail?: string): NoraReply => {
+    if(/Personal financial quantities/.test(detail||'')){
+      const rows=(exposure?.content()||[]).filter(r=>!r.discoveryOnly&&r.id!=='app-bank-core');
+      const relevant=rows.filter(r=>r.detail&&financialEvidence.list().some(f=>f.sourceId===r.id));
+      return {text:relevant.length?'I could verify these saved source details, but did not complete the calculation:\n'+relevant.map(r=>r.title+': '+r.detail).join('\n'):'I have not verified the requested financial calculation. Which saved item should I use?',suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:relevant.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true,errorDetail:detail};
+    }
+    if(/Pending goal proposal/.test(detail||''))return {text:'That goal was only proposed, not saved. Tap its confirmation card if you want to save it.',suggestions:[],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true,offline:true,errorDetail:detail};
+    if(ctx.goalWriteReplies?.length)return {text:ctx.goalWriteReplies.join('\n'),suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[...ctx.extraUsed],topic:'other',couldHelp:true,offline:true,errorDetail:detail};
+    // A failed explanation is not a successful bank-script answer to a different task.
+    // Keep actual controls/notes, but never silently substitute a canned product explanation.
+    if (/Unverified|incomplete response|garbled|was code|provider failure|step limit|safe request budget/i.test(detail || '')) {
+      if (/ACTION|cannot connect, call, book, block, order, report or remind/i.test(detail || '') && (ASKS_PERSON.test(userText) || FRAUD.test(userText)) && !ctx.cards.some(c => c.type === 'handoff')) runTool({ id: 'code', name: 'startHandoff', args: {} }, ctx);
+      const policyQuestion=/\b(?:store|keep|retain|privacy|data retention)\b|tallennatko/iu.test(userText) && !/\b(?:tell|told|mentioned|debt|loan)\b/iu.test(userText);
+      const privacyFailure = policyQuestion && /not true: Nora keeps/i.test(detail || '');
+      const connectionFailure = /provider failure/i.test(detail || '');
+      const rateLimited = connectionFailure && /429|rate.?limit|quota|capacity/i.test(detail || '');
+      if(bounded && !FRAUD.test(userText) && (detail?.startsWith('Unverified reply after correction: A limited search') || !policyQuestion && /not true: Nora keeps/i.test(detail || ''))) {
+        const rows=exposure!.content().filter(r=>r.id!=='app-bank-core');
+        const fi=/(?:mitä|kerro|sinulla|muistat|tallenn|kuussa)/iu.test(userText);
+        const factsText=rows.length?rows.filter((r,i,a)=>a.findIndex(x=>x.id===r.id)===i).map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n'):(fi?'Haku tarvitsee toisen hakusanan.':'This search needs another name or topic.');
+        return {text:(rows.length?(fi?'Jaetusta tiedosta löytyi:\n':'The currently shared context includes:\n'):'')+factsText+(mixedSavedRequest(userText)?(fi?'\nEn saanut vielä luotettavaa vastausta kysymyksesi toiseen osaan.':'\nI have not yet obtained a verified answer to the other part of your request.') : ''),suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true};
+      }
+      if(bounded && /Unverified/i.test(detail||'') && /\b(?:that|it|this)\b/iu.test(userText) && !validPrior.length && /months?|weeks?|years?/iu.test(userText))return {text:'Which saved plan or amount should I use for that calculation?',suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true};
+      const failText = ctx.cards.some(c => c.type === 'handoff')
+        ? 'Tap Connect me below to reach a Nordea adviser. Nothing has been sent yet, and nobody will call until you connect.'
+        : connectionFailure ? (rateLimited ? 'Nora’s AI service has reached its current usage limit, so I could not finish answering your request. Your request is still open.' : 'I could not reach Nora’s AI service, so I could not finish answering your request. Your request is still open.') + (ctx.notes.length ? ' Any changes already shown below remain saved and can be undone.' : '')
+        : privacyFailure ? 'I keep only what you’ve approved in Nora knows, and this chat is kept in your history. You can review or remove saved items there.'
+        : ctx.cards.length || ctx.notes.length ? doneLine() : 'I couldn’t verify my answer, so I won’t guess. Your request is still open. You can try again or ask a Nordea adviser.';
+      recordTurn(Date.now() - t0, modelCalls);
+      return { text: withSafety(failText), suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [...ctx.extraUsed], topic: 'other', couldHelp: false, offline: true, errorDetail: detail, provider: answerProvider };
+    }
     // The AI did answer but badly (garbled, made-up numbers): that's "I didn't get that right", not "try later".
-    const o = offlineAnswer(userId, userText, read.allowed, /garbled|Unverified|step limit|was code/i.test(detail || '') ? 'unclear' : 'no_ai', history.filter((m) => m.sender === 'user').slice(-3).map((m) => String(m.text || '')).join(' '));
+    const o = offlineAnswer(userId, userText, read.allowed, /garbled|Unverified|step limit|was code/i.test(detail || '') ? 'unclear' : 'no_ai', history.filter((m) => m.sender === 'user' && !leftOut(m)).slice(-3).map((m) => String(m.text || '')).join(' '));
     for (const a of o.actions || []) {
       const r: any = runTool({ id: 'offline', name: a.name, args: a.args }, ctx);
       // v31: a card the code couldn't show (too much, no car fund…): never "Here it is 👇" without it.
@@ -964,8 +1272,48 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     return false;
   };
   /** What's wrong with a reply, told to the model so it can write it again itself. */
+  const groundingRequest=/\b(?:that|it|this)\b/iu.test(userText) && validPrior.length ? userText+' '+history.filter(m=>m.sender==='user'&&boundedIds.has(m.id)&&!leftOut(m)).at(-1)?.text : userText;
+  const groundingSources:GroundingSource[]=[{label:'Customer request',text:userText},...facts.goals.map((g:any)=>({label:g.title,text:JSON.stringify(g)})),...exposure?.content().filter(r=>!r.discoveryOnly).map(r=>({label:r.title,text:r.detail+' '+JSON.stringify(r.data||{})}))||[],{label:'Checked product background',text:groundedNote}];
+  let sourceEvidenceRetried=false;
+  const narrowSourceAnswer=(text:string,args:Record<string,any>):NoraReply|null=>{
+    if(/\d/.test(text))return null;
+    if(!bounded || !provider.isConfigured() || (!personalContextQuestion(userText) && !(!mixedSavedRequest(userText)&&/(?:mentioned|remember|saved|planning for|suunnitteilla|putting aside)/iu.test(userText) || /^(?:i (?:cannot|can.t)|it is not saved|what [^?]+\?|no[, ]|ei ollut)/iu.test(text.trim()))) || FRAUD.test(userText) || ctx.cards.length || ctx.notes.length)return null;
+    const rows=exposure!.content().filter(r=>r.id!=='app-bank-core'&&!r.discoveryOnly);
+    if(!rows.length)return null;
+    const evidence=args.savedAnswerEvidence;
+    const quote=typeof evidence?.quote==='string'?evidence.quote.trim():'';
+    const row=rows.find(r=>r.id===evidence?.sourceId);
+    if(!financialGroundingProblem(text,rows.map(r=>({label:r.title,text:r.detail})),userText) && rows.some(r=>{const anchor=r.detail.toLowerCase().match(/[\p{L}]{4,}/gu)||[];return anchor.filter(w=>text.toLowerCase().includes(w)).length>=2;}))return null;
+    if(row && quote.length>=8 && row.detail===quote && (text.trim()===quote||text.trim()===row.title+': '+quote))return null;
+    // Missing evidence is not permission to deny knowledge or guess from a title.
+    // Return only the code-observed current rows; mixed tasks never enter this branch.
+    const fi=/(?:mitä|kerro|sinulla|muistat|tallenn|kuussa|minun|mulla|olenko|onko)/iu.test(userText);
+    return {text:(fi?'Jaetusta tallennetusta tiedosta löytyi:\n':'From the saved context currently shared:\n')+rows.filter((r,i,a)=>a.findIndex(x=>x.id===r.id||x.title===r.title&&x.detail===r.detail)===i).map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n'),suggestions:[],cards:[],notes:[],usedEntryIds:rows.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true};
+  };
   const problemWith = (text: string): string | null => {
+    const proposed=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.cards?.some(c=>c.type==='goal_confirm')&&m.resolved!=='Confirmed goal').flatMap(m=>m.cards!.filter(c=>c.type==='goal_confirm').map(c=>c.data)).filter(Boolean);
+    for(const data of proposed){
+      const p=data!.draft;if(!p)continue;
+      const named=text.toLocaleLowerCase().includes(String(p.title).toLocaleLowerCase())||data!.entryId&&text.toLocaleLowerCase().includes(String(data!.existing?.title).toLocaleLowerCase());
+      const current=read.allowed.find(e=>e.type==='goal'&&e.status==='active'&&(e.id===data!.entryId||e.title.toLocaleLowerCase()===String(p.title).toLocaleLowerCase()));
+      const claimScope=/\b(?:propos\w*|not saved|unsaved|not confirmed|hasn.t been saved|tap|draft|ehdot\w*|ei.*tallenn|vahvist\w*)\b/iu.test(text);
+      const pendingFields=p.target&&(!current||JSON.stringify(current.target)!==JSON.stringify(p.target))&&(text.includes(String(p.target.amount))||text.includes(String(p.target.date)));
+      if(named&&(!current||pendingFields)&&!claimScope)return 'Pending goal proposal is not a saved or established goal. State only that it was proposed and still needs a tap. Do not describe it as a current saving fact.';
+    }
+
+    // A currently disclosed manifest can prove its fixed contract duration, not personal figures.
+    // Mask only this exact role-bound phrase for the personal-handle gate; source checks still run.
+    const productDurationText=/Fictional partner Lumivalo Energy/.test(checkedContext)&&/Fixed price · 12 months/.test(checkedContext)
+      ?text.split(/(?<=[.!?])\s+|\n/u).map(clause=>/\b(?:your|my|our|current|existing|gym|phone|loan|debt|salary|pension|balance|saving|goal)\b/iu.test(clause)?clause:clause.replace(/\bfixed price option[^.!?\n]{0,100}?same per-kWh rate for 12 months\b/gu,m=>m.replace('12','twelve'))).join('\n'):text;
+    if(bounded&&(/\d|\b(?:january|february|march|april|june|july|august|september|october|november|december|marraskuu|maaliskuu|kesäkuu)\b/iu.test(productDurationText.replace(/^\s*\d{1,2}[.)]\s+/gm,''))||/\bMay\b/u.test(productDurationText))&&financialEvidence.list().length){
+      const exact=exposure?.content().filter(r=>!r.discoveryOnly&&r.id!=='app-bank-core').some(r=>r.detail.length>=12&&text.trim()===r.detail.trim()||text.trim()===(r.title+': '+r.detail).trim());
+      if(!exact)return 'Personal financial quantities and calendar fields must use financialAnswer handles, with purpose and units preserved. Do not restate guessed numeric/date claims in prose. An exact source quote is allowed when parsing is unsupported.';
+    }
+    if (bounded && knowledgeAbsenceClaim(text)) return 'A limited search does not establish that no saved fact exists. Retrieve the related context or describe the limited check without claiming absence.';
+    if(bounded){const financial=financialGroundingProblem(text,groundingSources,groundingRequest);if(financial)return financial;}
     if (!text.trim()) return 'Your reply was empty (maybe cut off). Answer again briefly with finishReply.';
+    const roleProblem = personalRoleProblem(text, facts, ctx.cards);
+    if (roleProblem) return roleProblem;
     const reviewedProblem = reviewedReplyProblem(userText, text, checkedContext, ctx.cards);
     if (reviewedProblem) return reviewedProblem;
     if (looksLikeCode(text)) return 'Your reply was code or a tool call written as text. Call the tool properly, and give the customer plain words in finishReply.';
@@ -978,6 +1326,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const tm = transferMismatch(text, ctx.cards);
     if (tm) return tm;
     if (NOT_STORED_CLAIM.test(text)) return 'That is not true: Nora keeps what the customer approved in "Nora knows" (they can see and remove it), and this chat is kept in their history. Write the reply again with that.';
+    if(text.length>400&&!/[.!?]["'’”)]*$/u.test(text.trim()))return 'Your long reply ends without a complete sentence. Rewrite the whole answer in at most 300 characters, complete sentences, no unfinished offer.';
     if (CUT_OFF.test(text) && text.length > 40) return 'Your reply was cut off mid-sentence. Write it again, complete and short.';
     if (FRAUD.test(userText) && REASSURE.test(text)) return 'Do not judge how likely the scam or payment is (no "probably nothing", "almost certainly"). Write it again: you can\'t tell from here, the steps above are what to do.';
     return null;
@@ -988,22 +1337,19 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     if (Date.now() > deadline) break;
     let res;
     try {
+      if (system.length + JSON.stringify(turns).length + JSON.stringify(turnTools).length > REQUEST_CHAR_LIMIT) return offline('Unverified: the available context exceeds the safe request budget. No additional model request made.');
       modelCalls++;
-      res = await provider.step({ system, turns, tools: TOOLS, temperature: 0.3 });
+      res = await provider.step({ system, turns, tools: turnTools, temperature: 0.3 });
     } catch (err: any) {
       console.error('LLM error:', err?.message || err);
       const detail = lastErrorText() || String(err?.message || err).slice(0, 300);
-      // A card or a saved note is already prepared (e.g. the transfer to confirm): show it with a short line
-      // instead of an error, so the work isn't lost.
-      if (ctx.cards.length || ctx.notes.length) {
-        recordTurn(Date.now() - t0, modelCalls);
-        return {
-          text: doneLine(),
-          suggestions: [], cards: ctx.cards, notes: ctx.notes, usedEntryIds: [], topic: 'other', couldHelp: true,
-          offline: true, errorDetail: detail,
-        };
-      }
-      return offline(detail);
+      // Keep prepared controls/notes, but a partial action cannot hide failed explanation.
+      return offline('provider failure: ' + detail);
+    }
+    answerProvider = res.answeredBy || `${provider.label || provider.name}${provider.model ? ' ' + provider.model : ''}`;
+    if (res.incomplete) {
+      if (step === 0) { turns.push({role:'user',text:'The previous response was incomplete and was not shown. Give a complete short answer to the original request. Do not claim any unfinished action completed.'}); continue; }
+      return offline('The provider returned an incomplete response (' + (res.finishReason || 'unknown') + '). No partial answer accepted.');
     }
     if (!res.calls.length) {
       // The model answered in plain text despite the instructions (sometimes with finishReply's JSON inside):
@@ -1011,6 +1357,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       const raw = (res.text || '').trim();
       const j = jsonReplyIn(raw);
       const t = cleanReply(j ? String(j.text) : raw);
+      const sourceAnswer=t?narrowSourceAnswer(t,j || {}):null;
+      if(sourceAnswer)return sourceAnswer;
       const p = t ? problemWith(t) : null;
       if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known, money).length && !p) {
         recordTurn(Date.now() - t0, modelCalls);
@@ -1018,7 +1366,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       }
       if (t && isGarbled(t)) return offline('The AI answer was garbled');
       if (p && repeatedReviewedProblem(t)) return offline('Unverified reply after correction: ' + p);
-      if (p && ruleRetried && !reviewedReplyProblem(userText,t,checkedContext,ctx.cards)) return offline('Unverified reply after correction: ' + p);
+      if (p && ruleRetried && !reviewedReplyProblem(userText, t, checkedContext, ctx.cards)) return offline('Unverified reply after correction: ' + p);
       if (p) ruleRetried = true;
       turns.push({ role: 'model', text: t || '(empty)' });
       turns.push({ role: 'user', text: `(system) ${p || 'Please answer by calling finishReply, and use tools for any numbers.'}` });
@@ -1030,11 +1378,41 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     // Run the other tools first, so a finishReply in the same step sees their results and cards.
     const ordered = [...res.calls.filter((c) => c.name !== 'finishReply'), ...res.calls.filter((c) => c.name === 'finishReply')];
     for (const call of ordered) {
+      if(readScope&&!readScope.has(call.name)){results.push({call,result:{accepted:false,error:'This is a read-only recall turn. No stateful action was authorized or run. Answer from current sources, or ask the customer to clarify a separate action request.'}});continue;}
       if (call.name === 'finishReply') {
+        if(ctx.goalWriteReplies?.length){finished=finish(ctx.goalWriteReplies.join('\n'),[],[], 'other',true);results.push({call,result:{accepted:true}});continue;}
+        if(bounded && call.args.savedLookupClaim==='claims_no_saved_fact'){results.push({call,result:{accepted:false,error:'No complete knowledge-absence proof exists. Describe the limited lookup or ask what name to search.'}});continue;}
+        const retrievalChanged=results.some(r=>r.call.name==='getMoreSaved'||r.call.name==='getGoalStatus');
+        if(retrievalChanged){results.push({call,result:{accepted:false,error:'New bounded source results arrived in this step. Read them before writing the reply. A partial or empty search cannot establish absence of saved information.'}});continue;}
+        const questionChanged = results.some(r => (r.call.name === 'answerQuestion' || r.call.name === 'selectConversationTopic') && ((r.result as any)?.saved === true || (r.result as any)?.shown === true));
+        if (questionChanged) {
+          results.push({ call, result: { accepted: false, error: 'The pending question changed in this step. Write finishReply again after reading its result. Only saved:true means saved; shown:true with saved:false is an interpretation review, not eligibility or a saved fact. CURRENT QUESTION and THIS TURN earlier in the prompt are superseded by this result.' } });
+          continue;
+        }
+        if(Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length){
+          try{
+            const requested=call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact});
+            const lines=financialEvidence.render(requested,/(?:mitä|mihin|palkkani|palkkapäiv|milloin|paljonko|kuinka|tavoite|kuussa|vuodessa|päättyy)/iu.test(userText)?'fi':'en',userText);
+            const prose=cleanReply(String(call.args.text||''));
+            const fi=/(?:mitä|mihin|palkkani|palkkapäiv|milloin|paljonko|kuinka|tavoite|kuussa|vuodessa|päättyy)/iu.test(userText);
+            const missing=financialEvidence.coverage(requested,userText);
+            const fiMissing:Record<string,string>={'requested income':'pyydetty tulo','requested monthly additional saving':'pyydetty kuukausittainen lisäsäästö','requested remainder after spending and existing saving':'pyydetty jäännös kulujen ja nykyisen säästämisen jälkeen','actual transfers, these planning figures do not verify transfer history or execution':'todelliset tilisiirrot, nämä suunnitteluluvut eivät vahvista siirtohistoriaa tai toteutusta'};
+            const note=missing.length?(fi?'Vielä tarkistamatta: ':'Still unverified: ')+missing.map(m=>fi?(fiMissing[m]||m):m).join(', ')+'.':'';
+            const pendingMessage=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.cards?.some(c=>c.type==='goal_confirm')).at(-1);
+            const pd=pendingMessage&&!pendingMessage.resolved?pendingMessage.cards?.find(c=>c.type==='goal_confirm')?.data:undefined;
+            const pe=pd?.entryId?previewCabinetForAgent(userId,'abel').allowed.find(e=>e.id===pd.entryId):undefined;
+            const pendingLine=pe&&pd?.draft?.target&&goalNameInText(pe.title,userText)&&pd.existingRevision===goalRevision(pe)&&pd.expiresAt&&Date.parse(pd.expiresAt)>Date.now()?`For "${pe.title}", the proposed target ${pd.draft.target.amount} EUR by ${pd.draft.target.date} is not saved. Only tapping the card confirmation would apply it.`:'';
+            const staleLines=read.allowed.filter(e=>e.type==='goal'&&e.status==='stale'&&(/\bcar\b/iu.test(userText)?/\bcar\b/iu.test(e.title):false)).map(e=>fi?`Tavoite "${e.title}" on merkitty vanhentuneeksi. Määräpäivä on mennyt.`:`The "${e.title}" goal is marked stale. Its saved deadline has passed.`);
+            const localizedPending=fi&&pendingLine&&pe&&pd?.draft?.target?`Tavoitteen "${pe.title}" ehdotettu summa ${pd.draft.target.amount} euroa ja määräpäivä ${pd.draft.target.date} eivät ole tallennettuja. Muutos vaatii kortin vahvistuksen.`:pendingLine;
+            finished=finish([...lines,...staleLines,localizedPending,note].join('\n\n'),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
+            results.push({call,result:{accepted:true}});continue;
+          }catch(err:any){results.push({call,result:{accepted:false,error:String(err.message)+' Choose only current handles and compatible calculations.'}});continue;}
+        }
         const text = cleanReply(String(call.args.text || ''));
+        const sourceAnswer=narrowSourceAnswer(text,call.args);if(sourceAnswer){if(sourceEvidenceRetried)return sourceAnswer;sourceEvidenceRetried=true;results.push({call,result:{accepted:false,error:'Current saved source rows were supplied for this personal-context question. Answer from them with savedAnswerEvidence.sourceId and an exact detail quote naturally included in the answer. Do not deny knowledge, refuse, or answer a privacy-policy question instead. If the rows are not relevant, ask a constructive clarification.'}});continue;}
         if (isGarbled(text) && ruleRetried) return offline('The AI answer was garbled');
         if (isGarbled(text)) { ruleRetried = true; results.push({ call, result: { accepted: false, error: 'Your reply came out broken. Write it again in plain, complete sentences.' } }); continue; }
-        const bad = unsupportedNumbers(text, known, money);
+        const bad = unsupportedNumbers(text.replace(/^\s*\d{1,2}[.)]\s+/gm,''), known, money);
         if (bad.length && !retried) {
           retried = true;
           results.push({ call, result: { accepted: false, error: `These numbers did not come from any tool or the cabinet: ${bad.join(', ')}. Call the right tool, then finishReply again without made-up numbers.` } });
@@ -1046,6 +1424,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
         // expecting it, so the model writes them again knowing what happened.
         const failed = results.find((r) => (r.result as any)?.error && ((r.result as any).shown === false || (r.result as any).saved === false));
         const p = problemWith(text) || (failed ? `Your reply was written before this result: ${(failed.result as any).error} Write the reply again to match.` : null);
+        if (p && ruleRetried && !reviewedReplyProblem(userText, text, checkedContext, ctx.cards)) return offline('Unverified reply after correction: ' + p);
         if (p && repeatedReviewedProblem(text)) return offline('Unverified reply after correction: ' + p);
         if (p && (!ruleRetried || reviewedReplyProblem(userText, text, checkedContext, ctx.cards))) {
           ruleRetried = true;
@@ -1056,6 +1435,25 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
         results.push({ call, result: { accepted: true } });
       } else {
         const result = runTool(call, ctx);
+        if (call.name === 'selectConversationTopic' && (result as any)?.shown === true) {
+          const contract = String((result as any).checked || (result as any).note || '');
+          checkedContext += '\n' + contract;
+        }
+        if(exposure) {
+          const serialized=JSON.stringify(result) || '';
+          const ids=new Set<string>();
+          const scan=(value:unknown)=>{if(!value||typeof value!=='object')return;for(const [k,v]of Object.entries(value)){if(['entryId','id','archived'].includes(k)&&typeof v==='string')ids.add(v);else if(typeof v==='object')scan(v);}};
+          scan(result);
+          const returned=sources.filter(row=>ids.has(row.id) || (row.title.length>=4 && serialized.includes(row.title)));
+          for(const id of ids) {
+            const entry=previewCabinetForAgent(userId,'abel').allowed.find(e=>e.id===id);
+            if(entry && !returned.some(r=>r.owner==='cabinet'&&r.id===id))returned.push({owner:'cabinet',id,revision:sourceRevision([entry.title,entry.detail,entry.target,entry.goalType,entry.updatedAt||entry.createdAt]),title:entry.title,detail:entry.detail,data:{target:entry.target,goalType:entry.goalType}});
+          }
+          for(const row of returned){const e=read.allowed.find(e=>e.id===row.id);if(e)financialEvidence.includeEntry(e);}
+          exposure.include(returned);updateSeen();
+          system+='\nUPDATED FINANCIAL FACT HANDLES: '+JSON.stringify(financialEvidence.handles());
+        }
+        groundingSources.push({label:call.name,text:JSON.stringify(result)});
         collectNumbers(result, known);
         numsOnly(result);
         results.push({ call, result });
@@ -1092,11 +1490,14 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
 
   /** Plain words for the cards and notes of this turn. */
   function doneLine() {
+    if(ctx.goalWriteReplies?.length)return ctx.goalWriteReplies.join('\n');
     const c = ctx.cards[0];
     if (c?.type === 'confirm_save') return 'Thank you for telling me. 💙\n\nIt’s personal, so I haven’t saved it. If you’d like me to keep it in mind, tap Save privately below. Only I could read it, never offers.';
     if (c?.type === 'duplicate') return 'This is close to something I already know. What would you like to do?';
     if (c?.type === 'confirm_plan') return c.data?.once ? `Here’s the transfer to confirm: ${fmt(Number(c.data.amount))} once, now, to ${c.data?.toAccount === 'carFund' ? 'your car fund' : 'your savings'}. Nothing moves until you tap 👇` : `Here’s the transfer to confirm: ${fmt(Number(c.data?.amount))} every month, to your savings. Nothing moves until you tap 👇`;
     if (c?.type === 'handoff') return 'Here’s what a Nordea adviser would see, once, if you connect:';
+    if (c?.type === 'ask_fact') return 'Please check the question below. Your answer is not saved until you choose it.';
+    if (c?.type === 'opportunity') return 'The checked result is below, with its conditions and source.';
     if (c?.type === 'offer') return 'Here’s something that might help:';
     return notesLine();
   }
@@ -1111,7 +1512,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     }
     // Code checks on what the model wrote:
     // a sensitive thing waiting for the customer's tap was not saved, whatever the model says;
-    if (ctx.cards.some((c) => c.type === 'confirm_save') && SAVED_CLAIM.test(text)) {
+    if (ctx.cards.some((c) => c.type === 'confirm_save') && SAVED_CLAIM.test(text) && !ctx.goalWriteReplies?.length) {
       fixed = true;
       text = 'Thank you for telling me. 💙\n\nIt’s personal, so I haven’t saved it. If you’d like me to keep it in mind, tap Save privately below. Only I could read it, never offers.';
     }
@@ -1151,6 +1552,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const others = Object.values(db.getState().users).filter((x: any) => x.id !== userId).map((x: any) => String(x.name || '').split(/\s+/)[0]).filter((n) => n.length >= 3 && n !== first);
     if (first && others.length) text = text.replace(new RegExp(`\\b(Hi|Hello|Hey|Thanks|Thank you|Good (?:morning|afternoon|evening)),?\\s+(${others.join('|')})\\b`, 'g'), `$1 ${first}`);
     text = withSafety(fixName(text, first));
+    if(ctx.goalWriteReplies?.length){text=ctx.goalWriteReplies.join('\n');suggestions=[];}
     // Guardrail 6: only entries the gateway actually returned (or that Nora just saved) can be listed as used.
     const usedIds = Array.from(new Set([...(Array.isArray(used) ? used.map(String) : []), ...ctx.extraUsed])).filter((id) => ctx.allowedIds.has(id) || ctx.extraUsed.includes(id));
     return {
@@ -1164,6 +1566,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       usedEntryIds: usedIds,
       topic: String(topic || 'other'),
       couldHelp: couldHelp !== false,
+      provider: answerProvider,
       ...(fixed ? { offline: true, errorDetail: 'The AI’s words broke a rule twice, so fixed words were used' } : {}),
     };
   }

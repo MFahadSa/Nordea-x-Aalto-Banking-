@@ -20,14 +20,20 @@ export interface Candidate {
   sensitive?: boolean;
 }
 
+/** Exact purpose identity for goals, shared by proposal and transactional consume checks. */
+export function equivalentGoalTitles(a:string,b:string):boolean{
+ const purpose=(s:string)=>new Set([...words(s)].filter(w=>!['fund','pot','goal','target','deposit'].includes(w)).map(w=>['trip','travel','holiday','vacation'].includes(w)?'travel':w));
+ const x=purpose(a),y=purpose(b);return x.size>0&&x.size===y.size&&[...x].every(w=>y.has(w));
+}
+
 /** The closest active thing Nora already knows that looks like the same thing, if any. */
-export function findSimilar(userId: string, c: Candidate): CabinetEntry | undefined {
+export function findSimilarCandidates(userId: string, c: Candidate): CabinetEntry[] {
   // v29: the customer's own name (and the people around them, written in every detail) is not a shared topic.
   const names = new Set(words(String(db.getUser(userId)?.name || '')));
   const drop = (w: Set<string>) => new Set([...w].filter((x) => !names.has(x)));
   const mine = drop(words(`${c.title} ${c.detail || ''}`));
   const titleW = drop(words(c.title));
-  let best: { e: CabinetEntry; score: number } | undefined;
+  const matches: { e: CabinetEntry; score: number }[] = [];
   for (const e of db.getCabinetEntries(userId)) {
     if (e.status === 'archived' || e.type === 'blind_spot') continue;
     if (e.private && !c.sensitive) continue;
@@ -37,16 +43,30 @@ export function findSimilar(userId: string, c: Candidate): CabinetEntry | undefi
     // "Save for a wedding" is not the same as "Honeymoon (trip right after the wedding)".
     const theirTitle = drop(words(e.title));
     const titleHit = [...titleW].filter((w) => theirTitle.has(w)).length;
-    // v31: one home, one car, one buffer: the same kind is the same goal. Trips are different: a festival is not a Tallinn trip,
-    // so travel goals need a shared word in their names.
+    // Kind alone does not establish identity. Compare purpose and target below.
     const sameGoalKind = c.type === 'goal' && e.type === 'goal' && !!c.goalType && ['home', 'car', 'buffer'].includes(c.goalType) && c.goalType === e.goalType;
+    const genericGoal=new Set(['trip','travel','holiday','fund','pot','saving','savings','goal','deposit']);
+    const distinctiveTitleHit=[...titleW].some(w=>!genericGoal.has(w)&&theirTitle.has(w));
+    if(c.type==='goal'&&e.type==='goal') {
+      const comparable=!!(sameGoalKind&&c.target&&e.target&&Math.abs(c.target.amount-e.target.amount)<=Math.max(1,e.target.amount*.1)&&c.target.date.slice(0,4)===e.target.date.slice(0,4));
+      const kindTokens=(title:string)=>[...words(title)].filter(w=>!['new','buy','with','partner','home','flat','house','deposit','target','fund','pot','car','buffer','emergency'].includes(w));
+      const genericSameKind=comparable&&kindTokens(c.title).length===0&&kindTokens(e.title).length===0;
+      if(!distinctiveTitleHit&&!genericSameKind)continue;
+      // A shared place is not shared purpose. Normalize ordinary purpose synonyms,
+      // then require the same purpose tokens instead of discarding qualifiers.
+      const purposeWords=(ws:Set<string>)=>new Set([...ws].filter(w=>!['fund','pot','goal','target','deposit'].includes(w)).map(w=>['trip','travel','holiday','vacation'].includes(w)?'travel':w));
+      const a=purposeWords(titleW),b=purposeWords(theirTitle);
+      if(!genericSameKind&&(a.size!==b.size||![...a].every(w=>b.has(w))))continue;
+    }
     const ok = sameGoalKind || overlap >= 2 || (c.type === e.type && titleHit >= 1);
     if (!ok) continue;
     const score = overlap + titleHit + (sameGoalKind ? 3 : 0) + (c.type === e.type ? 1 : 0);
-    if (!best || score > best.score) best = { e, score };
+    matches.push({e,score});
   }
-  return best?.e;
+  return matches.sort((a,b)=>b.score-a.score).map(x=>x.e);
 }
+
+export function findSimilar(userId:string,c:Candidate):CabinetEntry|undefined{return findSimilarCandidates(userId,c)[0];}
 
 /**
  * How a new candidate relates to the thing already known:

@@ -110,7 +110,7 @@ export const mockProvider: LlmProvider = {
       if (r.call.name === 'getGoalStatus' && Array.isArray(res)) {
         // The goal the customer is talking about (flat / deposit / home), else the first one.
         const g = (/flat|deposit|home|it\b/i.test(u) && res.find((x: any) => /flat|home/i.test(x.title))) || res[0];
-        text = `For “${g.title}” you have ${g.saved.toLocaleString('fi-FI')} € of ${g.target.toLocaleString('fi-FI')} € and ${g.monthlyGoingIn} € a month going in. You’d be about ${g.shortBy.toLocaleString('fi-FI')} € short.`;
+        text = g.saved===undefined||g.monthlyGoingIn===undefined||g.shortBy===undefined?`The saved target for "${g.title}" is ${g.target} EUR by ${g.targetDate}. Balance or monthly contribution is not linked, so progress is unknown, not zero.`:`For “${g.title}” you have ${g.saved.toLocaleString('fi-FI')} € of ${g.target.toLocaleString('fi-FI')} € and ${g.monthlyGoingIn} € a month going in. You’d be about ${g.shortBy.toLocaleString('fi-FI')} € short.`;
         used = [g.goalId];
       } else if (r.call.name === 'getPayPlan') {
         text = `Your next salary is ${res.income.toLocaleString('fi-FI')} €. About ${res.spendingAveragePerMonth.toLocaleString('fi-FI')} € goes on spending. I’d suggest moving ${res.suggestedExtraMove} € more each payday.`;

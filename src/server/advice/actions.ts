@@ -71,6 +71,8 @@ export function handleAdviceAction(userId: string, card: MessageCard | undefined
   if (!db.getUser(userId)) return fail(404, 'Customer not found');
 
   if (action === 'fact_answer') {
+    const currentVersion = liveVersion(versions, today);
+    if (!currentVersion || currentVersion.version !== d.version) return fail(409, 'This question changed. Ask Nora again before saving an answer.');
     if (card.type !== 'ask_fact') return fail(400, 'Not a question card');
     const fact = String(d.fact || '');
     if (!isFactKey(fact) || FACTS[fact].origin !== 'customer') return fail(400, 'Not a question the customer can answer');
@@ -85,7 +87,7 @@ export function handleAdviceAction(userId: string, card: MessageCard | undefined
       if (raw !== 'yes' && raw !== 'no') return fail(400, 'Answer yes, no or not sure');
       value = raw === 'yes'; shown = raw === 'yes' ? 'Yes' : 'No';
     } else if (FACTS[fact].type === 'date') {
-      if (typeof raw !== 'string' || !DATE.test(raw) || Number.isNaN(Date.parse(raw))) return fail(400, 'Give a date');
+      if (typeof raw !== 'string' || !DATE.test(raw) || Number.isNaN(Date.parse(raw)) || new Date(raw).toISOString().slice(0,10) !== raw) return fail(400, 'Give a date');
       if (raw > today) return fail(400, 'That date is in the future');
       if (raw < '1950-01-01') return fail(400, 'That date is too far back');
       value = raw; shown = dayWords(raw);

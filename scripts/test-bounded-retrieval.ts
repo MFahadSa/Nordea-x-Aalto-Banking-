@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {TurnExposure,retrieveContext,referencesCurrent,type ContextSource} from '../src/server/contextRetrieval.js';
+const rows:ContextSource[]=Array.from({length:20},(_,i)=>({owner:'cabinet',id:'row-'+i,revision:'v1',title:'Saved context '+i,detail:'Detail '+i}));
+const first=retrieveContext(rows,{query:'everything',broad:true});assert.equal(first.rows.length,6);assert.ok(first.truncated);assert.ok(first.nextCursor);assert.match(first.note,/Partial/);
+const second=retrieveContext(rows,{query:'everything',broad:true,cursor:first.nextCursor});assert.equal(second.rows[0].id,'row-6');assert.ok(second.rows.every(r=>!first.rows.some(f=>f.id===r.id)));
+assert.equal(retrieveContext(rows.map((r,i)=>i? r:{...r,revision:'v2'}),{query:'everything',broad:true,cursor:first.nextCursor}).checked,false);
+assert.equal(retrieveContext(rows,{query:'',cursor:'bad'}).checked,false);
+const huge=retrieveContext([{...rows[0],detail:'x'.repeat(9000)}],{broad:true});assert.ok(huge.truncated);assert.equal(huge.rows.length,0);assert.match(huge.note,/not been supplied/);
+assert.equal(retrieveContext(rows,{query:'unknown term'}).rows.length,0);
+const e=new TurnExposure();e.include(first.rows);assert.equal(e.visibleCount,6);e.inherit([first.rows[0]]);assert.equal(e.snapshot().length,6);
+assert.equal(referencesCurrent(e.snapshot(),rows),true);assert.equal(referencesCurrent(e.snapshot(),rows.slice(1)),false);e.inherit([{...first.rows[0],revision:'v2'}]);assert.equal(referencesCurrent(e.snapshot(),rows),false);
+const fi:ContextSource={...rows[0],title:'Auton korjaus',detail:'Auton korjaus maksaa 27341 euroa'};assert.equal(retrieveContext([fi],{query:'Mitä auton korjaus maksaa?'}).rows.length,1);
+console.log('PASS bounded retrieval unit mechanics: page/size/cursor limits, revision changes, Finnish literal query, source permission separated from current selection, exposure union/conflict. Not semantic model quality.');

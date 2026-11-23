@@ -318,7 +318,7 @@ export default function App() {
   // ---------- cabinet ----------
   const undo = async (token: string) => {
     try {
-      const r = await undoCabinetAction(token);
+      const r = await undoCabinetAction(token,selectedCustomer.current);
       setToast({ message: `↩︎ ${r.message}` });
       refresh();
     } catch {

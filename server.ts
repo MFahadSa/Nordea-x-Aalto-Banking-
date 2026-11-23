@@ -1,3 +1,4 @@
+import {undoConfirmedGoal} from './src/server/advice/goalCommit.js';
 // Reads .env and .env.local when the app runs on a laptop. In AI Studio the secrets come from Settings -> Secrets.
 import './src/server/loadEnv.js';
 import express from 'express';
@@ -188,7 +189,7 @@ app.post('/api/cabinet', (req, res) => {
     status: 'active',
     private: Boolean(isPrivate),
     readableBy: readableBy || { abel: true, offers: false },
-    provenance: { channel: 'app' },
+    provenance: { channel: 'app',...(target?{targetOrigin:{amount:'direct-customer-ui',date:'direct-customer-ui'}}:{}) },
     target: target || undefined,
     goalType: goalType || undefined,
     reviewed: true,
@@ -225,7 +226,19 @@ app.patch('/api/cabinet/:id', (req, res) => {
   }
 
   const prevSnapshot = { ...existing };
-  const updated = db.updateCabinetEntry(req.params.id, req.body, { by: 'you', how: 'In the app' });
+  const change={...req.body};
+  delete change.provenance;
+  if(Object.prototype.hasOwnProperty.call(req.body||{},'target')){
+    if(req.body.target===null){change.target=undefined;change.provenance={...existing.provenance,targetFields:undefined,targetOrigin:undefined};}
+    else {
+    change.target={...existing.target,...req.body.target};
+    if(!(Number.isFinite(change.target.amount)&&change.target.amount>0)||!/^\d{4}-\d{2}-\d{2}$/.test(change.target.date||'')||Number.isNaN(Date.parse(change.target.date))||new Date(change.target.date+'T12:00:00Z').toISOString().slice(0,10)!==change.target.date)return res.status(400).json({error:'A valid amount and deadline are required.'});
+    const targetFields={...existing.provenance.targetFields},targetOrigin={...existing.provenance.targetOrigin};
+    for(const key of ['amount','date'] as const)if(Object.prototype.hasOwnProperty.call(req.body.target,key)&&req.body.target[key]!==existing.target?.[key]){delete targetFields[key];targetOrigin[key]='direct-customer-ui';}
+    change.provenance={...existing.provenance,targetFields,targetOrigin};
+    }
+  }
+  const updated = db.updateCabinetEntry(req.params.id, change, { by: 'you', how: 'In the app' });
 
   const undoToken = `undo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const undoRecord: UndoRecord = {
@@ -286,6 +299,11 @@ app.post('/api/cabinet/undo', (req, res) => {
   const record = db.getUndoRecord(undoToken);
   if (!record) {
     return res.status(404).json({ error: 'Undo token expired or not found' });
+  }
+
+  if(String(undoToken).startsWith('undo-goal-')){
+    if(!req.body.userId||req.body.userId!==record.userId)return res.status(404).json({error:'Undo not found'});
+    try{undoConfirmedGoal(record.userId,undoToken);return res.json({success:true,message:'Undid goal change'});}catch(e:any){return res.status(409).json({error:e.message+' Nothing changed.'});}
   }
 
   if (record.action === 'create_many' && record.entryIds) {

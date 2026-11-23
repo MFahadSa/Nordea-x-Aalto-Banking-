@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 /** Shared text matching helpers. Pure functions - every agent may use them on its own data. */
 export const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'this', 'that', 'what', 'from', 'your', 'you', 'have', 'about', 'are', 'was', 'were', 'will', 'would', 'should', 'could', 'all', 'any', 'how', 'when', 'where', 'why', 'who']);
 export const words = (s: string) => s.toLowerCase().split(/[^a-z0-9€]+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
@@ -10,3 +11,6 @@ export const CATEGORY_HINTS: Record<string, string[]> = {
   car: ['transport'], commute: ['transport'], travel: ['transport'],
   house: ['housing'], flat: ['housing'], apartment: ['housing'], rent: ['housing'], home: ['housing'],
 };
+
+/** Opaque change token for an owning agent's current source snapshot. */
+export const sourceRevision = (data: unknown): string => createHash('sha256').update(JSON.stringify(data)).digest('hex');

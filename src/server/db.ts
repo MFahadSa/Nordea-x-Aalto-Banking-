@@ -29,7 +29,7 @@ import { restMirrorAvailable } from './arch/store/restRemote.js';
 import { loadBus } from './arch/store/busStore.js';
 import { appWrites, decideProposal } from './arch/orchestrator.js';
 import {
-  loadUserDb, loadProfile, saveProfile, putGoal, removeGoal,
+  loadUserDb, loadProfile, saveProfile, putGoal, removeGoal,goalMetadata,removeGoalUndo,
   loadDocuments, putDocument, removeStoredDocument, deleteUserDb,
   loadAppRows, putAppRows, deleteAppRows,
 } from './arch/store/userStore.js';
@@ -183,6 +183,7 @@ const cmToEntry = (userId: string, e: ArchEntry): CabinetEntry => {
   const doc = e.doc;
   return {
     id: e.id, userId,
+    sourceGoalIds: e.goalIds,
     type: doc?.type ?? (e.proposedBy === 'nordea' ? 'observation' : 'fact'),
     title: e.title,
     detail: e.detail,
@@ -352,7 +353,7 @@ class Database {
       messages: uids.flatMap((uid) => this.getMessages(uid)),
       accessLog: uids.flatMap((uid) => this.getAccessLog(uid)),
       topicLog: uids.flatMap((uid) => this.getTopicLog(uid)),
-      undoRecords: uids.flatMap((uid) => listUndoRecords(uid)),
+      undoRecords: uids.flatMap((uid) => [...listUndoRecords(uid),...goalMetadata<UndoRecord>(uid,'goal-undo:')]),
       conversations: uids.flatMap((uid) => this.getConversations(uid)),
       earnings: uids.flatMap((uid) => this.getEarnings(uid)),
       shares: uids.flatMap((uid) => loadShares(uid)),
@@ -472,7 +473,7 @@ class Database {
 
   public getEntryHistory(entryId: string): EntryEvent[] {
     for (const uid of listCustomers()) {
-      const h = loadHistory(uid, entryId);
+      const h = [...loadHistory(uid, entryId),...goalMetadata<EntryEvent>(uid,'goal-audit:').filter(e=>e.entryId===entryId)].sort((a,b)=>a.at.localeCompare(b.at));
       if (h.length) return h;
     }
     return [];
@@ -774,7 +775,7 @@ class Database {
 
   public getUndoRecord(undoToken: string): UndoRecord | undefined {
     for (const uid of listCustomers()) {
-      const r = cmGetUndo(uid, undoToken);
+      const r = cmGetUndo(uid, undoToken)||goalMetadata<UndoRecord>(uid,'goal-undo:').find(r=>r.undoToken===undoToken);
       if (r) return r;
     }
     return undefined;
@@ -782,6 +783,7 @@ class Database {
 
   public removeUndoRecord(undoToken: string): boolean {
     for (const uid of listCustomers()) {
+      if(removeGoalUndo(uid,undoToken))return true;
       const reply = appWrites.removeUndo(uid, undoToken) as { removed?: boolean };
       if (reply.removed) return true;
     }

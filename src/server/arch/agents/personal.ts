@@ -21,7 +21,7 @@ import type { ModelLevel } from '../approvalGate.js';
  *  own choices in the app apply at the source. A goal they removed (archived), said is wrong (disputed) or
  *  turned off for Nora ("Not used: you turned it off") stays in the User DB but leaves it no further. */
 export function sharedGoals(u: { goals: Goal[] }): Goal[] {
-  return u.goals.filter((g) => g.doc?.status !== 'archived' && g.doc?.status !== 'disputed' && g.doc?.readableBy?.abel !== false);
+  return u.goals.filter((g) => g.doc?.status !== 'archived' && g.doc?.status !== 'disputed' && g.doc?.readableBy?.abel !== false && !(g.doc?.source === 'nordea' && !g.doc.reviewed));
 }
 
 export const personalLabel = (u: { personalAgent: { mode: string; externalName?: string } }) =>
@@ -276,7 +276,7 @@ export async function levelPendingCards(uid: string): Promise<{ asked: number; l
   const u = loadUserDb(uid);
   const pending = loadBus(uid).messages.filter((m) => m.type === 'propose' && m.from === 'personal' && m.status === 'pending'
     && !readApproval(m.payload) && !(m.payload as { approvalAsked?: boolean } | undefined)?.approvalAsked);
-  const cards = pending.map((m) => ({ m, g: u.goals.find((g) => ((m.payload as { goalIds?: string[] })?.goalIds ?? [])[0] === g.id) }))
+  const cards = pending.map((m) => ({ m, g: sharedGoals(u).find((g) => ((m.payload as { goalIds?: string[] })?.goalIds ?? [])[0] === g.id) }))
     .filter((x): x is { m: AgentMessage; g: Goal } => !!x.g && goalCard(x.g).title === x.m.summary && goalCard(x.g).detail === (x.m.payload as { detail?: string }).detail);
   if (!cards.length) return { asked: 0, leveled: 0, status: 'scripted' };
   const out = await llmAssignLevels(uid, cards.map((x) => x.g));
@@ -325,7 +325,7 @@ export async function llmAssignLevels(uid: string, goals: Goal[]): Promise<impor
       { name: 'listMyGoals', description: 'List the goals in your own User DB: id, title, detail.', parameters: { type: 'object', properties: {} } },
       { name: 'finishRiskLevels', description: 'Finish with one level per card.', parameters: { type: 'object', properties: { levels: { type: 'array', items: { type: 'object', properties: { card: { type: 'string' }, level: { type: 'integer' }, reason: { type: 'string' }, evidence: { type: 'array', items: { type: 'string' } } }, required: ['card', 'level', 'reason', 'evidence'] } } }, required: ['levels'] } },
     ],
-    runTool: (call) => call.name === 'listMyGoals' ? loadUserDb(uid).goals.map((g) => ({ id: g.id, title: g.title, detail: g.detail })).slice(0, 30) : { error: 'unknown tool' },
+    runTool: (call) => call.name === 'listMyGoals' ? sharedGoals(loadUserDb(uid)).filter(g => ask.some(a => a.id === g.id)).map((g) => ({ id: g.id, title: g.title, detail: g.detail })).slice(0, 30) : { error: 'unknown tool' },
     finishTool: 'finishRiskLevels',
   });
   if (error) return { plan: null, status: 'error', error };
@@ -456,7 +456,7 @@ function handleMessage(uid: string, msg: AgentMessage) {
     appendMessage(uid, {
       from: 'personal', to: 'app', type: 'reply',
       summary: `Personal agent returns ${sharedGoals(u).length} goal${sharedGoals(u).length === 1 ? '' : 's'} and ${u.personalFacts.length} fact${u.personalFacts.length === 1 ? '' : 's'} from the User DB for Nora.`,
-      payload: { inReplyTo: msg.id, from: 'user-db', goals: sharedGoals(u).map((g) => ({ title: g.title, detail: g.detail })), facts: u.personalFacts.map((f) => ({ text: f.text, source: f.source })) },
+      payload: { inReplyTo: msg.id, from: 'user-db', goals: sharedGoals(u).map((g) => ({ id: g.id, title: g.title, detail: g.detail, revision:g.doc?.updatedAt||g.createdAt })), facts: u.personalFacts.map((f) => ({ text: f.text, source: f.source })) },
     });
     updateMessage(uid, msg.id, { status: 'answered' });
     return;

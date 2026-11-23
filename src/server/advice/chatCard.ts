@@ -5,6 +5,7 @@
  * "not now" / "shown" waits do not block it. "Don't suggest this again" and "already done" still do,
  * and so do all the safety rules (minors, offers off, private facts, not live, not eligible).
  */
+import {customerAssertion,customerFactAssertion,ownHistoryRead} from './purpose.js';
 import type { ChatMessage, MessageCard } from '../../types.js';
 import { db } from '../db.js';
 import { FACTS, type FactKey, type Facts } from './facts.js';
@@ -13,7 +14,7 @@ import { blockReason, catalogue, factsOf, logAdviceRead, remember, snapshot, who
 import { cardFor } from './cards.js';
 import { saveAnswer } from './actions.js';
 import { homeMovedToChat } from './home.js';
-import type { Intent } from './intent.js';
+import {intentsOf,type Intent} from './intent.js';
 
 export interface RuleCard {
   card: MessageCard;
@@ -23,7 +24,8 @@ export interface RuleCard {
   notes: NonNullable<ChatMessage['notes']>;
 }
 
-export function ruleCardFor(userId: string, conversationId: string, intent: Intent, today: string, undo: (entryId: string, title: string) => string): RuleCard | null {
+export function ruleCardFor(userId: string, conversationId: string, intent: Intent, today: string, undo: (entryId: string, title: string) => string, customerText?:string): RuleCard | null {
+  if(customerText!==undefined&&ownHistoryRead(customerText))return null;
   const u = db.getUser(userId);
   if (!u || !intent.rule) return null;
   const versions = catalogue().filter((r) => r.id === intent.rule);
@@ -37,7 +39,8 @@ export function ruleCardFor(userId: string, conversationId: string, intent: Inte
 
   // What the words already answer counts as known for this check (only facts the customer gives).
   let facts: Facts = factsOf(userId, today);
-  const implied = Object.entries(intent.implies || {}).filter(([k]) => FACTS[k as FactKey]?.origin === 'customer') as [FactKey, boolean][];
+  const asserted=customerText===undefined?intent.implies:Object.assign({},...customerText.split(/[.!?;:]|\bbut\b|,?\s+and\s+(?=(?:I|We)\b)/iu).filter(customerAssertion).flatMap(c=>intentsOf(c).filter(i=>i.rule===intent.rule).map(i=>Object.fromEntries(Object.entries(i.implies||{}).filter(([fact])=>customerFactAssertion(c,fact))))));
+  const implied = Object.entries(asserted || {}).filter(([k]) => FACTS[k as FactKey]?.origin === 'customer') as [FactKey, boolean][];
   const withWords = { ...facts };
   for (const [k, v] of implied) if (withWords[k].state !== 'hidden') withWords[k] = { key: k, state: 'known', value: v, from: 'You said it in this chat' };
   const stNoWait = { ...st, rules: { ...(st.rules || {}) } };

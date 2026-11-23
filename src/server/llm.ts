@@ -23,6 +23,9 @@ export type Turn =
   | { role: 'tool_results'; results: { call: ToolCall; result: unknown }[] };
 
 export interface StepResult {
+  /** Provider ended before a complete response. Never accept partial tool arguments/text. */
+  incomplete?: boolean;
+  finishReason?: string;
   calls: ToolCall[];
   text?: string;
   raw?: unknown;
@@ -256,7 +259,7 @@ export const gemini: LlmProvider = {
     const contents = geminiContents(turns);
     const res = await generate({ system, contents, tools, temperature, timeoutMs });
     const calls: ToolCall[] = (res.functionCalls || []).map((c: any) => ({ id: c.id, name: c.name || '', args: (c.args as any) || {} }));
-    return { calls, text: res.text, raw: res.candidates?.[0]?.content };
+    return { calls, text: res.text, raw: res.candidates?.[0]?.content, finishReason: res.candidates?.[0]?.finishReason, incomplete: /MAX_TOKENS|SAFETY|RECITATION/.test(String(res.candidates?.[0]?.finishReason || '')) };
   },
 };
 

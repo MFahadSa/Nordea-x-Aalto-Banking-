@@ -119,6 +119,7 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
   const label = labelFor(o.baseUrl);
   let lastOk: { at: string; model: string } | null = null;
   let lastError: { at: string; message: string; model?: string } | null = null;
+  let rateLimits: { at: string; status: number; headers: Record<string, string> } | null = null;
   // Some servers reject parts of the request; remember what they accepted so we don't ask twice.
   let toolChoice: 'required' | 'auto' = 'required';
   // vLLM + Qwen (Aalto) understand chat_template_kwargs; gpt-oss models take reasoning_effort. Both make answers faster.
@@ -147,6 +148,12 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
       label,
       () => ctl.abort(),
     );
+    const headers: Record<string, string> = {};
+    for (const name of ['retry-after', 'x-ratelimit-limit-requests', 'x-ratelimit-limit-tokens', 'x-ratelimit-remaining-requests', 'x-ratelimit-remaining-tokens', 'x-ratelimit-reset-requests', 'x-ratelimit-reset-tokens']) {
+      const value = res.headers.get(name);
+      if (value !== null) headers[name] = value;
+    }
+    rateLimits = { at: new Date().toISOString(), status: res.status, headers };
     if (!res.ok) {
       const e: any = new Error(`${res.status}: ${text.slice(0, 400)}`);
       try {
@@ -241,9 +248,9 @@ export function makeOpenAiProvider(o: OpenAiOpts): LlmProvider & { model: string
           text = found.rest;
         }
       }
-      return { calls, text };
+      return { calls, text, finishReason: out?.choices?.[0]?.finish_reason, incomplete: /length|content_filter/.test(String(out?.choices?.[0]?.finish_reason || '')) };
     },
-    status: () => ({ provider: label, keyPresent: !!o.apiKey, model: o.model, candidates: [o.model], lastOk, lastError, thinking: noThink ? 'off' : lowEffort ? 'low' : 'model default', baseUrl: o.baseUrl }),
+    status: () => ({ provider: label, keyPresent: !!o.apiKey, model: o.model, candidates: [o.model], lastOk, lastError, rateLimits, thinking: noThink ? 'off' : lowEffort ? 'low' : 'model default', baseUrl: o.baseUrl }),
     async ping() {
       if (!o.apiKey) return { ok: false, error: 'No LLM_API_KEY reaches the server (AI Studio: Settings → Secrets; laptop: the .env file).' };
       const t0 = Date.now();

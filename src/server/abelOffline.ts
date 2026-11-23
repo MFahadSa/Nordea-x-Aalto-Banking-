@@ -4,7 +4,7 @@
 import * as fin from './finance.js';
 import { db } from './db.js';
 import { FRAUD } from './safety.js';
-import { transferIsOnce, transferTarget } from './transfers.js';
+import { transferIsOnce, transferTarget, transferClarification } from './transfers.js';
 import { CabinetEntry, MessageCard } from '../types.js';
 
 const eur = (n: number) => Number(Math.round(n)).toLocaleString('fi-FI').replace(/ /g, ' ') + ' €';
@@ -114,6 +114,8 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
   }
   const moveAmt = amountIn(text);
   if (/\b(move|transfer|put|add|set up)\b/.test(t) && moveAmt && /\b(savings?|car|fund|flat|goal|current|account)\b/.test(t)) {
+    const clarify = transferClarification(text, before);
+    if (clarify) return { text: 'I haven’t prepared a transfer. Should I explain how it would work, or help you prepare one?', suggestions: [], usedEntryIds: [], topic: 'saving_plan' };
     const dest = transferTarget(text, before);
     const once = transferIsOnce(text, before);
     if (dest === 'unsupported') return { text: 'From this chat I can only move money from your current account to your savings or your car fund. For other moves, use Transfers in the app.', suggestions: [], usedEntryIds: [], topic: 'saving_plan' };
@@ -143,7 +145,7 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
     const place = where ? where[0].toUpperCase() + where.slice(1) : 'the area';
     const lines = [
       `Exciting! Flats in ${place} 🏡`,
-      st ? `For “${st.title}” you have ${eur(st.saved)} of ${eur(st.target)} saved. At ${eur(st.monthlyGoingIn)} a month you’d have about ${eur(st.projectedByTargetDate)} by ${month(st.targetDate)}.` : '',
+      st&&st.saved!==undefined&&st.monthlyGoingIn!==undefined&&st.projectedByTargetDate!==undefined ? `For “${st.title}” you have ${eur(st.saved)} of ${eur(st.target)} saved. At ${eur(st.monthlyGoingIn)} a month you’d have about ${eur(st.projectedByTargetDate)} by ${month(st.targetDate)}.` : '',
       'If you’d like, a Nordea home loan adviser can look at it with you.',
     ].filter(Boolean);
     return {
@@ -190,6 +192,7 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
     if (!goals.length) return { text: 'You don’t have a goal with an amount and a date yet. Tell me what you’re saving for and by when, and I’ll track it with you.', suggestions: ['Help me set a savings goal'], usedEntryIds: [], topic: 'goals' };
     const parts = goals.slice(0, 3).map((g) => {
       const s = fin.goalStatus(userId, g);
+      if(s.saved===undefined||s.monthlyGoingIn===undefined||s.projectedByTargetDate===undefined||s.shortBy===undefined||s.extraPerMonthNeeded===undefined)return `"${s.title}": target ${eur(s.target)} by ${month(s.targetDate)}. Saved balance or monthly contribution is not linked, so progress and forecast are unknown, not zero.`;
       return s.onTrack
         ? `“${s.title}”: ${eur(s.saved)} of ${eur(s.target)}. You’re on track for ${month(s.targetDate)} 🎉`
         : !(s.saved > 0) && !(s.monthlyGoingIn > 0)
@@ -198,7 +201,7 @@ export function offlineAnswer(userId: string, text: string, allowed: CabinetEntr
     });
     const plan = fin.payPlan(userId);
     const first = fin.goalStatus(userId, goals[0]);
-    const offer = !first.onTrack && plan.suggestedExtraMove > 0;
+    const offer = first.onTrack===false && plan.suggestedExtraMove > 0;
     return {
       // v28: a question asks for an answer, not a card: the transfer is offered as a quick reply the customer can tap.
       text: parts.join('\n\n') + (offer ? `\n\nWant to move ${eur(plan.suggestedExtraMove)} more each payday?` : ''),

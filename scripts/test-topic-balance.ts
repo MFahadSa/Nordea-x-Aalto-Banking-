@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+process.env.CABINET_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'topic-balance-'));delete process.env.SUPABASE_URL;delete process.env.LLM_API_KEY;delete process.env.GEMINI_API_KEY;
+const {db}=await import('../src/server/db.js');const {setProvider}=await import('../src/server/llm.js');const {abelTurn}=await import('../src/server/abel.js');await db.init();
+let topic='homes',evidence='',step=0;
+setProvider({name:'topic-challenge-fixture',isConfigured:()=>true,step:async()=>({calls:step++===0?[{name:'selectConversationTopic',args:{topic,evidence}}]:[{name:'finishReply',args:{text:'We can work through what would help you.',suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]})});
+let n=0;
+async function ask(text:string,id='balance-'+n++){step=0;evidence=text;const r=await abelTurn('lauri',id,'abel',text);return r;}
+for(const t of ['Hi','I have a home','Our place is stressing me out','What is a viewing?','No more offers, please','Tell me about student loans','I paid a cleaner']) {topic='homes';const r=await ask(t);assert.ok(!r.cards.some(c=>c.data?.partnerId==='homes'),t);}
+for(const [t,id] of [["I'm looking for an apartment in Espoo",'homes'],['Show me some homes','homes'],['I need a moving company','movers'],['Our electricity bill jumped','energy'],['We need home insurance before moving','insure'],['I need a financial planner','planner']] as const){topic=id;const r=await ask(t);assert.ok(r.cards.some(c=>c.data?.partnerId===id),t);}
+const conv='once-per-chat';db.addConversation({id:conv,userId:'lauri',helperId:'abel',title:'Balance',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),offered:[]} as any);topic='homes';const first=await ask('Show me some homes',conv);assert.ok(first.cards.some(c=>c.type==='offer'));const again=await ask('Show me some homes',conv);assert.equal(again.cards.length,0,'No repeated partner card even without pending-card recency');
+console.log('PASS scripted adversarial topic proposals: greetings/vague need/term/decline/wrong topic have no card; useful requested partner paths retained; once-per-chat cap. Not model-quality acceptance.');

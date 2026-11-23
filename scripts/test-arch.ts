@@ -1488,7 +1488,7 @@ check("F30: the STORED document still records the marks - only Nora's copy is fi
     !!compose && compose.prompt.includes('Shared context (via the Context Memory agent)') && /car/i.test(compose.prompt), (compose?.prompt ?? '(no compose call)').slice(0, 160));
 }
 const routesSrc2 = readSrc('../src/server/routes.ts');
-check('G30 slice 3 (v17): /api/chat = the agents\' shared context for this conversation, then Nora writes the reply; conversation id IS the session id', /abelSharedContext\(userId, conv\.id, u\.text\)/.test(routesSrc2) && /abelTurn\(userId, conv\.id, conv\.helperId, u\.text, shared\)/.test(routesSrc2));
+check('G30 slice 3 (v17): /api/chat = the agents\' shared context for this conversation, then Nora writes the reply; conversation id IS the session id', /abelSharedContext\(userId, conv\.id, u\.text, true\)/.test(routesSrc2) && /abelTurn\(userId, conv\.id, conv\.helperId, u\.text, shared\)/.test(routesSrc2));
 
 
 // --- F10 phase 2, Bill's condition: the Nora shared-context path reads context.md only -
