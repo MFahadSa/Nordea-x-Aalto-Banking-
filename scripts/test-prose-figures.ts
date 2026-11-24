@@ -16,6 +16,7 @@ const facts: VerifiedFact[] = [
   { id: 'loan:end', sourceId: 'cab:loan', sourceRevision: 'r', entity: 'Student loan', field: 'end_date', role: 'calendar', kind: 'calendar', calendar: { year: 2027, month: 6 }, evidence: { type: 'typed-field' } },
 ];
 facts.push({ id: 'card:0:transfer_amount', sourceId: 'card:0', sourceRevision: 'this-turn', entity: 'Car fund', field: 'transfer_amount', role: 'saving', kind: 'quantity', quantity: { value: 40, unit: 'EUR' }, evidence: { type: 'typed-field' } });
+facts.push(q('Payday plan (Alex)', 'left_over_after_spending_and_saving', 'balance', -150, 'month'), q('Payday plan (Alex)', 'saving_rate', 'saving', 150, 'month'));
 let pass = 0;
 const ok = (text: string) => { const r = verifiedProseFigures(text, facts); assert.equal(r.ok, true, `${text} → ${JSON.stringify(r)}`); pass++; };
 const no = (text: string, why: RegExp) => { const r = verifiedProseFigures(text, facts); assert.equal(r.ok, false, `${text} should be refused`); assert.match((r as any).reason, why); pass++; };
@@ -30,7 +31,10 @@ ok('Saving 400 € a month is 4 800 € a year.');            // derived ×12 fr
 ok('Your student loan ends in 2027.');
 ok('Hi Lauri! Would you like a quick look at your budget?'); // no figures at all
 ok('You have 2 goals and 3 ideas to look at.');
-ok('Which month do you want to start, January or March?'); // months offered as a choice, not a claim
+ok('Which month do you want to start, January or March?');
+ok('Your current account shows a positive balance, you are saving 150 € each month, and the plan shows a ‑150 € shortfall each month.'); // seen live: other role in another part; negative remainder
+ok('Want me to set up a car goal by June 2027?'); // a year proposed in a question
+no('You have -150 € on your savings account.', /does not describe it as that/); // months offered as a choice, not a claim
 ok('I can set up a transfer of 40 € from your current account to the car fund.'); // the amount on the card prepared this turn             // small counts are not amounts
 
 // Refused: invented values.

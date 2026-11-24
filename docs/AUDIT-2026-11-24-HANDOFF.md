@@ -133,3 +133,18 @@ keeps what matters, and only then shows one fitting fictional partner, with its 
 
 Consent boundary: browsing the partner is free, and nothing is switched or bought in the app. The live model
 words each reply differently, so rehearse once and keep the take where Nora asks before she offers.
+
+## 9. Live confirmation after PR #72 (24 Nov 2026)
+
+There were 14 real-model turns on the published app as **Alex**, so Lauri stays clean for recording. Nothing
+was tapped, and Alex's balances, goals and saved entries were unchanged.
+
+| Check | Live result |
+| --- | --- |
+| Showcase: "bills feel kinda crazy" → "the electricity one doubled" → "electric sauna… better deal?" | Nora asked which bill, then showed the energy card and asked a follow-up, then explained fixed versus exchange price for sauna use. **Works** |
+| Vague opener "money just kinda disappears every month lol" | Friendly reply and a question; no "which plan". **Fixed** |
+| "can u put like 50 in savings" → "actually make it 60" → "ok go" → "ok do it" | 50 € card, then a confirmation question, then a 60 € card, then "only the button on that card can confirm". **Works**, but the 50 € card also stayed tappable (fixed in this PR) |
+| "no offers please, just talk" → "my electricity bill doubled though" | No card; Nora asked what changed. **Fixed** |
+| Sensitive note plus a question | Answered, no step limit, nothing saved. **OK** |
+| "wanna start saving for a car, maybe 8k by next summer?" | Refused because "8k" and the proposed year were not checkable (fixed in this PR) |
+| "how is my budget looking?" (Alex has a negative remainder) | Refused: a "positive balance" in another part of the sentence counted against "saving 150 €", the minus sign of "‑150 €" was lost, and the model wrote "(saving_rate)" (all fixed in this PR) |

@@ -15,7 +15,7 @@ const conv = async () => (await J('/api/conversations', { userId: 'lauri', helpe
 const say = async (c: string, text: string) => (await J('/api/chat', { userId: 'lauri', conversationId: c, text })).body.messages.at(-1);
 let n = 0; const failed: string[] = []; const pass = (m: string) => { n++; console.log('PASS ', m); };
 let c = ''; let r: any; let t1: any;
-const section = async (name: string, fn: () => Promise<void>) => { script = []; try { await fn(); } catch (e: any) { failed.push(name); console.log('FAIL ', name, '—', String(e.message).split('\n')[0].slice(0, 160)); } };
+const section = async (name: string, fn: () => Promise<void>) => { script = []; try { await fn(); } catch (e: any) { failed.push(name); console.log('FAIL ', name, '—', String(e.message).replace(/\n+/g, ' ').slice(0, 400)); } };
 
 // 1. Correct personal figures in Nora's own words are shown as written (before: rejected, generic failure).
 await section('figures in prose', async () => {
@@ -131,6 +131,27 @@ await section('natural conversation', async () => {
   c = await conv(); script = [tool('offerPartnerForNeed', { partnerId: 'energy', customerWords: 'I want a cheaper electricity contract' }), fin('Okay.')];
   r = await say(c, 'ugh it basically doubled since we moved');
   assert.ok(!r.cards.some((x: any) => x.type === 'offer')); pass('a partner card with words the customer never wrote is refused');
+});
+
+// 7. Findings from the live re-check after PR #72 (24 Nov 2026).
+await section('live re-check follow-ups', async () => {
+  // A corrected amount replaces the older waiting card: only one transfer can be tapped.
+  c = await conv(); script = [tool('offerTransfer', { amountPerMonth: 50, once: true }), fin('Here is the transfer for you to check.')];
+  const first = await say(c, 'can u put like 50 in savings');
+  script = [fin('Do you want to change the pending transfer to 60 €?')]; await say(c, 'actually make it 60');
+  script = [tool('offerTransfer', { amountPerMonth: 60, once: true }), fin('Here is the new transfer of 60 € for you to check.')];
+  r = await say(c, 'ok go');
+  assert.ok(r.cards.some((x: any) => x.type === 'confirm_plan' && x.data.amount === 60));
+  assert.equal((await J('/api/actions', { userId: 'lauri', messageId: first.id, action: 'plan_confirm' })).status, 409, 'the replaced 50 € card can no longer be tapped');
+  pass('a corrected transfer replaces the older waiting card');
+  // "8k" the customer wrote can be repeated as 8000 in a question with a proposed year.
+  c = await conv(); script = [fin('Nice! Want me to set up a car goal of 8000 € by June 2027 for you to check?'), fin('Nice! Want me to set up a car goal of 8000 € by June 2027 for you to check?'), fin('Nice! Want me to set up a car goal of 8000 € by June 2027 for you to check?')];
+  r = await say(c, 'wanna start saving for a car, maybe 8k by next summer?');
+  assert.match(r.text, /8000\s€\sby\sJune\s2027\b/); pass('the customer\'s "8k" and a proposed year in a question are accepted');
+  // Internal field names are never shown.
+  c = await conv(); script = [fin('You save 400 € a month (saving_rate).'), fin('You save 400 € a month (saving_rate).')];
+  r = await say(c, 'how is my budget looking?');
+  assert.doesNotMatch(r.text, /saving_rate/); pass('internal field names are not shown');
 });
 
 // 4. Requests must name the customer; a missing id no longer means Lauri.
