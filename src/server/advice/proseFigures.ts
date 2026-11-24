@@ -19,7 +19,7 @@ const FIELD_WORDS: Record<string, string[]> = {
   current_month_spending: ['far', 'spent', 'spending', 'spend'],
   last_full_month_spending: ['last', 'previous', 'spent', 'spending'],
   saving_rate: ['save', 'saving', 'saved', 'aside', 'savings', 'put', 'putting', 'puts', 'contribution', 'contribute', 'toward', 'towards', 'into'],
-  left_over_after_spending_and_saving: ['left', 'leftover', 'remains', 'remaining', 'remainder', 'spare', 'leaves'],
+  left_over_after_spending_and_saving: ['left', 'leftover', 'remains', 'remaining', 'remainder', 'spare', 'leaves', 'shortfall', 'short', 'deficit', 'minus', 'negative', 'over'],
   suggested_extra_not_approved: ['suggested', 'suggest', 'extra', 'could', 'additional'],
   hypothetical_additional_saving: ['extra', 'additional', 'more'],
   balance: ['balance', 'account', 'have', 'there'],
@@ -77,8 +77,9 @@ function figures(clause: string): Token[] {
   for (const m of clause.matchAll(re)) {
     let t = m[0].replace(/[   ]/g, '');
     if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, ''); else t = t.replace(',', '.');
-    const value = Number(t);
-    if (!Number.isNaN(value)) out.push({ value, start: m.index!, end: m.index! + m[0].length, raw: m[0] });
+    const neg = /(?:^|[\s(])[-‑−]$/.test(clause.slice(Math.max(0, m.index! - 2), m.index!));
+    const value = (neg ? -1 : 1) * Number(t);
+    if (!Number.isNaN(value)) out.push({ value, start: m.index!, end: m.index! + m[0].length, raw: (neg ? '-' : '') + m[0] });
   }
   return out;
 }
@@ -96,9 +97,15 @@ export function verifiedProseFigures(text: string, facts: VerifiedFact[]): Prose
       const after = lower.slice(tok.end).trim();
       const before = lower.slice(0, tok.start);
       const near = new Set(words(lower.slice(Math.max(0, tok.start - 60), Math.min(lower.length, tok.end + 50))));
+      // The figure's own part of the sentence (between commas, semicolons or brackets): another role named in a
+      // different part ("a positive balance, you're saving 150 €") is not a claim about this figure.
+      const segStart = Math.max(...[',', ';', '(', ')'].map((ch) => lower.lastIndexOf(ch, tok.start - 1))) + 1;
+      const segEndList = [',', ';', '(', ')'].map((ch) => lower.indexOf(ch, tok.end)).filter((i) => i >= 0);
+      const own = new Set(words(lower.slice(segStart, segEndList.length ? Math.min(...segEndList) : lower.length)));
       const unit = /^(?:months?|kuukau)/.test(after) ? 'month' : /^(?:years?|vuo)/.test(after) ? 'year' : /^(?:weeks?|viik)/.test(after) ? 'week' : /^(?:days?|päiv)/.test(after) ? 'day' : 'EUR';
       const isYear = Number.isInteger(tok.value) && tok.value >= 1990 && tok.value <= 2100 && unit === 'EUR' && !/^(?:€|eur)/.test(after) && !/€\s*$/.test(before);
       if (!isYear && unit === 'EUR' && tok.value < 13 && !/^(?:€|eur)/.test(after)) continue; // a small count ("2 goals"), not an amount
+      if (isYear && /\?\s*$/.test(clause.trim())) continue; // a year proposed in a question
       const approx = /\b(?:about|around|roughly|approximately|nearly|almost|over|under)\s*$/.test(before) || /~\s*$/.test(before);
       const matches = facts.filter((f) => {
         if (isYear) return f.kind === 'calendar' && f.calendar?.year === tok.value;
@@ -118,9 +125,9 @@ export function verifiedProseFigures(text: string, facts: VerifiedFact[]): Prose
         // ("your sauna pot has 150 a month" names the item but not that 150 is its monthly saving).
         const fw = fieldWords(f);
         if (![...near].some((w) => fw.has(w))) return false;
-        const own = roleOf(f);
+        const roles = roleOf(f);
         // Another role named next to the figure, that this fact does not have, is a different claim.
-        return !Object.entries(ROLE_CLAIMS).some(([role, claims]) => !own.includes(role) && claims.some((w) => near.has(w) && !d.has(w)));
+        return !Object.entries(ROLE_CLAIMS).some(([role, claims]) => !roles.includes(role) && claims.some((w) => own.has(w) && !d.has(w)));
       });
       if (!fits.length) {
         const f = matches[0];
