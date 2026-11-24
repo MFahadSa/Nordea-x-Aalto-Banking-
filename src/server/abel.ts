@@ -38,7 +38,7 @@ import { reviewedReplyProblem } from './advice/reviewedReply.js';
 import { verifiedProseFigures } from './advice/proseFigures.js';
 import { reviewedContext } from './advice/reviewedAnswer.js';
 import { refusesStorage, scopedGoalOnRefusal, purposeOf, declinesPartner, explicitlyRequests } from './advice/purpose.js';
-import { ruleCardFor } from './advice/chatCard.js';
+import { explainFor, ruleCardFor } from './advice/chatCard.js';
 import { cardFor } from './advice/cards.js';
 import { getAllPartners, getPartner } from './partnerRegistry.js';
 import * as fin from './finance.js';
@@ -70,6 +70,8 @@ const fmt = (n: number, d = 0) =>
 // SENSITIVE_TOPIC is for the AC7 risk rules only - it would make everyday loan talk "private").
 import { ABEL_PRIVATE_TOPIC as SENSITIVE } from './sensitive.js';
 import { memoryOf } from './memorySettings.js';
+import { askedOffer, offerText } from './aboutYou.js';
+import { aboutReasons, givesReason, reasonPrompt, reasonsFor, recommendationRequest, unsupportedReason, withReason, type AboutReason } from './aboutReasons.js';
 
 /** Dates from the model as YYYY-MM-DD. "2027-08", "08/2027" and "August 2027" become the last day of that month. */
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -253,7 +255,7 @@ function factsFor(userId: string, allowed: Set<string>) {
 /** F10 phase 2 / AC11: what the three-agent architecture handed Nora for this turn (by message). */
 export interface NoraSharedContext { userDbFacts?: string; sharedContext?: string; provenance: string[]; sources?: ContextSource[] }
 
-function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[], blockedCount: number, facts: unknown, shared?: NoraSharedContext, cardNote = '') {
+function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[], blockedCount: number, facts: unknown, shared?: NoraSharedContext, cardNote = '', reasons: AboutReason[] = []) {
   const u = db.getUser(userId)!;
   const calm = u.viewMode === 'calm';
   // About you (what the customer confirmed or told us, src/server/aboutYou.ts): its own short section, so it is
@@ -286,6 +288,8 @@ HOW TO ANSWER (most important)
 ABOUT THE CUSTOMER (from About you; use it to fit your answer, e.g. their work, home, plans, risk and how they like answers):
 ${aboutLines.length ? aboutLines.join('\n') : '- Nothing confirmed yet.'}
 If this differs from FACTS (e.g. they say their salary is now 4 000 € while FACTS show 3 900 €), their own words are newer: use them (through a FINANCIAL FACT HANDLE when handles are supplied), and mention the bank's number only if it matters.
+
+${reasonPrompt(reasons)}
 
 FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):
 ${JSON.stringify(facts)}
@@ -611,10 +615,10 @@ function offersDeclinedInChat(ctx: TurnCtx, partnerId: string): boolean {
   return said.some((t) => OFFERS_DECLINED.test(t) || declinesPartner(t, partnerId));
 }
 /** v28: a partner card because the customer's words are about that partner's job right now. */
-function partnerCard(ctx: TurnCtx, partnerId: string): string {
+function partnerCard(ctx: TurnCtx, partnerId: string, tapped = false): string {
   const p = getPartner(partnerId);
   const u = db.getUser(ctx.userId);
-  if (!p || !u || u.offersOff || ctx.offersShown >= 1 || !topicIsUsefulNow(ctx.userText, partnerId) || offersDeclinedInChat(ctx, partnerId)) return '';
+  if (!p || !u || u.offersOff || ctx.offersShown >= 1 || (!tapped && !topicIsUsefulNow(ctx.userText, partnerId)) || offersDeclinedInChat(ctx, partnerId)) return '';
   const conversation = db.getConversation(ctx.conversationId);
   if (conversation?.offered?.includes(p.id)) return ''; // At most once per partner per chat, including declined cards.
   const recent = db.getMessages(ctx.userId).filter((m) => m.conversationId === ctx.conversationId).slice(-4);
@@ -626,6 +630,33 @@ function partnerCard(ctx: TurnCtx, partnerId: string): string {
   ctx.offersShown++;
   ctx.extraUsed.push(...h.used);
   return `The app shows ONE partner card below your words: ${p.name}, a partner (${p.kind}), with what Nordea earns and the browse button ${p.cta}. It has NO adviser link. Mention it in one short sentence; do not offer an adviser yourself and do not invent what the partner does.`;
+}
+
+/**
+ * "Ask Nora" on an offer card. The tap is the customer's explicit request for this offer, so the topic checks for
+ * typed words do not apply; offers off, "don't suggest this again", once per chat and the rule checks still do.
+ * The words come from the checked offer and rule texts, so it works the same with or without an AI answer.
+ */
+function offerAnswer(ctx: TurnCtx, asked: NonNullable<ReturnType<typeof askedOffer>>): string {
+  const { offer, reason } = asked;
+  const rule = ({ asp: 'asp-account', 'equity-savings': 'equity-account-under-30' } as Record<string, string>)[offer.id];
+  if (rule) {
+    const r = ruleCardFor(ctx.userId, ctx.conversationId, { id: 'offer-tap', rule }, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
+    if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; }
+    const official = explainFor(rule, fin.DEMO_TODAY).replace(/^HOW "[^"]*" WORKS \([^)]*\): /, '');
+    const ask = r?.card.type === 'ask_fact' ? ' The question below checks one part of eligibility; it does not confirm that you qualify.' : r ? ' The source and conditions are on the suggestion below.' : '';
+    // Instructions inside the rule text are for the model, not the customer.
+    return offerText(offer, reason, official.split(/(?<=[.!?])\s+/).filter((x) => !/^(?:Never|Do not)\b/.test(x)).join(' ')) + ask;
+  }
+  if (offer.id === 'if-home') {
+    const shown = partnerCard(ctx, 'insure', true);
+    return offerText(offer, reason) + (shown ? '\n\nFor a flat, check contents and liability cover, and who is responsible for the building. The card below is a separate example from the fictional partner Peitto, not If: it is not guaranteed cover, and exclusions, excesses and limits need checking in the policy terms. The card shows the referral incentive; See cover opens example options. You are not insured by this conversation.' : '');
+  }
+  if (offer.id === 'home-loan' || offer.id === 'asp-loan') {
+    runTool({ id: 'code', name: 'startHandoff', args: {} }, ctx);
+    return offerText(offer, reason) + (ctx.cards.some((c) => c.type === 'handoff') ? '\n\nA Nordea adviser can look at it with you, free. Below is what they would see, once, if you connect. Nothing has been sent.' : '');
+  }
+  return offerText(offer, reason);
 }
 
 /** v28: the one card of this reply, from the customer's words (intent.ts). Returns what the model is told. */
@@ -1145,6 +1176,12 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     return {...progress,cards:[],notes:[],topic:'goals',couldHelp:true,offline:true};
   }
 
+  const asked=helperId!=='person'?askedOffer(userId,userText,read.allowed):null;
+  if(asked){
+    if(exposure)exposure.include(sources.filter(s=>s.owner==='cabinet'&&!s.discoveryOnly&&aboutIds.has(s.id)));
+    return {text:offerAnswer(ctx,asked),suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:ctx.extraUsed,topic:'other',couldHelp:true,offline:true};
+  }
+
   // What is in the prompt is in this turn's exposure record (so a later change or removal withdraws it from history).
   if(exposure)exposure.include(sources.filter(s=>s.owner==='cabinet'&&!s.discoveryOnly&&aboutIds.has(s.id)));
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
@@ -1160,7 +1197,9 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   let groundedNote = checkedContext;
   const financialEvidence=new TurnFinancialEvidence(userId,conversationId,newId('financial-turn'),(id,revision)=>{if(id==='request:current')return sourceRevision(userText)===revision;if(id==='bank:getSpending')return sourceRevision({...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}})===revision;if(id==='bank:getPayPlan')return sourceRevision(fin.payPlan(userId))===revision;if(id==='bank:getAccounts')return sourceRevision(fin.accounts(userId))===revision;if(id==='bank:getSalary')return sourceRevision(fin.salaryInfo(userId))===revision;const current=previewCabinetForAgent(userId,'abel').allowed;if(id.startsWith('status:')){const e=current.find(e=>e.id===id.slice(7));return !!e&&e.status!=='archived'&&!!e.target&&sourceRevision({...fin.goalStatus(userId,e),goalType:e.goalType,...(e.status==='stale'?{stale:true,savingRateKnown:false}:{savingRateKnown:fin.primaryGoal(userId)?.id===e.id})})===revision;}const e=current.find(e=>e.id===id);return !!e&&sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy])===revision;});
   selected.forEach(e=>financialEvidence.includeEntry(e));facts.goals.forEach(g=>financialEvidence.includeGoal({...g,savingRateKnown:fin.primaryGoal(userId)?.id===g.goalId}));selected.filter(e=>e.type==='goal'&&e.status==='stale'&&e.target).forEach(e=>financialEvidence.includeGoal({...fin.goalStatus(userId,e),goalType:e.goalType,stale:true,savingRateKnown:false}));financialEvidence.includeBank('getAccounts',fin.accounts(userId));financialEvidence.includeBank('getSalary',fin.salaryInfo(userId));financialEvidence.includeBank('getSpending',{...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}});financialEvidence.includeBank('getPayPlan',fin.payPlan(userId));
-  let system = systemPrompt(userId, helperId, selected, read.blocked.length, facts, suppliedShared, cardNote) + '\n' + checkedContext;
+  const reasons=aboutReasons(userId,read.allowed,db.getCabinetEntries(userId));
+  const asksRecommendation=helperId!=='person'&&!FRAUD.test(userText)&&!DIRECT_PERSON.test(userText)&&!savedRecallRequest(userText)&&recommendationRequest(userText);
+  let system = systemPrompt(userId, helperId, selected, read.blocked.length, facts, suppliedShared, cardNote, reasons) + '\n' + checkedContext;
   // Cards still waiting for the customer's tap in this chat. Seen live: after "ok do it" the model forgot the
   // waiting card and asked for the amount again.
   const waitingCards=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&!m.resolved).flatMap(m=>(m.cards||[]).filter(c=>c.type==='confirm_plan'||c.type==='goal_confirm'));
@@ -1444,6 +1483,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   let sourceEvidenceRetried=false;
   const narrowSourceAnswer=(text:string,args:Record<string,any>):NoraReply|null=>{
     if(/\d/.test(text))return null;
+    if(asksRecommendation)return null; // asked what to do: a list of saved notes is not an answer
+    if(/^(?:please )?tell me (?:more )?about (?!me\b)/i.test(userText.trim())&&!/\b(?:my|mine|our|ours|i|we|me\b.*\bme)\b/i.test(userText))return null; // "tell me about home insurance" asks about the topic, not the customer
     if(!bounded || !provider.isConfigured() || (!personalContextQuestion(userText) && !(!mixedSavedRequest(userText)&&/(?:mentioned|remember|saved|planning for|suunnitteilla|putting aside)/iu.test(userText) || /^(?:i (?:cannot|can.t)|it is not saved|what [^?]+\?|no[, ]|ei ollut)/iu.test(text.trim()))) || FRAUD.test(userText) || ctx.cards.length || ctx.notes.length)return null;
     // About you rows that the question did not match are background, not an answer to list.
     const rows=exposure!.content().filter(r=>r.id!=='app-bank-core'&&!r.discoveryOnly&&!aboutOnly.has(r.id));
@@ -1492,6 +1533,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const completionProblem=explanationReplyProblem(userText,text);
     if(completionProblem)return completionProblem;
     if (!text.trim()) return 'Your reply was empty (maybe cut off). Answer again briefly with finishReply.';
+    const wrongReason=unsupportedReason(text,reasons,customerWords.join(' '));
+    if(wrongReason)return `About you does not say the customer is ${wrongReason}. Write it again without that reason; use only the reasons listed under BECAUSE YOU.`;
     const roleProblem = personalRoleProblem(text, facts, ctx.cards);
     if (roleProblem) return roleProblem;
     const reviewedProblem = reviewedReplyProblem(userText, text, checkedContext, ctx.cards);
@@ -1516,6 +1559,14 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     if (FRAUD.test(userText) && REASSURE.test(text)) return 'Do not judge how likely the scam or payment is (no "probably nothing", "almost certainly"). Write it again: you can\'t tell from here, the steps above are what to do.';
     return null;
   };
+  /** The About you reason for this reply: only when the customer asked for a recommendation (a partner card is shown for the need they named). Not with a card that waits for a tap. */
+  const reasonHere=():AboutReason|undefined=>{
+    if(ctx.goalWriteReplies?.length||ctx.changes||ctx.notes.length)return undefined;
+    if(ctx.cards.some(c=>!['opportunity','offer'].includes(c.type)))return undefined;
+    if(!asksRecommendation)return undefined;
+    return reasonsFor(userText,reasons)[0];
+  };
+  let reasonRetried=false;
   // An answer must arrive within 75 seconds overall (LLM_TURN_MS, longer for the slower Aalto LLM).
   const deadline = Date.now() + (Number(process.env.LLM_TURN_MS) || 75000);
   for (let step = 0; step < 6; step++) {
@@ -1547,7 +1598,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       const p = t ? problemWith(t) : null;
       if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known, money).length && !p) {
         recordTurn(Date.now() - t0, modelCalls);
-        return finish(t, j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
+        return finish(withReason(t,reasonHere()), j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
       }
       if (t && isGarbled(t)) return offline('The AI answer was garbled');
       if (p && repeatedReviewedProblem(t)) return offline('Unverified reply after correction: ' + p);
@@ -1593,7 +1644,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
             const localizedPending=fi&&pendingLine&&pe&&pd?.draft?.target?`Tavoitteen "${pe.title}" ehdotettu summa ${pd.draft.target.amount} euroa ja määräpäivä ${pd.draft.target.date} eivät ole tallennettuja. Muutos vaatii kortin vahvistuksen.`:pendingLine;
             const safeProse=prose&&(!/[0-9]/u.test(prose)||verifiedProseFigures(prose,proseFacts()).ok)&&!problemWith(prose)?prose:'';
             const digitsOf=(t:string)=>(t.match(/\d[\d\s]*(?:[.,]\d+)?/g)||[]).map(x=>x.replace(/\s/g,''));const said=new Set(digitsOf(safeProse));const newLines=lines.filter(l=>!digitsOf(l).length||digitsOf(l).some(d=>!said.has(d)));
-            finished=finish([safeProse,newLines.join(' '),...staleLines,localizedPending,note].filter(Boolean).join('\n\n').trim(),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
+            finished=finish([withReason(safeProse,reasonHere()),newLines.join(' '),...staleLines,localizedPending,note].filter(Boolean).join('\n\n').trim(),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
             results.push({call,result:{accepted:true}});continue;
           }catch(err:any){results.push({call,result:{accepted:false,error:String(err.message)+' Choose only current handles and compatible calculations.'}});continue;}
         }
@@ -1634,7 +1685,13 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
           results.push({ call, result: { accepted: false, error: p } });
           continue;
         }
-        finished = finish(text, call.args.suggestions, call.args.usedEntryIds, call.args.topic, call.args.couldHelp);
+        const lead=reasonHere();
+        if(lead&&!reasonRetried&&!givesReason(text)&&withReason(text,lead)!==text&&Date.now()<deadline-25000&&step<4){
+          reasonRetried=true;
+          results.push({call,result:{accepted:false,error:`You recommended something without saying why it fits. Write it again, same content, starting with the reason from About you that fits best, e.g. "Because ${lead.phrase}, …". Use only the listed reasons.`}});
+          continue;
+        }
+        finished = finish(withReason(text,lead), call.args.suggestions, call.args.usedEntryIds, call.args.topic, call.args.couldHelp);
         results.push({ call, result: { accepted: true } });
       } else {
         const result = runTool(call, ctx);
@@ -1668,7 +1725,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       && results.every((r) => (r.result as any)?.saved === true || (r.result as any)?.shown === true)
       && !unsupportedNumbers(res.text!.trim(), known, money).length && !problemWith(cleanReply(res.text!.trim()))) {
       const t = cleanReply(res.text!.trim());
-      if (t && !isGarbled(t) && !looksLikeCode(t)) finished = finish(t, jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
+      if (t && !isGarbled(t) && !looksLikeCode(t)) finished = finish(withReason(t,reasonHere()), jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
     }
     // Otherwise (no words yet, or the words were code) the results go back to the model, which writes the reply.
     if (finished) {

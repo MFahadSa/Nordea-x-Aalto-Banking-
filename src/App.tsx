@@ -14,7 +14,7 @@ import { GetMoreCard, introFor } from './components/AboutYou.js';
 import { CabinetPage } from './components/CabinetPage.js';
 import { OffersForYou } from './components/Offers.js';
 import { fetchAbout } from './services/aboutApi.js';
-import type { AboutView } from './aboutParts.js';
+import { offerQuestion, type AboutView } from './aboutParts.js';
 import { CabinetEntry, ChatMessage, PersonaId, User } from './types.js';
 import {
   AppState,
@@ -536,7 +536,7 @@ export default function App() {
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
               getMore={<GetMoreCard view={about} onAdd={() => goPage('knows')} />}
               offers={<OffersForYou userId={state.user.id} refreshKey={offersKey}
-                onAsk={(o) => startChat('abel', `Tell me about the ${o.title} for my situation`)}
+                onAsk={(o) => startChat('abel', offerQuestion(o.title))}
                 onToast={(m, undo) => setToast({ message: m, action: undo ? { label: 'Undo', run: undo } : undefined })} />}
             />
           )}
