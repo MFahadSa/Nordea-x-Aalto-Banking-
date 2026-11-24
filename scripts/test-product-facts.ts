@@ -4,6 +4,6 @@ assert.throws(()=>selectedProductFacts(['invented'],facts));assert.throws(()=>se
 assert.equal(productFacts('2027-06-01').length,0);assert.ok(!productFacts('2027-01-01').some(f=>f.id==='ps.deduction'));
 const d=selectedProductFacts(['asp.deposits'],facts)[0];assert.match(d.text,/at least 50/);assert.match(d.text,/at least 20/);assert.match(d.text,/50 to 1,500/);
 const p=selectedProductFacts(['ps.withdrawal'],facts)[0];for(const re of [/do not exceed 5,000/,/1 January 2027/,/2027 or 2028/,/30%/,/AND planned/])assert.match(p.text,re);
-for(const bad of ['You can withdraw everything.','The maximum deposit is 50 euros.','You can deposit unlimited money.','There are no conditions.','You are definitely eligible.','It is tax-free.'])assert.ok(productConnectiveProblem(bad),bad);
+for(const bad of ['You can withdraw everything.','The maximum deposit is 50 euros.','You can deposit unlimited money.','There are no conditions.','You are definitely eligible.','It is tax-free.',"You're eligible.","You're in range.",'You’re qualified.','You qualify.'])assert.ok(productConnectiveProblem(bad),bad);
 assert.equal(productConnectiveProblem('This may be worth considering. The checked conditions below explain the detail.'),null);
 console.log('PASS typed fact IDs, bounded selections, version/revision/source metadata, expiry, PS date boundary, ASPminmax, indivisiblePS, unsafe connective negatives');

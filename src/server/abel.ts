@@ -210,7 +210,7 @@ const ALL_TOOLS: ToolDecl[] = [
     parameters: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Short paragraphs, blank line between' },
+        text: { type: 'string', description: 'Short complete paragraphs. When productFacts is selected, write one or two complete natural connective/advice sentences with no digits, percentages, dates, personal figures or eligibility conclusion. The app separately renders productFacts and financialAnswer, so never repeat their numbers here.' },
         suggestions: { type: 'array', items: { type: 'string' }, description: '0–3 short quick replies. Clarification choices must be exact current customer words or readable saved-item titles; never guess a value.' },
         clarification: {type:'object',description:'Only when a needed detail genuinely requires a customer answer. Not a provider or verification failure. Existing question cards take precedence.',properties:{kind:{type:'string',enum:['customer_detail','saved_search','context_changed','verification_failure']},question:{type:'string',description:'One specific complete question, ending with a question mark. No invented values. Replaces text for this clarification.'}},required:['kind','question']},
         usedEntryIds: { type: 'array', items: { type: 'string' } },
@@ -1538,10 +1538,11 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
             if(selectedFacts.length){
               const text=cleanReply(String(call.args.text||''));
               const issue=productConnectiveProblem(text)||problemWith(text);
-              if(issue){if(ruleRetried)return offline('Unverified reply after correction: '+issue);ruleRetried=true;results.push({call,result:{accepted:false,error:issue+' Rewrite the entire response, selecting checked productFacts and keeping connective prose natural and nonnumeric. No personal eligibility conclusion.'}});continue;}
+              if(issue){if(ruleRetried)return offline('Unverified reply after correction: '+issue);ruleRetried=true;results.push({call,result:{accepted:false,error:issue+' Rewrite the entire response, selecting checked productFacts and keeping connective prose natural and nonnumeric. Replace the entire rejected text, do not append or continue it. Finish every sentence. Do not repeat any product or personal numbers, dates or age, even from supplied facts; select financialAnswer for any personal figures. Do not conclude eligibility or say the customer is in range.'}});continue;}
               const financial=Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length?financialEvidence.render(call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact}),'en',userText):[];
               const sources=[...new Set(selectedFacts.map(f=>f.source))];
-              finished=finish([text,...selectedFacts.map(f=>f.text),...financial,'Source'+(sources.length>1?'s':'')+': '+sources.join('\n')].filter(Boolean).join('\n\n'),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
+              const safeSuggestions=Array.isArray(call.args.suggestions)?call.args.suggestions.filter((s:unknown)=>typeof s==='string'&&!productConnectiveProblem(s)):[];
+              finished=finish([text,...selectedFacts.map(f=>f.text),...financial,'Source'+(sources.length>1?'s':'')+': '+sources.join('\n')].filter(Boolean).join('\n\n'),safeSuggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
               results.push({call,result:{accepted:true}});continue;
             }
           }catch(err:any){if(ruleRetried)return offline('Unverified product fact selection after correction');ruleRetried=true;results.push({call,result:{accepted:false,error:String(err.message)}});continue;}
