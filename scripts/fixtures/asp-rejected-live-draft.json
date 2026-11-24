@@ -1,0 +1,18 @@
+{
+  "couldHelp": true,
+  "productFacts": [
+    "asp.overview",
+    "asp.interest",
+    "asp.deposits"
+  ],
+  "suggestions": [
+    "What are the monthly deposit limits?",
+    "How does the 4% bonus work exactly?",
+    "Can I keep my current savings account too?"
+  ],
+  "text": "That's exciting \u2014 a first home is a big step. Since it's your first home, an ASP account is worth considering: it's a separate savings account built for first-time buyers, with a 1% annual interest and a one-time 4% bonus paid later when you buy with an ASP or home loan, after at least 20 approved monthly deposits. The upper age limit for opening one was removed in June 2026, so at 31 you're in range.\n\nYou're already saving 400 \u20ac a month toward your flat goal, which is a solid base. An ASP's",
+  "topic": "home_buying",
+  "usedEntryIds": [
+    "lauri-home-goal"
+  ]
+}

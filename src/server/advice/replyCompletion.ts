@@ -9,3 +9,26 @@ export function explanationReplyProblem(request: string, reply: string): string 
   if (words.length === 1) return 'The customer asked for an explanation or comparison, but the reply is only one word. Give a short complete explanation grounded in the supplied facts, or ask one useful clarification question. Do not claim an action completed.';
   return null;
 }
+
+/** Citation-only tails are metadata, not evidence that the preceding sentence is cut off.
+ * Only an exact source URL supplied for this turn can be removed for this check.
+ * Never edit the displayed answer or treat an arbitrary URL as trusted evidence.
+ */
+export function unfinishedReplyProblem(text:string, sourceUrls:readonly string[]=[]):string|null {
+  let prose=text.trim();
+  const normalize=(url:string)=>url.replace(/[.,)\]>]+$/u,'').replace(/\/$/u,'');
+  const allowed=new Set(sourceUrls.map(normalize));
+  for(let i=0;i<8;i++){
+    const tail=/(?:^|\n|\s)(?:[-*]\s*)?(?:\((?:see\s+)?)?(?:Source(?:s)?(?:\s*\([^\n]*?\))?\s*:\s*)?(?:\[[^\]\n]+\]\((https?:\/\/[^\s<>]+)\)|<?(https?:\/\/[^\s<>]+)>?)\s*$/iu.exec(prose);
+    if(!tail||!allowed.has(normalize(tail[1]||tail[2])))break;
+    prose=prose.slice(0,tail.index).trim();
+  }
+  if(text.length>400&&!/[.!?]["'’”)]*$/u.test(prose))return 'Your long reply ends without a complete sentence. Rewrite the whole answer in at most 300 characters, complete sentences, no unfinished offer.';
+  if(prose.length>40&&/(?:\b(?:a|an|the|to|of|and|or|with|your|is|are|be|for|by|at|in|on)|(?<![\d  ])\d)\s*$/iu.test(prose))return 'Your reply was cut off mid-sentence. Write it again, complete and short.';
+  return null;
+}
+
+/** A financial read can accompany advice, but cannot silently replace requested advice. */
+export function requestsSavingOptions(request:string):boolean {
+ return /\b(?:first home|first flat|first house)\b/iu.test(request)&&/\b(?:suggest|recommend|options?|where to start|best way|how (?:do|should|can) (?:I|we))\b/iu.test(request);
+}

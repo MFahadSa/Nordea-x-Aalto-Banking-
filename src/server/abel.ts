@@ -1,7 +1,8 @@
+import {productFacts,selectedProductFacts,productConnectiveProblem,PRODUCT_FACT_IDS} from './advice/productFacts.js';
 import {aspRequestIdentity} from './advice/aspSourceIdentity.js';
 import {goalProgressReply} from './advice/goalProgress.js';
 import {clarificationInput,clarificationChoices,UNKNOWN_REPLY,type Clarification} from './advice/clarification.js';
-import {explanationReplyProblem} from './advice/replyCompletion.js';
+import {explanationReplyProblem,unfinishedReplyProblem as checkUnfinishedReply,requestsSavingOptions} from './advice/replyCompletion.js';
 import {TurnFinancialEvidence} from './advice/turnFinancialEvidence.js';
 import {goalRevision,proposalDeadline,goalProposalText,finnishGoalRequest,finnishGoalProposal} from './advice/goalConfirmation.js';
 import {knowledgeAbsenceClaim} from './advice/knowledgeAbsence.js';
@@ -36,7 +37,7 @@ import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { intentsOf } from './advice/intent.js';
 import { reviewedReplyProblem } from './advice/reviewedReply.js';
 import { verifiedProseFigures } from './advice/proseFigures.js';
-import { reviewedContext } from './advice/reviewedAnswer.js';
+import { reviewedContext,requestsAspBackground } from './advice/reviewedAnswer.js';
 import { refusesStorage, scopedGoalOnRefusal, purposeOf, declinesPartner, explicitlyRequests } from './advice/purpose.js';
 import { ruleCardFor } from './advice/chatCard.js';
 import { cardFor } from './advice/cards.js';
@@ -209,12 +210,13 @@ const ALL_TOOLS: ToolDecl[] = [
     parameters: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Short paragraphs, blank line between' },
+        text: { type: 'string', description: 'Short complete paragraphs. When productFacts is selected, write one or two complete natural connective/advice sentences with no digits, percentages, dates, personal figures or eligibility conclusion. The app separately renders productFacts and financialAnswer, so never repeat their numbers here.' },
         suggestions: { type: 'array', items: { type: 'string' }, description: '0–3 short quick replies. Clarification choices must be exact current customer words or readable saved-item titles; never guess a value.' },
         clarification: {type:'object',description:'Only when a needed detail genuinely requires a customer answer. Not a provider or verification failure. Existing question cards take precedence.',properties:{kind:{type:'string',enum:['customer_detail','saved_search','context_changed','verification_failure']},question:{type:'string',description:'One specific complete question, ending with a question mark. No invented values. Replaces text for this clarification.'}},required:['kind','question']},
         usedEntryIds: { type: 'array', items: { type: 'string' } },
         topic: { type: 'string', enum: ['goals', 'spending', 'income', 'saving_plan', 'afford', 'life_event', 'investing', 'home_buying', 'person', 'privacy', 'small_talk', 'complaint', 'out_of_scope', 'other'] },
         couldHelp: { type: 'boolean' },
+        productFacts:{type:'array',items:{type:'string',enum:[...PRODUCT_FACT_IDS]},description:'Select at most three relevant checked ASP/PS fact clauses. They render with their conditions and sources. Do not restate product numbers or eligibility in text.'},
         financialAnswer:{type:'array',items:{type:'object',properties:{fact:{type:'string'},calculationJson:{type:'string',description:'JSON expression using fact handles, constant months_per_year, or op add/subtract/multiply/divide with left/right nested expressions.'}}},description:'For personal numeric or calendar answers use supplied FINANCIAL FACT HANDLES. Choose facts or calculations, never invent handles. The app renders amounts, units, source purpose and dates. Keep text free of those claims.'},
         savedAnswerEvidence:{type:'object',properties:{sourceId:{type:'string'},quote:{type:'string'}},description:'For a narrow question about the customer saved context, cite a currently supplied source ID and an exact source detail span also included naturally in your reply. No negative knowledge conclusion is justified by a limited lookup.'},
         savedLookupClaim:{type:'string',enum:['no_absence_claim','search_incomplete','claims_no_saved_fact'],description:'Never claim no saved fact from limited retrieval. claims_no_saved_fact is not accepted by this app.'},
@@ -1124,6 +1126,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   // Resolve product evidence only. Do not change the request, tools, personal context or publication guards.
   const backgroundRequest=productIdentity&&!/\bASP\b/i.test(userText)?userText+' ASP':userText;
   let checkedContext = reviewedContext(backgroundRequest, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
+  if(requestsSavingOptions(userText)&&requestsAspBackground(backgroundRequest)&&!!checkedContext)checkedContext+='\nCUSTOMER TASK: The customer asks how to start first-home saving, not only for a goal-status read. Explain a suitable checked saving option or ask one relevant question. ASP may be worth considering, not an eligibility decision. Do not assume they lack an ASP elsewhere. Existing goal figures may support advice but must not replace it. Respect refusals and do not create intake, an account or a transfer without the existing controls.';
+  const availableProductFacts=productFacts(fin.DEMO_TODAY);
   let groundedNote = checkedContext;
   const financialEvidence=new TurnFinancialEvidence(userId,conversationId,newId('financial-turn'),(id,revision)=>{if(id==='request:current')return sourceRevision(userText)===revision;if(id==='bank:getSpending')return sourceRevision({...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}})===revision;if(id==='bank:getPayPlan')return sourceRevision(fin.payPlan(userId))===revision;if(id==='bank:getAccounts')return sourceRevision(fin.accounts(userId))===revision;if(id==='bank:getSalary')return sourceRevision(fin.salaryInfo(userId))===revision;const current=previewCabinetForAgent(userId,'abel').allowed;if(id.startsWith('status:')){const e=current.find(e=>e.id===id.slice(7));return !!e&&e.status!=='archived'&&!!e.target&&sourceRevision({...fin.goalStatus(userId,e),goalType:e.goalType,...(e.status==='stale'?{stale:true,savingRateKnown:false}:{savingRateKnown:fin.primaryGoal(userId)?.id===e.id})})===revision;}const e=current.find(e=>e.id===id);return !!e&&sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy])===revision;});
   selected.forEach(e=>financialEvidence.includeEntry(e));facts.goals.forEach(g=>financialEvidence.includeGoal({...g,savingRateKnown:fin.primaryGoal(userId)?.id===g.goalId}));selected.filter(e=>e.type==='goal'&&e.status==='stale'&&e.target).forEach(e=>financialEvidence.includeGoal({...fin.goalStatus(userId,e),goalType:e.goalType,stale:true,savingRateKnown:false}));financialEvidence.includeBank('getAccounts',fin.accounts(userId));financialEvidence.includeBank('getSalary',fin.salaryInfo(userId));financialEvidence.includeBank('getSpending',{...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}});financialEvidence.includeBank('getPayPlan',fin.payPlan(userId));
@@ -1135,6 +1139,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   if(bounded)system=system.replace("FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):",'FACTS (computed bank context. For personal numeric or calendar answers choose the supplied FINANCIAL FACT HANDLES in finishReply.financialAnswer; do not copy numbers into prose):').replace('use these numbers directly','choose the corresponding financialAnswer handles').replace('- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly).','- Personal numbers and dates must be selected through financialAnswer handles or supported calculation expressions. The app renders values with their roles and units. The only exception: you may say a figure in your own words when it is exactly a supplied handle value and the same sentence says what it is (e.g. "your average spending is 2 107 € a month"). Never give a figure another role, unit or month.');
   if(ctx.clarificationReadOnly)system+='\nCLARIFICATION ANSWER: The last reply asked '+JSON.stringify(prior!.clarification)+'. Use the answer only for this conversation. Do not save notes or infer eligibility from a clarification answer. A separate explicit new action request still uses the existing confirmation controls, never direct execution. If the answer is unknown, do not repeat the same question; give supported general help without guessing.';
   system += '\nFACT ROLES: Every figure has a role and unit. A number appearing somewhere is not permission to assign it to another field. For goals, saved, target, monthly contribution, shortfall and months left are separate. For products, opening/starting year, purchase/payment date, annual interest and one-time bonus are separate. PS annual contribution deduction cap and historical balance withdrawal test are separate. Energy monthly fee, usage price and spot margin are separate; never present just a fee as the total cost. Say unknown when coverage or a term is absent. Use the customer\'s language, but retain the exact meaning, threshold boundary and conditions. Do not expand an acronym unless CHECKED BACKGROUND provides the expansion. Do not invent screens, sections or availability; describe only actual controls in the displayed contract.';
+  system+='\nCHECKED PRODUCT FACT CLAUSES: '+JSON.stringify(availableProductFacts)+'\nFor ASP/PS facts choose relevant finishReply.productFacts IDs. The app renders those exact clauses and their source. Write natural connective/advice text referring to the clauses, without rewording numeric rules, personal eligibility, tax assurances, unlimited deposits or withdrawals. Do not dump unrelated clauses. These clauses are not actions or personal account data.';
   const t0 = Date.now();
   let modelCalls = 0;
   let answerProvider: string | undefined;
@@ -1412,11 +1417,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     const fi=/(?:mitä|kerro|sinulla|muistat|tallenn|kuussa|minun|mulla|olenko|onko)/iu.test(userText);
     return {text:(fi?'Jaetusta tallennetusta tiedosta löytyi:\n':'From the saved context currently shared:\n')+rows.filter((r,i,a)=>a.findIndex(x=>x.id===r.id||x.title===r.title&&x.detail===r.detail)===i).map(r=>r.title+(r.detail?': '+r.detail:'')).join('\n'),suggestions:[],cards:[],notes:[],usedEntryIds:rows.filter(r=>r.owner==='cabinet').map(r=>r.id),topic:'other',couldHelp:true,offline:true};
   };
-  const unfinishedReplyProblem=(text:string):string|null=>{
-    if(text.length>400&&!/[.!?]["'’”)]*$/u.test(text.trim()))return 'Your long reply ends without a complete sentence. Rewrite the whole answer in at most 300 characters, complete sentences, no unfinished offer.';
-    if (CUT_OFF.test(text) && text.length > 40) return 'Your reply was cut off mid-sentence. Write it again, complete and short.';
-    return null;
-  };
+  const checkedSourceUrls=[...checkedContext.matchAll(/https?:\/\/[^\s)]+/gu)].map(m=>m[0]);
+  const unfinishedReplyProblem=(text:string)=>checkUnfinishedReply(text,checkedSourceUrls);
   const problemWith = (text: string): string | null => {
     const proposed=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.cards?.some(c=>c.type==='goal_confirm')&&m.resolved!=='Confirmed goal').flatMap(m=>m.cards!.filter(c=>c.type==='goal_confirm').map(c=>c.data)).filter(Boolean);
     for(const data of proposed){
@@ -1530,6 +1532,21 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
           results.push({ call, result: { accepted: false, error: 'The pending question changed in this step. Write finishReply again after reading its result. Only saved:true means saved; shown:true with saved:false is an interpretation review, not eligibility or a saved fact. CURRENT QUESTION and THIS TURN earlier in the prompt are superseded by this result.' } });
           continue;
         }
+        if(call.args.productFacts!==undefined){
+          try{
+            const selectedFacts=selectedProductFacts(call.args.productFacts,availableProductFacts);
+            if(selectedFacts.length){
+              const text=cleanReply(String(call.args.text||''));
+              const issue=productConnectiveProblem(text)||problemWith(text);
+              if(issue){if(ruleRetried)return offline('Unverified reply after correction: '+issue);ruleRetried=true;results.push({call,result:{accepted:false,error:issue+' Rewrite the entire response, selecting checked productFacts and keeping connective prose natural and nonnumeric. Replace the entire rejected text, do not append or continue it. Finish every sentence. Do not repeat any product or personal numbers, dates or age, even from supplied facts; select financialAnswer for any personal figures. Do not conclude eligibility or say the customer is in range.'}});continue;}
+              const financial=Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length?financialEvidence.render(call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact}),'en',userText):[];
+              const sources=[...new Set(selectedFacts.map(f=>f.source))];
+              const safeSuggestions=Array.isArray(call.args.suggestions)?call.args.suggestions.filter((s:unknown)=>typeof s==='string'&&!productConnectiveProblem(s)):[];
+              finished=finish([text,...selectedFacts.map(f=>f.text),...financial,'Source'+(sources.length>1?'s':'')+': '+sources.join('\n')].filter(Boolean).join('\n\n'),safeSuggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
+              results.push({call,result:{accepted:true}});continue;
+            }
+          }catch(err:any){if(ruleRetried)return offline('Unverified product fact selection after correction');ruleRetried=true;results.push({call,result:{accepted:false,error:String(err.message)}});continue;}
+        }
         if(!call.args.clarification&&Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length){
           try{
             const requested=call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact}).filter((r:any,i:number,all:any[])=>{const k=JSON.stringify(r);return all.findIndex((x:any)=>JSON.stringify(x)===k)===i;}); // the same fact chosen twice is shown once (seen live)
@@ -1545,6 +1562,13 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
             const pendingLine=pe&&pd?.draft?.target&&goalNameInText(pe.title,userText)&&pd.existingRevision===goalRevision(pe)&&pd.expiresAt&&Date.parse(pd.expiresAt)>Date.now()?`For "${pe.title}", the proposed target ${pd.draft.target.amount} EUR by ${pd.draft.target.date} is not saved. Only tapping the card confirmation would apply it.`:'';
             const staleLines=read.allowed.filter(e=>e.type==='goal'&&e.status==='stale'&&(/\bcar\b/iu.test(userText)?/\bcar\b/iu.test(e.title):false)).map(e=>fi?`Tavoite "${e.title}" on merkitty vanhentuneeksi. Määräpäivä on mennyt.`:`The "${e.title}" goal is marked stale. Its saved deadline has passed.`);
             const localizedPending=fi&&pendingLine&&pe&&pd?.draft?.target?`Tavoitteen "${pe.title}" ehdotettu summa ${pd.draft.target.amount} euroa ja määräpäivä ${pd.draft.target.date} eivät ole tallennettuja. Muutos vaatii kortin vahvistuksen.`:pendingLine;
+            const digitsVerified=!/[0-9]/u.test(prose)||verifiedProseFigures(prose,proseFacts()).ok;
+            const proseProblem=prose?(problemWith(prose)||(!digitsVerified?'The explanation contains unverified figures. Use checked evidence, not guessed values.':null)):null;
+            if(requestsSavingOptions(userText)&&(proseProblem || !prose)){
+              const reason=proseProblem||'The customer asked for first-home saving options. Financial figures alone do not answer that request. Give a short source-grounded option or ask one relevant question; keep personal eligibility unknown.';
+              if(ruleRetried)return offline('Unverified reply after correction: '+reason);
+              ruleRetried=true;results.push({call,result:{accepted:false,error:reason+' Rewrite the whole answer. Keep any verified financialAnswer selections only if useful; do not drop the requested explanation.'}});continue;
+            }
             const safeProse=prose&&(!/[0-9]/u.test(prose)||verifiedProseFigures(prose,proseFacts()).ok)&&!problemWith(prose)?prose:'';
             const digitsOf=(t:string)=>(t.match(/\d[\d\s]*(?:[.,]\d+)?/g)||[]).map(x=>x.replace(/\s/g,''));const said=new Set(digitsOf(safeProse));const newLines=lines.filter(l=>!digitsOf(l).length||digitsOf(l).some(d=>!said.has(d)));
             finished=finish([safeProse,newLines.join(' '),...staleLines,localizedPending,note].filter(Boolean).join('\n\n').trim(),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
