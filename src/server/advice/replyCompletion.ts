@@ -28,7 +28,13 @@ export function unfinishedReplyProblem(text:string, sourceUrls:readonly string[]
   return null;
 }
 
+/** Housing references only. "First place" alone can mean a competition result. */
+export function requestsFirstHomeBackground(request:string):boolean {
+ if(/\bfirst[ -](?:home|flat|house)\b/iu.test(request))return true;
+ if(/\bown (?:home|place)\b/iu.test(request))return !/\b(?:already (?:own|bought)|current home|second home)\b/iu.test(request);
+ return /\b(?:our|my|a) first place\b/iu.test(request)&&/\b(?:buy|buying|purchase|purchasing|saving|save|deposit|mortgage)\b/iu.test(request)&&!/\b(?:race|competition|contest|finish|finished|win|won|prize)\b/iu.test(request);
+}
 /** A financial read can accompany advice, but cannot silently replace requested advice. */
 export function requestsSavingOptions(request:string):boolean {
- return /\b(?:first home|first flat|first house)\b/iu.test(request)&&/\b(?:suggest|recommend|options?|where to start|best way|how (?:do|should|can) (?:I|we))\b/iu.test(request);
+ return requestsFirstHomeBackground(request)&&/\b(?:suggest|recommend|options?|where to start|(?:best|sensible|good) way|(?:get|getting) started|how (?:do|should|can) (?:I|we))\b/iu.test(request);
 }

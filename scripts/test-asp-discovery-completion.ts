@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {requestsAspBackground,reviewedContext} from '../src/server/advice/reviewedAnswer.js';
 import {unfinishedReplyProblem,requestsSavingOptions} from '../src/server/advice/replyCompletion.js';
 const url='https://www.nordea.fi/en/personal/our-services/savings-investments/savings-accounts/asp-account.html';
 const prose='ASP is a separate first-home savings account. '.repeat(11);
@@ -21,3 +22,7 @@ assert.ok(requestsSavingOptions('We want our first home. Where to start?'));
 assert.ok(!requestsSavingOptions('Am I on track for my home goal?'));
 assert.ok(!requestsSavingOptions('Show my first home goal balance.'));
 console.log('PASS citation ending shape: trusted URL, untrusted URL, unfinished body, normal punctuation, saving-options scope');
+
+for(const text of ["I'm buying my first home and my current home is for sale. How do I start saving?","We rent now, but hope to buy our first place. I can save regularly. Is there a sensible way to get started?","We want our first flat. How should we start saving?","We're saving for our first house. Any good way to get started?"]){assert.ok(requestsAspBackground(text),text);assert.ok(requestsSavingOptions(text),text);assert.match(reviewedContext(text,31,'2026-10-23'),/Open an ASP account/);}
+for(const text of ["I won first place in a race. What are my saving options?","Our first place in the competition was a surprise. Any sensible way to save the prize?","We already own our current home. What are our options?","We plan to buy a second home. How do we save?"]){assert.equal(requestsAspBackground(text),false,text);assert.equal(requestsSavingOptions(text),false,text);assert.doesNotMatch(reviewedContext(text,31,'2026-10-23'),/Open an ASP account/);}
+assert.ok(requestsAspBackground('Explain ASP please'));assert.match(reviewedContext('Explain my PS account',31,'2026-10-23'),/PS/);console.log('PASS natural first-place housing discovery and sensible-way synonyms; unrelated prize/current/second-home negatives');

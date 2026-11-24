@@ -1,3 +1,4 @@
+import {requestsFirstHomeBackground} from './replyCompletion.js';
 /** Reviewed catalogue context, never a replacement for the customer's task.
  * All rule numbers and explanations come from the same versioned source as cards.
  */
@@ -16,7 +17,7 @@ export function renderExplanation(rule: Rule): string {
 
 /** `shownPartners`: partner ids whose offer card THIS turn actually shows. Partner prices and incentives are only
  *  given for those, so offers-off, dismissed or duplicate cards never reach the model as background. */
-export const requestsAspBackground=(text:string)=>/\basp\b|first home|first.home|own (?:home|place)/i.test(text);
+export const requestsAspBackground=(text:string)=>/\basp\b/i.test(text)||requestsFirstHomeBackground(text);
 
 export function reviewedContext(text: string, age: number | undefined, today: string, shownPartners: ReadonlySet<string> = new Set(), displayedFollowup = false): string {
   const topics = new Set<string>();
