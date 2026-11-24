@@ -1,3 +1,4 @@
+import {aspRequestIdentity} from './advice/aspSourceIdentity.js';
 import {consumeGoalProposal} from './advice/goalCommit.js';
 // v14 routes: conversations with helpers, the real Nora, customer button actions, partner offers,
 // one-time sharing, imports and the data the screens need. Money and fees are computed in code.
@@ -168,6 +169,10 @@ export function registerV14Routes(app: Express) {
     let conv = conversationId ? db.getConversation(conversationId) : undefined;
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
+    const previousUser=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.sender==='user'&&m.id!==u.id).at(-1);
+    const sourceIdentity=aspRequestIdentity(u.text,fin.DEMO_TODAY,previousUser?.aspSourceIdentity);
+    if(sourceIdentity){u.aspSourceIdentity=sourceIdentity;db.updateMessage(u.id,{aspSourceIdentity:sourceIdentity});}
+
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
     const namedUnlinked=previewCabinetForAgent(userId,'abel').allowed.filter(e=>e.type==='goal'&&e.status!=='archived'&&e.target&&goalNameInText(e.title,text)&&fin.primaryGoal(userId)?.id!==e.id&&e.goalType!=='car');
     const missingLinkQuestion=/(?:\?|^(?:how|what|am I|do I|paljonko|kuinka|olenko))/iu.test(text)&&/(?:saved|saving|save|short|remain|on track|extra|sääst|puuttu)/iu.test(text)&&!/(?:change|update|set|create|add|rename|muuta|vaihda|nosta|poista|note)/iu.test(text);
