@@ -1,3 +1,4 @@
+import {aspRequestIdentity} from './advice/aspSourceIdentity.js';
 import {goalProgressReply} from './advice/goalProgress.js';
 import {clarificationInput,clarificationChoices,UNKNOWN_REPLY,type Clarification} from './advice/clarification.js';
 import {explanationReplyProblem} from './advice/replyCompletion.js';
@@ -1118,7 +1119,11 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   // Reviewed facts constrain the model; they never replace the customer's task or tool turn.
   for (const n of ctx.notes) if (n.entryId) linkCurrentSource(ctx, n.entryId);
   const shownPartners = new Set(ctx.cards.filter((c) => c.type === 'offer').map((c) => String(c.data?.partnerId)));
-  let checkedContext = reviewedContext(userText, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
+  const userRequests=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.sender==='user');
+  const productIdentity=aspRequestIdentity(userText,fin.DEMO_TODAY,userRequests.at(-2)?.aspSourceIdentity);
+  // Resolve product evidence only. Do not change the request, tools, personal context or publication guards.
+  const backgroundRequest=productIdentity&&!/\bASP\b/i.test(userText)?userText+' ASP':userText;
+  let checkedContext = reviewedContext(backgroundRequest, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
   let groundedNote = checkedContext;
   const financialEvidence=new TurnFinancialEvidence(userId,conversationId,newId('financial-turn'),(id,revision)=>{if(id==='request:current')return sourceRevision(userText)===revision;if(id==='bank:getSpending')return sourceRevision({...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}})===revision;if(id==='bank:getPayPlan')return sourceRevision(fin.payPlan(userId))===revision;if(id==='bank:getAccounts')return sourceRevision(fin.accounts(userId))===revision;if(id==='bank:getSalary')return sourceRevision(fin.salaryInfo(userId))===revision;const current=previewCabinetForAgent(userId,'abel').allowed;if(id.startsWith('status:')){const e=current.find(e=>e.id===id.slice(7));return !!e&&e.status!=='archived'&&!!e.target&&sourceRevision({...fin.goalStatus(userId,e),goalType:e.goalType,...(e.status==='stale'?{stale:true,savingRateKnown:false}:{savingRateKnown:fin.primaryGoal(userId)?.id===e.id})})===revision;}const e=current.find(e=>e.id===id);return !!e&&sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy])===revision;});
   selected.forEach(e=>financialEvidence.includeEntry(e));facts.goals.forEach(g=>financialEvidence.includeGoal({...g,savingRateKnown:fin.primaryGoal(userId)?.id===g.goalId}));selected.filter(e=>e.type==='goal'&&e.status==='stale'&&e.target).forEach(e=>financialEvidence.includeGoal({...fin.goalStatus(userId,e),goalType:e.goalType,stale:true,savingRateKnown:false}));financialEvidence.includeBank('getAccounts',fin.accounts(userId));financialEvidence.includeBank('getSalary',fin.salaryInfo(userId));financialEvidence.includeBank('getSpending',{...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}});financialEvidence.includeBank('getPayPlan',fin.payPlan(userId));

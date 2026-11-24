@@ -320,6 +320,8 @@ export interface ChatMessage {
   exposedContentKeys?: string[];
   /** Disposable question state, never a saved customer fact or action consent. */
   retryRequest?: string;
+  /** Product source selected by the request, never answer verification or eligibility. */
+  aspSourceIdentity?: {id:string;revision:string};
   clarification?: {kind:'customer_detail'|'saved_search'|'context_changed'|'verification_failure';question:string;purpose?:'goal_progress'};
   savedContextPage?: {query:string;cursor?:string;complete?:boolean;count?:number;language?:string;viewRevision?:string;discovery?:boolean};
   exposedSources?: {owner:'cabinet'|'personal'|'cm'|'nordea';id:string;revision:string}[];
