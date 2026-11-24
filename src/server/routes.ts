@@ -19,6 +19,7 @@ import { runOnce, requestState } from './chatRequests.js';
 import {goalNameInText} from './advice/goalWriteEvidence.js';
 import {goalRevision} from './advice/goalConfirmation.js';
 import { abelTurn, offerHeadline } from './abel.js';
+import { REWARDS } from './rewards.js';
 import { getProvider, aiStatus, aiPing } from './llm.js';
 import { CabinetEntry, ChatMessage, Conversation, MessageCard, StoredDocument } from '../types.js';
 import { keepDocument, readDocument, deleteDocument, sweepExpired, KEEP_DAYS } from './documents.js';
@@ -52,12 +53,7 @@ function newConversation(userId: string, helperId: string): Conversation {
   return db.addConversation({ id: id('conv'), userId, helperId, createdAt: now(), updatedAt: now(), offered: [] });
 }
 
-export const REWARDS = [
-  { id: 'coach', title: 'A free 30-minute session with a Nordea money coach', short: 'Money coach session', pts: 100, done: 'Booked. A money coach will contact you.' },
-  { id: 'charity', title: 'Nordea gives 5 € to a charity you choose', short: '5 € to charity', pts: 100, done: 'Thank you. You’ll pick the charity by email (example).' },
-  { id: 'nofee', title: 'One month with no account fee', short: 'No account fee for a month', pts: 150, done: 'Done. Next month has no account fee.' },
-  { id: 'boost', title: 'Nordea adds 10 € to your goal savings', short: '10 € to your goal', pts: 300, done: 'Done. 10 € added to your savings.' },
-];
+export { REWARDS };
 export const levelOf = (lifetime: number) => (lifetime >= 300 ? 'Gold' : lifetime >= 150 ? 'Silver' : 'Starter');
 
 /** What the app shows about a kept file (never the bytes). */

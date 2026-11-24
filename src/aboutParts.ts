@@ -76,6 +76,32 @@ export interface AboutView {
   setup: { key: string; done: boolean; doneText: string; todoText: string; step: FieldKey | 'confirm' }[];
 }
 
+/** What the app sends when the customer taps "Ask Nora" on an offer. */
+export const offerQuestion = (title: string) => `Tell me about the ${title} for my situation`;
+
+/** The tapped answer a typed work or home line clearly means ("Studies at Aalto" → Studying). Unclear or negated: none. */
+export function inferValues(key: FieldKey, text: string | undefined): string[] {
+  const t = (text || '').toLowerCase();
+  if (!t || /\b(?:no longer|not|never|former|formerly|used to|ex|graduated|was|until|want|wants|plans?|hopes?)\b|n['’]t\b/.test(t)) return [];
+  if (key === 'work') {
+    const w = t.replace(/\bstudent (?:loan|aid|debt|flat|housing|discount|card)s?\b/g, '');
+    const studies = /\b(?:student|study|studies|studying)\b/.test(w);
+    if (/\b(?:between jobs|unemployed|looking for (?:a )?(?:job|work))\b/.test(w)) return studies ? ['Studying'] : ['Between jobs'];
+    const works = /\b(?:works?|working|job|salary|employed|freelanc\w*)\b/.test(w);
+    if (studies) return [works ? 'Both' : 'Studying'];
+    if (/\b(?:retired|pensioner|pension)\b/.test(w)) return ['Retired'];
+    return works ? ['Working'] : [];
+  }
+  if (key === 'home') {
+    if (/\brents? out\b/.test(t)) return [];
+    if (/\b(?:owns?|bought)\b/.test(t)) return ['Owns'];
+    if (/\bparents?\b/.test(t)) return ['With parents'];
+    if (/\b(?:student housing|hoas|dorm)\b/.test(t)) return ['Student housing'];
+    if (/\b(?:rents?|renting)\b/.test(t)) return ['Rents'];
+  }
+  return [];
+}
+
 /**
  * A correction is usually a fragment ("4000 euro", "paid on the 15th", "Product designer"), not a new sentence.
  * Change only the part it is about and keep the rest: "UX designer, steady salary of 3 900 € a month, paid on

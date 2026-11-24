@@ -18,26 +18,15 @@ import { loadBus } from './arch/store/busStore.js';
 import { decideProposal } from './arch/orchestrator.js';
 import { getProvider } from './llm.js';
 import type { CabinetEntry } from '../types.js';
-import { REWARDS } from './routes.js';
-import { FIELDS, QUESTIONS, mergeCorrection, type AboutView, type FieldKey, type FieldView } from '../aboutParts.js';
+import { REWARDS } from './rewards.js';
+import { bankPicture } from './aboutBank.js';
+import { FIELDS, QUESTIONS, inferValues, mergeCorrection, offerQuestion, type AboutView, type FieldKey, type FieldView } from '../aboutParts.js';
 
 const now = () => new Date().toISOString();
 const newId = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const uidOf = (req: Request) => String((req.method === 'GET' ? req.query.userId : req.body?.userId) || 'lauri');
 const POINTS_PER_ANSWER = 5;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-
-/** What Nordea knows from opening the account (fictional demo customers). */
-const OPENING: Record<string, { city?: string; since?: number; occupation?: string; demo?: { work?: string; home?: string; money?: string } }> = {
-  lauri: { city: 'Helsinki', since: 2017, occupation: 'UX designer' },
-  eeva: { city: 'Espoo', since: 1979, occupation: 'teacher' },
-  // A new customer: only a few weeks of data, so the demo fills in a fictional picture.
-  alex: { city: 'Tampere', since: 2026, demo: {
-    work: 'Studies, with a part-time job: about 900 € a month, paid on the 15th',
-    home: 'Rents a student flat, about 480 € a month',
-    money: 'Spends most on groceries, then eating out and transport',
-  } },
-};
 
 type Extra = { aboutRewarded?: string[]; offerState?: OfferState };
 const userX = (userId: string) => db.getUser(userId) as unknown as (ReturnType<typeof db.getUser> & Extra) | undefined;
@@ -71,59 +60,6 @@ function sentence(key: FieldKey, values: string[], free?: string): string {
   return values.join(', ');
 }
 
-const eur = (n: number) => `${Math.round(n).toLocaleString('fi-FI')} €`;
-const CAT: Record<string, string> = { groceries: 'groceries', restaurants: 'eating out', transport: 'transport', subscriptions: 'subscriptions', shopping: 'shopping', bills: 'bills', pharmacy: 'pharmacy' };
-
-/** What Nordea's own data shows: work and salary, home and rent, spending by category, saving. */
-export function bankPicture(userId: string) {
-  const u = db.getUser(userId);
-  const open = OPENING[userId] || {};
-  const tx = db.getTransactions(userId);
-  const sal = fin.salaryInfo(userId);
-  const acc = fin.accounts(userId);
-  // The last three months of data (counted back from the newest transaction, so the demo data stays current).
-  const last = tx.map((t) => t.date).sort().at(-1);
-  const from = last ? new Date(Date.parse(last) - 91 * 864e5).toISOString().slice(0, 10) : '';
-  const recent = tx.filter((t) => t.date > from);
-  const monthly = (cat: string) => -recent.filter((t) => t.category === cat && t.amount < 0).reduce((a, t) => a + t.amount, 0) / 3;
-  const pension = recent.filter((t) => t.category === 'pension' && t.amount > 0).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-  const rentTx = recent.filter((t) => t.category === 'housing' && t.amount < 0).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-  const rents = !!rentTx && /rent|vuokra/i.test(rentTx.description || '');
-  const spend = Object.keys(CAT).map((c) => ({ c, v: monthly(c) })).filter((x) => x.v >= 20).sort((a, b) => b.v - a.v).slice(0, 3);
-  const and = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
-  const salaryNow = recent.some((t) => t.category === 'salary' && t.amount > 0);
-  // Patterns, not exact sums (hard for anyone to check): where most money goes, and what changed lately.
-  const cut = last ? new Date(Date.parse(last) - 30 * 864e5).toISOString().slice(0, 10) : '';
-  const lately = (cat: string) => -recent.filter((t) => t.category === cat && t.amount < 0 && t.date > cut).reduce((a, t) => a + t.amount, 0);
-  const before = (cat: string) => -recent.filter((t) => t.category === cat && t.amount < 0 && t.date <= cut).reduce((a, t) => a + t.amount, 0) / 2;
-  const rising = spend.filter((x) => before(x.c) > 20 && lately(x.c) > before(x.c) * 1.25).map((x) => CAT[x.c]);
-  const falling = spend.filter((x) => before(x.c) > 20 && lately(x.c) < before(x.c) * 0.75).map((x) => CAT[x.c]);
-  // What Nordea already noticed counts too (e.g. "You've been eating out more").
-  for (const e of db.getCabinetEntries(userId)) {
-    if (e.source !== 'nordea' || e.status === 'disputed' || e.status === 'archived') continue;
-    if (/eating out more/i.test(e.title) && !rising.includes('eating out')) rising.push('eating out');
-  }
-  const pattern = [
-    spend.length ? `Spends most on ${spend[0] ? CAT[spend[0].c] : ''}${spend[1] ? `, then ${and(spend.slice(1).map((x) => CAT[x.c]))}` : ''}` : '',
-    rising.length ? `${and(rising).charAt(0).toLowerCase() + and(rising).slice(1)} ${rising.length > 1 ? 'have' : 'has'} gone up lately` : '',
-    falling.length ? `${and(falling)} ${falling.length > 1 ? 'have' : 'has'} gone down lately` : '',
-  ].filter(Boolean);
-  const lines: { key: FieldKey; label: string; icon: string; text: string; values: string[] }[] = [];
-  if (pension && !salaryNow) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Retired'], text: `Retired${open.occupation ? ` ${open.occupation}` : ''}, pension of ${eur(pension.amount)} a month` });
-  else if (sal.found) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Working'],
-    text: `${open.occupation ? `${open.occupation.charAt(0).toUpperCase() + open.occupation.slice(1)}, s` : 'S'}teady salary of ${eur(sal.latest!)} a month, paid on the ${sal.payday}${[, 'st', 'nd', 'rd'][sal.payday! % 10] && ![11, 12, 13].includes(sal.payday!) ? [, 'st', 'nd', 'rd'][sal.payday! % 10] : 'th'}` });
-  if (!lines.some((l) => l.key === 'work') && open.demo?.work) lines.push({ key: 'work', label: 'Work', icon: 'pay', values: ['Both'], text: open.demo.work });
-  if (!rentTx && open.demo?.home) lines.push({ key: 'home', label: 'Home', icon: 'home', values: ['Rents'], text: open.demo.home });
-  if (rentTx) lines.push({ key: 'home', label: 'Home', icon: 'home', values: rents ? ['Rents'] : [], text: rents ? `Rents, about ${eur(-rentTx.amount)} a month` : `Housing costs about ${eur(-rentTx.amount)} a month` });
-  const money = [
-    pattern.length ? pattern.join('; ') : open.demo?.money || '',
-    acc?.savings?.monthlyDeposit ? `saves ${eur(acc.savings.monthlyDeposit)} every month` : '',
-  ].filter(Boolean);
-  // Spending and saving are two different things: two sentences, so a correction to one leaves the other.
-  if (money.length) lines.push({ key: 'money', label: 'Money habits', icon: 'pie', values: [], text: money.map((m) => `${m.charAt(0).toUpperCase() + m.slice(1)}.`).join(' ') });
-  return { lines, basics: u ? [`${u.age}`, open.city, open.since ? `customer since ${open.since}` : ''].filter(Boolean).join(', ') : '', eatingOut: monthly('restaurants') };
-}
-
 /** Nordea's pre-filled answers: what the bank data and the customer's own goals already say. */
 function suggestions(userId: string, entries: CabinetEntry[]): Partial<Record<FieldKey, { values: string[]; text: string; from: string }>> {
   const out: Partial<Record<FieldKey, { values: string[]; text: string; from: string }>> = {};
@@ -146,15 +82,15 @@ function suggestions(userId: string, entries: CabinetEntry[]): Partial<Record<Fi
 /** The answers that earn points, in the order the flow asks them. */
 export const ASKED: FieldKey[] = ['work', 'home', 'money', 'plans', 'interests', 'risk', 'mainUse'];
 
-export function aboutView(userId: string): AboutView {
+export function aboutView(userId: string, entries: CabinetEntry[] = db.getCabinetEntries(userId)): AboutView {
   const u = db.getUser(userId);
-  const entries = db.getCabinetEntries(userId);
   const sug = suggestions(userId, entries);
   const bank = bankPicture(userId);
   const fields = {} as Record<FieldKey, FieldView>;
   for (const def of Object.values(FIELDS)) {
     const e = fieldEntry(entries, def.key);
-    const values = e?.aboutValues || [];
+    // A typed answer ("Studies at Aalto") counts like the tapped one it clearly means.
+    const values = e?.aboutValues?.length ? e.aboutValues : e ? inferValues(def.key, e.detail) : [];
     const s = sug[def.key];
     const said = !!e;
     fields[def.key] = {
@@ -339,14 +275,14 @@ const OFFERS: OfferDef[] = [
   { id: 'young', title: 'Young customer benefits', line: 'Low-cost or free daily banking, and saving and investing benefits for 18–27-year-olds.',
     earns: 'Nothing extra: these are discounts on Nordea’s own services.',
     fit: (c) => (c.age >= 18 && c.age <= 27) || c.v('work').includes('Studying') || c.v('work').includes('Both')
-      ? { reason: c.age >= 18 && c.age <= 27 ? `Because you’re ${c.age}` : 'Because you study', used: [ageUsed(c), ...(c.v('work').length ? [used(c, 'work')] : [])] } : null },
+      ? { reason: c.v('work').includes('Studying') || c.v('work').includes('Both') ? 'Because you are a student' : `Because you’re ${c.age}`, used: [ageUsed(c), ...(c.v('work').length ? [used(c, 'work')] : [])] } : null },
   { id: 'funds', title: 'Monthly fund saving', line: 'Start with as little as 10 euros a month. With the digital adviser Nora it takes about 7 minutes.',
     earns: 'A yearly management fee from the fund.', note: 'Funds can go down as well as up.',
     fit: (c) => (c.v('interests').includes('Investing basics') || c.v('mainUse').includes('Investing')) && !c.v('risk').includes('Keep it safe')
       ? { reason: `Because you want to learn about investing${c.v('risk').length ? ` and are ${c.v('risk')[0] === 'Comfortable' ? 'comfortable with' : 'OK with a little'} risk` : ''}`, used: [used(c, 'interests'), ...(c.v('risk').length ? [used(c, 'risk')] : [])] } : null },
   { id: 'equity-savings', title: 'Equity savings account', line: 'Buy shares and pay tax only when you take money out. No custody fees aged 18–27.',
     earns: 'Trading fees on the shares you buy.', note: 'Shares can go down as well as up.',
-    fit: (c) => c.age >= 18 && c.age <= 27 && (c.v('interests').includes('Investing basics') || c.v('mainUse').includes('Investing'))
+    fit: (c) => c.age >= 18 && c.age <= 27 && !c.v('risk').includes('Keep it safe') && (c.v('interests').includes('Investing basics') || c.v('mainUse').includes('Investing'))
       ? { reason: `Because you’re ${c.age} and want to learn about investing`, used: [ageUsed(c), used(c, 'interests')] } : null },
   { id: 'if-home', title: 'Home insurance from If', line: '25% discount on new If home insurance for Nordea customers.',
     earns: 'A commission from If if you buy the insurance.', note: 'Sold by our partner If.',
@@ -407,24 +343,31 @@ const DETAILS: Record<string, { about: string; steps: string[]; url?: string }> 
   },
 };
 
-function ctxOf(userId: string): Ctx {
+/** `shared`: only these entries may be used (Nora's chat); an answer the customer does not share counts as unknown. */
+function ctxOf(userId: string, shared?: CabinetEntry[]): Ctx {
   const u = db.getUser(userId)!;
-  const view = aboutView(userId);
-  const entries = db.getCabinetEntries(userId);
-  const v = (k: FieldKey) => (view.fields[k].values.length ? view.fields[k].values : view.fields[k].suggestion?.values || []);
+  const all = db.getCabinetEntries(userId);
+  const entries = shared || all;
+  const view = aboutView(userId, entries);
+  const kept = (k: FieldKey) => !!shared && all.some((e) => e.aboutPart === k && live(e)) && !shared.some((e) => e.aboutPart === k && live(e));
+  const v = (k: FieldKey) => kept(k) ? [] : (view.fields[k].values.length ? view.fields[k].values : view.fields[k].suggestion?.values || []);
   const from = (k: FieldKey) => (view.fields[k].values.length ? (view.fields[k].source === 'nordea' ? 'Nordea knew, you confirmed' : 'You told us') : view.fields[k].suggestion?.from || '');
   const hasAsp = db.getBankAccounts?.(userId)?.some((a) => /\basp\b/i.test(a.type || '')) ?? false;
   return { age: u.age, v, from, hasAsp, goals: entries.filter((e) => e.type === 'goal' && e.status === 'active') };
 }
 
-export function offersFor(userId: string, today = now().slice(0, 10)) {
+/** Offers sold by a partner: never shown or explained while partner offers are off. */
+const PARTNER_OFFERS = new Set(['if-home']);
+
+export function offersFor(userId: string, today = now().slice(0, 10), shared?: CabinetEntry[]) {
   const u = userX(userId);
   if (!u) return { offers: [] as OfferView[], hidden: 0 };
   const st = u.offerState || {};
-  const c = ctxOf(userId);
+  const c = ctxOf(userId, shared);
   const offers: OfferView[] = [];
   let hidden = 0;
   for (const o of OFFERS) {
+    if (u.offersOff && PARTNER_OFFERS.has(o.id)) continue;
     const f = o.fit(c);
     if (!f) continue;
     if (st.hidden?.[o.id] || (st.later?.[o.id] && st.later[o.id] > today)) { hidden++; continue; }
@@ -432,6 +375,25 @@ export function offersFor(userId: string, today = now().slice(0, 10)) {
     offers.push({ id: o.id, title: o.title, line: f.line || o.line, reason: f.reason, note: o.note, earns: o.earns, used: f.used, goal: o.goal?.(c), pinned: !!st.pinned?.[o.id], about: d.about, steps: d.steps, url: d.url });
   }
   return { offers, hidden };
+}
+
+/** The offer the customer tapped "Ask Nora" on, if it is one they are shown now. Its reason comes only from what Nora may read. */
+export function askedOffer(userId: string, text: string, shared: CabinetEntry[]): { offer: OfferView; reason?: string } | null {
+  const t = text.trim();
+  const offer = offersFor(userId).offers.find((o) => offerQuestion(o.title) === t);
+  return offer ? { offer, reason: offersFor(userId, undefined, shared).offers.find((o) => o.id === offer.id)?.reason } : null;
+}
+
+/** How Nora starts: the offer in a few words. */
+const OFFER_LEAD: Record<string, string> = {
+  asp: 'an ASP account', 'asp-loan': 'an ASP loan', young: 'young customer benefits', funds: 'monthly fund saving', 'equity-savings': 'an equity savings account',
+  'if-home': 'home insurance', 'home-loan': 'a home loan with FlexiPayment', renovation: 'a renovation loan or FlexiCredit', gold: 'the Gold package',
+};
+/** Nora's checked answer about an offer. `official` is the rule's own explanation, used instead of the offer's short text. */
+export function offerText(offer: OfferView, reason: string | undefined, official?: string): string {
+  const lead = OFFER_LEAD[offer.id] || offer.title;
+  const first = reason ? `${reason}, ${lead} could be worth a look.` : `${lead.charAt(0).toUpperCase()}${lead.slice(1)} could be worth a look.`;
+  return [first, official || offer.about, offer.note || '', `What Nordea earns: ${offer.earns.charAt(0).toLowerCase()}${offer.earns.slice(1)}`].filter(Boolean).join(' ');
 }
 
 function nextPayday(userId: string, today: string): string {
