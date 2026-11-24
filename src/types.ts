@@ -123,6 +123,9 @@ export interface CabinetEntry {
   /** v25: a customer's answer to one of Nora's fact questions (see src/server/advice/facts.ts). */
   factKey?: string;
   factValue?: boolean | number | string;
+  /** About you: which field this note fills (src/aboutParts.ts), and the tapped answers. */
+  aboutPart?: string;
+  aboutValues?: string[];
   confirmedAt?: string;
   createdAt: string;
   updatedAt: string;

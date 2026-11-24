@@ -69,6 +69,7 @@ const fmt = (n: number, d = 0) =>
 // F21/F23: the narrow Nora list lives shared and word-bounded in ./sensitive.js (the wider
 // SENSITIVE_TOPIC is for the AC7 risk rules only - it would make everyday loan talk "private").
 import { ABEL_PRIVATE_TOPIC as SENSITIVE } from './sensitive.js';
+import { memoryOf } from './memorySettings.js';
 
 /** Dates from the model as YYYY-MM-DD. "2027-08", "08/2027" and "August 2027" become the last day of that month. */
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -255,7 +256,13 @@ export interface NoraSharedContext { userDbFacts?: string; sharedContext?: strin
 function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[], blockedCount: number, facts: unknown, shared?: NoraSharedContext, cardNote = '') {
   const u = db.getUser(userId)!;
   const calm = u.viewMode === 'calm';
-  const entries = cabinet.map((e) => ({
+  // About you (what the customer confirmed or told us, src/server/aboutYou.ts): its own short section, so it is
+  // not listed twice. Their own words are newer than the bank's estimates.
+  const aboutEntries = cabinet.filter((e) => e.aboutPart && !String(e.aboutPart).startsWith('fact:'));
+  const aboutLines = aboutEntries.map((e) => `- ${e.title.split(':')[0]}: ${e.detail || e.title.split(':').slice(1).join(':').trim()}${e.source === 'nordea' ? ' (Nordea data, confirmed by them)' : ' (they told you)'}`);
+  const style = aboutEntries.find((e) => e.aboutPart === 'style')?.aboutValues?.[0];
+  const length = calm ? '1–2 short sentences' : style === 'More detail' ? 'up to 6 sentences when the question needs it' : style === 'Short answers' ? '1–3 sentences' : '2–4 sentences';
+  const entries = cabinet.filter((e) => !aboutEntries.includes(e)).map((e) => ({
     id: e.id,
     type: e.type,
     title: e.title,
@@ -269,6 +276,16 @@ function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[],
   return `You are Nora, the AI assistant inside the Nordea mobile banking app.
 Customer: ${u.name}, ${u.age}. Today is ${fin.DEMO_TODAY}. View: ${calm ? 'CALM (older or data-careful customer)' : 'full'}.
 This chat is with the helper: ${helperId}. Focus: ${HELPER_FOCUS[helperId] || HELPER_FOCUS.abel}
+
+HOW TO ANSWER (most important)
+- Answer exactly what they asked, in your first sentence. Then stop. Length: ${length}.
+- Use only the facts that help with THIS question. Don't bring up goals, balances, spending, plans or offers they didn't ask about.
+- Never repeat something already said in this chat (by you or them), and don't restate their question.
+- If the question is unclear, ask one short question instead of guessing.
+
+ABOUT THE CUSTOMER (from About you; use it to fit your answer, e.g. their work, home, plans, risk and how they like answers):
+${aboutLines.length ? aboutLines.join('\n') : '- Nothing confirmed yet.'}
+If this differs from FACTS (e.g. they say their salary is now 4 000 € while FACTS show 3 900 €), their own words are newer: use them (through a FINANCIAL FACT HANDLE when handles are supplied), and mention the bank's number only if it matters.
 
 FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):
 ${JSON.stringify(facts)}
@@ -284,7 +301,7 @@ ${shared.sharedContext}
 ` : ''}Provenance: ${shared.provenance.join(' + ')}.` : 'SHARED CONTEXT: not in use for this customer.'}
 
 HOW YOU TALK
-- Warm, brief, plain language in the customer’s language, like a caring person texting. For English chat, write complete English sentences. Keep each reply under 300 characters when possible; finish your thought rather than stopping mid-sentence. Continue with the next detail after the customer replies. Acknowledge feelings first. At most one question; ask if unclear.
+- Warm, brief, plain language in the customer’s language, like a caring person texting. For English chat, write complete English sentences and finish your thought rather than stopping mid-sentence. ${style === 'More detail' && !calm ? '' : 'Keep each reply under 300 characters when possible. Continue with the next detail after the customer replies. '}Acknowledge feelings only when they share them. At most one question.
 - Use the cabinet naturally, never recite it. Small talk: one or two sentences.
 - Money: 12 000 € (whole euros, or 1 420,50 € if cents matter). Plain text: no markdown, no tables, no JSON, no suggestion lists (quick replies go in suggestions). For a plan over many months, summarise it in a few sentences.
 - Never show ids. When they name something ("the salary one"), find it yourself (newest = latest "added").
@@ -296,7 +313,7 @@ RULES
 - One step: finishReply, plus any action tool in the same step.
 - CONVERSATION: talk like a sharp, warm friend who works at the bank. When the customer is vague, confused or venting, first ask ONE short question that finds the cause (what changed, since when, which bill), then help. Use what they already told you in this chat; never ask for something they said or a card already shows. No generic tip lists or "Quick actions" headings. A light touch of wit is welcome; never at the customer's expense. Suggestions are short things the customer might say next, never actions you cannot do (no "Call the provider").
 - Goals always need a visible proposal and customer tap before save/change. proposeCabinetChange prepares that proposal only. Other meaningful context (life events, preferences, facts) may be saved quietly; never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
-- Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
+- Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; a private goal isn't saved unless the customer taps, and other private notes are never saved, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
 - Passed goal dates: ask if still a plan.
 ${u.offersOff ? '- PARTNER OFFERS ARE OFF: do not mention partner offers, prices, incentives or recommend a partner, even if earlier chat contains one. Help without a partner pitch.\n' : ''}- CARDS: the app decides partner offers, questions and suggestions itself, from what the customer said. You never offer products or benefits on your own and never ask the app's questions yourself. Partner offers: when the customer has described a need one partner directly helps with and THIS TURN has no card, you may call offerPartnerForNeed with their exact words; if the cause is unclear, first ask one short, friendly question. Never push an offer the customer did not need. You and never write a card as text (no "[Card: …]"). THIS TURN: ${cardNote || 'No card. Do not mention any card, partner, offer or suggestion "below".'}
 - Adviser card (startHandoff): only when they ask for a person, or about a loan or mortgage, and only if THIS TURN has no card.
@@ -748,6 +765,17 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
       // v29: Nora cannot set reminders, so a reminder is never saved as a note.
       if (/\bremind(er|ers|ing)?\b/i.test(`${a.title || ''}`) || (/\bremind me\b/i.test(ctx.userText) && action !== 'archive'))
         return { saved: false, error: 'You cannot set reminders. Say so kindly and suggest their phone\'s calendar. Nothing was saved.' };
+      // Memory settings (More → Memory): the customer decides whether Nora saves from chats at all,
+      // and whether private topics may be saved. Removing (archive) always works.
+      const mem = memoryOf(ctx.userId);
+      // A refused goal gets the app's own words for it (otherwise the customer is asked to check the goal name).
+      if (action !== 'archive' && !mem.fromChats) {
+        if (a.type === 'goal' || action === 'update') ctx.goalWriteReplies = [...(ctx.goalWriteReplies || []), finnishGoalRequest(ctx.userText) ? 'En tallentanut mitään, koska ”Remember things from chats” on pois päältä (More → Memory). Voit lisätä tavoitteen itse kohdassa Nora knows.' : 'I have not saved anything, because “Remember things from chats” is off (More → Memory). You can add it yourself in Nora knows.'];
+        return { saved: false, error: 'The customer turned off "Remember things from chats" in More → Memory. Nothing was saved. Say so briefly; they can add it themselves in Nora knows.' };
+      }
+      // A private goal still gets the confirm card below: saved only after the tap, and only Nora can read it.
+      if (action === 'add' && sensitive && a.type !== 'goal' && !mem.sensitive)
+        return { saved: false, error: 'Private notes are never saved (More → Memory: "Exclude private topics" is always on). Nothing was saved. Do not say you saved or noted it; you may say Nora doesn’t keep private notes.' };
       if (action === 'add') {
         const title = String(a.title || '').trim().slice(0, 80);
         if (a.type !== 'goal' && /^(?:started|starting|attends?|studies at|is (?:a )?student|higher.education student)(?:\s+(?:a|the))?\s*(?:university|college|uas|student)?(?:\s+this (?:autumn|fall|year))?$/i.test(title) && db.getCabinetEntries(ctx.userId).some(e => /Studies at a university or UAS/i.test(e.title))) return { saved: false, alreadyKnown: true, note: 'The structured student fact is already saved. Do not save a second general student note.' };
@@ -1102,8 +1130,11 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     initial.rows=discovery.rows;initial.note='No exact content match yet. These are currently permitted saved-topic titles only, not their details. Use getMoreSaved to read a relevant source; never infer the missing details or claim absence.';initial.truncated=discovery.truncated;initial.nextCursor=discovery.nextCursor;
   }
   if(initial && !completedPage)exposure!.include(initial.rows);
-  if(bounded)ctx.exposedIds=new Set(initial!.rows.filter(r=>r.owner==='cabinet').map(r=>r.id));
-  const selected=bounded ? read.allowed.filter(e=>!completedPage && initial!.rows.some(r=>r.owner==='cabinet'&&r.id===e.id)) : read.allowed;
+  // About you (still shared) is given in every turn, not only when the question matches it, so Nora never says it is empty.
+  const aboutIds=new Set(read.allowed.filter(e=>e.aboutPart&&!String(e.aboutPart).startsWith('fact:')).map(e=>e.id));
+  const aboutOnly=new Set([...aboutIds].filter(id=>!initial?.rows.some(r=>r.owner==='cabinet'&&r.id===id)));
+  if(bounded)ctx.exposedIds=new Set([...initial!.rows.filter(r=>r.owner==='cabinet').map(r=>r.id),...aboutIds]);
+  const selected=bounded ? read.allowed.filter(e=>aboutIds.has(e.id) || !completedPage && initial!.rows.some(r=>r.owner==='cabinet'&&r.id===e.id)) : read.allowed;
   const facts = factsFor(userId, new Set(selected.map(e=>e.id)));
   if(bounded) (facts.paydayPlan as any).towardsGoal=null;
   const suppliedShared=bounded ? {...shared,userDbFacts:undefined,sharedContext:JSON.stringify(initial!.rows.filter(r=>r.owner!=='cabinet'||r.discoveryOnly)),provenance:['bounded current source retrieval']} : shared;
@@ -1114,6 +1145,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     return {...progress,cards:[],notes:[],topic:'goals',couldHelp:true,offline:true};
   }
 
+  // What is in the prompt is in this turn's exposure record (so a later change or removal withdraws it from history).
+  if(exposure)exposure.include(sources.filter(s=>s.owner==='cabinet'&&!s.discoveryOnly&&aboutIds.has(s.id)));
   // v28: the card (if any) is decided by code from the customer's words, before the model is asked.
   const cardNote = ctx.clarificationReadOnly || helperId === 'person' || FRAUD.test(userText) || DIRECT_PERSON.test(userText) ? '' : codeCard(ctx);
   // Reviewed facts constrain the model; they never replace the customer's task or tool turn.
@@ -1223,6 +1256,18 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     return {text:'The context behind my earlier question has changed. What would you like this choice to apply to?',clarification:{kind:'context_changed',question:'What would you like this choice to apply to?'},suggestions:[UNKNOWN_REPLY],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true};
   }
 
+  // More → Memory → "Use your past chats": Nora sees only the titles of earlier chats, never their text. A title is left
+  // out when its message led to a note that is removed or not shared, or quotes an amount only such a note holds.
+  if (memoryOf(userId).searchChats) {
+    const msgs = db.getMessages(userId);
+    const withheld = new Set(notShared.map((e) => e.provenance?.messageId).filter(Boolean));
+    const earlier = db.getConversations(userId).filter((c) => c.id !== conversationId)
+      .sort((x, y) => y.updatedAt.localeCompare(x.updatedAt)).slice(0, 5)
+      .map((c) => msgs.find((m) => m.conversationId === c.id && m.sender === 'user' && !m.attachment))
+      .filter((m): m is ChatMessage => !!m && !withheld.has(m.id) && !(m.usedEntryIds || []).some(revoked) && !mentionsHidden(String(m.text || '')))
+      .map((m) => String(m.text || '').slice(0, 60)).filter(Boolean);
+    if (earlier.length) system += `\nEARLIER CHATS (titles only; you may say "we talked about …" but never invent what was said): ${earlier.join('; ')}`;
+  }
   system += '\n' + contracts.facts + '\n' + contracts.text;
   // Keep complete recent messages within a fixed character budget. Include card/control
   // rendering and resolved answers in the budget, not just the visible text.
@@ -1400,7 +1445,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const narrowSourceAnswer=(text:string,args:Record<string,any>):NoraReply|null=>{
     if(/\d/.test(text))return null;
     if(!bounded || !provider.isConfigured() || (!personalContextQuestion(userText) && !(!mixedSavedRequest(userText)&&/(?:mentioned|remember|saved|planning for|suunnitteilla|putting aside)/iu.test(userText) || /^(?:i (?:cannot|can.t)|it is not saved|what [^?]+\?|no[, ]|ei ollut)/iu.test(text.trim()))) || FRAUD.test(userText) || ctx.cards.length || ctx.notes.length)return null;
-    const rows=exposure!.content().filter(r=>r.id!=='app-bank-core'&&!r.discoveryOnly);
+    // About you rows that the question did not match are background, not an answer to list.
+    const rows=exposure!.content().filter(r=>r.id!=='app-bank-core'&&!r.discoveryOnly&&!aboutOnly.has(r.id));
     if(!rows.length)return null;
     const evidence=args.savedAnswerEvidence;
     const quote=typeof evidence?.quote==='string'?evidence.quote.trim():'';

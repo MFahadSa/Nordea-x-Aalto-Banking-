@@ -4,11 +4,17 @@ import { PersonaPickerModal } from './components/PersonaPickerModal.js';
 import { AddGoalModal } from './components/AddGoalModal.js';
 import { RefundCasePage, EVT as REFUND_EVT } from './components/Refund.js';
 import { HomePage } from './components/HomePage.js';
+import { MemoryPage } from './components/MemoryPage.js';
 import { KnowsPage, PrivacyPage, AutopilotPage, RewardsPage, RedeemSheet, ContactPage, MorePage, PresenterPage, DeleteDocSheet, ConfirmSheet, PayPage, InvestPage, ServicesPage } from './components/Pages.js';
 import { Chat } from './components/Chat.js';
 import { SuggestSettingSheet } from './components/Advice.js';
 import { adviceHome, adviceShow, adviceSetting, adviceChange } from './services/api.js';
 import { Icon } from './ui/icons.js';
+import { GetMoreCard, introFor } from './components/AboutYou.js';
+import { CabinetPage } from './components/CabinetPage.js';
+import { OffersForYou } from './components/Offers.js';
+import { fetchAbout } from './services/aboutApi.js';
+import type { AboutView } from './aboutParts.js';
 import { CabinetEntry, ChatMessage, PersonaId, User } from './types.js';
 import {
   AppState,
@@ -36,7 +42,7 @@ import {
   deleteChat,
 } from './services/api.js';
 
-type Page = 'home' | 'pay' | 'invest' | 'services' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter' | 'refund';
+type Page = 'home' | 'pay' | 'invest' | 'services' | 'knows' | 'rewards' | 'contact' | 'more' | 'privacy' | 'autopilot' | 'presenter' | 'refund' | 'memory';
 
 function initialDark() {
   try {
@@ -57,7 +63,10 @@ export default function App() {
   const [users, setUsers] = useState<User[]>([]);
   const [page, setPage] = useState<Page>('home');
   const [isDark, setIsDark] = useState(initialDark);
-  const [toast, setToast] = useState<{ message: string; undoToken?: string } | null>(null);
+  const [toast, setToast] = useState<{ message: string; undoToken?: string; action?: { label: string; run: () => void } } | null>(null);
+  // About you, the onboarding and Offers for you.
+  const [about, setAbout] = useState<AboutView | null>(null);
+  const [offersKey, setOffersKey] = useState(0);
   const [usersOpen, setUsersOpen] = useState(false);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,6 +241,20 @@ export default function App() {
     }
   };
   /** Open a helper and send a first message straight away. */
+  // About you: read again when the customer or their notes change.
+  useEffect(() => { setAbout(null); }, [personaId]);
+  useEffect(() => {
+    let current = true;
+    fetchAbout(personaId).then((v) => { if (current) setAbout(v); }).catch(() => { if (current) setAbout(null); });
+    return () => { current = false; };
+  }, [personaId, state?.entries.length, state?.entries.map((e) => e.updatedAt).join()]);
+  /** "Try Nora with this": the chat opens with Nora's first message built from the answers, and 3 questions to tap. */
+  const tryNora = (v: AboutView) => {
+    if (!state) return;
+    const intro = introFor(v);
+    openHelper('abel');
+    setMessages([{ id: 'intro-' + Date.now(), userId: state.user.id, agentId: 'abel', channel: 'app', sender: 'agent', text: intro.text, suggestions: intro.suggestions, createdAt: new Date().toISOString() }]);
+  };
   const startChat = (id: string, text?: string) => {
     openHelper(id);
     if (text) send(text, { helperId: id, conversationId: null });
@@ -362,7 +385,7 @@ export default function App() {
   const tab = (k: Page, icon: string, label: string) => {
     // Back to the earlier five tabs. Sub-pages (pay, invest, services, privacy, presenter, autopilot,
     // refund) are reached from More or rows, so the More tab stays selected on them.
-    const on = page === k || (k === 'more' && ['privacy', 'presenter', 'pay', 'invest', 'services', 'autopilot'].includes(page));
+    const on = page === k || (k === 'more' && ['privacy', 'memory', 'presenter', 'pay', 'invest', 'services', 'autopilot'].includes(page));
     return (
       <button key={k} role="tab" aria-selected={on} onClick={() => goPage(k)}>
         <Icon name={icon} />
@@ -482,6 +505,11 @@ export default function App() {
               {toast && (
                 <div className="toast" role="status">
                   <span>{toast.message}</span>
+                  {toast.action && (
+                    <button className="btn link" style={{ color: '#F0C25A', marginLeft: 8 }} onClick={() => { toast.action!.run(); setToast(null); }}>
+                      {toast.action.label}
+                    </button>
+                  )}
                   {toast.undoToken && (
                     <button className="btn link" style={{ color: '#F0C25A', marginLeft: 8 }} onClick={() => { undo(toast.undoToken!); setToast(null); }}>
                       Undo
@@ -506,15 +534,19 @@ export default function App() {
               onWrong={(e) => update(e, { status: 'disputed' })}
               onArchive={archive}
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
-              adviceBusy={adviceBusy}
-              onAdviceAnswer={adviceAnswer}
-              onAdviceShow={adviceShowMe}
-              onAdviceNotNow={adviceNotNow}
+              getMore={<GetMoreCard view={about} onAdd={() => goPage('knows')} />}
+              offers={<OffersForYou userId={state.user.id} refreshKey={offersKey}
+                onAsk={(o) => startChat('abel', `Tell me about the ${o.title} for my situation`)}
+                onToast={(m, undo) => setToast({ message: m, action: undo ? { label: 'Undo', run: undo } : undefined })} />}
             />
           )}
           {page === 'knows' && (
-            <KnowsPage
+            <CabinetPage
               state={state}
+              about={about}
+              onAboutSaved={(v) => { if (selectedCustomer.current !== state.user.id) return; setAbout(v); setOffersKey((n) => n + 1); refresh(); }}
+              onSeeNora={() => about && tryNora(about)}
+              onRewards={() => goPage('rewards')}
               onAddGoal={() => setAddGoalOpen(true)}
               onTellNora={() => openHelper('abel')}
               onImport={() => doImport({ sample: true })}
@@ -526,6 +558,7 @@ export default function App() {
               onKeep={(e) => update(e, { status: 'active', confirmedAt: new Date().toISOString() })}
               onDeleteDoc={setDelDocId}
               onChanged={() => refresh()}
+              onToast={(m) => setToast({ message: m })}
               adviceBusy={adviceBusy}
               onAdviceChange={adviceChangeRule}
               onOpenRefundCase={() => goPage('refund')}
@@ -542,6 +575,9 @@ export default function App() {
             />
           )}
           {page === 'refund' && <RefundCasePage userId={state.user.id} onBack={() => goPage('home')} />}
+          {page === 'memory' && (
+            <MemoryPage state={state} onBack={() => goPage('more')} onOpenKnows={() => { refresh(); goPage('knows'); }} onToast={(m) => setToast({ message: m })} />
+          )}
           {page === 'presenter' && (
             <PresenterPage
               state={state}
