@@ -2,7 +2,8 @@
 // Nora follows them in src/server/abel.ts:
 //  - searchChats: Nora may look at the titles of the customer's earlier chats with her.
 //  - fromChats:   Nora may suggest things to remember from a chat (they still need the customer's OK).
-//  - sensitive:   always false. Private topics (health, religion, relationships…) are never saved; not a setting.
+//  - sensitive:   always false. Private topics (health, religion, relationships…) are never saved as notes; not a setting.
+//                 A private goal may be saved, but only after the customer taps its confirm card.
 import type { Express, Request } from 'express';
 import { db } from './db.js';
 

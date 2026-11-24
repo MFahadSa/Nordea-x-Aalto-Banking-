@@ -1,5 +1,5 @@
 // More → Memory: what Nora may remember and how, modelled on Claude's memory settings, adapted to banking.
-// Private topics are always excluded (not a setting). Import gives a short prompt for another AI that asks only for what
+// Private notes are always excluded (not a setting); a private goal is saved only after the customer taps its card. Import gives a short prompt for another AI that asks only for what
 // matters for banking; what comes back goes to Nora knows → Waiting for you, and nothing is saved without a tap.
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -123,7 +123,7 @@ export const MemoryPage: React.FC<{ state: AppState; onBack: () => void; onOpenK
             right={m && <Toggle on={m.searchChats} onChange={() => set('searchChats')} label="Use your past chats" />} />
           <Row name="Remember things from chats" sub="Nora can suggest goals and plans you mention. Nothing is saved without your OK."
             right={m && <Toggle on={m.fromChats} onChange={() => set('fromChats')} label="Remember things from chats" />} />
-          <Row name="Exclude private topics" sub="Nora never saves private things, like health, religion or relationships. This is always on to protect you."
+          <Row name="Exclude private topics" sub="Nora never saves private notes from chats, like health, religion or relationships. A private savings goal is saved only if you tap to confirm, and only Nora can read it. Always on to protect you."
             right={<span className="tgl on locked" role="switch" aria-checked="true" aria-disabled="true" aria-label="Exclude private topics: always on" title="Always on"><i /></span>} />
           <Row name="Import from another AI" sub="Bring what another AI assistant knows about you. We give you a prompt that asks only for what matters for banking."
             right={<button className="btn small" onClick={() => setImporting(true)}>Start import</button>} />
