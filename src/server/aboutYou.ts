@@ -396,6 +396,11 @@ export function offerText(offer: OfferView, reason: string | undefined, official
   return [first, official || offer.about, offer.note || '', `What Nordea earns: ${offer.earns.charAt(0).toLowerCase()}${offer.earns.slice(1)}`].filter(Boolean).join(' ');
 }
 
+/** Under the AI's words: the exact terms and what Nordea earns. With an official rule, its card holds the terms. */
+export function offerTerms(offer: OfferView, hasRule: boolean): string {
+  return [hasRule ? '' : offer.line, offer.note || '', `What Nordea earns: ${offer.earns.charAt(0).toLowerCase()}${offer.earns.slice(1)}`].filter(Boolean).join(' ');
+}
+
 function nextPayday(userId: string, today: string): string {
   try { const p = fin.payPlan(userId).nextPayday; if (p && p > today) return p; } catch { /* no salary */ }
   return new Date(Date.parse(today) + 30 * 864e5).toISOString().slice(0, 10);

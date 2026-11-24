@@ -70,7 +70,8 @@ const fmt = (n: number, d = 0) =>
 // SENSITIVE_TOPIC is for the AC7 risk rules only - it would make everyday loan talk "private").
 import { ABEL_PRIVATE_TOPIC as SENSITIVE } from './sensitive.js';
 import { memoryOf } from './memorySettings.js';
-import { askedOffer, offerText } from './aboutYou.js';
+import { askedOffer, offerTerms, offerText } from './aboutYou.js';
+import { writeOfferReply } from './offerReply.js';
 import { aboutReasons, givesReason, reasonPrompt, reasonsFor, recommendationRequest, unsupportedReason, withReason, type AboutReason } from './aboutReasons.js';
 
 /** Dates from the model as YYYY-MM-DD. "2027-08", "08/2027" and "August 2027" become the last day of that month. */
@@ -635,28 +636,64 @@ function partnerCard(ctx: TurnCtx, partnerId: string, tapped = false): string {
 /**
  * "Ask Nora" on an offer card. The tap is the customer's explicit request for this offer, so the topic checks for
  * typed words do not apply; offers off, "don't suggest this again", once per chat and the rule checks still do.
- * The words come from the checked offer and rule texts, so it works the same with or without an AI answer.
+ * Makes the card, and returns the prepared text (used when the AI cannot answer) and what goes under the AI's words.
  */
-function offerAnswer(ctx: TurnCtx, asked: NonNullable<ReturnType<typeof askedOffer>>): string {
+function offerAnswer(ctx: TurnCtx, asked: NonNullable<ReturnType<typeof askedOffer>>): { prepared: string; under: string; official?: string; card: string } {
   const { offer, reason } = asked;
   const rule = ({ asp: 'asp-account', 'equity-savings': 'equity-account-under-30' } as Record<string, string>)[offer.id];
+  let official: string | undefined;
+  let after = '';
+  let card = '';
   if (rule) {
     const r = ruleCardFor(ctx.userId, ctx.conversationId, { id: 'offer-tap', rule }, fin.DEMO_TODAY, (entryId, title) => recordUndo({ userId: ctx.userId, action: 'create', description: `Added "${title}"`, previousEntry: null, entryId } as any));
     if (r) { ctx.cards.push(r.card); ctx.notes.push(...r.notes); ctx.offersShown++; }
-    const official = explainFor(rule, fin.DEMO_TODAY).replace(/^HOW "[^"]*" WORKS \([^)]*\): /, '');
-    const ask = r?.card.type === 'ask_fact' ? ' The question below checks one part of eligibility; it does not confirm that you qualify.' : r ? ' The source and conditions are on the suggestion below.' : '';
     // Instructions inside the rule text are for the model, not the customer.
-    return offerText(offer, reason, official.split(/(?<=[.!?])\s+/).filter((x) => !/^(?:Never|Do not)\b/.test(x)).join(' ')) + ask;
-  }
-  if (offer.id === 'if-home') {
-    const shown = partnerCard(ctx, 'insure', true);
-    return offerText(offer, reason) + (shown ? '\n\nFor a flat, check contents and liability cover, and who is responsible for the building. The card below is a separate example from the fictional partner Peitto, not If: it is not guaranteed cover, and exclusions, excesses and limits need checking in the policy terms. The card shows the referral incentive; See cover opens example options. You are not insured by this conversation.' : '');
-  }
-  if (offer.id === 'home-loan' || offer.id === 'asp-loan') {
+    official = explainFor(rule, fin.DEMO_TODAY).replace(/^HOW "[^"]*" WORKS \([^)]*\): /, '').split(/(?<=[.!?])\s+/).filter((x) => !/^(?:Never|Do not)\b/.test(x)).join(' ');
+    after = r?.card.type === 'ask_fact' ? 'The question below checks one part of eligibility; it does not confirm that you qualify.' : r ? 'The source and conditions are on the suggestion below.' : '';
+    card = r?.card.type === 'ask_fact' ? 'a question that checks one part of eligibility' : r ? 'a suggestion with its source and conditions' : '';
+  } else if (offer.id === 'if-home') {
+    if (partnerCard(ctx, 'insure', true)) { after = 'For a flat, check contents and liability cover, and who is responsible for the building. The card below is a separate example from the fictional partner Peitto, not If: it is not guaranteed cover, and exclusions, excesses and limits need checking in the policy terms. The card shows the referral incentive; See cover opens example options. You are not insured by this conversation.'; card = 'an example card from another, fictional insurance partner, with what Nordea earns'; }
+  } else if (offer.id === 'home-loan' || offer.id === 'asp-loan') {
     runTool({ id: 'code', name: 'startHandoff', args: {} }, ctx);
-    return offerText(offer, reason) + (ctx.cards.some((c) => c.type === 'handoff') ? '\n\nA Nordea adviser can look at it with you, free. Below is what they would see, once, if you connect. Nothing has been sent.' : '');
+    if (ctx.cards.some((c) => c.type === 'handoff')) { after = 'A Nordea adviser can look at it with you, free. Below is what they would see, once, if you connect. Nothing has been sent.'; card = 'a card to reach a Nordea adviser, free; nothing is sent until they connect'; }
   }
-  return offerText(offer, reason);
+  return {
+    prepared: offerText(offer, reason, official) + (after ? (rule ? ' ' : '\n\n') + after : ''),
+    // Only a suggestion card shows the rule's terms itself; otherwise the official text goes under the AI's words.
+    under: [rule && !ctx.cards.some((c) => c.type === 'opportunity') ? official : '', offerTerms(offer, !!rule), after].filter(Boolean).join('\n\n'),
+    official, card,
+  };
+}
+
+/** The AI writes about the offer from About you; the prepared text stands in when it cannot. */
+async function offerReply(ctx: TurnCtx, asked: NonNullable<ReturnType<typeof askedOffer>>, shared: CabinetEntry[], provider: ReturnType<typeof getProvider>): Promise<NoraReply> {
+  const made = offerAnswer(ctx, asked);
+  const base = { cards: ctx.cards, notes: ctx.notes, usedEntryIds: ctx.extraUsed, topic: 'other', couldHelp: true };
+  const prepared: NoraReply = { ...base, text: made.prepared, suggestions: [], offline: true };
+  if (!provider.isConfigured()) return prepared;
+  const u = db.getUser(ctx.userId)!;
+  const calm = u.viewMode === 'calm';
+  const mine = shared.filter((e) => e.aboutPart && !String(e.aboutPart).startsWith('fact:'));
+  const style = mine.find((e) => e.aboutPart === 'style')?.aboutValues?.[0];
+  const t0 = Date.now();
+  const finishTool = TOOLS.find((t) => t.name === 'finishReply')!;
+  const r = await writeOfferReply(provider, finishTool, {
+    ...asked, official: made.official, card: made.card, name: u.name, age: u.age, calm,
+    reasons: aboutReasons(ctx.userId, shared, db.getCabinetEntries(ctx.userId)),
+    about: mine.map((e) => `${e.title.split(':')[0]}: ${e.detail || e.title.split(':').slice(1).join(':').trim()}`),
+    length: calm || style === 'Short answers' ? 'two short sentences' : style === 'More detail' ? 'four or five sentences' : 'three sentences',
+  }, ctx.userText, cleanReply, (t) => {
+    if (looksLikeCode(t) || isGarbled(t) || CUT_OFF.test(t)) return 'Your reply came out broken. Write it again in plain, complete sentences.';
+    if (ACTION_CLAIM.test(t) || claimsCompletion(t)) return 'Nothing has been opened, booked, saved or arranged. Write it again without saying so.';
+    if (NOT_STORED_CLAIM.test(t)) return 'Do not say what is stored or not stored.';
+    if (!ctx.cards.length && CARD_CLAIM.test(t)) return 'There is no card under this reply. Do not mention one.';
+    return reviewedReplyProblem(ctx.userText, t, made.official || '', ctx.cards);
+  });
+  recordTurn(Date.now() - t0, r.calls);
+  if (r.text === null) { console.warn('[nora] offer answer not used, prepared text shown:', r.why); return prepared; }
+  // "No thanks", "Turn off partner offers" and the like live on the card; only short questions are kept as quick replies.
+  const suggestions = (Array.isArray(r.suggestions) ? r.suggestions : []).map((x) => String(x).trim()).filter((x) => x.length >= 4 && x.length <= 40 && !/\d|…|\.\.\./.test(x) && /\?$/.test(x)).slice(0, 2);
+  return { ...base, text: `${r.text}\n\n${made.under}`, suggestions, provider: r.by || `${provider.label || provider.name}${provider.model ? ' ' + provider.model : ''}` };
 }
 
 /** v28: the one card of this reply, from the customer's words (intent.ts). Returns what the model is told. */
@@ -1179,7 +1216,9 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const asked=helperId!=='person'?askedOffer(userId,userText,read.allowed):null;
   if(asked){
     if(exposure)exposure.include(sources.filter(s=>s.owner==='cabinet'&&!s.discoveryOnly&&aboutIds.has(s.id)));
-    return {text:offerAnswer(ctx,asked),suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:ctx.extraUsed,topic:'other',couldHelp:true,offline:true};
+    // Only About you is given for an offer answer, so that is what "Nora could see" says.
+    seen.supplied={notes:aboutIds.size,accountData:true};
+    return offerReply(ctx,asked,read.allowed,provider);
   }
 
   // What is in the prompt is in this turn's exposure record (so a later change or removal withdraws it from history).

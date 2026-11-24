@@ -96,25 +96,55 @@ check('shares and funds are not offered to someone who keeps savings safe', !off
 
 // ---------- "Ask Nora" on an offer ----------
 const { offerQuestion } = await import('../src/aboutParts.js');
-const tap = async (userId: string, title: string) => { script = [fin('The model should not be needed.')]; calls = 0; return (await j('/api/chat', { userId, helperId: 'abel', text: offerQuestion(title) })).messages.find((m: any) => m.sender === 'agent'); };
+const tap = async (userId: string, title: string, ...replies: any[]) => {
+  script = replies.map((x) => (typeof x === 'string' ? fin(x) : x)); calls = 0;
+  return (await j('/api/chat', { userId, helperId: 'abel', text: offerQuestion(title) })).messages.find((m: any) => m.sender === 'agent');
+};
+const prepared = (m: any) => m.answeredBy === 'bank_code' && /could be worth a look/.test(m.text);
 await j('/api/about', { userId: 'lauri', answers: { plans: { values: ['A home', 'Travel'] } }, confirm: ['home'] });
-for (const o of (await j('/api/offers?userId=lauri')).offers as any[]) {
-  const m = await tap('lauri', o.title);
-  check(`Ask Nora on ${o.id} starts with the reason on the card and needs no AI`, m.text.startsWith(`${o.reason}, `) && calls === 0 && !m.errorInfo, m.text);
-  check(`Ask Nora on ${o.id} says what Nordea earns and never shows model instructions`, m.text.includes('What Nordea earns: ') && !/\b(?:Never work out|use only this)\b/.test(m.text), m.text);
-}
-let m = await tap('lauri', 'Home insurance from If');
+const HOME = 'Home insurance from If';
+const offerOf = async (userId: string, title: string) => ((await j(`/api/offers?userId=${userId}`)).offers as any[]).find((o) => o.title === title);
+const reason = (await offerOf('lauri', HOME)).reason as string;
+const good = `${reason}, cover for your things could suit the move. Check what your landlord already covers before you decide.`;
+let m = await tap('lauri', HOME, good);
+check('the AI writes the answer', m.text.startsWith(good) && calls === 1 && m.answeredBy !== 'bank_code' && !m.errorInfo, m);
+check('"Nora could see" counts only About you', m.supplied.notes === ((await j('/api/state?userId=lauri')).entries as any[]).filter((e) => e.aboutPart && !e.aboutPart.startsWith('fact:')).length, m.supplied);
+check('the exact terms and what Nordea earns are under it', m.text.includes('25% discount') && m.text.includes('What Nordea earns: '), m.text);
+check('the AI is given About you and the reason', system.includes('Plans: ') && system.includes(reason) && system.includes('THE OFFER'), system.slice(0, 900));
 check('home insurance shows the partner card', m.cards.some((c: any) => c.type === 'offer' && c.data.partnerId === 'insure' && c.data.cta === 'See cover'), m.cards);
 check('and says the card is not If', /not If/.test(m.text), m.text);
-m = await tap('lauri', 'ASP account for your first home');
+m = await tap('lauri', HOME, `${reason}, you could save 25% on cover for your things.`, good);
+check('a figure in the AI words is sent back', m.text.startsWith(good) && calls === 2, m.text);
+for (const [name, bad] of [
+  ['figures', `${reason}, you could save 40% on cover for your things.`], ['"you qualify"', `${reason}, you qualify for this cover, so take it.`],
+  ['a false status', 'Because you are retired, cover for your things could suit you.'], ['a done action', `${reason}, I have booked the cover for you.`], ['an empty reply', ''],
+] as const) { m = await tap('lauri', HOME, bad); check(`${name} twice: the prepared text is shown, with its label`, prepared(m) && m.text.startsWith(`${reason}, `) && calls === 2, m.text); }
+m = await tap('lauri', HOME, 'Cover for your things could suit the move. Check the terms before you decide.');
+check('a missing reason is put in front', m.text.startsWith(`${reason}, cover for your things`) && calls === 1, m.text);
+const ok = { name: 'scripted', isConfigured: () => true, step: async (a: any) => { if (a.tools.some((t: any) => t.name === 'finishReply')) { system = a.system; calls++; } return script.length > 1 ? script.shift() : script[0] ?? fin('Okay.'); } } as any;
+setProvider({ name: 'down', isConfigured: () => true, step: async () => { throw new Error('503'); } } as any);
+m = await tap('lauri', HOME, good); check('AI down: the prepared text and the card are shown', prepared(m) && m.cards.length === 1, m.text);
+setProvider({ name: 'none', isConfigured: () => false, step: async () => { throw new Error('not called'); } } as any);
+for (const o of (await j('/api/offers?userId=lauri')).offers as any[]) {
+  m = await tap('lauri', o.title);
+  check(`no AI key: ${o.id} gets the prepared text with its reason`, prepared(m) && m.text.startsWith(`${o.reason}, `) && m.text.includes('What Nordea earns: ') && !/\b(?:Never work out|use only this)\b/.test(m.text), m.text);
+}
+setProvider(ok);
+const ASP = 'ASP account for your first home';
+m = await tap('lauri', ASP, `${(await offerOf('lauri', ASP)).reason}, this kind of saving could fit your plan. Check the conditions first.`);
 check('ASP shows its question or suggestion', m.cards.some((c: any) => (c.type === 'ask_fact' || c.type === 'opportunity') && c.data.ruleId === 'asp-account'), m.cards);
-m = await tap('lauri', 'Home loan with FlexiPayment');
-check('an offer the customer is not shown is not answered by this path', calls > 0 || !/could be worth a look/.test(m.text), m.text);
+check('ASP conditions stay visible', m.cards.some((c: any) => c.type === 'opportunity') || /bonus interest is not paid on every deposit/.test(m.text), m.text);
+m = await tap('lauri', 'Home loan with FlexiPayment', 'Here is what I know about loans in general.');
+check('an offer the customer is not shown is not answered by this path', !system.includes('THE OFFER') && !prepared(m), m.text);
+const { offerReplyProblem } = await import('../src/server/offerReply.js');
+const aged: any = { reason: 'Because you’re 26', reasons: [], offer: {} };
+check('the age inside the given reason is allowed', offerReplyProblem('Because you\'re 26, daily banking could cost you less. Check your details first.', aged, () => null) === null);
+check('another figure is not', offerReplyProblem('Because you\'re 26, you could save 10 a month. Check your details first.', aged, () => null) !== null);
 t = await ask('lauri', 'Tell me about home insurance', 'Home insurance covers your things.');
 check('typed words still follow the topic checks: no card', t === 'Home insurance covers your things.', t);
 await j('/api/settings', { userId: 'lauri', offersOff: true });
 check('partner offers off: the If offer is not shown', !(await j('/api/offers?userId=lauri')).offers.some((o: any) => o.id === 'if-home'));
-m = await tap('lauri', 'Home insurance from If');
+m = await tap('lauri', HOME, 'I can explain home insurance in general.');
 check('partner offers off: no partner card', !m.cards.some((c: any) => c.type === 'offer'), m.cards);
 await j('/api/settings', { userId: 'lauri', offersOff: false });
 
@@ -127,8 +157,9 @@ check('an answer that is not shared gives no reason, nor does the bank’s line 
 
 const plans = s.entries.find((e: any) => e.aboutPart === 'plans');
 await j(`/api/cabinet/${plans.id}`, { readableBy: { abel: false, offers: false } }, 'PATCH');
-m = await tap('lauri', 'Gold package');
-check('a plan that is not shared is not said in the chat', calls === 0 && !/because/i.test(m.text) && m.text.startsWith('The Gold package'), m.text);
+m = await tap('lauri', 'Gold package', 'Because you plan to travel, this package could suit you well.');
+check('a plan that is not shared is not given to the AI', system.includes('THE OFFER') && !/Plans: |plan to travel/.test(system), system.slice(0, 900));
+check('and not said in the chat', prepared(m) && !/because/i.test(m.text), m.text);
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);
