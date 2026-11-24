@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+process.env.CABINET_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'asp-focused-'));process.env.PORT='3861';process.env.NODE_ENV='production';for(const k of Object.keys(process.env))if(/KEY|TOKEN|SUPABASE|_DB_URL/.test(k))delete process.env[k];
+const {setProvider}=await import('../src/server/llm.js');let mode='';let attempts=0;const seen:any[]=[];const url='https://www.nordea.fi/en/personal/our-services/savings-investments/savings-accounts/asp-account.html';
+const reply=(text:string,financialAnswer?:any[],productFacts?:string[])=>({calls:[{name:'finishReply',args:{text,financialAnswer,...(productFacts?{productFacts}:{}),suggestions:[],usedEntryIds:[],topic:'other',couldHelp:true}}]});
+setProvider({name:'mock-no-network',isConfigured:()=>true,step:async(a:any)=>{const {system,tools}=a;const finish=tools.find((t:any)=>t.name.startsWith('finish'));if(finish&&finish.name!=='finishReply')return {calls:[{name:finish.name,args:finish.name==='finishRetrievalPlan'?{goalTitles:[]}:finish.name==='finishMatchTerms'?{terms:{}}:{levels:[]}}]};seen.push(a);attempts++;
+if(mode==='discovery'){
+ assert.ok(system.includes('CUSTOMER TASK:'));assert.ok(system.includes('Open an ASP account'));
+ const facts=JSON.parse(/FINANCIAL FACT HANDLES \(current, role-bound, source-bound\): (\[[^\n]*\])/.exec(system)![1]);const f=facts.find((f:any)=>f.field==='saved');assert.ok(f,JSON.stringify(facts));
+ if(attempts===1)return reply('A useful complete sentence. '.repeat(18)+'This option depends on the',[{fact:f.id}]);
+ return reply('An ASP account might be worth considering for first-home savings. Would you like to hear how it works?',[{fact:f.id}]);
+}
+if(mode==='coexistence')return reply('ASP is a separate first-home savings account. You can keep your current account for everyday spending. Opening ASP depends on its conditions. '.repeat(3)+'\nSource: '+url);
+if(mode==='ps')return reply('PS is a restricted long-term savings product. The contribution deduction and the withdrawal conditions are different questions. '.repeat(4)+'\nSource: https://www.nordea.fi/en/personal/our-services/savings-investments/savings-accounts/tax-change-to-ps-accounts.html');
+if(mode==='numeric-conditions')return reply('The checked conditions below explain the saving pattern. They are not a personal decision.',undefined,['asp.deposits']);
+if(mode==='unsafe-product')return reply('You can deposit unlimited money whenever you want.',undefined,['asp.deposits']);
+if(mode==='wrong-product-number')return reply('The maximum deposit is 50 euros.',undefined,['asp.deposits']);
+if(mode==='ps-typed')return reply('There is a special withdrawal option, but it has conditions. The clause below keeps those together.',undefined,['ps.withdrawal']);
+if(mode==='conditions')return reply('The checked product conditions are general rules, not a personal eligibility decision. Have you ever bought a home?');
+if(mode==='cutoff')return reply('A useful complete sentence. '.repeat(18)+'This option depends on the\nSource: '+url);
+if(mode==='wrong')return reply('ASP pays 9% interest.');
+return reply('Could you clarify the request?');}} as any);
+await import('../server.ts');await new Promise(r=>setTimeout(r,700));const base='http://127.0.0.1:3861';const post=async(p:string,b:any)=>{const r=await fetch(base+p,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});assert.ok(r.ok);return r.json() as any;};const c=(await post('/api/conversations',{userId:'lauri',helperId:'abel'})).conversation.id;
+const ask=async(q:string)=>{attempts=0;return (await post('/api/chat',{userId:'lauri',conversationId:c,text:q})).messages.at(-1);};
+mode='discovery';let r=await ask("1. My partner and I are hoping to buy our first home. I'm saving a little every month, but I don't know the best way to go about it. What would you suggest?");assert.match(r.text,/ASP account might/);assert.doesNotMatch(r.text,/depends on the$/);assert.equal(attempts,2);assert.ok(JSON.stringify(seen.at(-1).turns).includes('Rewrite the whole answer'));console.log('PASS invalid advice with valid financial handles is repaired, not silently dropped; checked ASP supplied');
+mode='coexistence';r=await ask("I've never heard of ASP. What is it, and can I have one while keeping my current account?");assert.match(r.text,/keep your current account/);assert.notEqual(r.answeredBy,'bank_code');assert.equal(attempts,1);console.log('PASS complete long explanation plus checked citation accepted in same conversation');
+mode='conditions';r=await ask('What conditions would I need to meet?');assert.match(r.text,/not a personal eligibility/);console.log('PASS next conditions question remains model-authored and conditional');
+mode='cutoff';r=await ask('What is ASP?');assert.equal(r.answeredBy,'bank_code');assert.ok(attempts>=2);assert.doesNotMatch(r.text,/depends on the/);console.log('PASS genuinely incomplete body cannot hide behind trusted citation');
+mode='wrong';r=await ask('What interest does ASP pay?');assert.equal(r.answeredBy,'bank_code');assert.doesNotMatch(r.text,/9%/);console.log('PASS wrong product figures remain rejected');
+mode='ps';r=await ask('What is a PS account?');assert.notEqual(r.answeredBy,'bank_code');assert.match(r.text,/withdrawal conditions/);console.log('PASS PS complete citation-ending explanation remains accepted');
+mode='numeric-conditions';r=await ask('What is the minimum opening deposit for ASP?');assert.notEqual(r.answeredBy,'bank_code');assert.match(r.text,/first deposit is at least 50 euros/);assert.match(r.text,/at least 20/);assert.match(r.text,/1,500/);console.log('PASS checked typed ASP condition clause renders full min/max/count, not free product figures');
+mode='unsafe-product';r=await ask('Explain ASP deposit rules');assert.equal(r.answeredBy,'bank_code');assert.doesNotMatch(r.text,/unlimited/);console.log('PASS nonnumeric unlimited deposit claim rejected');
+mode='wrong-product-number';r=await ask('Explain ASP deposit rules');assert.equal(r.answeredBy,'bank_code');assert.doesNotMatch(r.text,/maximum deposit is 50/);console.log('PASS typed clause cannot license wrong numeric paraphrase');
+mode='ps-typed';r=await ask('I have a PS account. Can I take everything out in 2027?');assert.notEqual(r.answeredBy,'bank_code');assert.match(r.text,/do not exceed 5,000 euros on 1 January 2027/);assert.match(r.text,/AND planned/);assert.match(r.text,/30%/);console.log('PASS PS threshold/date/tax/exclusion remain indivisible');
+console.log('RESULT mocked real HTTP route only, no live-model reliability claim');process.exit(0);

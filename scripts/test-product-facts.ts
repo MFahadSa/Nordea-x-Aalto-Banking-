@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';import {productFacts,selectedProductFacts,productConnectiveProblem} from '../src/server/advice/productFacts.js';
+assert.equal(productFacts('2026-10-23').length,8);const facts=productFacts('2026-11-25');assert.equal(facts.length,8);for(const f of facts){assert.match(f.revision,/^[a-f0-9]{64}$/);assert.ok(f.source.startsWith('https://www.nordea.fi/'));assert.ok(f.version);}
+assert.throws(()=>selectedProductFacts(['invented'],facts));assert.throws(()=>selectedProductFacts(['asp.deposits','asp.deposits'],facts));assert.throws(()=>selectedProductFacts(['asp.overview','asp.deposits','asp.accounts','asp.loan'],facts));assert.deepEqual(selectedProductFacts([],facts),[]);
+assert.equal(productFacts('2027-06-01').length,0);assert.ok(!productFacts('2027-01-01').some(f=>f.id==='ps.deduction'));
+const d=selectedProductFacts(['asp.deposits'],facts)[0];assert.match(d.text,/at least 50/);assert.match(d.text,/at least 20/);assert.match(d.text,/50 to 1,500/);
+const p=selectedProductFacts(['ps.withdrawal'],facts)[0];for(const re of [/do not exceed 5,000/,/1 January 2027/,/2027 or 2028/,/30%/,/AND planned/])assert.match(p.text,re);
+for(const bad of ['You can withdraw everything.','The maximum deposit is 50 euros.','You can deposit unlimited money.','There are no conditions.','You are definitely eligible.','It is tax-free.'])assert.ok(productConnectiveProblem(bad),bad);
+assert.equal(productConnectiveProblem('This may be worth considering. The checked conditions below explain the detail.'),null);
+console.log('PASS typed fact IDs, bounded selections, version/revision/source metadata, expiry, PS date boundary, ASPminmax, indivisiblePS, unsafe connective negatives');
