@@ -385,7 +385,8 @@ export function isGarbled(t: string): boolean {
   const letters = t.replace(/[^a-zA-ZåäöÅÄÖ]/g, '').length;
   const tiny = parts.filter((p) => p.replace(/[^a-zA-ZåäöÅÄÖ]/g, '').length < 6).length;
   // Short real replies ("You're welcome! 💙", "Hi Lauri!") are fine; only near-empty text counts.
-  return (letters < 5 && t.trim().length > 0) || (parts.length >= 3 && tiny / parts.length > 0.4) || /\(\s*the\s*\)|\(\s+\)/.test(t);
+  // A raw JSON object in the text is the model's internal output leaking (seen live: '…{"clarification": {…'), never a reply.
+  return (letters < 5 && t.trim().length > 0) || (parts.length >= 3 && tiny / parts.length > 0.4) || /\(\s*the\s*\)|\(\s+\)/.test(t) || /\{\s*"[A-Za-z_]+"\s*:/.test(t);
 }
 
 // ---------- number check (guardrail 2) ----------
@@ -865,6 +866,9 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
       if (dest === 'carFund' && !once) return { shown: false, error: 'A monthly transfer can only be set up to savings here. No card is shown. Say so, and offer a one-time move to the car fund now, or Transfers in the app for a regular one.' };
       const max = once ? Math.floor(accs?.current?.balance || 0) : Math.max(plan.leftOver, 0);
       if (!(amt > 0) || amt > max) return { shown: false, error: once ? `amount must be between 1 and the current account balance (${max})` : `amount must be between 1 and the money left over (${plan.leftOver})` };
+      // One waiting card per transfer: a typed "yes" must not add a second card that could move the money twice (seen live).
+      const sameWaiting = (c: any) => c?.type === 'confirm_plan' && c.data?.amount === amt && !!c.data?.once === !!once && (c.data?.toAccount || 'savings') === (dest || 'savings');
+      if (ctx.cards.some(sameWaiting) || db.getMessages(ctx.userId).some((m) => m.conversationId === ctx.conversationId && !m.resolved && (m.cards || []).some(sameWaiting))) return { shown: false, error: 'A card for exactly this transfer is already waiting in this chat. No new card was made. Nothing has moved yet: tell the customer to use the button on the card above, or cancel it there.' };
       const goal = fin.primaryGoal(ctx.userId);
       const to = dest === 'carFund' ? 'Car fund' : goal ? `Savings, for “${goal.title}”` : 'Savings';
       ctx.cards.push({
@@ -1270,6 +1274,10 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     }
     if(/Nothing was completed in this reply/.test(detail||'')){
       const waiting=db.getMessages(userId).some(m=>m.conversationId===conversationId&&!m.resolved&&(m.cards||[]).some(c=>['confirm_plan','goal_confirm'].includes(c.type)));
+      // A card prepared in THIS reply is shown below the text: say so from the card itself (seen live: the old text said
+      // "Nothing has been done yet. Tell me what you would like to do" right above a ready transfer card).
+      const fresh=ctx.cards.find(c=>c.type==='confirm_plan'||c.type==='goal_confirm');
+      if(fresh){const d=fresh.data as any;return {text:fresh.type==='confirm_plan'?`I have prepared ${d.once?'a one-time move':'a monthly transfer'} of ${d.amount} € from your current account to ${String(d.to).replace(/^Savings/,'savings').replace(/^Car fund/,'the car fund')}. Nothing has moved yet. To go ahead, use the button on the card below. You can also cancel it there.`:'I have prepared the goal below for you to check. Nothing is saved until you tap the button on the card. You can also choose not to save it.',suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true,errorDetail:detail};}
       return {text:waiting?'Nothing has moved or changed yet. To go ahead, use the button on the card above. You can also cancel it there.':'Nothing has been done yet. Tell me what you would like to do, and I will prepare it for you to confirm.',suggestions:[],cards:ctx.cards,notes:ctx.notes,usedEntryIds:[],topic:'other',couldHelp:true,offline:true,errorDetail:detail};
     }
     if(/Pending goal proposal/.test(detail||''))return {text:'That goal was only proposed, not saved. Tap its confirmation card if you want to save it.',suggestions:[],cards:[],notes:[],usedEntryIds:[],topic:'other',couldHelp:true,offline:true,errorDetail:detail};
@@ -1465,7 +1473,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
         }
         if(!call.args.clarification&&Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length){
           try{
-            const requested=call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact});
+            const requested=call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact}).filter((r:any,i:number,all:any[])=>{const k=JSON.stringify(r);return all.findIndex((x:any)=>JSON.stringify(x)===k)===i;}); // the same fact chosen twice is shown once (seen live)
             const lines=financialEvidence.render(requested,/(?:mitä|mihin|palkkani|palkkapäiv|milloin|paljonko|kuinka|tavoite|kuussa|vuodessa|päättyy)/iu.test(userText)?'fi':'en',userText);
             const prose=cleanReply(String(call.args.text||''));
             const fi=/(?:mitä|mihin|palkkani|palkkapäiv|milloin|paljonko|kuinka|tavoite|kuussa|vuodessa|päättyy)/iu.test(userText);

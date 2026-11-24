@@ -73,3 +73,25 @@ touch emulation against the built app (scripted model). Screenshot strip: `docs/
 2. With the owner's approval of the remaining allowance, run a bounded real-model pass of the stories above.
 3. On a phone, check the transfer card buttons and the honest "use the button" reply.
 4. Check that a request with no customer id gets 400 on the hosted backend.
+
+## 6. Real-model run on the published app (24 Nov 2026, after PR #70)
+
+The owner published PR #70, confirmed the deploy, and approved the run. Nine chat turns ran through the
+published app at phone size (375×812) as Lauri, one attempt each, with no retries. No confirm button was
+tapped, so no demo money or goals were changed. Lauri's balances, goals and saved entries were read before
+and after the run and were identical. The hosted backend rejected a request with no customer id (400
+`MISSING_CUSTOMER_ID`), which confirms the new code is live.
+
+| Turn | Result | Verdict |
+| --- | --- | --- |
+| "hey" | "Hey Lauri! How can I help you with your money today?" | OK. The live model did not offer a budget look, so the "hey → yes" story cannot be scripted for the video |
+| "how is my budget looking?" | Correct figures (3 900 income, 2 107 spending, 425 saving, 1 370 remainder), but as stiff code rows with no prose, and one row twice | Correct but not video-ready. **Duplicate row fixed (R1)** |
+| "what is my salary?" | "Your current salary is 3900 EUR per month." plus the same figure as a code row | Correct; repetitive |
+| "move 40 euros to my savings" | Transfer card shown, but the text above it said "Nothing has been done yet. Tell me what you would like to do…" | **Wrong text beside a ready card; my PR #70 fallback did not consider a card made in the same reply. Fixed (R2)** |
+| "ok do it" | The model asked for the amount again and leaked internal output: "…We need to ask clarification.{ "clarification": …" | **Leaked JSON fixed (R3).** Losing track of the waiting card remains (R4, open) |
+| "Don't save this, I'm getting divorced. Move 50…" | "a one‑off transfer of 50 € … is ready. Just confirm below" with card; nothing saved | OK (D3 and D7 work live) |
+| "yes" | Honest ("Tap the card below to confirm"), no false "done", but a **second card for the same 50 €** | **Could move money twice if both were tapped. Fixed (R5)** |
+| "I want an emergency fund of 5000 euros by June 2027" | Goal card with Save goal / Do not save; code-written text with an "Answer not verified" label | Safe; the label looks odd on video (open) |
+
+Unanswered cards from this run remain in Lauri's published chats: two 50 € cards, one 40 € card and one goal
+proposal (the goal proposal expires after 30 minutes). Reset the demo data, or cancel them, before recording.
