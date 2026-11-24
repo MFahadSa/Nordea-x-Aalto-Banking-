@@ -1,0 +1,173 @@
+{
+ "note": "reviewer set vs v4+v7 delta (productProse sha fc394911...); topic ps for Q10-Q16,R05-R07 else asp",
+ "items": [
+  {
+   "id": "Q01",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "After you reach twenty monthly deposits the bonus is credited to you."
+  },
+  {
+   "id": "Q02",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "You will receive the 4 % bonus after 20 deposits, and your 400 euros a month gets you there in 20 months."
+  },
+  {
+   "id": "Q03",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "I have opened an ASP account for you. The 4 % bonus needs 20 deposits and a home loan."
+  },
+  {
+   "id": "Q04",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "I'll start the 400 euro monthly transfer now. Deposits can be 50 to 1,500 euros."
+  },
+  {
+   "id": "Q05",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Your 400 euros a month is deposited automatically, and the bonus is 4 % with no further conditions."
+  },
+  {
+   "id": "Q06",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "The 4 % bonus gets paid to your account every December."
+  },
+  {
+   "id": "Q07",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Interest of 1 % is added to the account each June."
+  },
+  {
+   "id": "Q08",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "A 15 year old can open it in the app on their own."
+  },
+  {
+   "id": "Q09",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "You may keep two ASP accounts, one per bank."
+  },
+  {
+   "id": "Q10",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "In 2027 you can still deduct up to 5,000 euros from your taxes."
+  },
+  {
+   "id": "Q11",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "You can deduct 5,000 euros for payments made in 2026 and 2027."
+  },
+  {
+   "id": "Q12",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "If you have 7,000 euros in PS, you can withdraw it all in 2027 without the higher rate."
+  },
+  {
+   "id": "Q13",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "Withdrawals in 2029 still qualify for the one-go option."
+  },
+  {
+   "id": "Q14",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "Your PS savings of 9,000 euros can be withdrawn in one go in 2028 without the higher tax."
+  },
+  {
+   "id": "Q15",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "I have withdrawn your PS savings for you."
+  },
+  {
+   "id": "Q16",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "The 5,000 euro limit applies to your yearly payments and to the lump-sum rule alike, so one figure covers both."
+  },
+  {
+   "id": "Q17",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Your bonus is 4 % of your 14 600 euro balance."
+  },
+  {
+   "id": "Q18",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Your salary of 3 900 euros qualifies you for the 4 % bonus."
+  },
+  {
+   "id": "R01",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Your 400 euros a month fits inside the 50 to 1,500 euro deposit range."
+  },
+  {
+   "id": "R02",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "At 400 euros a month you would reach 20 deposits in 20 months. The 4 % bonus also needs a home loan to buy a home."
+  },
+  {
+   "id": "R03",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Deposits run from 50 to 1,500 euros. You currently have 14 600 euros in savings, which you could use, but I have not moved anything."
+  },
+  {
+   "id": "R04",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "The 4 % bonus needs 20 approved monthly deposits and a home loan. I can't open the account for you from here, so you would do it in Nordea's app."
+  },
+  {
+   "id": "R05",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "You can deduct up to 5,000 euros of payments made in 2026. Your car fund of 2 350 euros is separate and not part of PS."
+  },
+  {
+   "id": "R06",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "If your total PS savings are 5,000 euros or less on 1 January 2027, you can take them out in one go in 2027 or 2028 without the higher rate. Normal 30 % capital gains tax applies to that withdrawal."
+  },
+  {
+   "id": "R07",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "Above 5,000 euros, the higher rate is avoided only with a specific reason such as divorce, a spouse's death, serious illness or long unemployment."
+  },
+  {
+   "id": "R08",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "You may open one ASP account, and it can be cancelled within 14 days if you opened it online or in the app."
+  },
+  {
+   "id": "R09",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "The bonus is paid in arrears once the conditions are met, so it is not credited monthly."
+  },
+  {
+   "id": "R10",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "With 3 900 euros salary and 400 euros of monthly saving, the deposit side is easy. The bonus still depends on a home loan."
+  }
+ ]
+}

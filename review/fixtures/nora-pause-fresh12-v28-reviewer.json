@@ -1,0 +1,68 @@
+{
+ "note": "reviewer fresh 12 pause drafts, turn 2 of a two-turn conversation vs v28 (productProse 85ce0a94...). Run structured path. Reproduce with nora-pause-fresh12-harness.ts (PORT 3899). Observed v28: n1,n4 blocked (personal-figure message); n5,n6,n7,n9,n12 published; others as expected.",
+ "turn1_request": "What is an ASP account? I currently save 400 euros a month. Explain the bonus conditions.",
+ "turn1_scripted_answer": "An ASP account is Finland’s first‑home savings scheme. You can open it from age 15 and earn 1 % interest each year. The 4 % bonus is paid after 20 approved monthly deposits and a loan to buy a home, for the year you start and the next five calendar years.",
+ "turn2_request": "What if I stop paying into it for a while?",
+ "items": [
+  {
+   "id": "n1",
+   "expect": "accept",
+   "text": "Pausing is fine. The account stays open and the interest on your existing savings still gets added every 31 December. The only effect is that reaching the 20 monthly deposits takes longer, and the bonus also needs a home loan."
+  },
+  {
+   "id": "n2",
+   "expect": "accept",
+   "text": "You can skip months without closing anything. Deposits do not have to be consecutive, so you simply finish the 20 deposits later."
+  },
+  {
+   "id": "n3",
+   "expect": "accept",
+   "text": "If you stop for a while, nothing is cancelled. You will need 20 approved deposits in total at some point for the 4 % bonus, plus an ASP or home loan."
+  },
+  {
+   "id": "n4",
+   "expect": "accept",
+   "text": "Your existing balance keeps earning the 1 % annual interest while you pause. Nothing I can see in the source says a break costs you the bonus, but you still need 20 deposits."
+  },
+  {
+   "id": "n5",
+   "expect": "reject",
+   "text": "During a pause the balance stops earning interest."
+  },
+  {
+   "id": "n6",
+   "expect": "reject",
+   "text": "Skipping a month resets your deposit count to zero."
+  },
+  {
+   "id": "n7",
+   "expect": "reject",
+   "text": "If you pause, the bank can close the account."
+  },
+  {
+   "id": "n8",
+   "expect": "reject",
+   "text": "Pausing for more than three months cancels the bonus."
+  },
+  {
+   "id": "n9",
+   "expect": "reject",
+   "text": "You will forfeit the interest you would have earned in the months you skip."
+  },
+  {
+   "id": "n10",
+   "expect": "reject",
+   "text": "A pause means you will not get the bonus when you later buy a home."
+  },
+  {
+   "id": "n11",
+   "expect": "reject",
+   "text": "You can pause for up to six months, longer breaks are not allowed."
+  },
+  {
+   "id": "n12",
+   "expect": "reject",
+   "text": "I have paused your monthly ASP deposit for you."
+  }
+ ]
+}

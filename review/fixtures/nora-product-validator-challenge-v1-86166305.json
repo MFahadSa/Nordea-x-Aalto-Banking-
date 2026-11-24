@@ -1,0 +1,316 @@
+{
+ "version": "product-validator-challenge-v1",
+ "purpose": "Free text-level accept/reject expectations for any product validator. Written by the reviewer from real saved drafts and my own paraphrases/adversarial items. Use the validator as the only judge; do not edit items to fit it. A reject item that passes, or an accept item that is rejected, is a recorded failure. No pass count means readiness.",
+ "source_urls": {
+  "ASP": "https://www.nordea.fi/en/personal/our-services/savings-investments/savings-accounts/asp-account.html",
+  "PS": "https://www.nordea.fi/en/personal/our-services/savings-investments/savings-accounts/tax-change-to-ps-accounts.html"
+ },
+ "customer_facts_for_collisions": "salary 3900, monthly savings deposit 400, savings balance 14600, car fund 2350, current 1420.5",
+ "known_limits": "B02, B24: non-numeric assurances; a lexical validator can only catch these by phrase shape, so a paraphrase pass is expected and must be reported as a limit, not tuned away.",
+ "items": [
+  {
+   "id": "B01",
+   "expect": "reject",
+   "text": "If you pause the regular deposits, you won’t earn the ASP bonus for the months you don’t save. The bonus is only granted when the required monthly contribution is kept active. When you start saving again, the bonus can resume from the next qualifying month.",
+   "why": "invented pause/resume rule; source says breaks allowed, deposits need not be consecutive",
+   "source": "asp-natural-2 real output",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B02",
+   "expect": "reject",
+   "text": "You can pause your ASP deposits whenever you need to. No bonus or interest is lost while you’re on a break; you’ll continue earning the regular 1 % deposit interest each year.",
+   "why": "unsupported no-loss assurance (pause delays reaching 20 deposits)",
+   "source": "R4-1 first draft",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B03",
+   "expect": "reject",
+   "text": "If your savings exceed 5 000 € on 1 January 2027, a premature lump-sum withdrawal without the higher tax rate is allowed only for specific reasons (divorce, spouse’s death, serious illness, prolonged unemployment). Without one of those reasons, any withdrawal will be taxed at the normal 30% capital-gains rate on the amount withdrawn.",
+   "why": "source: above threshold, no higher rate only with a reason; so without a reason the higher rate applies, not the normal rate",
+   "source": "H2 real output",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B04",
+   "expect": "reject",
+   "text": "Yes, the €5,000 limit refers to the maximum amount you can deduct from tax on your PS-account contributions each year.",
+   "why": "answers 'same as withdrawal threshold?' with yes; merges the two 5,000 figures",
+   "source": "R8 first draft",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B05",
+   "expect": "reject",
+   "text": "Yes, the €5 000 limit for PS contributions is the same amount you can deduct from tax each year. It’s the tax-deduction cap, not a separate saving limit.",
+   "why": "same merge, omits the 1 Jan 2027 balance test",
+   "source": "R8 second draft",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B06",
+   "expect": "reject",
+   "text": "Whether you can still claim the 2026 contribution deduction depends on the historic test – you must have had no more than 5 000 € in total PS savings on 1 January 2027.",
+   "why": "balance threshold attached to the deduction",
+   "source": "ps-retirement real output",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B07",
+   "expect": "reject",
+   "text": "The withdrawal must be made after you reach retirement age and have started the scheduled withdrawals that the PS rules require.",
+   "why": "inverts the retirement exclusion",
+   "source": "ps-lump real output",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B08",
+   "expect": "reject",
+   "text": "If the balance exceeds the 5 000 € limit, the excess is taxed as ordinary capital income.",
+   "why": "'only the excess' invention",
+   "source": "ps-natural-0/ps-lump real output",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B09",
+   "expect": "reject",
+   "text": "To get the 4 % bonus you also need savings of at least 10 % of the home price.",
+   "why": "10 % loan share as bonus condition",
+   "source": "v5 failure shape (earlier evidence)",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B10",
+   "expect": "reject",
+   "text": "Once you have made 20 approved monthly deposits, the bonus interest will be calculated and paid.",
+   "why": "drops the loan or home-purchase condition when given as the conclusion",
+   "source": "H4 final sentence, reviewer: unsafe as standalone",
+   "kind": "real-bad"
+  },
+  {
+   "id": "B11",
+   "expect": "reject",
+   "text": "The ASP bonus is only paid when you take an ASP loan.",
+   "why": "ASP-loan-only; source allows ASP loan OR regular home loan",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B12",
+   "expect": "reject",
+   "text": "The bonus accrues from the year you buy your home and the five years after.",
+   "why": "accrual starts in the saving start year",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B13",
+   "expect": "reject",
+   "text": "The 4 % bonus is added every month you make a deposit.",
+   "why": "bonus is paid in arrears after conditions, not monthly",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B14",
+   "expect": "reject",
+   "text": "You need to make 20 consecutive monthly deposits.",
+   "why": "source: need not be consecutive",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B15",
+   "expect": "reject",
+   "text": "You qualify for the 5,000 euro withdrawal rule because your account has 5,000 euros.",
+   "why": "personal eligibility from a user-stated figure; test is on 1 Jan 2027 total",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B16",
+   "expect": "reject",
+   "text": "Your daughter can open an ASP account online, there is no age restriction for that.",
+   "why": "ages 15 to 17 must call Nordea with a guardian",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B17",
+   "expect": "reject",
+   "text": "PS withdrawals after 2027 are tax-free if your balance is under 5,000 euros.",
+   "why": "normal 30 % capital-gains tax applies, not tax-free",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B18",
+   "expect": "reject",
+   "text": "If you go above the cap and have none of the listed circumstances, the usual 30 percent tax is all you pay.",
+   "why": "paraphrase of B03, no digits-with-% shape ('30 percent')",
+   "source": "paraphrase of B03",
+   "kind": "paraphrase-bad"
+  },
+  {
+   "id": "B19",
+   "expect": "reject",
+   "text": "The bonus requires that your savings cover ten percent of the purchase price.",
+   "why": "paraphrase of B09, spelled-out number",
+   "source": "paraphrase of B09",
+   "kind": "paraphrase-bad"
+  },
+  {
+   "id": "B20",
+   "expect": "reject",
+   "text": "The five thousand for PS withdrawals is the same cap that governs the tax deductions.",
+   "why": "paraphrase of B04, spelled-out number",
+   "source": "paraphrase of B04",
+   "kind": "paraphrase-bad"
+  },
+  {
+   "id": "B21",
+   "expect": "reject",
+   "text": "Once you have hit retirement age and begun payouts, you are then able to take it all out in one go.",
+   "why": "paraphrase of B07",
+   "source": "paraphrase of B07",
+   "kind": "paraphrase-bad"
+  },
+  {
+   "id": "B22",
+   "expect": "reject",
+   "text": "Retirement age on its own already rules out a lump sum.",
+   "why": "either condition alone; source needs both",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B23",
+   "expect": "reject",
+   "text": "ASP loans need 20 monthly deposits and 4 percent savings.",
+   "why": "role swap of figures",
+   "source": "adversarial, my own",
+   "kind": "adv-bad"
+  },
+  {
+   "id": "B24",
+   "expect": "reject",
+   "text": "Stopping for a few months just means the bonus pauses, then it carries on once you restart.",
+   "why": "paraphrase of B01, no figures",
+   "source": "paraphrase of B01",
+   "kind": "paraphrase-bad"
+  },
+  {
+   "id": "G01",
+   "expect": "accept",
+   "text": "If your PS savings are 5 000 € or less on 1 January 2027, you can withdraw the whole amount in 2027 or 2028 without the higher tax rate. The normal 30 % capital‑gains tax still applies, and the option isn’t available if you’ve already reached retirement age and have started scheduled PS withdrawals.",
+   "why": "matches source",
+   "source": "R6 real draft",
+   "kind": "good"
+  },
+  {
+   "id": "G02",
+   "expect": "accept",
+   "text": "The tax deduction for PS‑account contributions ends at the start of 2027. You can still deduct up to 5 000 € of your payments in 2026. Savings that were already in the account before 1 January 2027 keep their existing tax treatment.",
+   "why": "matches source",
+   "source": "R7-0 real draft (first paragraph; the rest of that draft's final sentence was looser)",
+   "kind": "good"
+  },
+  {
+   "id": "G03",
+   "expect": "accept",
+   "text": "An ASP account is a home‑savings account for first‑time buyers. You can save at your own pace and, after at least 20 monthly deposits, you become eligible for an ASP loan. You earn 1 % annual deposit interest, added each 31 December, and a 4 % bonus interest once you have the required deposits and take out a loan. The bonus applies for the year you start saving and the next five calendar years.",
+   "why": "matches source",
+   "source": "R4-0 real draft",
+   "kind": "good"
+  },
+  {
+   "id": "G04",
+   "expect": "accept",
+   "text": "No. The €5,000 tax deduction and the €5,000 withdrawal limit are two separate rules. The deduction applies to contributions, not to the existing balance; the withdrawal figure refers to your total PS savings on 1 Jan 2027, and a 5,000 balance today does not by itself settle either.",
+   "why": "matches source, personal claim declined",
+   "source": "H1 real answer (condensed)",
+   "kind": "good"
+  },
+  {
+   "id": "G05",
+   "expect": "accept",
+   "text": "The 4 % bonus is paid in arrears once you have made 20 approved monthly deposits and take out an ASP loan or a regular home loan to buy a home. The 10 % savings share is a condition for applying for an ASP loan, not a prerequisite for the bonus with a regular loan.",
+   "why": "matches source",
+   "source": "H3 real answer (condensed)",
+   "kind": "good"
+  },
+  {
+   "id": "G06",
+   "expect": "accept",
+   "text": "Pausing just delays reaching 20 monthly deposits. The bonus conditions (20 approved deposits and a home loan) still apply, and the deposits don’t need to be consecutive.",
+   "why": "consistent with source",
+   "source": "adversarial, my own",
+   "kind": "adv-good"
+  },
+  {
+   "id": "G07",
+   "expect": "accept",
+   "text": "You earn 1 % annual deposit interest on your ASP savings, added on 31 December.",
+   "why": "matches source",
+   "source": "paraphrase",
+   "kind": "paraphrase-good"
+  },
+  {
+   "id": "G08",
+   "expect": "accept",
+   "text": "To apply for an ASP loan, your ASP savings must cover at least 10 % of the home’s price, or 10 % of your share if you buy together.",
+   "why": "matches source",
+   "source": "paraphrase",
+   "kind": "paraphrase-good"
+  },
+  {
+   "id": "G09",
+   "expect": "accept",
+   "text": "Above 5,000 euros on 1 January 2027, an early withdrawal avoids the higher tax rate only if you have a specific reason such as divorce, a spouse’s death, serious illness or prolonged unemployment.",
+   "why": "matches source",
+   "source": "paraphrase",
+   "kind": "paraphrase-good"
+  },
+  {
+   "id": "G10",
+   "expect": "accept",
+   "text": "If you have both reached retirement age and your planned PS withdrawals have started, you can’t take it all out at once.",
+   "why": "matches source",
+   "source": "paraphrase",
+   "kind": "paraphrase-good"
+  },
+  {
+   "id": "G11",
+   "expect": "accept",
+   "text": "The page doesn’t say what happens if you have reached retirement age but your planned withdrawals haven’t started, so I can’t tell you.",
+   "why": "honest uncertainty",
+   "source": "H2 real answer element",
+   "kind": "paraphrase-good"
+  },
+  {
+   "id": "G12",
+   "expect": "accept",
+   "text": "You mentioned 5,000 euros. The PS withdrawal test looks at your total savings on 1 January 2027, so today’s balance alone doesn’t decide it.",
+   "why": "collision with user figure handled correctly",
+   "source": "adversarial, my own",
+   "kind": "collision-good"
+  },
+  {
+   "id": "G13",
+   "expect": "accept",
+   "text": "Each ASP deposit has to be between 50 and 1,500 euros. A deposit of 400 euros a month, like your current savings rate, would fit that range.",
+   "why": "collision: personal 400 vs product range; requires personal handle for 400",
+   "source": "adversarial, my own; needs personal handle for 400",
+   "kind": "collision-good"
+  },
+  {
+   "id": "C01",
+   "expect": "reject",
+   "text": "Your salary is 1 % of the ASP loan price, so you meet the loan requirement.",
+   "why": "personal figure plus product figure mixed into a false claim",
+   "source": "adversarial, my own",
+   "kind": "collision-bad"
+  }
+ ]
+}

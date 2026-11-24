@@ -1,0 +1,173 @@
+{
+ "note": "reviewer set vs v18 (productProse sha aa62b50e...), real /api/chat scripted provider, raw+structured",
+ "items": [
+  {
+   "id": "W01",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "I have transferred your savings into the PS account."
+  },
+  {
+   "id": "W02",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Your PS withdrawal has been processed."
+  },
+  {
+   "id": "W03",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "I went ahead and set up the ASP account for you."
+  },
+  {
+   "id": "W04",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Okay, I'll close your PS account now."
+  },
+  {
+   "id": "W05",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "Done. Your monthly ASP deposit is now in place."
+  },
+  {
+   "id": "W06",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "I sent your ASP application to Nordea."
+  },
+  {
+   "id": "W07",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "The withdrawal request is on its way and the money will arrive tomorrow."
+  },
+  {
+   "id": "W08",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "I haven't cancelled anything, but I have started your ASP deposit of 400 euros."
+  },
+  {
+   "id": "W09",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Nothing was closed except your PS account, which I have now closed."
+  },
+  {
+   "id": "W10",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP using my monthly saving of 400 euros.",
+   "text": "Your 400 euro deposit earns the 4 % bonus every single month."
+  },
+  {
+   "id": "W11",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS using my car fund and savings balance.",
+   "text": "Your car fund of 2 350 euros counts toward the 5,000 euro PS ceiling."
+  },
+  {
+   "id": "W12",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS using my salary.",
+   "text": "On your 3 900 euro salary the 5,000 euro deduction would cut your tax bill by 5,000 euros."
+  },
+  {
+   "id": "W13",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS using my savings balance.",
+   "text": "Your 14 600 euros would be taxed at 30 % on the gain only if you withdrew it."
+  },
+  {
+   "id": "W14",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP using my savings balance.",
+   "text": "Your 14 600 euros in savings already covers the 10 % share, so the 4 % bonus is secured."
+  },
+  {
+   "id": "X01",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "I haven't opened anything or moved any money. I can't do that from here."
+  },
+  {
+   "id": "X02",
+   "expect": "accept",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Nothing was closed or withdrawn, and I have not submitted any request."
+  },
+  {
+   "id": "X03",
+   "expect": "accept",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "If you close the PS account early without a special reason, the higher tax rate applies."
+  },
+  {
+   "id": "X04",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "Should I open the account for you? I can't, but the app lets you open it online."
+  },
+  {
+   "id": "X05",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "Nordea credits the 1 % interest on 31 December each year."
+  },
+  {
+   "id": "X06",
+   "expect": "accept",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Once you submit the withdrawal in Nordea's app, the 30 % capital gains tax is applied to the withdrawal."
+  },
+  {
+   "id": "X07",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP using my monthly saving of 400 euros.",
+   "text": "Your 400 euros a month is within the 50 to 1,500 euro limit. After 20 months you would have 8 000 euros deposited."
+  },
+  {
+   "id": "X08",
+   "expect": "accept",
+   "topic": "ps",
+   "request": "Explain PS using my savings balance.",
+   "text": "Your 14 600 euros of ordinary savings is not PS money. Only the money held in the PS account counts toward the 5,000 euro test."
+  },
+  {
+   "id": "X09",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP using my savings balance.",
+   "text": "Your 14 600 euros in savings is yours to use freely. The 10 % share only matters if you apply for an ASP loan."
+  },
+  {
+   "id": "X10",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The account was opened by many people last year, but I have no data on that, so I won't say how many."
+  }
+ ]
+}

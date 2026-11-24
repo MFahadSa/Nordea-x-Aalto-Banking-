@@ -18,7 +18,7 @@ const FIELD_WORDS: Record<string, string[]> = {
   average_spending: ['average', 'usually', 'typically', 'normally', 'typical', 'spend', 'spending', 'spent', 'costs', 'cost'],
   current_month_spending: ['far', 'spent', 'spending', 'spend'],
   last_full_month_spending: ['last', 'previous', 'spent', 'spending'],
-  saving_rate: ['save', 'saving', 'saved', 'aside', 'savings', 'put', 'putting', 'puts', 'contribution', 'contribute', 'toward', 'towards', 'into'],
+  saving_rate: ['save', 'saving', 'saved', 'aside', 'savings', 'put', 'putting', 'puts', 'contribution', 'contribute', 'deposit', 'deposits', 'toward', 'towards', 'into'],
   left_over_after_spending_and_saving: ['left', 'leftover', 'remains', 'remaining', 'remainder', 'spare', 'leaves', 'shortfall', 'short', 'deficit', 'minus', 'negative', 'over'],
   suggested_extra_not_approved: ['suggested', 'suggest', 'extra', 'could', 'additional'],
   hypothetical_additional_saving: ['extra', 'additional', 'more'],
@@ -55,7 +55,7 @@ const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 
 const words = (s: string) => (s.toLowerCase().normalize('NFKC').match(/[\p{L}-]{3,}/gu) || []).filter((w) => !STOP.has(w));
 /** Words that say what the figure is (its field), as opposed to which item it belongs to. */
 function fieldWords(f: VerifiedFact): Set<string> {
-  return new Set([...words(f.field.replace(/_/g, ' ')), ...(FIELD_WORDS[f.field] || [])]);
+  return new Set([...(f.field==='balance'&&/carFund/i.test(f.entity)?['car','fund']:[]),...(f.field==='balance'&&f.entity==='savings'?['savings']:[]),...words(f.field.replace(/_/g, ' ')), ...(FIELD_WORDS[f.field] || [])]);
 }
 function descriptor(f: VerifiedFact): Set<string> {
   return new Set([...words(f.entity.replace(/\(\d{4}-\d{2}\)/g, '')), ...fieldWords(f)]);
@@ -101,7 +101,9 @@ export function verifiedProseFigures(text: string, facts: VerifiedFact[]): Prose
       // different part ("a positive balance, you're saving 150 €") is not a claim about this figure.
       const segStart = Math.max(...[',', ';', '(', ')'].map((ch) => lower.lastIndexOf(ch, tok.start - 1))) + 1;
       const segEndList = [',', ';', '(', ')'].map((ch) => lower.indexOf(ch, tok.end)).filter((i) => i >= 0);
-      const own = new Set(words(lower.slice(segStart, segEndList.length ? Math.min(...segEndList) : lower.length)));
+      const rawOwn=lower.slice(segStart,segEndList.length?Math.min(...segEndList):lower.length);
+      const localOffset=tok.start-segStart;const leftAnd=rawOwn.lastIndexOf(' and ',localOffset);const rightAnd=rawOwn.indexOf(' and ',tok.end-segStart);
+      const own = new Set(words(rawOwn.slice(leftAnd<0?0:leftAnd+5,rightAnd<0?rawOwn.length:rightAnd)));
       const unit = /^(?:months?|kuukau)/.test(after) ? 'month' : /^(?:years?|vuo)/.test(after) ? 'year' : /^(?:weeks?|viik)/.test(after) ? 'week' : /^(?:days?|päiv)/.test(after) ? 'day' : 'EUR';
       const isYear = Number.isInteger(tok.value) && tok.value >= 1990 && tok.value <= 2100 && unit === 'EUR' && !/^(?:€|eur)/.test(after) && !/€\s*$/.test(before);
       if (!isYear && unit === 'EUR' && tok.value < 13 && !/^(?:€|eur)/.test(after)) continue; // a small count ("2 goals"), not an amount
@@ -124,7 +126,7 @@ export function verifiedProseFigures(text: string, facts: VerifiedFact[]): Prose
         // The sentence must say what the figure is ("you put 150 a month"), not only which item it belongs to
         // ("your sauna pot has 150 a month" names the item but not that 150 is its monthly saving).
         const fw = fieldWords(f);
-        if (![...near].some((w) => fw.has(w))) return false;
+        if (![...near].some((w) => fw.has(w))&&!((f.field==='saving_rate')&&/\bdeposits?\b/i.test(clause)&&/\ba month|monthly|per month\b/i.test(rawOwn))) return false;
         const roles = roleOf(f);
         // Another role named next to the figure, that this fact does not have, is a different claim.
         return !Object.entries(ROLE_CLAIMS).some(([role, claims]) => !roles.includes(role) && claims.some((w) => own.has(w) && !d.has(w)));

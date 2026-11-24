@@ -1,0 +1,25 @@
+{
+  "nora-product-heldout-v2-genuine-440208eb.json": {
+    "B06": {
+      "expect": "reject",
+      "reason": "Historical PS capital and return taxed. Gain-only rule applies post-2027 deposits."
+    }
+  },
+  "nora-product-heldout-v5-v18-7625daa4.json": {
+    "X06": {
+      "expect": "reject",
+      "status": "unknown",
+      "reason": "No source-established app withdrawal submission route."
+    },
+    "X07": {
+      "expect": "reject",
+      "status": "conditional projection unsupported as worded",
+      "reason": "Needs verified400current saving and explicit hypothetical monthly contributions, not flat prediction."
+    },
+    "X10": {
+      "expect": "reject",
+      "status": "unknown",
+      "reason": "Historical popularity claim lacks evidence."
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+ "note": "reviewer 11 pause drafts, turn 2 of a two-turn conversation vs v27. turn1 request and scripted turn1 answer below. Reproduce with nora-pause-two-turn-harness.ts (header copied from scripts/test-product-full-route.ts lines 1-7 minus filter, PORT 3898).",
+ "turn1_request": "What is an ASP account? I currently save 400 euros a month. Explain the bonus conditions.",
+ "turn1_scripted_answer": "An ASP account is Finland’s first‑home savings scheme. You can open it from age 15 and earn 1 % interest each year. The 4 % bonus is paid after 20 approved monthly deposits and a loan to buy a home, for the year you start and the next five calendar years.",
+ "turn2_request": "What if I stop paying into it for a while?",
+ "items": [
+  {
+   "id": "good1",
+   "expect": "accept",
+   "text": "You can take a break. Deposits do not need to be consecutive, so a pause just delays reaching 20 deposits. The interest is paid on the savings already in the account, and the 4 % bonus still needs a home loan."
+  },
+  {
+   "id": "live-bad",
+   "expect": "reject",
+   "text": "Stopping deposits also means you’ll miss out on the regular 1 % interest for the months you don’t have a balance growing."
+  },
+  {
+   "id": "bad-int2",
+   "expect": "reject",
+   "text": "While you pause, the account earns no interest."
+  },
+  {
+   "id": "bad-int3",
+   "expect": "reject",
+   "text": "If you stop depositing for a while, the 1 % interest stops until you start again."
+  },
+  {
+   "id": "bad-lose",
+   "expect": "reject",
+   "text": "If you stop paying in for a while you lose the 4 % bonus."
+  },
+  {
+   "id": "bad-lose2",
+   "expect": "reject",
+   "text": "A long pause can cost you the bonus."
+  },
+  {
+   "id": "bad-loan",
+   "expect": "reject",
+   "text": "A break may affect your eligibility for the first‑home loan."
+  },
+  {
+   "id": "good2",
+   "expect": "accept",
+   "text": "Yes, you can pause. The account stays open and keeps earning 1 % on what is already saved, and you can pick it up later because the 20 deposits do not have to be in a row."
+  },
+  {
+   "id": "good3",
+   "expect": "accept",
+   "text": "Taking a break does not cancel the account or the bonus rule. It only means it takes longer to reach 20 approved deposits."
+  },
+  {
+   "id": "good4",
+   "expect": "accept",
+   "text": "You do not lose the 1 % interest on your savings if you pause, since it is paid on the balance. Pausing just postpones the 20th deposit."
+  },
+  {
+   "id": "good5",
+   "expect": "accept",
+   "text": "A pause is allowed. The interest on the savings you already have keeps being added each 31 December."
+  }
+ ]
+}

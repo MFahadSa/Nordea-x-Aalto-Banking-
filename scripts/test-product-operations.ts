@@ -1,0 +1,4 @@
+import assert from 'node:assert/strict';import {productOperationProblem} from '../src/server/advice/productOperations.js';
+for(const t of ["I have paused your monthly ASP deposit for you.","I processed the closure of your PS account. No tax will be charged.","I've processed your ASP closure.","Your withdrawal has been processed.","I've gone ahead and opened the account.","The request is on its way and the money will arrive tomorrow."])assert.ok(productOperationProblem(t),t);
+for(const t of ["I have not paused your monthly ASP deposit.","Nothing has been withdrawn, and no request has been processed.","I haven't processed any withdrawal.","If you close the account, tax applies.","Should I open the account? I can't from here."])assert.equal(productOperationProblem(t),null,t);
+console.log('RESULT product operation categories11checks');

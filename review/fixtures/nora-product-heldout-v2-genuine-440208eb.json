@@ -1,0 +1,242 @@
+{
+ "note": "reviewer set vs v3 validator, validateProductProse direct",
+ "items": [
+  {
+   "id": "N01",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Once you have made twenty deposits, the 4 % bonus is yours.",
+   "why": "spelled count, loan dropped"
+  },
+  {
+   "id": "N02",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "If you pause for a few months, the bonus is simply postponed and nothing is lost.",
+   "why": "pause assurance"
+  },
+  {
+   "id": "N03",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "The 4 % bonus accrues for the first five years only after you start.",
+   "why": "accrual period 'first five years' vs opening year + 5"
+  },
+  {
+   "id": "N04",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Because your savings are 14 600 euros, you already meet the 10 % share and the bonus is yours.",
+   "why": "personal balance + share as bonus condition"
+  },
+  {
+   "id": "N05",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Your 400 euro monthly deposit is under the 1,500 euro limit, so you will get a 5 % bonus.",
+   "why": "personal clause + wrong rate"
+  },
+  {
+   "id": "N06",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Your deposits of 400 euros a month would reach 20 deposits in 20 months, and then the bonus is paid automatically.",
+   "why": "personal + dropped loan"
+  },
+  {
+   "id": "N07",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "You can deduct up to 5,000 euros in 2027 too.",
+   "why": "deduction ends 2026"
+  },
+  {
+   "id": "N08",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "With a balance of 5,000 euros or less you pay no tax at all on the lump sum.",
+   "why": "no tax"
+  },
+  {
+   "id": "N09",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "You can withdraw everything penalty-free once you reach retirement age, even when payouts have begun.",
+   "why": "exclusion inverted"
+  },
+  {
+   "id": "N10",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "The 5,000 euros is both the yearly deduction limit and the balance at which you can withdraw, so they are the same limit.",
+   "why": "merge"
+  },
+  {
+   "id": "N11",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "ASP gives you 5 % interest, and 1 % comes on top as a bonus.",
+   "why": "swapped roles"
+  },
+  {
+   "id": "N12",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "The ASP account has a 14 day cancellation right whether you opened it online or at a branch.",
+   "why": "branch"
+  },
+  {
+   "id": "N13",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Ages 15 to 17 can open it online with no need to contact the bank.",
+   "why": "minors"
+  },
+  {
+   "id": "N14",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Der Bonus ist 4 % und wird jedes Jahr gezahlt.",
+   "why": "German/unknown language"
+  },
+  {
+   "id": "N15",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Bonus on neljä prosenttia ja se maksetaan jo kymmenen talletuksen jälkeen.",
+   "why": "Finnish spelled wrong"
+  },
+  {
+   "id": "M01",
+   "expect": "reject",
+   "topic": "asp+ps",
+   "text": "The ASP bonus is 4 % and the PS deduction is up to 4,000 euros.",
+   "why": "multitopic wrong PS cap"
+  },
+  {
+   "id": "M02",
+   "expect": "reject",
+   "topic": "asp+ps",
+   "text": "The PS deduction is 5,000 euros and the ASP deposit cap is 5,000 euros.",
+   "why": "multitopic wrong role"
+  },
+  {
+   "id": "U01",
+   "expect": "reject",
+   "topic": "none",
+   "text": "The ASP bonus is 4 % after 20 deposits.",
+   "why": "no topic in context (unknown/none): should it pass?"
+  },
+  {
+   "id": "B01",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "You get the 4 % bonus only after 20 approved monthly deposits and when you take an ASP loan or a regular home loan to buy a home. The 1 % interest is credited every 31 December.",
+   "why": "good"
+  },
+  {
+   "id": "B02",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Saving the 20 deposits does not by itself earn the bonus. A loan for buying a home is also required, and the bonus is paid in arrears.",
+   "why": "negation good"
+  },
+  {
+   "id": "B03",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "In practice, a pause just means it takes longer to reach 20 deposits. The deposits do not need to be in a row.",
+   "why": "good pause"
+  },
+  {
+   "id": "B04",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "You can put in anything from 50 up to 1,500 euros each month, and your 400 euro monthly saving fits that.",
+   "why": "personal + range"
+  },
+  {
+   "id": "B05",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "Under the PS rules, payments up to 5,000 euros are deductible in 2026, but from 2027 the deduction ends.",
+   "why": "good"
+  },
+  {
+   "id": "B06",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "If you hold 5,000 euros or less in PS on 1 January 2027, you can take it out in one go in 2027 or 2028 without the higher tax rate, though normal 30 % tax on the gain still applies.",
+   "why": "good"
+  },
+  {
+   "id": "B07",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "The limit is not the same for both purposes: 5,000 euros caps the yearly deduction, and 5,000 euros on 1 January 2027 decides the lump-sum option.",
+   "why": "good"
+  },
+  {
+   "id": "B08",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Minors aged 15 to 17 have to phone Nordea with a guardian. Adults can open online or in the app.",
+   "why": "good"
+  },
+  {
+   "id": "B09",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "I can not tell from the account page whether your bank will approve a loan, so check with Nordea.",
+   "why": "limit statement"
+  },
+  {
+   "id": "B10",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "ASP is a home savings account. It has a 1 % annual interest, a 4 % bonus after conditions, and a 14 day cancellation right when opened online.",
+   "why": "good"
+  },
+  {
+   "id": "B11",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "If you withdraw before then and you have no special reason, the higher tax rate applies.",
+   "why": "good"
+  },
+  {
+   "id": "B12",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "The 10 % savings share applies only when you apply for an ASP loan.",
+   "why": "good"
+  }
+ ],
+ "personal_mix": [
+  {
+   "id": "P01",
+   "topic": "asp",
+   "text": "I have moved 400 euros into your ASP account. The bonus is 4 % after 20 deposits and a home loan."
+  },
+  {
+   "id": "P02",
+   "topic": "asp",
+   "text": "The 4 % bonus needs 20 deposits and a home loan. You currently have 14 600 euros saved, so you could cover 30 deposits."
+  },
+  {
+   "id": "P03",
+   "topic": "asp",
+   "text": "The bonus is 4 % and your salary of 4 500 euros means you can afford it."
+  },
+  {
+   "id": "P04",
+   "topic": "ps",
+   "text": "Up to 5,000 euros is deductible in 2026, and your 3,900 salary leaves room for it. I opened the PS account for you."
+  },
+  {
+   "id": "P05",
+   "topic": "asp",
+   "text": "Deposits run 50 to 1,500 euros, so your 400 euros fits. I will set up the standing order."
+  }
+ ]
+}

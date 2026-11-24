@@ -1,3 +1,4 @@
+import {productQuestionIdentity} from './advice/productQuestionIdentity.js';
 import {aspRequestIdentity} from './advice/aspSourceIdentity.js';
 import {consumeGoalProposal} from './advice/goalCommit.js';
 // v14 routes: conversations with helpers, the real Nora, customer button actions, partner offers,
@@ -170,13 +171,15 @@ export function registerV14Routes(app: Express) {
     if (!conv || conv.userId !== userId) conv = newConversation(userId, helperId);
     const u = userMsg(userId, conv.id, conv.helperId, text.slice(0, 2000));
     const previousUser=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.sender==='user'&&m.id!==u.id).at(-1);
+    const productIdentity=productQuestionIdentity(u.text,fin.DEMO_TODAY,previousUser?.productQuestionIdentity);
+    if(productIdentity){u.productQuestionIdentity=productIdentity;db.updateMessage(u.id,{productQuestionIdentity:productIdentity});}
     const sourceIdentity=aspRequestIdentity(u.text,fin.DEMO_TODAY,previousUser?.aspSourceIdentity);
     if(sourceIdentity){u.aspSourceIdentity=sourceIdentity;db.updateMessage(u.id,{aspSourceIdentity:sourceIdentity});}
 
     if (requestId) { u.requestId = requestId; db.updateMessage(u.id, { requestId }); }
     const namedUnlinked=previewCabinetForAgent(userId,'abel').allowed.filter(e=>e.type==='goal'&&e.status!=='archived'&&e.target&&goalNameInText(e.title,text)&&fin.primaryGoal(userId)?.id!==e.id&&e.goalType!=='car');
     const missingLinkQuestion=/(?:\?|^(?:how|what|am I|do I|paljonko|kuinka|olenko))/iu.test(text)&&/(?:saved|saving|save|short|remain|on track|extra|sääst|puuttu)/iu.test(text)&&!/(?:change|update|set|create|add|rename|muuta|vaihda|nosta|poista|note)/iu.test(text);
-    if(namedUnlinked.length===1&&missingLinkQuestion&&!/\band\b|also|payday|salary/iu.test(text)){
+    if(!productIdentity&&namedUnlinked.length===1&&missingLinkQuestion&&!/\band\b|also|payday|salary/iu.test(text)){
       const e=namedUnlinked[0],fi=/(?:paljonko|mitä|kuinka|sääst|tavoite|sohva)/iu.test(text);
       const a=agentMsg(userId,conv.id,conv.helperId,fi?`Tallennettu tavoite "${e.title}" on ${e.target!.amount} euroa, määräpäivä ${e.target!.date}. Tavoitteeseen ei ole yhdistetty säästösaldoa ja kuukausisummaa. Tämä ei tarkoita, että säästösi olisivat nolla. Paljonko olet säästänyt ja paljonko lisäät kuukaudessa?`:`The saved "${e.title}" target is ${e.target!.amount} EUR by ${e.target!.date}. I do not have a linked saved balance and monthly contribution for this goal. That does not mean your savings are zero. How much have you saved and how much do you add each month?`);
       const pm=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.cards?.some(c=>c.type==='goal_confirm')).at(-1);const pd=pm&&!pm.resolved?pm.cards?.find(c=>c.type==='goal_confirm')?.data:undefined;

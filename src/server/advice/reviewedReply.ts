@@ -2,7 +2,7 @@ import type { MessageCard } from '../../types.js';
 
 /** Reject observed contradictions, never compose the customer's answer. A failed retry is
  * an explicitly labelled failure, not permission to publish an unsafe reply. Not a legal validator. */
-export function reviewedReplyProblem(request: string, reply: string, checked: string, cards: MessageCard[] = []): string | null {
+export function reviewedReplyProblem(request: string, reply: string, checked: string, cards: MessageCard[] = [], productValidated = false): string | null {
   reply = reply.normalize('NFKC');
   const fix = (reason: string) => `The reply is not verified: ${reason}. Rewrite the customer's whole answer using the checked facts and actual tools/cards. Do not change the task or invent terms. If a fact is unknown, say so.`;
   // Negation belongs to the matched predicate, never to an entire sentence.
@@ -38,8 +38,8 @@ export function reviewedReplyProblem(request: string, reply: string, checked: st
     });
     if (inclusive || exact) return fix('the exemption is strictly less than 7,500, and at the threshold the combined taxable value matters, not only the excess');
   }
-  if (/PS means/.test(checked) && asserted(/normal capital gain|tax.free withdrawal|balance (?:is|would be|can be) deductible/i)) return fix('PS contributions and withdrawal tax are different; ordinary tax still applies');
-  if (/PS means/.test(checked) && /(?:balance|5[\s,.]?000)[^.!?]{0,100}(?:contribut|deduct)[^.!?]{0,70}(?:eligible|deduct)|(?:must not have|no more than|under|below)[^.!?]{0,35}5[\s,.]?000[^.!?]{0,100}(?:deduct|contribut)/i.test(reply)) return fix('the historical PS balance threshold controls the special withdrawal option, not prior contribution deductibility');
+  if (!productValidated && /PS means/.test(checked) && asserted(/normal capital gain|tax.free withdrawal|balance (?:is|would be|can be) deductible/i)) return fix('PS contributions and withdrawal tax are different; ordinary tax still applies');
+  if (!productValidated && /PS means/.test(checked) && /(?:balance|5[\s,.]?000)[^.!?]{0,100}(?:contribut|deduct)[^.!?]{0,70}(?:eligible|deduct)|(?:must not have|no more than|under|below)[^.!?]{0,35}5[\s,.]?000[^.!?]{0,100}(?:deduct|contribut)/i.test(reply)) return fix('the historical PS balance threshold controls the special withdrawal option, not prior contribution deductibility');
   if (/PS means/.test(checked) && /withdraw|nosta/i.test(request) && /exact|conditions|historical/i.test(request) && (!/(?:(?:1|first) January 2027|1\.\s*(?:tammikuuta|tammikuun) 2027|1\.1\.2027)/i.test(reply) || !/2028/.test(reply) || !/retirement|scheduled|regular withdrawals|eläke|säännöllis/i.test(reply))) return fix('the requested historical PS balance test is specifically on 1 January 2027');
   if (/talletussuoja|deposit protection/i.test(request) && /fully protected|täysin suojattuja|valti(?:o|on) takaa/i.test(reply)) return fix('do not give a blanket personal deposit-guarantee assurance without verified scheme, coverage limit and eligible deposits');
   if (/Fictional partner/.test(checked)) {

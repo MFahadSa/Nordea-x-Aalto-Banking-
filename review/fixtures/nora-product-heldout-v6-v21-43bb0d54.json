@@ -1,0 +1,145 @@
+{
+ "note": "reviewer set vs v21 (productProse sha 01ce2458...), real route scripted provider raw+structured",
+ "items": [
+  {
+   "id": "Y01",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Your PS payout was completed this morning."
+  },
+  {
+   "id": "Y02",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "I've gone ahead and opened an ASP account in your name."
+  },
+  {
+   "id": "Y03",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "Your ASP account is now active and the first deposit is scheduled."
+  },
+  {
+   "id": "Y04",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Consider it done, the PS savings are being paid out to you."
+  },
+  {
+   "id": "Y05",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The transfer to your ASP account has gone through."
+  },
+  {
+   "id": "Y06",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP using my savings balance.",
+   "text": "Since you have 14 600 euros saved, you qualify for the ASP bonus."
+  },
+  {
+   "id": "Y07",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP using my salary.",
+   "text": "With a 3 900 euro salary you are entitled to the 4 % bonus."
+  },
+  {
+   "id": "Y08",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS using my savings balance.",
+   "text": "You have 14 600 euros, so you are eligible for the 5,000 euro deduction on all of it."
+  },
+  {
+   "id": "Y09",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS using my car fund.",
+   "text": "Your 2 350 euro car fund is below 5,000 euros, so you can withdraw it from PS without tax."
+  },
+  {
+   "id": "Y10",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP using my monthly saving of 400 euros.",
+   "text": "Your 400 euros a month means you will receive the bonus once 20 months have passed."
+  },
+  {
+   "id": "Y11",
+   "expect": "reject",
+   "topic": "ps",
+   "request": "Explain PS using my savings balance.",
+   "text": "Because your balance is above 5,000 euros, you cannot withdraw anything early under any circumstances."
+  },
+  {
+   "id": "Y12",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "You will be charged nothing if you close the account at any time."
+  },
+  {
+   "id": "Z01",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP using my savings balance.",
+   "text": "Your 14 600 euros of savings does not count toward the ASP bonus. The bonus depends on 20 approved monthly deposits and a home loan."
+  },
+  {
+   "id": "Z02",
+   "expect": "accept",
+   "topic": "ps",
+   "request": "Explain PS using my savings balance.",
+   "text": "Your 14 600 euros ordinary savings is separate from PS. Only your PS balance on 1 January 2027 decides the 5,000 euro withdrawal rule."
+  },
+  {
+   "id": "Z03",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP using my monthly saving of 400 euros.",
+   "text": "If you keep depositing 400 euros a month, 20 deposits would add up to 8 000 euros. That alone does not earn the bonus, which also needs a home loan."
+  },
+  {
+   "id": "Z04",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "Nothing has been opened or sent, and no money moved."
+  },
+  {
+   "id": "Z05",
+   "expect": "accept",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "Nothing has been withdrawn, and no request has been processed."
+  },
+  {
+   "id": "Z06",
+   "expect": "accept",
+   "topic": "ps",
+   "request": "Explain PS.",
+   "text": "The deduction applies to payments you make in 2026, up to 5,000 euros."
+  },
+  {
+   "id": "Z07",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "You can open it online or in the app, and cancel within 14 days if you do."
+  },
+  {
+   "id": "Z08",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "I haven't done anything on your accounts. Tell me if you want me to prepare something."
+  }
+ ]
+}

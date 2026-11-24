@@ -1,0 +1,398 @@
+{
+ "version": "product-heldout-v1",
+ "base": "Written by the reviewer AFTER reading productProse.ts v2 (sha256 b6d4da86...13c10d2): adversarial, not representative of model output. Run against v2 as frozen. accept = product validator returns ok (residual text still goes to the personal check, which does not examine non-numeric product claims).",
+ "items": [
+  {
+   "id": "H01",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "The bonus stops while you are not depositing and starts again once you resume.",
+   "why": "negation elsewhere in sentence; pause/resume rule",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H02",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Taking a break does not cancel your bonus, so you can skip months freely.",
+   "why": "unsupported assurance, negation word",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H03",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Your bonus stays intact if you take a break from saving.",
+   "why": "assurance without listed verbs",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H04",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "The ASP bonus interest is six percent.",
+   "why": "spelled-out wrong rate",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H05",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "You earn two percent annual deposit interest on your ASP savings.",
+   "why": "spelled-out wrong rate",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H06",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Each deposit must be at least two hundred euros.",
+   "why": "spelled-out wrong amount",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H07",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "The deduction cap is ten thousand euros.",
+   "why": "spelled-out wrong cap",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H08",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "The tax deduction on payments is available until the end of 2027.",
+   "why": "wrong date, role words present",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H09",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "Your total savings must not exceed 5,000 euros to claim the deduction.",
+   "why": "balance test attached to deduction, negation word 'not'",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H10",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "These two 5,000 euro figures are separate in name but the same test decides both.",
+   "why": "merge with the word separate",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H11",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "You can deposit up to 1,500 euros in total each year.",
+   "why": "wrong role for 1,500 (per deposit)",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H12",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Since you save 400 a month, the bonus pauses whenever you skip a month.",
+   "why": "false rule attached to a personal clause",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H13",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Because you save 400 euros a month, the bonus is paid straight after 20 deposits.",
+   "why": "dropped loan condition behind a personal clause",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H14",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "Otherwise, the standard rate applies to that withdrawal.",
+   "why": "follows reasons sentence, no reason words",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H15",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "Lump sums are meant for people past retirement age whose payouts are already underway.",
+   "why": "inversion without modal verb",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H16",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "The ASP bonus is paid yearly together with the deposit interest.",
+   "why": "bonus paid annually",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H17",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Both the 1 % and the 4 % are added each 31 December.",
+   "why": "bonus paid with annual interest",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H18",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "You need ten per cent saved before the 4 % bonus can be paid.",
+   "why": "10% as bonus condition, 'ten per cent'",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H19",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "A ten-percent savings share is a condition for the bonus.",
+   "why": "hyphen spelling",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H20",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Bonus conditions:\n- 20 approved monthly deposits\n- savings covering 10 % of the home price",
+   "why": "heading + list, 10% under bonus heading",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H21",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "If your balance is above 5,000 euros on 1 January 2027, only the part above that is taxed.",
+   "why": "only-excess, no 'excess' word",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H22",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "Withdrawals after 2027 are free of tax when your PS savings stay at 5,000 euros or less.",
+   "why": "tax-free variant",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H23",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Opening an ASP account for a 16 year old can be done in the app.",
+   "why": "minor online",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H24",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "The 1 % interest is only paid if you also get the bonus.",
+   "why": "interest conditional on bonus",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H25",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "You can have several ASP accounts at the same time.",
+   "why": "one account per person",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H26",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "You can cancel an ASP account without charge at any time.",
+   "why": "14 days only, online/app",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H27",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "Both reaching retirement age and having started payouts are needed before you may take the lump sum.",
+   "why": "requirements rather than exclusion",
+   "v2_result": "reject"
+  },
+  {
+   "id": "H28",
+   "expect": "reject",
+   "topic": "ps",
+   "text": "The special withdrawal is only available in 2027, not 2028.",
+   "why": "wrong window",
+   "v2_result": "accept"
+  },
+  {
+   "id": "H29",
+   "expect": "reject",
+   "topic": "asp",
+   "text": "Bonuskorko on 6 % ja se maksetaan heti kun olet tehnyt 20 talletusta.",
+   "why": "Finnish wrong claim",
+   "v2_result": "reject"
+  },
+  {
+   "id": "A01",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Interest of 1 % is added every 31 December.",
+   "why": "paraphrase, no 'annual'/'deposit interest' words",
+   "v2_result": "reject"
+  },
+  {
+   "id": "A02",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "At least 20 months of saving are needed before you can apply for an ASP loan.",
+   "why": "20 months",
+   "v2_result": "reject"
+  },
+  {
+   "id": "A03",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "You would need 20 deposits of at least 50 euros each.",
+   "why": "20 deposits phrasing",
+   "v2_result": "reject"
+  },
+  {
+   "id": "A04",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "The bonus is 4 % and the regular interest is 1 %. Both apply from the year you start saving.",
+   "why": "two figures",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A05",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "The 4 % bonus is not paid just because you made 20 deposits; you also need a home loan to buy a home.",
+   "why": "negation, loan present",
+   "v2_result": "reject"
+  },
+  {
+   "id": "A06",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "It is not true that the 10 % savings share is a bonus condition. It is for the ASP loan.",
+   "why": "negation of the error",
+   "v2_result": "reject"
+  },
+  {
+   "id": "A07",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Pausing is allowed, but it delays reaching 20 monthly deposits, and the bonus still needs a home loan.",
+   "why": "pause, accurate",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A08",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "Up to 5 000 € of your payments can be deducted in 2026. The right ends on 1 January 2027.",
+   "why": "deduction",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A09",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "If your total PS savings do not exceed 5,000 euros on 1 January 2027 you may withdraw them in 2027 or 2028 without the higher tax rate, and 30 % capital gains tax applies.",
+   "why": "withdrawal",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A10",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "The deduction is about payments you make, not about the balance you already have.",
+   "why": "deduction vs balance, negation",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A11",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "The 5,000 euros for deductions and the 5,000 euros for the withdrawal test are two different things.",
+   "why": "two roles",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A12",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "You cannot withdraw everything at once if you have reached retirement age and your planned withdrawals have started.",
+   "why": "exclusion",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A13",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "ASP is the home savings scheme. You can start from age 15, and there is no upper age limit since 1 June 2026.",
+   "why": "15 and 2026",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A14",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Deposits must be between 50 and 1,500 euros, and they do not need to be in consecutive months.",
+   "why": "range",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A15",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "If you close the account for something other than your first home, 30 % tax is taken from the deposit interest and no bonus is paid.",
+   "why": "closure",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A16",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "Above 5,000 euros an early withdrawal avoids the higher rate only with a specific reason, for example divorce or serious illness.",
+   "why": "above threshold",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A17",
+   "expect": "accept",
+   "topic": "ps",
+   "text": "Funds you deposit after the start of 2027 are taxed only on the return, at 30 %.",
+   "why": "post-2027 funds",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A18",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "Minors aged 15 to 17 need to call Nordea with a guardian to open an ASP account.",
+   "why": "minors",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A19",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "You can only have one ASP account, but you can move it from one bank to another.",
+   "why": "one account",
+   "v2_result": "accept"
+  },
+  {
+   "id": "A20",
+   "expect": "accept",
+   "topic": "asp",
+   "text": "You can cancel an ASP account free of charge within 14 days if you opened it online or in the app.",
+   "why": "14 days",
+   "v2_result": "reject"
+  }
+ ]
+}
