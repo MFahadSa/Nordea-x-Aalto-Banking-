@@ -1,0 +1,75 @@
+{
+ "note": "reviewer probes, written by reviewer, not model output. v30 vs v31 route (struct path). v30: K02,K03 published (wrong), K07,K09,K10 blocked, K06 blocked. v31: K02,K03,K06 published (wrong), K07,K08 published (fixed), K09,K10 blocked (correct drafts). K06 is a v30->v31 REGRESSION.",
+ "items": [
+  {
+   "id": "K01",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The bonus isn’t paid out each year, it is paid together with the 1 % interest every 31 December."
+  },
+  {
+   "id": "K02",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The 1 % interest isn’t paid each year, only once when you buy a home."
+  },
+  {
+   "id": "K03",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The bonus isn’t affected if you close the account for another use."
+  },
+  {
+   "id": "K04",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The bonus accrues for the opening year plus 10 years."
+  },
+  {
+   "id": "K05",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "Under 18s can open an ASP account online without a guardian."
+  },
+  {
+   "id": "K06",
+   "expect": "reject",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The bonus isn’t paid out each year, and you get it straight after the 20th deposit without needing a loan."
+  },
+  {
+   "id": "K07",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The bonus isn’t paid out each year. It is paid later, when you buy your first home with an ASP or home loan, after 20 approved monthly deposits."
+  },
+  {
+   "id": "K08",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The 4 % bonus accrues for the opening year + 5 calendar years."
+  },
+  {
+   "id": "K09",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "Under 18s need to call Nordea with a guardian to open an ASP account."
+  },
+  {
+   "id": "K10",
+   "expect": "accept",
+   "topic": "asp",
+   "request": "Explain ASP.",
+   "text": "The 1 % deposit interest isn’t a reward for depositing that month. It is paid on the savings you hold and added on 31 December."
+  }
+ ]
+}

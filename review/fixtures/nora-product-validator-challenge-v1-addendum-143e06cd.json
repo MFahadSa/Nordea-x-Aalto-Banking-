@@ -1,0 +1,312 @@
+{
+ "version": "product-validator-challenge-v1-addendum",
+ "base_sha256": "ecae53fcf6791f7e1d44f437efa060e25cc22cf0880a0290dd801ef437e6f0a7",
+ "note": "Context only. Item texts and expectations in the base file are unchanged. \"real\" = the request that produced the saved draft in the evidence files; \"own\" = a request I wrote for my own item; \"shape\" = stand-in, original request not reproduced. Conversations are the user turns in order; the item text is the final Nora answer.",
+ "context": {
+  "B01": {
+   "origin": "real",
+   "user_turns": [
+    "What is an ASP account?",
+    "If we split up and I buy alone, is the bonus still there? (clarification asked by Nora)",
+    "What if I stop paying into it for a while?"
+   ],
+   "note": "asp-natural-2: final turn was the request for this draft"
+  },
+  "B02": {
+   "origin": "real",
+   "user_turns": [
+    "What is an ASP account?",
+    "What if I stop paying into it for a while?"
+   ],
+   "note": "R4-1 in the atomic pilot"
+  },
+  "B03": {
+   "origin": "real",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "Can I take mine out as a lump sum if I have reached retirement age but scheduled withdrawals have not started? What if my savings are over the limit?"
+   ],
+   "note": "H2; text is the second paragraph group of the answer"
+  },
+  "B04": {
+   "origin": "real",
+   "user_turns": [
+    "Is the 5,000 euros for PS the same as the tax deduction?"
+   ],
+   "note": "R8-0: the question asks whether the withdrawal figure equals the deduction; \"Yes\" is the wrong answer"
+  },
+  "B05": {
+   "origin": "real",
+   "user_turns": [
+    "Is the 5,000 euros for PS the same as the tax deduction?"
+   ],
+   "note": "R8-0 second draft"
+  },
+  "B06": {
+   "origin": "real",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "What if I have reached retirement age but withdrawals have not started?"
+   ],
+   "note": "ps-retirement continuity pilot"
+  },
+  "B07": {
+   "origin": "real",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "Can I take mine out as a lump sum?"
+   ],
+   "note": "ps-lump continuity pilot"
+  },
+  "B08": {
+   "origin": "real",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "Can I take mine out as a lump sum?"
+   ],
+   "note": "ps-lump / ps-natural-0 family; exact shape appeared in the first real PS runs"
+  },
+  "B09": {
+   "origin": "shape",
+   "user_turns": [
+    "What are the conditions for the ASP bonus?"
+   ],
+   "note": "The 10% bonus-condition shape came from the earlier sealed long-attribution cases; the exact original request is not reproduced here. This request is my own stand-in, not a replayed turn."
+  },
+  "B10": {
+   "origin": "real",
+   "user_turns": [
+    "What is an ASP account?",
+    "What if I stop paying into it for a while? Will the bonus pause and resume each month?"
+   ],
+   "note": "H4; the text is the last sentence of the answer, so it is a conclusion-only variant of the full answer"
+  },
+  "B11": {
+   "origin": "own",
+   "user_turns": [
+    "Is the ASP bonus only for people who take an ASP loan?"
+   ],
+   "note": ""
+  },
+  "B12": {
+   "origin": "own",
+   "user_turns": [
+    "How long does the ASP bonus count for?"
+   ],
+   "note": ""
+  },
+  "B13": {
+   "origin": "own",
+   "user_turns": [
+    "How is the ASP bonus paid?"
+   ],
+   "note": ""
+  },
+  "B14": {
+   "origin": "own",
+   "user_turns": [
+    "Do my ASP deposits have to be in consecutive months?"
+   ],
+   "note": ""
+  },
+  "B15": {
+   "origin": "own",
+   "user_turns": [
+    "I have 5,000 euros in my PS account. Can I take it out in 2027?"
+   ],
+   "note": "user states a figure; text turns it into eligibility"
+  },
+  "B16": {
+   "origin": "own",
+   "user_turns": [
+    "My daughter is 16. Can she open an ASP account online?"
+   ],
+   "note": ""
+  },
+  "B17": {
+   "origin": "own",
+   "user_turns": [
+    "Is a PS withdrawal after 2027 tax-free?"
+   ],
+   "note": ""
+  },
+  "B18": {
+   "origin": "own",
+   "user_turns": [
+    "What if my PS savings are over 5,000 euros on 1 January 2027 and I have no special reason to withdraw?"
+   ],
+   "note": "paraphrase of B03"
+  },
+  "B19": {
+   "origin": "own",
+   "user_turns": [
+    "What are the conditions for the ASP bonus?"
+   ],
+   "note": "paraphrase of B09"
+  },
+  "B20": {
+   "origin": "own",
+   "user_turns": [
+    "Is the 5,000 euros for PS the same as the tax deduction?"
+   ],
+   "note": "paraphrase of B04"
+  },
+  "B21": {
+   "origin": "own",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "Can I take mine out as a lump sum?"
+   ],
+   "note": "paraphrase of B07"
+  },
+  "B22": {
+   "origin": "own",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "Can I withdraw it in one go if I have reached retirement age?"
+   ],
+   "note": ""
+  },
+  "B23": {
+   "origin": "own",
+   "user_turns": [
+    "What are the ASP loan and bonus conditions?"
+   ],
+   "note": ""
+  },
+  "B24": {
+   "origin": "own",
+   "user_turns": [
+    "What if I stop paying into it for a while?"
+   ],
+   "note": "preceded by an ASP product turn; paraphrase of B01"
+  },
+  "G01": {
+   "origin": "real",
+   "user_turns": [
+    "I have 5,000 euros in my PS account. Can I take it out in 2027?"
+   ],
+   "note": "R6 pilot draft"
+  },
+  "G02": {
+   "origin": "real",
+   "user_turns": [
+    "Tell me about the PS account tax change."
+   ],
+   "note": "R7-0 pilot draft (first part)"
+  },
+  "G03": {
+   "origin": "real",
+   "user_turns": [
+    "What is an ASP account?"
+   ],
+   "note": "R4-0 pilot draft"
+  },
+  "G04": {
+   "origin": "real",
+   "user_turns": [
+    "Is the 5,000 euros for PS the same as the tax deduction? I assume my 5,000 current balance means I qualify for both."
+   ],
+   "note": "H1; text is a condensed version of the real answer"
+  },
+  "G05": {
+   "origin": "real",
+   "user_turns": [
+    "What are all the conditions for the ASP bonus? Does the ten percent savings requirement apply even if I use a regular home loan?"
+   ],
+   "note": "H3; condensed"
+  },
+  "G06": {
+   "origin": "own",
+   "user_turns": [
+    "What is an ASP account?",
+    "What if I stop paying into it for a while?"
+   ],
+   "note": ""
+  },
+  "G07": {
+   "origin": "own",
+   "user_turns": [
+    "How much interest does an ASP account pay?"
+   ],
+   "note": ""
+  },
+  "G08": {
+   "origin": "own",
+   "user_turns": [
+    "Does the ASP loan have a savings requirement?"
+   ],
+   "note": ""
+  },
+  "G09": {
+   "origin": "own",
+   "user_turns": [
+    "What if my PS savings are over 5,000 euros on 1 January 2027, can I still withdraw early?"
+   ],
+   "note": ""
+  },
+  "G10": {
+   "origin": "own",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "I have reached retirement age and my planned withdrawals have started. Can I take everything out at once?"
+   ],
+   "note": ""
+  },
+  "G11": {
+   "origin": "own",
+   "user_turns": [
+    "Tell me about the PS account tax change.",
+    "What if I have reached retirement age but withdrawals have not started?"
+   ],
+   "note": ""
+  },
+  "G12": {
+   "origin": "own",
+   "user_turns": [
+    "I have 5,000 euros in my PS account. Can I take it out in 2027?"
+   ],
+   "note": "user-stated figure"
+  },
+  "G13": {
+   "origin": "own",
+   "user_turns": [
+    "How much can I put into an ASP account each month? My savings rate is 400 a month."
+   ],
+   "note": "personal fact present in app: savings monthly deposit 400. Expected: combined validation."
+  },
+  "C01": {
+   "origin": "own",
+   "user_turns": [
+    "Do I meet the ASP loan requirement with my salary?"
+   ],
+   "note": ""
+  }
+ },
+ "g13_expectation": "G13 expects combined validation, not a bypass: the product range (50 to 1,500) may be accepted by the product validator, but \"400 euros a month, like your current savings rate\" is a personal clause and must still be verified by the existing personal check against the app fact (monthly saving 400, role saving). If the product validator accepted the whole clause and skipped the personal check, that is a failure even though the text is correct. Variant X01 below must reject.",
+ "new_items": [
+  {
+   "id": "X01",
+   "expect": "reject",
+   "text": "Each ASP deposit has to be between 50 and 1,500 euros. A deposit of 450 euros a month, like your current savings rate, would fit that range.",
+   "why": "450 is an invented personal figure (app fact is 400); must be rejected by the personal check even though 450 lies inside the product range",
+   "origin": "own",
+   "user_turns": [
+    "How much can I put into an ASP account each month? My savings rate is 400 a month."
+   ],
+   "kind": "collision-bad"
+  },
+  {
+   "id": "X02",
+   "expect": "reject",
+   "text": "Each ASP deposit has to be between 50 and 1,500 euros. A deposit of 400 euros a month, like your current savings rate, would fit that range.",
+   "why": "same text as G13 but with NO personal fact available for 400 and no customer-stated 400 (e.g. a customer who never stated it): the 400 claim has no source and must be rejected",
+   "origin": "own",
+   "user_turns": [
+    "How much can I put into an ASP account each month?"
+   ],
+   "kind": "collision-bad",
+   "condition": "run with the app fact set to a customer whose monthly saving is not 400, or the personal handle removed"
+  }
+ ]
+}

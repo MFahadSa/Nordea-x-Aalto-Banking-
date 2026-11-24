@@ -1,3 +1,6 @@
+import {productOperationProblem} from './advice/productOperations.js';
+import {validateProductProse,type ProductTopic} from './advice/productProse.js';
+import {productQuestionIdentity} from './advice/productQuestionIdentity.js';
 import {aspRequestIdentity} from './advice/aspSourceIdentity.js';
 import {goalProgressReply} from './advice/goalProgress.js';
 import {clarificationInput,clarificationChoices,UNKNOWN_REPLY,type Clarification} from './advice/clarification.js';
@@ -342,6 +345,7 @@ export function jsonReplyIn(t: string): { text: string; suggestions?: unknown; u
 
 /** Plain chat text: no markdown, no "Suggestions" lists (those are buttons), no JSON, no empty "…" lines. */
 export function cleanReply(t: string): string {
+  t=t.replace(/\bNord[\u00a0\u202f]ea\b/gi,'Nordea');
   let s = String(t || '').replace(/```[\s\S]*?```/g, '');
   // v28: a tool's name written as text ("finishReply: {", "suggestPartnerOffer(…)"): everything from there on is not for the customer.
   const beforeStrip = s;
@@ -535,7 +539,7 @@ export function fixName(text: string, first: string): string {
 
 /** "Done", "I've moved it", "it's set up": a completed action. A chat reply never completes a transfer, plan, goal,
  *  booking or opening by itself; only a tap on a confirmation card (/api/actions) does. */
-const DONE_CLAIM = /\b(?:all done|done(?=[!.]|\s*$)|all set|went through|(?:it|that|this|everything)['’]?s (?:now )?(?:done|complete|set up|sorted)|(?:is|are|has been|have been|was|were) (?:now |successfully )?(?:done|completed?|set up|scheduled|moved|transferred|sent|booked|paid|opened|confirmed|activated)|i(?:['’]ve| have) (?:now |successfully |just )?(?:moved|transferred|sent|set up|scheduled|booked|paid|opened|confirmed|activated|started|created|arranged))\b/iu;
+const DONE_CLAIM = /\b(?:all done|done(?=[!.]|\s*$)|all set|went through|(?:it|that|this|everything)['’]?s (?:now )?(?:done|complete|set up|sorted)|(?:is|are|has been|have been|was|were) (?:now |successfully )?(?:done|completed?|set up|scheduled|moved|transferred|sent|booked|paid|opened|confirmed|activated)|i(?:['’]ve| have) (?:now |successfully |just )?(?:moved|transferred|withdrawn|sent|set up|scheduled|booked|paid|opened|confirmed|activated|started|created|arranged))\b/iu;
 const NOT_DONE = /\b(?:not|n['’]t|nothing|never|until|once you|after you|when you|if you|before you|needs? (?:a |your )?(?:tap|confirmation)|will be|would be|can be|to confirm)\b/iu;
 export function claimsCompletion(text: string): boolean {
   return text.split(/(?<=[.!?])\s+|\n+/u).some((s) => DONE_CLAIM.test(s) && !NOT_DONE.test(s));
@@ -1120,9 +1124,10 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   for (const n of ctx.notes) if (n.entryId) linkCurrentSource(ctx, n.entryId);
   const shownPartners = new Set(ctx.cards.filter((c) => c.type === 'offer').map((c) => String(c.data?.partnerId)));
   const userRequests=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.sender==='user');
+  const questionIdentity=productQuestionIdentity(userText,fin.DEMO_TODAY,userRequests.at(-2)?.productQuestionIdentity);
   const productIdentity=aspRequestIdentity(userText,fin.DEMO_TODAY,userRequests.at(-2)?.aspSourceIdentity);
   // Resolve product evidence only. Do not change the request, tools, personal context or publication guards.
-  const backgroundRequest=productIdentity&&!/\bASP\b/i.test(userText)?userText+' ASP':userText;
+  const backgroundRequest=questionIdentity?userText+' '+(questionIdentity.topic==='asp-account'?'ASP':'PS'):productIdentity&&!/\bASP\b/i.test(userText)?userText+' ASP':userText;
   let checkedContext = reviewedContext(backgroundRequest, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
   let groundedNote = checkedContext;
   const financialEvidence=new TurnFinancialEvidence(userId,conversationId,newId('financial-turn'),(id,revision)=>{if(id==='request:current')return sourceRevision(userText)===revision;if(id==='bank:getSpending')return sourceRevision({...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}})===revision;if(id==='bank:getPayPlan')return sourceRevision(fin.payPlan(userId))===revision;if(id==='bank:getAccounts')return sourceRevision(fin.accounts(userId))===revision;if(id==='bank:getSalary')return sourceRevision(fin.salaryInfo(userId))===revision;const current=previewCabinetForAgent(userId,'abel').allowed;if(id.startsWith('status:')){const e=current.find(e=>e.id===id.slice(7));return !!e&&e.status!=='archived'&&!!e.target&&sourceRevision({...fin.goalStatus(userId,e),goalType:e.goalType,...(e.status==='stale'?{stale:true,savingRateKnown:false}:{savingRateKnown:fin.primaryGoal(userId)?.id===e.id})})===revision;}const e=current.find(e=>e.id===id);return !!e&&sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy])===revision;});
@@ -1134,7 +1139,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   if(waitingCards.length)system+='\nWAITING FOR THE CUSTOMER\'S TAP (already on screen above): '+waitingCards.map(c=>{const d=c.data as any;return c.type==='confirm_plan'?`${d.once?'a one-time move':'a monthly transfer'} of ${d.amount} € from the current account to ${d.to}`:`a goal proposal "${d?.draft?.title||''}"`;}).join('; ')+'. Typed words such as "ok", "do it" or "go" cannot confirm it; only the button on that card can. If the customer agrees, tell them to use that button. Do not ask again for details the card already shows. If they want a different amount, prepare a new card with offerTransfer.';
   if(bounded)system=system.replace("FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):",'FACTS (computed bank context. For personal numeric or calendar answers choose the supplied FINANCIAL FACT HANDLES in finishReply.financialAnswer; do not copy numbers into prose):').replace('use these numbers directly','choose the corresponding financialAnswer handles').replace('- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly).','- Personal numbers and dates must be selected through financialAnswer handles or supported calculation expressions. The app renders values with their roles and units. The only exception: you may say a figure in your own words when it is exactly a supplied handle value and the same sentence says what it is (e.g. "your average spending is 2 107 € a month"). Never give a figure another role, unit or month.');
   if(ctx.clarificationReadOnly)system+='\nCLARIFICATION ANSWER: The last reply asked '+JSON.stringify(prior!.clarification)+'. Use the answer only for this conversation. Do not save notes or infer eligibility from a clarification answer. A separate explicit new action request still uses the existing confirmation controls, never direct execution. If the answer is unknown, do not repeat the same question; give supported general help without guessing.';
-  system += '\nFACT ROLES: Every figure has a role and unit. A number appearing somewhere is not permission to assign it to another field. For goals, saved, target, monthly contribution, shortfall and months left are separate. For products, opening/starting year, purchase/payment date, annual interest and one-time bonus are separate. PS annual contribution deduction cap and historical balance withdrawal test are separate. Energy monthly fee, usage price and spot margin are separate; never present just a fee as the total cost. Say unknown when coverage or a term is absent. Use the customer\'s language, but retain the exact meaning, threshold boundary and conditions. Do not expand an acronym unless CHECKED BACKGROUND provides the expansion. Do not invent screens, sections or availability; describe only actual controls in the displayed contract.';
+  system += '\nFACT ROLES: Every figure has a role and unit. A number appearing somewhere is not permission to assign it to another field. For goals, saved, target, monthly contribution, shortfall and months left are separate. For products, opening/starting year, purchase/payment date, deposit interest, bonus accrual over its stated period and later bonus payment in arrears are separate. PS annual contribution deduction cap and historical balance withdrawal test are separate. Energy monthly fee, usage price and spot margin are separate; never present just a fee as the total cost. Say unknown when coverage or a term is absent. Use the customer\'s language, but retain the exact meaning, threshold boundary and conditions. Do not expand an acronym unless CHECKED BACKGROUND provides the expansion. Do not invent screens, sections or availability; describe only actual controls in the displayed contract.';
   const t0 = Date.now();
   let modelCalls = 0;
   let answerProvider: string | undefined;
@@ -1385,9 +1390,10 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
 
   let retried = false;
   let ruleRetried = false;
+  let formatRetried = false;
   const reviewedRetries = new Set<string>();
   const repeatedReviewedProblem = (text: string) => {
-    const p = reviewedReplyProblem(userText, text, checkedContext, ctx.cards);
+    const p = reviewedReplyProblem(userText, text, checkedContext, ctx.cards, validateProductProse(text,productTopics,fin.DEMO_TODAY,userText).ok&&productTopics.has('ps-account'));
     if (!p) return false;
     if (reviewedRetries.has(p)) return true;
     reviewedRetries.add(p);
@@ -1417,7 +1423,17 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     if (CUT_OFF.test(text) && text.length > 40) return 'Your reply was cut off mid-sentence. Write it again, complete and short.';
     return null;
   };
+  const productTopics=new Set<ProductTopic>();
+  if(checkedContext.includes('ASP is the Finnish home savings scheme'))productTopics.add('asp-account');
+  if(checkedContext.includes('PS means the restricted long-term savings product'))productTopics.add('ps-account');
+  const productCheck=(text:string)=>validateProductProse(text,productTopics,fin.DEMO_TODAY,userText);
+  const personalQuantities=(text:string)=>{const p=productCheck(text);return p.ok?p.personalText:text;};
+  const formatProblem = (text:string):string|null => isGarbled(text)||looksLikeCode(text)
+    ? 'The previous reply was malformed or leaked tool syntax and was not shown. Call finishReply with complete plain text. Do not repeat tool syntax in the text or claim an unfinished action completed.' : null;
   const problemWith = (text: string): string | null => {
+    const product=productCheck(text);if(!product.ok)return product.reason;
+    const personalText=product.personalText;
+    if(productTopics.size){const operation=productOperationProblem(text);if(operation)return operation;}
     const proposed=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&m.cards?.some(c=>c.type==='goal_confirm')&&m.resolved!=='Confirmed goal').flatMap(m=>m.cards!.filter(c=>c.type==='goal_confirm').map(c=>c.data)).filter(Boolean);
     for(const data of proposed){
       const p=data!.draft;if(!p)continue;
@@ -1432,23 +1448,23 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     // A currently disclosed manifest can prove its fixed contract duration, not personal figures.
     // Mask only this exact role-bound phrase for the personal-handle gate; source checks still run.
     const productDurationText=/Fictional partner Lumivalo Energy/.test(checkedContext)&&/Fixed price · 12 months/.test(checkedContext)
-      ?text.split(/(?<=[.!?])\s+|\n/u).map(clause=>/\b(?:your|my|our|current|existing|gym|phone|loan|debt|salary|pension|balance|saving|goal)\b/iu.test(clause)?clause:clause.replace(/\bfixed price option[^.!?\n]{0,100}?same per-kWh rate for 12 months\b/gu,m=>m.replace('12','twelve'))).join('\n'):text;
+      ?personalText.split(/(?<=[.!?])\s+|\n/u).map(clause=>/\b(?:your|my|our|current|existing|gym|phone|loan|debt|salary|pension|balance|saving|goal)\b/iu.test(clause)?clause:clause.replace(/\bfixed price option[^.!?\n]{0,100}?same per-kWh rate for 12 months\b/gu,m=>m.replace('12','twelve'))).join('\n'):personalText;
     if(bounded&&(/\d|\b(?:january|february|march|april|june|july|august|september|october|november|december|marraskuu|maaliskuu|kesäkuu)\b/iu.test(productDurationText.replace(/^\s*\d{1,2}[.)]\s+/gm,''))||/\bMay\b/u.test(productDurationText))&&financialEvidence.list().length){
       const exact=exposure?.content().filter(r=>!r.discoveryOnly&&r.id!=='app-bank-core').some(r=>r.detail.length>=12&&text.trim()===r.detail.trim()||text.trim()===(r.title+': '+r.detail).trim());
       // A figure in Nora's own words is fine when value, unit and meaning match one current fact.
-      const own=exact?null:verifiedProseFigures(text,proseFacts());
+      const own=exact?null:verifiedProseFigures(personalText,proseFacts());
       if(!exact&&!own?.ok)return 'Personal financial quantities and calendar fields must use financialAnswer handles, with purpose and units preserved, unless the figure is exactly a supplied handle value stated next to what it is. '+(own&&!own.ok?own.reason+' ':'')+'Do not restate guessed numeric/date claims in prose. An exact source quote is allowed when parsing is unsupported.';
     }
     if (bounded && knowledgeAbsenceClaim(text)) return 'A limited search does not establish that no saved fact exists. Retrieve the related context or describe the limited check without claiming absence.';
     // Figures already matched to role-bound current facts (value, unit and meaning) do not need the looser word-overlap check.
-    const ownFigures=bounded&&/\d/.test(text)?verifiedProseFigures(text,proseFacts()):null;
-    if(bounded&&!(ownFigures?.ok&&ownFigures.figures>0)){const financial=financialGroundingProblem(text,groundingSources,groundingRequest);if(financial)return financial;}
+    const ownFigures=bounded&&/\d/.test(text)?verifiedProseFigures(personalText,proseFacts()):null;
+    if(bounded&&!(ownFigures?.ok&&ownFigures.figures>0)){const financial=financialGroundingProblem(personalText,groundingSources,groundingRequest);if(financial)return financial;}
     const completionProblem=explanationReplyProblem(userText,text);
     if(completionProblem)return completionProblem;
     if (!text.trim()) return 'Your reply was empty (maybe cut off). Answer again briefly with finishReply.';
-    const roleProblem = personalRoleProblem(text, facts, ctx.cards);
+    const roleProblem = personalRoleProblem(personalText, facts, ctx.cards);
     if (roleProblem) return roleProblem;
-    const reviewedProblem = reviewedReplyProblem(userText, text, checkedContext, ctx.cards);
+    const reviewedProblem = reviewedReplyProblem(userText, text, checkedContext, ctx.cards,productTopics.has('ps-account'));
     if (reviewedProblem) return reviewedProblem;
     if (looksLikeCode(text)) return 'Your reply was code or a tool call written as text. Call the tool properly, and give the customer plain words in finishReply.';
     if (ctx.cards.some((c) => c.type === 'confirm_save') && SAVED_CLAIM.test(text)) return 'This sensitive thing was NOT saved: the customer chooses with the Save privately card. Write the reply again: be kind, and do not say you added, saved or noted it.';
@@ -1462,7 +1478,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     // v29 truth checks.
     const tapped = db.getMessages(userId).some((m) => m.conversationId === conversationId && !!m.resolved && (m.cards || []).some((c) => ['confirm_plan', 'goal_confirm', 'confirm_save'].includes(c.type)));
     if ((ctx as any).refusedSave && !ctx.changes && text.split(/(?<=[.!?])\s+|\n+/u).some((x) => SAVED_CLAIM.test(x) && !NOT_DONE.test(x))) return 'Nothing was saved in this reply (the save was refused). Write it again without saying you added, saved, noted or will remember it.';
-    if (!ctx.changes && !ctx.notes.length && !tapped && claimsCompletion(text)) return 'Nothing was completed in this reply: no money moved and no plan, goal, booking or account was made or changed. Only a tap on a confirmation card does that. Write it again without saying it is done; if a card is waiting, say it still needs a tap.';
+    if (!ctx.changes && !ctx.notes.length && !tapped && claimsCompletion(productTopics.size?text.replace(/\b(?:the )?(?:bonus(?: interest)?|deposit interest|interest) is paid|it is paid(?= on the savings)\b/gi,'product payment timing'):text)) return 'Nothing was completed in this reply: no money moved and no plan, goal, booking or account was made or changed. Only a tap on a confirmation card does that. Write it again without saying it is done; if a card is waiting, say it still needs a tap.';
     if (ACTION_CLAIM.test(text)) return 'You cannot connect, call, book, block, order, report or remind. Nothing of that has happened. Write the reply again without saying you did or will do it; say what the customer can do themselves.';
     const tm = transferMismatch(text, ctx.cards);
     if (tm) return tm;
@@ -1496,14 +1512,20 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       const raw = (res.text || '').trim();
       const j = jsonReplyIn(raw);
       const t = cleanReply(j ? String(j.text) : raw);
-      const sourceAnswer=t?narrowSourceAnswer(t,j || {}):null;
+      const malformed=t?formatProblem(t):null;
+      if(malformed){
+        if(formatRetried)return offline('The AI answer was garbled after one format regeneration');
+        formatRetried=true;
+        turns.push({role:'model',text:t},{role:'user',text:malformed});
+        continue;
+      }
+      const sourceAnswer=t&&!productTopics.size?narrowSourceAnswer(t,j || {}):null;
       if(sourceAnswer)return sourceAnswer;
       const p = t ? problemWith(t) : null;
-      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known, money).length && !p) {
+      if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(personalQuantities(t), known, money).length && !p) {
         recordTurn(Date.now() - t0, modelCalls);
         return finish(t, j?.suggestions, j?.usedEntryIds, j?.topic, j?.couldHelp);
       }
-      if (t && isGarbled(t)) return offline('The AI answer was garbled');
       if (p && repeatedReviewedProblem(t)) return offline('Unverified reply after correction: ' + p);
       if (p && ruleRetried && !reviewedReplyProblem(userText, t, checkedContext, ctx.cards)) return offline('Unverified reply after correction: ' + p);
       if (p) ruleRetried = true;
@@ -1545,7 +1567,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
             const pendingLine=pe&&pd?.draft?.target&&goalNameInText(pe.title,userText)&&pd.existingRevision===goalRevision(pe)&&pd.expiresAt&&Date.parse(pd.expiresAt)>Date.now()?`For "${pe.title}", the proposed target ${pd.draft.target.amount} EUR by ${pd.draft.target.date} is not saved. Only tapping the card confirmation would apply it.`:'';
             const staleLines=read.allowed.filter(e=>e.type==='goal'&&e.status==='stale'&&(/\bcar\b/iu.test(userText)?/\bcar\b/iu.test(e.title):false)).map(e=>fi?`Tavoite "${e.title}" on merkitty vanhentuneeksi. Määräpäivä on mennyt.`:`The "${e.title}" goal is marked stale. Its saved deadline has passed.`);
             const localizedPending=fi&&pendingLine&&pe&&pd?.draft?.target?`Tavoitteen "${pe.title}" ehdotettu summa ${pd.draft.target.amount} euroa ja määräpäivä ${pd.draft.target.date} eivät ole tallennettuja. Muutos vaatii kortin vahvistuksen.`:pendingLine;
-            const safeProse=prose&&(!/[0-9]/u.test(prose)||verifiedProseFigures(prose,proseFacts()).ok)&&!problemWith(prose)?prose:'';
+            const product=productCheck(prose);
+            const safeProse=prose&&product.ok&&(!/[0-9]/u.test(product.personalText)||verifiedProseFigures(product.personalText,proseFacts()).ok)&&!problemWith(prose)?prose:'';
             const digitsOf=(t:string)=>(t.match(/\d[\d\s]*(?:[.,]\d+)?/g)||[]).map(x=>x.replace(/\s/g,''));const said=new Set(digitsOf(safeProse));const newLines=lines.filter(l=>!digitsOf(l).length||digitsOf(l).some(d=>!said.has(d)));
             finished=finish([safeProse,newLines.join(' '),...staleLines,localizedPending,note].filter(Boolean).join('\n\n').trim(),call.args.suggestions,call.args.usedEntryIds,call.args.topic,call.args.couldHelp);
             results.push({call,result:{accepted:true}});continue;
@@ -1563,13 +1586,16 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
           finished={...reply,clarification};results.push({call,result:{accepted:true}});continue;
         }
         const text = cleanReply(String(call.args.text || ''));
+        const malformed=formatProblem(text);
+        if(malformed){
+          if(formatRetried)return offline('The AI answer was garbled after one format regeneration');
+          formatRetried=true;results.push({call,result:{accepted:false,error:malformed}});continue;
+        }
         const incomplete=unfinishedReplyProblem(text);
         if(incomplete){if(ruleRetried)return offline('Unverified reply after correction: '+incomplete);ruleRetried=true;results.push({call,result:{accepted:false,error:incomplete}});continue;}
 
-        const sourceAnswer=narrowSourceAnswer(text,call.args);if(sourceAnswer){if(sourceEvidenceRetried)return sourceAnswer;sourceEvidenceRetried=true;results.push({call,result:{accepted:false,error:'Current saved source rows were supplied for this personal-context question. Answer from them with savedAnswerEvidence.sourceId and an exact detail quote naturally included in the answer. Do not deny knowledge, refuse, or answer a privacy-policy question instead. If the rows are not relevant, ask a constructive clarification.'}});continue;}
-        if (isGarbled(text) && ruleRetried) return offline('The AI answer was garbled');
-        if (isGarbled(text)) { ruleRetried = true; results.push({ call, result: { accepted: false, error: 'Your reply came out broken. Write it again in plain, complete sentences.' } }); continue; }
-        const bad = unsupportedNumbers(text.replace(/^\s*\d{1,2}[.)]\s+/gm,''), known, money);
+        const sourceAnswer=productTopics.size?null:narrowSourceAnswer(text,call.args);if(sourceAnswer){if(sourceEvidenceRetried)return sourceAnswer;sourceEvidenceRetried=true;results.push({call,result:{accepted:false,error:'Current saved source rows were supplied for this personal-context question. Answer from them with savedAnswerEvidence.sourceId and an exact detail quote naturally included in the answer. Do not deny knowledge, refuse, or answer a privacy-policy question instead. If the rows are not relevant, ask a constructive clarification.'}});continue;}
+        const bad = unsupportedNumbers(personalQuantities(text).replace(/^\s*\d{1,2}[.)]\s+/gm,''), known, money);
         if (bad.length && !retried) {
           retried = true;
           results.push({ call, result: { accepted: false, error: `These numbers did not come from any tool or the cabinet: ${bad.join(', ')}. Call the right tool, then finishReply again without made-up numbers.` } });
@@ -1620,7 +1646,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     // as long as every action went through and the text's numbers check out. Saves time and free-tier tokens.
     if (!finished && (res.text || '').trim() && res.calls.every((c) => ACTION_TOOLS.has(c.name))
       && results.every((r) => (r.result as any)?.saved === true || (r.result as any)?.shown === true)
-      && !unsupportedNumbers(res.text!.trim(), known, money).length && !problemWith(cleanReply(res.text!.trim()))) {
+      && !unsupportedNumbers(personalQuantities(res.text!.trim()), known, money).length && !problemWith(cleanReply(res.text!.trim()))) {
       const t = cleanReply(res.text!.trim());
       if (t && !isGarbled(t) && !looksLikeCode(t)) finished = finish(t, jsonReplyIn(res.text!)?.suggestions ?? [], [], 'other', true);
     }
@@ -1715,7 +1741,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     return {
       text: text || '…',
       // Quick replies must be real words (models sometimes send "Show …").
-      suggestions: (Array.isArray(suggestions) ? suggestions : []).map((x) => String(x).trim()).filter((x) => x.replace(/[^A-Za-zÅÄÖåäö]/g, '').length >= 4 && !/…|\.\.\./.test(x) && x.length <= 40)
+      suggestions: (Array.isArray(suggestions) ? suggestions : []).map((x) => String(x).trim()).filter((x)=>!productTopics.has('ps-account')||!/^open (?:a |an? )?PS account$/i.test(x)).filter((x) => x.replace(/[^A-Za-zÅÄÖåäö]/g, '').length >= 4 && !/…|\.\.\./.test(x) && x.length <= 40)
         // v31: a transfer card has its own Yes/Cancel; a "Confirm transfer" quick reply would be a second way to say yes.
         .filter((x) => !(ctx.cards.some((c) => c.type === 'confirm_plan') && /\b(confirm|yes|set (it )?up|move it|do it|transfer)\b/i.test(x))).slice(0, 3),
       cards: ctx.cards,
