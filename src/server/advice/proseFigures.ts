@@ -146,3 +146,16 @@ export function verifiedProseFigures(text: string, facts: VerifiedFact[]): Prose
   }
   return { ok: true, figures: count };
 }
+
+/** Exact complete catalogue sentences are source claims, not personal facts. No substring,
+ * paraphrase, number-only matching or arithmetic can widen this lane. Remaining sentences
+ * still use the unchanged personal checker, and callers must retain later source/policy checks.
+ * The caller supplies only active, reviewed ASP/PS explanations, never request or model text.
+ */
+export function verifiedReplyFigures(text: string, facts: VerifiedFact[], productSentences: readonly string[]): ProseFigureCheck {
+  const canonical = (s: string) => s.normalize('NFKC').replace(/\s+/gu, ' ').replace(/\d{1,3}(?:[ ,]\d{3})+(?!\d)/gu, n => n.replace(/[ ,]/g, '')).trim();
+  const allowed = new Set(productSentences.filter(s => /\d/.test(s)).map(canonical));
+  const personal = text.replace(/^\s*\d{1,2}[.)]\s+/gm, '').split(/(?<=[.!?])\s+|\n+/u)
+    .filter(sentence => !allowed.has(canonical(sentence))).join('\n');
+  return verifiedProseFigures(personal, facts);
+}

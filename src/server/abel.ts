@@ -34,8 +34,8 @@ import { candidatesFor, remember, snapshot } from './advice/guard.js';
 import { homeCandidate, homeMovedToChat } from './advice/home.js';
 import { intentsOf } from './advice/intent.js';
 import { reviewedReplyProblem } from './advice/reviewedReply.js';
-import { verifiedProseFigures } from './advice/proseFigures.js';
-import { reviewedContext } from './advice/reviewedAnswer.js';
+import { verifiedProseFigures, verifiedReplyFigures } from './advice/proseFigures.js';
+import { reviewedContext, reviewedProductSentences } from './advice/reviewedAnswer.js';
 import { refusesStorage, scopedGoalOnRefusal, purposeOf, declinesPartner, explicitlyRequests } from './advice/purpose.js';
 import { ruleCardFor } from './advice/chatCard.js';
 import { cardFor } from './advice/cards.js';
@@ -1390,6 +1390,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   };
   /** What's wrong with a reply, told to the model so it can write it again itself. */
   const groundingRequest=/\b(?:that|it|this)\b/iu.test(userText) && validPrior.length ? userText+' '+history.filter(m=>m.sender==='user'&&boundedIds.has(m.id)&&!leftOut(m)).at(-1)?.text : userText;
+  const productSentences=reviewedProductSentences(userText,fin.DEMO_TODAY);
+  if(productSentences.length)system+='\nFor ASP/PS product numbers and dates, you may quote complete sentences exactly from the checked catalogue explanation. This is a general product rule, not proof of personal eligibility or an account balance. Do not combine a quote with personal claims in the same sentence. Other personal figures still require current handles.';
   const groundingSources:GroundingSource[]=[{label:'Customer request',text:userText},...facts.goals.map((g:any)=>({label:g.title,text:JSON.stringify(g)})),...exposure?.content().filter(r=>!r.discoveryOnly).map(r=>({label:r.title,text:r.detail+' '+JSON.stringify(r.data||{})}))||[],{label:'Checked product background',text:groundedNote}];
   let sourceEvidenceRetried=false;
   const narrowSourceAnswer=(text:string,args:Record<string,any>):NoraReply|null=>{
@@ -1428,15 +1430,15 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     // Mask only this exact role-bound phrase for the personal-handle gate; source checks still run.
     const productDurationText=/Fictional partner Lumivalo Energy/.test(checkedContext)&&/Fixed price · 12 months/.test(checkedContext)
       ?text.split(/(?<=[.!?])\s+|\n/u).map(clause=>/\b(?:your|my|our|current|existing|gym|phone|loan|debt|salary|pension|balance|saving|goal)\b/iu.test(clause)?clause:clause.replace(/\bfixed price option[^.!?\n]{0,100}?same per-kWh rate for 12 months\b/gu,m=>m.replace('12','twelve'))).join('\n'):text;
-    if(bounded&&(/\d|\b(?:january|february|march|april|june|july|august|september|october|november|december|marraskuu|maaliskuu|kesäkuu)\b/iu.test(productDurationText.replace(/^\s*\d{1,2}[.)]\s+/gm,''))||/\bMay\b/u.test(productDurationText))&&financialEvidence.list().length){
+    if(bounded&&(/\d|\b(?:january|february|march|april|june|july|august|september|october|november|december|marraskuu|maaliskuu|kesäkuu)\b/iu.test(productDurationText.replace(/^\s*\d{1,2}[.)]\s+/gm,''))||/\bMay\b/u.test(productDurationText))&&(financialEvidence.list().length||productSentences.length)){
       const exact=exposure?.content().filter(r=>!r.discoveryOnly&&r.id!=='app-bank-core').some(r=>r.detail.length>=12&&text.trim()===r.detail.trim()||text.trim()===(r.title+': '+r.detail).trim());
       // A figure in Nora's own words is fine when value, unit and meaning match one current fact.
-      const own=exact?null:verifiedProseFigures(text,proseFacts());
+      const own=exact?null:verifiedReplyFigures(text,proseFacts(),productSentences);
       if(!exact&&!own?.ok)return 'Personal financial quantities and calendar fields must use financialAnswer handles, with purpose and units preserved, unless the figure is exactly a supplied handle value stated next to what it is. '+(own&&!own.ok?own.reason+' ':'')+'Do not restate guessed numeric/date claims in prose. An exact source quote is allowed when parsing is unsupported.';
     }
     if (bounded && knowledgeAbsenceClaim(text)) return 'A limited search does not establish that no saved fact exists. Retrieve the related context or describe the limited check without claiming absence.';
     // Figures already matched to role-bound current facts (value, unit and meaning) do not need the looser word-overlap check.
-    const ownFigures=bounded&&/\d/.test(text)?verifiedProseFigures(text,proseFacts()):null;
+    const ownFigures=bounded&&/\d/.test(text)?verifiedReplyFigures(text,proseFacts(),productSentences):null;
     if(bounded&&!(ownFigures?.ok&&ownFigures.figures>0)){const financial=financialGroundingProblem(text,groundingSources,groundingRequest);if(financial)return financial;}
     const completionProblem=explanationReplyProblem(userText,text);
     if(completionProblem)return completionProblem;

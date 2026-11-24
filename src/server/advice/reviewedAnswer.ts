@@ -7,6 +7,16 @@ import { declinesPartner } from './purpose.js';
 import { getPartner } from '../partnerRegistry.js';
 import type { Rule } from './rules.js';
 
+/** Only the current reviewed ASP/PS catalogue can supply the exact-source prose lane. */
+export function reviewedProductSentences(text: string, today: string): string[] {
+  const ids = new Set<string>();
+  if (/\basp\b|first home|first.home|own (?:home|place)/i.test(text)) ids.add('asp-account');
+  if (/\bps\b|pitkäaikaissääst/i.test(text.replace(/\bps\s*:/gi, ''))) ids.add('ps-account');
+  return catalogue().filter(r => ids.has(r.id) && r.validFrom <= today && (!r.validTo || today < r.validTo) && Date.parse(today) - Date.parse(r.source.checkedAt) <= r.reviewDays * 86400000)
+    .flatMap(r => renderExplanation(r).split(/(?<=[.!?])\s+|\n+/u));
+}
+
+
 export function renderExplanation(rule: Rule): string {
   return (rule.explain || rule.message).replace(/\{(\w+)\}/g, (token, key) => {
     const value = rule.params[key];
