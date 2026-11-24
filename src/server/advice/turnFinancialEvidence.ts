@@ -22,8 +22,10 @@ export class TurnFinancialEvidence {
   if(!g.stale&&linked){add('saving_rate','saving',g.monthlyGoingIn,'EUR','month');add('months_left','duration',g.monthsLeft,'month');add('short_by','target',g.shortBy);add('extra_per_month','saving',g.extraPerMonthNeeded,'EUR','month');}
   if(typeof g.targetDate==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.targetDate)){const [year,month,day]=g.targetDate.split('-').map(Number);this.registry.register({sourceId:id,sourceRevision:revision,entity:g.title,field:'target_date',role:'calendar',kind:'calendar',calendar:{year,month,day},evidence:{type:'typed-field',path:'targetDate'}});}
  }
- includeRequest(text:string){
-  this.requestText=text;
+ /** topicText decides which bank facts are relevant (for a bare "yes" it includes the question being answered);
+  *  amounts and durations are read only from the customer's own text. */
+ includeRequest(text:string,topicText:string=text){
+  this.requestText=topicText;
   const id='request:current',revision=sourceRevision(text);this.revisions.set(id,revision);
   const goals=this.list().filter(f=>f.sourceId.startsWith('status:')&&f.field==='saving_rate');const query=new Set(contextTerms(text));
   const matched=goals.filter(f=>contextTerms(f.entity).some(t=>!['saving','savings','goal','fund','pot','target','save','for'].includes(t)&&query.has(t)));

@@ -1,6 +1,6 @@
-import {undoConfirmedGoal} from './src/server/advice/goalCommit.js';
 // Reads .env and .env.local when the app runs on a laptop. In AI Studio the secrets come from Settings -> Secrets.
 import './src/server/loadEnv.js';
+import {undoConfirmedGoal} from './src/server/advice/goalCommit.js';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -54,6 +54,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+/** Routes (under /api) whose handler acts for one customer named by userId in the body or query. */
+const CUSTOMER_ROUTES = [/^\/state$/, /^\/conversations$/, /^\/chat(?:\/result)?$/, /^\/advice(?:\/(?:home|show|setting|change))?$/, /^\/actions$/, /^\/nordea-data$/, /^\/data-rewards$/, /^\/rewards\/redeem$/, /^\/settings$/, /^\/import$/, /^\/documents(?:\/[^/]+\/file)?$/, /^\/entries\/[^/]+\/history$/, /^\/conversations\/[^/]+$/, /^\/chats\/delete$/, /^\/events\/observation-confirmed$/];
 failClosedRoutes(app); // D12: a bad customer id that reaches a store seam is a typed JSON 400 on every route, never an HTML page or a dead process
 const PORT = Number(process.env.PORT || 3000);
 
@@ -64,6 +66,9 @@ app.use(express.json({ limit: '12mb' }));
 app.use('/api', (req, res, next) => {
   const sent = [req.query?.userId, (req.body as Record<string, unknown> | undefined)?.userId].filter((v) => v !== undefined);
   for (const v of sent) { const bad = customerIdRejection(v); if (bad) return res.status(400).json({ error: bad.message, code: bad.code }); }
+  // A request that acts for a customer must say which one. These routes used to fall back to the demo
+  // customer "lauri" when the id was missing, so a request without an id silently read or changed Lauri's data.
+  if (!sent.length && CUSTOMER_ROUTES.some((re) => re.test(req.path))) return res.status(400).json({ error: 'userId is required', code: 'MISSING_CUSTOMER_ID' });
   next();
 });
 // Same rule for a customer id carried in the path (/api/users/:userId, /api/arch/:uid/...), checked before the handler reads its body.
