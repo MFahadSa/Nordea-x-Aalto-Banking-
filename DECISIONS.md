@@ -157,3 +157,11 @@ Tests: `npm run test:customer-id` (rule, loader, hydrate with a pool double, rea
   (void). Auditor "FIXED" labels were not accepted. Record states: proposed -> confirmed ->
   implemented -> independently verified.
 - Owner feedback will be applied here as revisions with date and source.
+- 2026-11-24 (owner request: natural conversation and the confusion-to-offer showcase): partner
+  cards are no longer decided by keywords alone. The keyword path stays. In addition, Nora may
+  nominate one partner (`offerPartnerForNeed`) when the customer's need is clear, and she must quote
+  the customer's exact words from the chat. Code checks the quote, offers-off, refusals anywhere in
+  the chat, one card per reply, and at most once per partner per chat. This partly reverses the v28
+  rule "the model never picks cards": the same words no longer always give the same card. Reason:
+  the live run missed typos and paraphrases ("elecricity", "electric sauna… better deal", "the
+  move"). Status: implemented, scripted-tested; live check pending.

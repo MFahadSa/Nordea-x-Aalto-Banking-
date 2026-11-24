@@ -114,6 +114,25 @@ await section('live-run follow-ups', async () => {
   assert.equal((r.text.match(/3900/g) || []).length, 1, r.text); pass('a fact chosen twice is rendered once');
 });
 
+// 6. Natural-conversation fixes from the second live probe (24 Nov 2026).
+await section('natural conversation', async () => {
+  // A tentative goal wish: the model's own question reaches the customer (not the generic goal-name text).
+  c = await conv(); script = [tool('proposeCabinetChange', { action: 'add', type: 'goal', title: 'Car', targetAmount: 8000, targetDate: '2027-06-30', goalType: 'car', sensitive: false }), fin('Nice idea! Should I set up a car goal of 8000 € by the end of June 2027 for you to check?'), fin('Should I set up a car goal for you to check?')];
+  r = await say(c, 'wanna start saving for a car, maybe 8k by next summer?');
+  assert.doesNotMatch(r.text, /check the goal name/); assert.match(r.text, /car goal/); pass('a tentative goal wish gets the model\'s question, not the generic goal-name text');
+  // A code-written outcome that is accurate is not labelled "not verified".
+  c = await conv(); script = [tool('offerTransfer', { amountPerMonth: 40, once: true }), fin('All done, I moved it!'), fin('Done, it is moved!')];
+  const raw = (await J('/api/chat', { userId: 'lauri', conversationId: c, text: 'move 40 euros to my savings' })).body.messages.at(-1);
+  assert.equal(raw.errorInfo, undefined); assert.equal(raw.answeredBy, 'bank_code'); pass('an accurate card description is labelled "Checked by the app", not "not verified"');
+  // A model-nominated partner card needs the customer's real words.
+  c = await conv(); script = [tool('offerPartnerForNeed', { partnerId: 'energy', customerWords: 'the elecricity one basically doubled' }), fin('This partner might help with that.')];
+  r = await say(c, 'the elecricity one basically doubled since we moved in');
+  assert.ok(r.cards.some((x: any) => x.type === 'offer' && x.data.partnerId === 'energy')); pass('a need in the customer\'s own (misspelt) words can bring the matching partner card');
+  c = await conv(); script = [tool('offerPartnerForNeed', { partnerId: 'energy', customerWords: 'I want a cheaper electricity contract' }), fin('Okay.')];
+  r = await say(c, 'ugh it basically doubled since we moved');
+  assert.ok(!r.cards.some((x: any) => x.type === 'offer')); pass('a partner card with words the customer never wrote is refused');
+});
+
 // 4. Requests must name the customer; a missing id no longer means Lauri.
 await section('customer id', async () => {
 for (const [url, body] of [['/api/chat', { conversationId: c, text: 'hi' }], ['/api/actions', { messageId: t1.id, action: 'plan_confirm' }], ['/api/conversations', { helperId: 'abel' }], ['/api/settings', { offersOff: true }]] as const) {

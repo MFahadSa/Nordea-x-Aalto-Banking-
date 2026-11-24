@@ -38,6 +38,7 @@ const FIELD_WORDS: Record<string, string[]> = {
   repayment_start: ['repayment', 'repay', 'repaying', 'starts', 'start', 'begins', 'begin'],
   due_day: ['due', 'day'],
   end_date: ['ends', 'end', 'finishes', 'until', 'off'],
+  customer_stated_amount: ['mentioned', 'said', 'asked', 'want', 'wanted', 'move', 'moving', 'transfer', 'put', 'make', 'instead', 'change', 'prepare', 'new'],
   transfer_amount: ['transfer', 'move', 'moving', 'send', 'sending', 'put', 'putting', 'confirm', 'account', 'from'],
 };
 /** Words that, near a figure, claim a specific role. If one appears and the fact does not carry that role, it is

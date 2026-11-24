@@ -127,6 +127,24 @@ export class FinancialRegistry {
    const q=f.quantity;const amount=language==='fi'?String(q.value).replace('.',','):String(q.value);const per=q.per?(language==='fi'?{month:' kuukaudessa',week:' viikossa',year:' vuodessa'}:{month:' per month',week:' per week',year:' per year'})[q.per]:'';
    const unit=q.unit==='EUR'?(language==='fi'?' euroa':' EUR'):q.unit==='month'?(language==='fi'?' kuukautta':' months'):' '+q.unit;
    const entity=({current:language==='fi'?'Käyttötili':'Current account',savings:language==='fi'?'Säästötili':'Savings account',carFund:language==='fi'?'Autosäästötili':'Car saving account'} as Record<string,string>)[f.entity]||f.entity;
+   // Bank figures in plain English (seen live: 'For "Income", current income is 3900 EUR per month.' read like a form).
+   if(language==='en'&&f.sourceId.startsWith('bank:')){
+    const e=f.entity,v=`${amount} €`,pm=q.per==='month'?' a month':'';
+    const spendOn=/^Spending: (.+?)(?: \((\d{4})-(\d{2})\))?$/.exec(e);
+    const bank:Record<string,string|undefined>={
+     current_income:`Your current income is ${v}${pm}.`,
+     previous_income:`Your previous income was ${v}${pm}.`,
+     income_difference:`That is a change of ${v}${pm} in your income.`,
+     average_spending:spendOn?`${spendOn[1][0].toUpperCase()+spendOn[1].slice(1)} costs you about ${v}${pm} on average.`:`On average you spend ${v}${pm} (tracked spending).`,
+     current_month_spending:spendOn?`So far this month you have spent ${v} on ${spendOn[1]}.`:`So far this month you have spent ${v}.`,
+     last_full_month_spending:spendOn?`In the last full demo month${spendOn[3]?' ('+MONTHS[Number(spendOn[3])-1][0].toUpperCase()+MONTHS[Number(spendOn[3])-1].slice(1)+')':''} you spent ${v} on ${spendOn[1]}.`:undefined,
+     saving_rate:`You put ${v}${pm} into savings.`,
+     left_over_after_spending_and_saving:`After spending and saving, about ${v}${pm} is left over (an estimated remainder).`,
+     suggested_extra_not_approved:`You could move about ${v}${pm} more into savings. That is only a suggestion, not approved or scheduled.`,
+     balance:`Your ${entity.toLowerCase()} has ${v}.`,
+    };
+    if(bank[f.field])return bank[f.field]!;
+   }
    if(language==='en'&&f.sourceId.startsWith('status:')){
     const goal=`Your "${entity}" goal`;
     const sentences:Record<string,string>={target:`${goal} has a target of ${amount} EUR.`,saved:`You have ${amount} EUR set aside for "${entity}".`,saving_rate:`You are currently putting ${amount} EUR per month toward "${entity}".`,short_by:`At the current saving rate, "${entity}" is projected to fall short by ${amount} EUR.`,extra_per_month:`The saved plan estimates that "${entity}" needs about ${amount} EUR per month more, on top of the current contribution.`,remaining:`You still need ${amount} EUR to reach "${entity}".`};

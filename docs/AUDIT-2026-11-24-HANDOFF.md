@@ -95,3 +95,41 @@ and after the run and were identical. The hosted backend rejected a request with
 
 Unanswered cards from this run remain in Lauri's published chats: two 50 € cards, one 40 € card and one goal
 proposal (the goal proposal expires after 30 minutes). Reset the demo data, or cancel them, before recording.
+
+## 7. Natural-conversation stress pass (24 Nov 2026)
+
+**Live probe.** 12 real-model turns ran on the published app as Lauri, written the way people actually type:
+typos, slang, half sentences, corrections, Finnish. Nothing was tapped. What broke:
+
+| Customer wrote | What happened | Root cause | Status |
+| --- | --- | --- | --- |
+| "ugh i dont get it, money just kinda disappears every month lol" | "I could not verify which plan that calculation refers to." | A code question for calculation follow-ups fired on any "it" plus "month" | Fixed: only for real calculation follow-ups |
+| "the elecricity one… doubled" / "electric sauna… better deal?" / "panicking about the move" | No partner card; generic tips with an invented "Quick actions" list | Offers were decided only by keywords in the current message | Fixed: Nora may offer a partner when the customer's need is clear, quoting their exact words (code checks the quote, offer settings, refusals, one per chat) |
+| "actually make it 60" | Figure check failed | An amount the customer just said was not a checkable fact | Fixed: it may be repeated as what they asked for (not as a balance) |
+| "ok go" with a card waiting | Asked for the amount again | The model was not told a card was waiting | Fixed: waiting cards are in Nora's context; a typed go-ahead cannot open a new amount question |
+| "wanna start saving for a car, maybe 8k by next summer?" | "Please check the goal name…" with no card | Generic refusal text replaced the model's question | Fixed: the model asks; claims of saving are still blocked |
+| "am i doing ok w the flat thing" / "how is my budget" | Seven stiff "For 'X', field is N EUR" rows | Form-like renderer | Fixed: plain sentences in one paragraph; rows already said in prose are dropped |
+| Goal proposal or card description | "Answer not verified" label | Accurate code-written outcomes carried an error detail | Fixed: labelled "Checked by the app" |
+| "paljonko mulla on säästöissä?" | Figure check failed | The prose check reads English meaning words only | Open (English is this pass's delivery language) |
+| "btw my mom is sick, dont write that down… how much did i spend on food" | Step limit, then a generic failure | Not reproduced with the scripted model | Open; re-check live |
+
+**Free stress run.** `scripts/stress-natural-language.ts` runs 47 messy-language cases through the real routes,
+part of `npm run test:audit`. On `main` 28 of 47 pass; on this branch 47 of 47. It also lists phrasings the old
+keyword path misses ("gap"), which the need-based partner path now covers.
+
+## 8. Showcase story: from confusion to a useful offer
+
+The goal of this story: Lauri arrives confused, Nora finds the cause with short, natural questions, quietly
+keeps what matters, and only then shows one fitting fictional partner, with its fee in plain view.
+
+1. **Lauri:** "hey so my bills feel kinda crazy lately and idk where its all going"
+   **Expected:** one short question back (which bill, since when). No tips list.
+2. **Lauri:** "the electricity one, it basically doubled since we moved in"
+   **Expected:** one sharp follow-up (anything new that uses a lot of power, contract type).
+3. **Lauri:** "we have an electric sauna lol and the contract is whatever the old owner had. could i get a better deal?"
+   **Expected:** a short explanation tied to the sauna and the old contract, plus the Lumivalo Energy card
+   (fictional), showing "Nordea gets 25 € if you switch, and gives half of it back to you."
+4. **Optional:** open "Nora knows" to show what was kept from the chat.
+
+Consent boundary: browsing the partner is free, and nothing is switched or bought in the app. The live model
+words each reply differently, so rehearse once and keep the take where Nora asks before she offers.
