@@ -34,7 +34,7 @@ export function selectedProductFacts(ids:unknown,available:ProductFact[]):Produc
 /** Not a semantic proof. Blocks observed unsafe connective prose; facts belong in clauses. */
 export function productConnectiveProblem(text:string):string|null{
  if(/\d|%/u.test(text))return 'Put product numbers only in selected productFacts clauses. Do not restate them in text.';
- if(/\b(?:you(?:'|’)?re (?:eligible|in range|qualified)|you (?:qualify|are (?:eligible|in range|qualified)))\b/iu.test(text))return 'Personal eligibility conclusions do not follow from general product clauses.';
+ if(/\b(?:it(?:'|’)?s (?:open|available) to you|(?:open|available) to you|you(?:'|’)?re (?:able|free|eligible|in range|qualified)|you (?:qualify|are (?:eligible|in range|qualified)))\b/iu.test(text))return 'Personal eligibility conclusions do not follow from general product clauses.';
  if(/\b(?:unlimited|no limits?|no conditions?|always eligible|automatically eligible|definitely eligible|you (?:are|qualify|can open|can withdraw)|guaranteed|tax.free|maximum deposit|minimum deposit|any amount|any time|whenever you want)\b/iu.test(text))return 'Keep eligibility and banking conditions in the selected checked clauses, not an unverified claim in connective prose.';
  return null;
 }

@@ -1,0 +1,19 @@
+{
+  "couldHelp": true,
+  "productFacts": [
+    "asp.overview",
+    "asp.deposits",
+    "asp.interest"
+  ],
+  "suggestions": [
+    "How does the bonus interest work?",
+    "Can I open an ASP account in the app?",
+    "What else should I think about?"
+  ],
+  "text": "That's a great plan, Lauri. A very sensible way to start is an ASP account \u2014 it's a dedicated savings scheme for first-time home buyers. You can save between 50 and 1,500 euros a month, and once you've made at least 20 approved deposits, you can apply for an ASP loan when your savings cover at least 10% of the home price. There's also a bonus interest that kicks in when you actually buy. Since the upper age limit was removed in June 2026, it's open to you at 31. You'd keep your current Norde",
+  "topic": "home_buying",
+  "usedEntryIds": [
+    "lauri-home-goal",
+    "lauri-pref-risk"
+  ]
+}

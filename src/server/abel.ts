@@ -1537,8 +1537,12 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
             const selectedFacts=selectedProductFacts(call.args.productFacts,availableProductFacts);
             if(selectedFacts.length){
               const text=cleanReply(String(call.args.text||''));
-              const issue=productConnectiveProblem(text)||problemWith(text);
-              if(issue){if(ruleRetried)return offline('Unverified reply after correction: '+issue);ruleRetried=true;results.push({call,result:{accepted:false,error:issue+' Rewrite the entire response, selecting checked productFacts and keeping connective prose natural and nonnumeric. Replace the entire rejected text, do not append or continue it. Finish every sentence. Do not repeat any product or personal numbers, dates or age, even from supplied facts; select financialAnswer for any personal figures. Do not conclude eligibility or say the customer is in range.'}});continue;}
+              const issues=[productConnectiveProblem(text),problemWith(text)];
+              // Numeric claims must not hide completion or eligibility feedback on the one correction.
+              const withoutDigits=text.replace(/[\d%]/gu,'');
+              const eligibilityIssue=productConnectiveProblem(withoutDigits);if(eligibilityIssue)issues.push(eligibilityIssue);
+              const issue=[...new Set(issues.filter(Boolean))].join(' ');
+              if(issue){if(ruleRetried)return offline('Unverified reply after correction: '+issue);ruleRetried=true;results.push({call,result:{accepted:false,error:issue+' Rewrite the entire response, selecting checked productFacts and keeping connective prose natural and nonnumeric. Replace the entire rejected text, do not append or continue it. Write a short complete replacement in your own words. Finish every sentence. Do not repeat any product or personal numbers, dates or age, even from supplied facts; select financialAnswer for any personal figures. Do not conclude eligibility or say the customer is in range.'}});continue;}
               const financial=Array.isArray(call.args.financialAnswer)&&call.args.financialAnswer.length?financialEvidence.render(call.args.financialAnswer.map((p:any)=>p.calculationJson?{calculation:JSON.parse(p.calculationJson)}:{fact:p.fact}),'en',userText):[];
               const sources=[...new Set(selectedFacts.map(f=>f.source))];
               const safeSuggestions=Array.isArray(call.args.suggestions)?call.args.suggestions.filter((s:unknown)=>typeof s==='string'&&!productConnectiveProblem(s)):[];
