@@ -11,6 +11,8 @@ import { CabinetEntry, UndoRecord } from './src/types.js';
 import { failClosedRoutes } from './src/server/failClosedRoutes.js';
 import { customerIdRejection } from './src/server/customerId.js';
 import { registerV14Routes } from './src/server/routes.js';
+import { registerAboutRoutes } from './src/server/aboutYou.js';
+import { registerMemoryRoutes } from './src/server/memorySettings.js';
 import { registerDevMonitor } from './src/server/devMonitor.js';
 import { registerArchRoutes } from './src/server/arch/routes.js';
 import { startFeedWatcher } from './src/server/nordeaFeed.js';
@@ -55,7 +57,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 /** Routes (under /api) whose handler acts for one customer named by userId in the body or query. */
-const CUSTOMER_ROUTES = [/^\/state$/, /^\/conversations$/, /^\/chat(?:\/result)?$/, /^\/advice(?:\/(?:home|show|setting|change))?$/, /^\/actions$/, /^\/nordea-data$/, /^\/data-rewards$/, /^\/rewards\/redeem$/, /^\/settings$/, /^\/import$/, /^\/documents(?:\/[^/]+\/file)?$/, /^\/entries\/[^/]+\/history$/, /^\/conversations\/[^/]+$/, /^\/chats\/delete$/, /^\/events\/observation-confirmed$/];
+const CUSTOMER_ROUTES = [/^\/state$/, /^\/conversations$/, /^\/chat(?:\/result)?$/, /^\/advice(?:\/(?:home|show|setting|change))?$/, /^\/actions$/, /^\/nordea-data$/, /^\/data-rewards$/, /^\/rewards\/redeem$/, /^\/settings$/, /^\/import$/, /^\/documents(?:\/[^/]+\/file)?$/, /^\/entries\/[^/]+\/history$/, /^\/conversations\/[^/]+$/, /^\/chats\/delete$/, /^\/events\/observation-confirmed$/, /^\/about(?:\/(?:preview|reset))?$/, /^\/offers(?:\/action)?$/, /^\/memory$/];
 failClosedRoutes(app); // D12: a bad customer id that reaches a store seam is a typed JSON 400 on every route, never an HTML page or a dead process
 const PORT = Number(process.env.PORT || 3000);
 
@@ -261,7 +263,7 @@ app.patch('/api/cabinet/:id', (req, res) => {
     entry: updated,
     undoToken,
     // Plain words for what changed (no "cabinet").
-    message: req.body?.status === 'disputed' ? 'Marked as wrong. Abel won’t use it.' : req.body?.status === 'active' && existing.status === 'stale' ? 'Kept. Abel will keep using it.' : req.body?.status === 'active' && existing.status === 'disputed' ? 'Okay, Abel will use it again.' : req.body?.status === 'active' && existing.status === 'archived' ? 'Brought back.' : 'Saved',
+    message: req.body?.status === 'disputed' ? 'Marked as wrong. Nora won’t use it.' : req.body?.status === 'active' && existing.status === 'stale' ? 'Kept. Nora will keep using it.' : req.body?.status === 'active' && existing.status === 'disputed' ? 'Okay, Nora will use it again.' : req.body?.status === 'active' && existing.status === 'archived' ? 'Brought back.' : 'Saved',
   });
 });
 
@@ -367,6 +369,9 @@ app.get('/api/transactions', (req, res) => {
 
 // 9. Chat, button actions and everything new in v14 live in routes.ts
 registerV14Routes(app);
+// About you, onboarding answers and Offers for you.
+registerAboutRoutes(app);
+registerMemoryRoutes(app);
 
 // Read-only developer monitoring panel (display only, no controls): /dev-monitor.html
 registerDevMonitor(app);
