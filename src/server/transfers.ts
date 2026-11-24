@@ -12,7 +12,9 @@ export function transferMeaning(now: string, before = '', offered = ''): Transfe
   const once=/\b(?:once|one[- ]?off|one[- ]?time|today|now|single|kerran|nyt|tänään|kertasiirto)\b/;
   const car=/\b(?:car(?:\s*fund|\s+savings|\s+goal)?|autorahasto\w*|autotili\w*)\b/;
   const savings=/\b(?:savings?|save|flat|home|house|apartment|deposit|säästö\w*)\b/;
-  const verb=/(?:^|\s)(?:move|transfer|put|add|set up|save|siirrä|siirtää|siirtäisitkö|laita|säästä)(?=\s|$)/;
+  // Everyday verbs, and the verbless "50e to savings" shape (an amount sent to one of their own accounts).
+  const verb=/(?:^|\s)(?:move|transfer|put|add|set up|save|send|stick|chuck|throw|pop|shift|top up|deposit|siirrä|siirtää|siirtäisitkö|laita|säästä)(?=\s|$)/;
+  const amountToAccount=/(?:^|\s)(?:€\s?)?\d+(?:[.,]\d+)?\s*(?:e|eur|euros?|€)?\s+(?:to|into|in)\s+(?:my\s+|the\s+|our\s+)?(?:savings|car\s*fund)\b/;
   if (/\b\d+(?:[.,]\d+)?\s*k\b|\b(?:one|two|three|four|five|six|seven|eight|nine|ten) (?:hundred|thousand)\b/i.test(t)) return hold('No card prepared yet. Restate the informal amount as an exact euro amount and ask the customer to confirm it before preparing a transfer.');
   if ((t.match(/\d+(?:[.,]\d+)?/g)||[]).length > 1 && /\b(?:make (?:that|it)|i meant|instead|korjaan|tarkoitin|siis|oikeastaan)\b/.test(t)) return hold('The amount was corrected in this message. Ask the customer to confirm the final exact amount before preparing a transfer.');
   const directives=clauses.filter(c=>verb.test(c)&&/\d/.test(c));
@@ -44,7 +46,7 @@ export function transferMeaning(now: string, before = '', offered = ''): Transfe
   }
   const assent=/^\s*(?:yes|yeah|yep|sure|ok(?:ay)?|please|do it|go ahead|sounds good|kyllä|joo)\b/.test(t);
   const previousOffer=offered||before;
-  if(!verb.test(t)&&!(assent&&(verb.test(previousOffer)||/\b(?:car fund|savings|monthly|payday)\b/i.test(previousOffer))))return hold('No clear request to prepare a transfer. Do not revive an older instruction.');
+  if(!verb.test(t)&&!amountToAccount.test(t)&&!(assent&&(verb.test(previousOffer)||/\b(?:car fund|savings|monthly|payday)\b/i.test(previousOffer))))return hold('No clear request to prepare a transfer. Do not revive an older instruction.');
   if(neg.test(current)&&!/(?:don't want to wait|do not want to wait)/.test(current)&&/\b(?:don't|do not|älä)\b[^.!?]{0,30}\b(?:move|transfer|siirrä|laita)\b/.test(current))return hold('The transfer itself was denied. No card prepared.');
   const onceValue=positiveOnce||deniedMonthly?true:positiveMonthly?false:assent&&monthly.test(previousOffer)&&!once.test(previousOffer)?false:true;
   return {once:onceValue,target,clarification:null};

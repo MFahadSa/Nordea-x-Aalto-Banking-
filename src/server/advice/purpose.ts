@@ -49,7 +49,7 @@ export function purposeOf(text: string): Purpose {
 /** A refusal is not the idiom 'never remember to save money'. */
 export function refusesStorage(text: string): boolean {
   const t = text.toLowerCase().replace(/[’]/g, "'").replace(/\bdont\b/g,"don't").replace(/\bpls\b/g,"please");
-  if (/\boff the record\b|\b(?:keep this private|this stays between us)\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
+  if (/\boff the record\b|\b(?:keep this private|this stays between us|(?:let's |lets |please )?keep (?:this|that|it) between us)\b|(?:^|\s)älä\s+(?:tallenna|kirjaa|muista)|\bei tarvitse (?:tallentaa|kirjata)/i.test(t)) return true;
   if (/(?:^|[.!?;:]\s*)(?:nora[, ]+)?forget (?:i said|this|that|what i said)\b/.test(t)) return true;
   if (/^(?:please\s+)?no saving(?:\s+please)?(?:\s+(?:this|that|it|my data|any of this))?(?:\s+please)?\s*(?:$|[,;.!?])/.test(t.trim())) return true;
   if (/\bleave (?!nothing\b).{0,25}out of (?:your|my|the) notes\b/.test(t)) return true;
