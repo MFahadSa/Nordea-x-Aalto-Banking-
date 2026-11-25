@@ -58,7 +58,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 /** Routes (under /api) whose handler acts for one customer named by userId in the body or query. */
-const CUSTOMER_ROUTES = [/^\/state$/, /^\/conversations$/, /^\/chat(?:\/result)?$/, /^\/advice(?:\/(?:home|show|setting|change))?$/, /^\/actions$/, /^\/nordea-data$/, /^\/data-rewards$/, /^\/rewards\/redeem$/, /^\/settings$/, /^\/import$/, /^\/documents(?:\/[^/]+\/file)?$/, /^\/entries\/[^/]+\/history$/, /^\/conversations\/[^/]+$/, /^\/chats\/delete$/, /^\/events\/observation-confirmed$/, /^\/about(?:\/(?:preview|reset))?$/, /^\/offers(?:\/action)?$/, /^\/memory$/];
+const CUSTOMER_ROUTES = [/^\/state$/, /^\/conversations$/, /^\/chat(?:\/result)?$/, /^\/advice(?:\/(?:home|show|setting|change))?$/, /^\/actions$/, /^\/nordea-data$/, /^\/data-rewards$/, /^\/rewards\/redeem$/, /^\/settings$/, /^\/import$/, /^\/documents(?:\/[^/]+\/file)?$/, /^\/entries\/[^/]+\/history$/, /^\/conversations\/[^/]+$/, /^\/chats\/delete$/, /^\/events\/observation-confirmed$/, /^\/about(?:\/(?:preview|reset|remove|summary))?$/, /^\/offers(?:\/action)?$/, /^\/memory$/, /^\/info\/(?:suggestions|understand|reward|earn)$/];
 failClosedRoutes(app); // D12: a bad customer id that reaches a store seam is a typed JSON 400 on every route, never an HTML page or a dead process
 const PORT = Number(process.env.PORT || 3000);
 
