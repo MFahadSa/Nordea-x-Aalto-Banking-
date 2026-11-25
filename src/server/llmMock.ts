@@ -18,6 +18,9 @@ export const mockProvider: LlmProvider = {
   isConfigured: () => true,
   async step({ turns, tools, system }) {
     const last = turns[turns.length - 1];
+    if (tools.some((t) => t.name === 'writeSummary') && last.role === 'user') {
+      return { calls: [call('writeSummary', { text: last.text.replace(/^Facts:\n/, '') })] };
+    }
     // About you corrections: the scripted stand-in applies the same rules the app falls back to.
     if (tools.some((t) => t.name === 'rewriteAnswer') && last.role === 'user') {
       const m = last.text.match(/^Current line: (.*)\nCustomer's correction: ([\s\S]*)$/);

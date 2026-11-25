@@ -24,3 +24,5 @@ export const resetAbout = (userId: string) => post<AboutView>('/api/about/reset'
 export const fetchOffers = (userId: string) => fetch(`/api/offers?userId=${encodeURIComponent(userId)}`).then((r) => j<{ offers: OfferView[]; hidden: number }>(r));
 export const offerAction = (userId: string, id: string, action: OfferAction, reason?: string) =>
   post<{ offers: OfferView[]; hidden: number; until?: string; goal?: string }>('/api/offers/action', { userId, id, action, reason });
+export const removeAbout = (userId: string, key: FieldKey | 'all') => post<AboutView>('/api/about/remove', { userId, key });
+export const aboutSummary = (userId: string) => post<{ text: string; by: 'ai' | 'rules' }>('/api/about/summary', { userId });

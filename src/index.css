@@ -1142,3 +1142,10 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .ab-q-preview{display:flex;gap:6px;align-items:flex-start;font-size:13px;line-height:1.4;color:var(--ok);margin-top:-2px}.ab-q-preview svg{flex:none;margin-top:2px}
 .ab-q-preview.wait{color:var(--muted)}
 .tgl.locked{opacity:.55;cursor:not-allowed;display:inline-block}
+/* About you: remove a line, clear all */
+.ab-edit-b{display:flex;gap:6px;flex:none;align-items:center}
+.ab-edit-t b.muted{color:var(--muted);font-weight:500}
+.ab-clear{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:10px;background:var(--surface-2);font-size:13.5px;color:var(--ink-2)}
+.ab-clear-link{align-self:flex-start;color:var(--muted)!important;font-weight:500;padding:6px 0}
+.btn.danger{background:#B3261E;color:#fff;border-color:#B3261E}
+.ab-sug{font-style:normal;color:var(--bank);font-weight:500}

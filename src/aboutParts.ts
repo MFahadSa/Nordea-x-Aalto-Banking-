@@ -63,6 +63,8 @@ export interface FieldView {
   source: 'you' | 'nordea' | 'none';
   /** Nordea's pre-filled answer, waiting for one tap. */
   suggestion?: { values: string[]; text: string; from: string };
+  /** The customer removed it (in About you or by asking Nora): not shown, not suggested again, until they add it. */
+  removed?: boolean;
 }
 
 export interface AboutView {

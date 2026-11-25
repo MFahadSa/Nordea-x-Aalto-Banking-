@@ -404,7 +404,7 @@ class Database {
       ...(profile?.nordeaData ? { nordeaData: profile.nordeaData } : {}),
       ...(profile?.advice ? { advice: profile.advice } : {}),
       // About you rewards, Offers for you state and Memory settings (src/server/aboutYou.ts, memorySettings.ts).
-      ...(['aboutRewarded', 'offerState', 'memory'] as const).reduce((o, k) => {
+      ...(['aboutRewarded', 'offerState', 'memory', 'aboutOff'] as const).reduce((o, k) => {
         const v = (profile as Record<string, unknown> | undefined)?.[k];
         return v !== undefined ? { ...o, [k]: v } : o;
       }, {}),

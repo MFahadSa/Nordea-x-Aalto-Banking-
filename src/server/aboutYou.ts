@@ -28,7 +28,7 @@ const uidOf = (req: Request) => String((req.method === 'GET' ? req.query.userId 
 const POINTS_PER_ANSWER = 5;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-type Extra = { aboutRewarded?: string[]; offerState?: OfferState };
+type Extra = { aboutRewarded?: string[]; offerState?: OfferState; aboutOff?: FieldKey[] };
 const userX = (userId: string) => db.getUser(userId) as unknown as (ReturnType<typeof db.getUser> & Extra) | undefined;
 
 const live = (e: CabinetEntry) => e.status !== 'archived' && e.status !== 'disputed';
@@ -79,13 +79,48 @@ function suggestions(userId: string, entries: CabinetEntry[]): Partial<Record<Fi
   return out;
 }
 
+/**
+ * What the customer took out of About you: removed in About you, or archived by asking Nora ("forget my
+ * salary"). Those lines are not shown, not filled in from Nordea's data again and not asked again,
+ * until the customer adds them back.
+ */
+function offKeys(userId: string, entries: CabinetEntry[]): Set<FieldKey> {
+  const off = new Set<FieldKey>(userX(userId)?.aboutOff || []);
+  for (const e of entries) {
+    const k = e.aboutPart as FieldKey;
+    if (!k || String(k).startsWith('fact:') || live(e)) continue;
+    if (e.status === 'archived' || e.status === 'disputed') off.add(k);
+  }
+  for (const k of [...off]) if (fieldEntry(entries, k)) off.delete(k); // added back since
+  off.delete('basics');
+  return off;
+}
+
+/** Take fields out of About you: the answer, and the rule facts it unlocked. Kept in history. */
+export function forgetAbout(userId: string, keys: FieldKey[], how = 'You removed it in About you', by: 'you' | 'abel' = 'you') {
+  const entries = db.getCabinetEntries(userId);
+  for (const k of keys) {
+    for (const e of entries.filter((x) => (x.aboutPart === k || x.aboutPart === `fact:${k}`) && live(x))) {
+      db.updateCabinetEntry(e.id, { status: 'archived' }, { by, how });
+    }
+  }
+  const u = userX(userId);
+  db.updateUser(userId, { aboutOff: [...new Set([...(u?.aboutOff || []), ...keys.filter((k) => k !== 'basics')])] } as never);
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const whenText = (d?: string) => (d && /^\d{4}-\d{2}/.test(d) ? `${MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}` : '');
+
 /** The answers that earn points, in the order the flow asks them. */
 export const ASKED: FieldKey[] = ['work', 'home', 'money', 'plans', 'interests', 'risk', 'mainUse'];
 
 export function aboutView(userId: string, entries: CabinetEntry[] = db.getCabinetEntries(userId)): AboutView {
   const u = db.getUser(userId);
   const sug = suggestions(userId, entries);
-  const bank = bankPicture(userId);
+  const off = offKeys(userId, entries);
+  const fullBank = bankPicture(userId);
+  // Lines the customer removed are not offered again from Nordea's data.
+  const bank = { ...fullBank, lines: fullBank.lines.filter((l) => !off.has(l.key)) };
   const fields = {} as Record<FieldKey, FieldView>;
   for (const def of Object.values(FIELDS)) {
     const e = fieldEntry(entries, def.key);
@@ -97,31 +132,42 @@ export function aboutView(userId: string, entries: CabinetEntry[] = db.getCabine
       key: def.key, label: def.label, options: def.options, multi: def.multi, values,
       text: said ? (e!.detail || sentence(def.key, values)) : def.key === 'basics' && s ? s.text : '',
       source: said ? (e!.source === 'nordea' ? 'nordea' : 'you') : def.key === 'basics' && s ? 'nordea' : 'none',
-      suggestion: !said && def.key !== 'basics' ? s : undefined,
+      suggestion: !said && def.key !== 'basics' && !off.has(def.key) ? s : undefined,
+      ...(off.has(def.key) ? { removed: true } : {}),
     };
   }
   const f = fields;
   const has = (k: FieldKey) => f[k].source !== 'none';
   const name = u?.name || '';
-  // The paragraph: Nordea's data first (it is what Nordea already sees), then what the customer added.
-  const bankText = (k: FieldKey) => (has(k) ? f[k].text : bank.lines.find((l) => l.key === k)?.text || '');
+  // The paragraph is built from what is in the cabinet NOW: only what the customer confirmed or told
+  // Nora, their goals and their latest notes. Nordea's unconfirmed data is a suggestion below, never
+  // part of it, so removing something (here or by asking Nora) takes it out straight away.
+  const goals = entries.filter((e) => e.type === 'goal' && e.status === 'active');
+  const notes = entries
+    .filter((e) => live(e) && !e.aboutPart && !e.private && (e.type === 'life_event' || e.type === 'preference' || e.type === 'fact')
+      && (e.source !== 'nordea' || e.reviewed) && !e.factKey)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 2);
+  // The target only when the goal's name doesn't already say it ("Japan trip 3 000 € by 2027-06").
+  const goalText = goals.slice(0, 3).map((g) => `${g.title}${g.target?.amount && !/\d/.test(g.title) ? ` (${Math.round(g.target.amount).toLocaleString('fi-FI')} € by ${whenText(g.target.date)})` : ''}`);
   const parts = [
     `${name}${f.basics.text ? `, ${f.basics.text}` : ''}.`,
-    bankText('work'),
-    [f.people.text, has('home') ? f.home.text : bankText('home')].filter(Boolean).join(', '),
-    bankText('money'),
+    has('work') ? f.work.text : '',
+    [f.people.text, has('home') ? f.home.text : ''].filter(Boolean).join(', '),
+    has('money') ? f.money.text : '',
     f.plans.text ? `Plans: ${lower(f.plans.text)}` : '',
+    goalText.length ? `Saving for ${goalText.join('; ')}` : '',
     f.interests.text,
     [f.risk.text, f.style.text].filter(Boolean).join('; '),
     f.more.text,
+    notes.length ? `Also: ${notes.map((e) => (/^I\b/.test(e.title) ? e.title : lower(e.title))).join('; ')}` : '',
   ].filter(Boolean).map((s) => (/[.!?]$/.test(s) ? s : `${s}.`));
-  const goals = entries.filter((e) => e.type === 'goal' && e.status === 'active');
 
   // What answering is worth: points toward a real reward, and examples of advice it unlocks.
   // Screens left: one to check Nordea's data (if anything is unchecked), then one per open question.
   const unchecked = bank.lines.filter((l) => !has(l.key)).length;
-  const remaining = (unchecked ? 1 : 0) + QUESTIONS.filter((q) => !has(q.field)).length;
-  const earn = ASKED.filter((k) => !has(k)).length * POINTS_PER_ANSWER;
+  if (parts.length === 1 && unchecked) parts.push('Nordea’s data can fill in the rest: check it below.');
+  const remaining = (unchecked ? 1 : 0) + QUESTIONS.filter((q) => !has(q.field) && !off.has(q.field)).length;
+  const earn = ASKED.filter((k) => !has(k) && !off.has(k)).length * POINTS_PER_ANSWER;
   const now = u?.points || 0;
   const rewards = [...REWARDS].sort((a, b) => a.pts - b.pts);
   const reach = rewards.find((r) => r.pts > now && r.pts <= now + earn);
@@ -163,6 +209,42 @@ const FACT_OF: { field: FieldKey; fact: string; when: (v: string[]) => boolean }
  * so it understands what they mean. Falls back to mergeCorrection's rules when no AI answers in time,
  * and never keeps an AI answer with a number the customer or the bank didn't give.
  */
+/**
+ * The About you paragraph in Nora's words. The AI gets only the paragraph built from the cabinet (what the
+ * customer confirmed, their goals and notes) and rewrites it to read naturally. Its version is kept only
+ * if it adds no number and is not much longer; otherwise, or with no AI, the built paragraph is used.
+ * Cached per customer, so it is written again only when what Nora knows changes.
+ */
+const summaryCache = new Map<string, { from: string; text: string }>();
+export async function aboutSummary(userId: string, built: string): Promise<{ text: string; by: 'ai' | 'rules' }> {
+  const hit = summaryCache.get(userId);
+  if (hit?.from === built) return { text: hit.text, by: 'ai' };
+  const plain = { text: built, by: 'rules' as const };
+  const p = getProvider();
+  if (!p.isConfigured() || built.split(/[.!?]\s/).length < 3) return plain;
+  try {
+    const r = await p.step({
+      system: [
+        'You write the short "About you" summary in a bank app, from the facts given. The customer reads it.',
+        'Rewrite the facts as 2 to 4 short, natural sentences in the third person, starting with their name.',
+        'Use ONLY the facts given: add nothing, guess nothing, drop nothing important. Keep every amount and date exactly as written.',
+        'Plain English, no lists, no advice, no praise, no emojis. Answer only with the writeSummary tool.',
+      ].join('\n'),
+      turns: [{ role: 'user', text: `Facts:\n${built}` }],
+      tools: [{ name: 'writeSummary', description: 'The summary.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } }],
+      temperature: 0, timeoutMs: 12000, maxWaitMs: 12000,
+    });
+    const out = String(r.calls.find((c) => c.name === 'writeSummary')?.args?.text || '').trim().replace(/\s+/g, ' ');
+    const nums = (x: string) => (x.match(/\d[\d\s.,]*/g) || []).map((d) => d.replace(/[\s.,]/g, ''));
+    const known = new Set(nums(built));
+    if (!out || out.length > built.length * 1.3 + 40 || nums(out).some((d) => !known.has(d))) return plain;
+    summaryCache.set(userId, { from: built, text: out });
+    return { text: out, by: 'ai' };
+  } catch {
+    return plain;
+  }
+}
+
 export async function smartCorrection(key: FieldKey, base: string, typed: string): Promise<{ text: string; by: 'ai' | 'rules' }> {
   const rules = { text: mergeCorrection(base, typed), by: 'rules' as const };
   if (!base || !typed.trim()) return rules;
@@ -197,6 +279,10 @@ export async function smartCorrection(key: FieldKey, base: string, typed: string
 function writeField(userId: string, key: FieldKey, values: string[], free: string | undefined, fromNordea: boolean, asIs = false) {
   const entries = db.getCabinetEntries(userId);
   const old = entries.filter((e) => e.aboutPart === key && live(e));
+  // Adding it again: the earlier removal no longer applies.
+  for (const e of entries.filter((x) => x.aboutPart === key && !live(x))) db.deleteCabinetEntry(e.id, { by: 'you', how: 'Replaced by your new answer', purge: true });
+  const offNow = userX(userId)?.aboutOff || [];
+  if (offNow.includes(key)) db.updateUser(userId, { aboutOff: offNow.filter((k) => k !== key) } as never);
   const def = FIELDS[key];
   const clean = values.filter((v) => def.options.includes(v) || key === 'money');
   // A typed correction to a sentence (Nordea's or the customer's own) changes only what it is about.
@@ -489,7 +575,26 @@ export function registerAboutRoutes(app: Express) {
   app.post('/api/about/reset', (req, res) => {
     const userId = uidOf(req);
     for (const e of db.getCabinetEntries(userId).filter((x) => x.aboutPart)) db.deleteCabinetEntry(e.id, { by: 'you', how: 'Demo reset', purge: true });
-    db.updateUser(userId, { aboutRewarded: [], offerState: {} } as never);
+    db.updateUser(userId, { aboutRewarded: [], offerState: {}, aboutOff: [] } as never);
     res.json(aboutView(userId));
+  });
+
+  // Remove one line of About you ({ key }), or all of it ({ key: 'all' }). Kept in history; adding it back works as usual.
+  app.post('/api/about/remove', (req, res) => {
+    const userId = uidOf(req);
+    if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });
+    const key = String(req.body?.key || '');
+    const keys = key === 'all' ? (Object.keys(FIELDS) as FieldKey[]).filter((k) => k !== 'basics') : key in FIELDS && key !== 'basics' ? [key as FieldKey] : [];
+    if (!keys.length) return res.status(400).json({ error: 'Unknown field' });
+    forgetAbout(userId, keys);
+    res.json(aboutView(userId));
+  });
+
+  // The paragraph in Nora's words: written by the AI from the same confirmed lines, checked, cached.
+  app.post('/api/about/summary', async (req, res) => {
+    const userId = uidOf(req);
+    if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });
+    const v = aboutView(userId);
+    res.json(await aboutSummary(userId, v.paragraph));
   });
 }

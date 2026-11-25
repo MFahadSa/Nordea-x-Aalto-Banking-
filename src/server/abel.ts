@@ -70,7 +70,7 @@ const fmt = (n: number, d = 0) =>
 // SENSITIVE_TOPIC is for the AC7 risk rules only - it would make everyday loan talk "private").
 import { ABEL_PRIVATE_TOPIC as SENSITIVE } from './sensitive.js';
 import { memoryOf } from './memorySettings.js';
-import { askedOffer, offerTerms, offerText } from './aboutYou.js';
+import { askedOffer, offerTerms, offerText, forgetAbout } from './aboutYou.js';
 import { writeOfferReply } from './offerReply.js';
 import { aboutReasons, givesReason, reasonPrompt, reasonsFor, recommendationRequest, unsupportedReason, withReason, type AboutReason } from './aboutReasons.js';
 
@@ -262,7 +262,8 @@ function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[],
   // About you (what the customer confirmed or told us, src/server/aboutYou.ts): its own short section, so it is
   // not listed twice. Their own words are newer than the bank's estimates.
   const aboutEntries = cabinet.filter((e) => e.aboutPart && !String(e.aboutPart).startsWith('fact:'));
-  const aboutLines = aboutEntries.map((e) => `- ${e.title.split(':')[0]}: ${e.detail || e.title.split(':').slice(1).join(':').trim()}${e.source === 'nordea' ? ' (Nordea data, confirmed by them)' : ' (they told you)'}`);
+  // With its id, so "forget my salary" can remove it (proposeCabinetChange archive). Never show ids.
+  const aboutLines = aboutEntries.map((e) => `- ${e.title.split(':')[0]} [id ${e.id}]: ${e.detail || e.title.split(':').slice(1).join(':').trim()}${e.source === 'nordea' ? ' (Nordea data, confirmed by them)' : ' (they told you)'}`);
   const style = aboutEntries.find((e) => e.aboutPart === 'style')?.aboutValues?.[0];
   const length = calm ? '1–2 short sentences' : style === 'More detail' ? 'up to 6 sentences when the question needs it' : style === 'Short answers' ? '1–3 sentences' : '2–4 sentences';
   const entries = cabinet.filter((e) => !aboutEntries.includes(e)).map((e) => ({
@@ -828,7 +829,7 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
       if (action === 'add' && a.type === 'goal' && /[?]|\b(maybe|hypothetical|what if|thinking about)\b/i.test(ctx.userText)
         && !/\b(save|remember|create|add)\b[^.?!]{0,35}\b(goal|plan|this|it)\b/i.test(ctx.userText))
         return { saved: false, error: 'This is an exploratory question, not consent to create a goal. Ask before saving.' };
-      if (action === 'archive' && DELETE_ALL.test(ctx.userText)) return { saved: false, error: 'Not done: Nora never removes everything at once. Tell the customer they can remove each item, or turn sharing off, in "Nora knows".' };
+      if (action === 'archive' && DELETE_ALL.test(ctx.userText)) return { saved: false, error: 'Not done: Nora never removes everything at once. Tell the customer they can remove each item in "Nora knows", and clear all of About you there with About you → Edit → Clear About you.' };
       const sensitive = !!a.sensitive || SENSITIVE.test(`${a.title || ''} ${a.detail || ''}`);
       // v29: Nora cannot set reminders, so a reminder is never saved as a note.
       if (/\bremind(er|ers|ing)?\b/i.test(`${a.title || ''}`) || (/\bremind me\b/i.test(ctx.userText) && action !== 'archive'))
@@ -914,6 +915,15 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
         ctx.cards.push({type:'goal_confirm',title:'Confirm goal removal',data:{language:finnishGoalRequest(ctx.userText)?'fi':'en',operation:'archive',entryId:existing.id,existingRevision:goalRevision(existing),existing:{title:existing.title,target:existing.target},draft:existing,private:existing.private,readableBy:existing.readableBy,expiresAt:proposalDeadline()}});
         ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),(finnishGoalRequest(ctx.userText)?finnishGoalProposal(existing.title,existing.target,'archive'):`Remove "${existing.title}" from active goals?${existing.target?' Current target: '+existing.target.amount+' EUR by '+existing.target.date+'.':''} Nothing changes until you tap Remove goal. History is kept and you can undo the removal.`)];
         return {saved:false,waitingForCustomer:true,note:'Removal proposed, not done. Wait for tap.'};
+      }
+      if (action === 'archive' && existing.aboutPart && !String(existing.aboutPart).startsWith('fact:')) {
+        // A line of About you: it leaves About you (with the rule facts it unlocked) and Nordea's data
+        // doesn't fill it back in, until the customer adds it again.
+        forgetAbout(ctx.userId, [existing.aboutPart as any], 'From your chat', 'abel');
+        const undoToken = recordUndo({ userId: ctx.userId, action: 'archive', description: `Removed "${existing.title}"`, previousEntry: prev, entryId: existing.id });
+        ctx.notes.push({ text: `🗂 Removed from About you: ${existing.title.split(':')[0]} (kept in history)`, undoToken, entryId: existing.id });
+        ctx.changes++;
+        return { saved: true, archived: existing.id };
       }
       if (action === 'archive') {
         db.updateCabinetEntry(existing.id, { status: 'archived' }, { by: 'abel', how: 'From your chat' });

@@ -4,7 +4,7 @@
 // Wording rule: talk about what the customer gets, never about how much the bank knows.
 import React, { useEffect, useState } from 'react';
 import { FIELDS, QUESTIONS, type AboutView, type FieldKey } from '../aboutParts.js';
-import { saveAbout } from '../services/aboutApi.js';
+import { saveAbout, removeAbout, aboutSummary } from '../services/aboutApi.js';
 import { Icon } from '../ui/icons.js';
 import { Band } from './Nordea.js';
 
@@ -102,6 +102,16 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
   const [preview, setPreview] = useState<{ for: string; text: string } | null>(null);
   const [thinking, setThinking] = useState(false);
   const [fixFor, setFixFor] = useState<FieldKey | null>(null);
+  // The paragraph in Nora's words (AI, checked by the server); the built one shows until it arrives.
+  const [summary, setSummary] = useState<{ for: string; text: string } | null>(null);
+  const [askClear, setAskClear] = useState(false);
+  const para = view?.paragraph || '';
+  useEffect(() => {
+    if (!para) return;
+    let gone = false;
+    aboutSummary(userId).then((r) => { if (!gone && r?.text) setSummary({ for: para, text: r.text }); }).catch(() => {});
+    return () => { gone = true; };
+  }, [para, userId]);
   useEffect(() => {
     const k = editKey || (fixing ? fixFor : null);
     const typed = text.trim();
@@ -143,6 +153,10 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
       if (editKey) setEditKey(null);
       onSaved(r);
     } catch (e: any) { setErr(e?.message || 'That didn’t work. Try again.'); } finally { setBusy(false); }
+  };
+  const removeLine = async (k: FieldKey | 'all') => {
+    setBusy(true); setErr(null);
+    try { onSaved(await removeAbout(userId, k)); setAskClear(false); } catch (e: any) { setErr(e?.message || 'That didn’t work. Try again.'); } finally { setBusy(false); }
   };
   const skip = () => { if (cur) { if (editKey) setEditKey(null); else setSkipped([...skipped, cur.key]); reset(); } };
   const tap = (o: string) => { if (!f) return; setPicks(f.multi ? (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]) : [o]); };
@@ -210,7 +224,7 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
     <>
       <Band left="About you" right={<button className="btn link band-act" aria-expanded={editing} onClick={() => { setEditing(!editing); setEditKey(null); reset(); }}><Icon name="sliders" size={15} />{editing ? 'Done' : 'Edit'}</button>} />
       <div className="ncard ab-card">
-        <p className="about-p">{view.paragraph}</p>
+        <p className="about-p">{summary?.for === view.paragraph ? summary.text : view.paragraph}</p>
         <p className="ab-srcline">
           <span className="ab-dot bank" />From your Nordea data
           {mine > 0 && <><span className="ab-dot you" />{mine} {mine === 1 ? 'answer' : 'answers'} from you</>}
@@ -222,14 +236,28 @@ export const AboutCard: React.FC<{ userId: string; view: AboutView | null; onSee
             <div className="ab-edit">
               {EDITABLE.map((k) => {
                 const fv = view.fields[k];
-                const shownText = fv.text || view.bank.find((l) => l.key === k)?.text || '';
+                const shownText = fv.text || (fv.removed ? '' : view.bank.find((l) => l.key === k)?.text || '');
                 return (
                   <div className="ab-edit-row" key={k}>
-                    <span className="ab-edit-t"><span>{FIELDS[k].label}</span><b>{shownText || 'Not set yet'}</b></span>
-                    <button className="btn small" onClick={() => { reset(); setEditKey(k); }}>{shownText ? 'Change' : 'Add'}</button>
+                    <span className="ab-edit-t"><span>{FIELDS[k].label}{!fv.text && shownText && <i className="ab-sug"> · Nordea’s data, not confirmed</i>}</span><b className={shownText ? '' : 'muted'}>{shownText || (fv.removed ? 'Removed. Nora doesn’t use it.' : 'Not set yet')}</b></span>
+                    <span className="ab-edit-b">
+                      <button className="btn small" onClick={() => { reset(); setEditKey(k); }}>{shownText ? 'Change' : 'Add'}</button>
+                      {fv.text && <button className="btn small quiet" disabled={busy} onClick={() => removeLine(k)} aria-label={`Remove ${FIELDS[k].label}`}><Icon name="trash" size={15} /></button>}
+                    </span>
                   </div>
                 );
               })}
+              {askClear ? (
+                <div className="ab-clear" role="group" aria-label="Clear About you">
+                  <span>Remove everything in About you? Nora stops using it, and Nordea’s data won’t fill it back in. Your goals and notes stay.</span>
+                  <span className="ab-edit-b">
+                    <button className="btn small danger" disabled={busy} onClick={() => removeLine('all')}>Clear About you</button>
+                    <button className="btn small quiet" onClick={() => setAskClear(false)}>Cancel</button>
+                  </span>
+                </div>
+              ) : (
+                <button className="btn link small ab-clear-link" onClick={() => setAskClear(true)}>Clear About you</button>
+              )}
             </div>
           )
         ) : (
