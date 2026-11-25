@@ -13,6 +13,7 @@ import { customerIdRejection } from './src/server/customerId.js';
 import { registerV14Routes } from './src/server/routes.js';
 import { registerAboutRoutes } from './src/server/aboutYou.js';
 import { registerMemoryRoutes } from './src/server/memorySettings.js';
+import { registerInfoRoutes } from './src/server/addInfo.js';
 import { registerDevMonitor } from './src/server/devMonitor.js';
 import { registerArchRoutes } from './src/server/arch/routes.js';
 import { startFeedWatcher } from './src/server/nordeaFeed.js';
@@ -372,6 +373,7 @@ registerV14Routes(app);
 // About you, onboarding answers and Offers for you.
 registerAboutRoutes(app);
 registerMemoryRoutes(app);
+registerInfoRoutes(app);
 
 // Read-only developer monitoring panel (display only, no controls): /dev-monitor.html
 registerDevMonitor(app);

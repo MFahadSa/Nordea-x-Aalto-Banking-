@@ -1,0 +1,139 @@
+// "Add new info" in What Nora knows: one line for anything that changed, with suggestions to tap.
+// Nora works out what it is (src/server/addInfo.ts) and shows it before anything is saved:
+//  - a change to About you ("I got a raise…") updates that line;
+//  - a goal, a life change, a preference or a fact is saved as a new item (with Undo);
+//  - a goal without an amount or a date opens the goal form, already filled in;
+//  - private topics are never saved.
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { saveAbout } from '../services/aboutApi.js';
+import { Icon } from '../ui/icons.js';
+import type { AboutView, FieldKey } from '../aboutParts.js';
+
+type Draft = { type: 'goal' | 'life_event' | 'preference' | 'fact'; title: string; detail: string; goalType?: string; target?: { amount: number; date: string } };
+type Understood =
+  | { ok: true; draft: Draft; by: string }
+  | { ok: true; about: { key: FieldKey; label: string; before: string; text: string }; by: string }
+  | { ok: false; reason: 'private' | 'empty'; message: string }
+  | { ok: false; reason: 'goal_details'; message: string; title: string; goalType?: string };
+
+const KIND: Record<Draft['type'], string> = { goal: 'Goal', life_event: 'Life change', preference: 'Preference', fact: 'Note' };
+const when = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+const eur = (n: number) => `${Math.round(n).toLocaleString('fi-FI')} €`;
+
+export const AddInfoSheet: React.FC<{
+  userId: string;
+  onClose: () => void;
+  /** Saved as a new item (Undo through the token), or About you was updated (the new view). */
+  onSaved: (message: string, result: { undoToken?: string; about?: AboutView }) => void;
+  /** A goal that needs an amount and a date: the goal form, filled in. */
+  onGoalForm: (title: string, goalType?: string) => void;
+}> = ({ userId, onClose, onSaved, onGoalForm }) => {
+  const [text, setText] = useState('');
+  const [tips, setTips] = useState<string[]>([]);
+  const [res, setRes] = useState<Understood | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetch(`/api/info/suggestions?userId=${encodeURIComponent(userId)}`).then((r) => r.json()).then((d) => setTips(d.suggestions || [])).catch(() => setTips([]));
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [userId]);
+
+  // A suggestion starts the sentence; the first "…" is selected, so typing fills it in.
+  const pick = (t: string) => {
+    setText(t); setRes(null); setErr('');
+    requestAnimationFrame(() => { const el = input.current; if (!el) return; el.focus(); const i = t.indexOf('…'); if (i >= 0) el.setSelectionRange(i, i + 1); });
+  };
+
+  const check = async () => {
+    if (/…/.test(text)) { setErr('Fill in the … parts first.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const r = await fetch('/api/info/understand', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, text }) });
+      setRes(await r.json());
+    } catch { setErr('That didn’t work. Try again.'); } finally { setBusy(false); }
+  };
+
+  const save = async () => {
+    if (!res || !res.ok) return;
+    setBusy(true); setErr('');
+    try {
+      if ('about' in res) {
+        const v = await saveAbout(userId, { [res.about.key]: { values: [], text: res.about.text, asIs: true } });
+        onSaved(`Updated in About you: ${res.about.label}`, { about: v });
+      } else {
+        const d = res.draft;
+        const r = await fetch('/api/cabinet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          userId, type: d.type, title: d.title, detail: d.detail, goalType: d.goalType, target: d.target, source: 'customer',
+          readableBy: { abel: true, offers: d.type === 'goal' },
+        }) });
+        if (!r.ok) throw new Error();
+        const j = await r.json();
+        onSaved(`📌 Nora will remember: ${d.title}`, { undoToken: j.undoToken });
+      }
+      onClose();
+    } catch { setErr('That didn’t work. Try again.'); } finally { setBusy(false); }
+  };
+
+  const sheet = (
+    <div className="sheet-bg" onClick={onClose} role="presentation">
+      <div className="sheet ofs ai-sheet" role="dialog" aria-modal="true" aria-label="Add new info" onClick={(e) => e.stopPropagation()}>
+        <div className="ofs-h">
+          <h3>What’s new?</h3>
+          <button className="ofs-x" onClick={onClose} aria-label="Close"><Icon name="x" size={20} /></button>
+        </div>
+        <p className="ofs-small">Something changed, or a new plan? Tell Nora in your own words, and she updates what she knows.</p>
+        <textarea ref={input} className="ai-input" rows={2} value={text} autoFocus placeholder="E.g. I got a raise, my salary is now 4 200 €"
+          onChange={(e) => { setText(e.target.value); setRes(null); setErr(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (text.trim() && !busy) check(); } }} aria-label="What should Nora know?" />
+        {!res && tips.length > 0 && (
+          <div className="ai-tips" role="group" aria-label="Suggestions">
+            {tips.map((t) => <button key={t} className="chip" onClick={() => pick(t)}>{t}</button>)}
+          </div>
+        )}
+
+        {res && res.ok && 'about' in res && (
+          <div className="ai-res">
+            <span className="ai-kind"><Icon name="person" size={14} />Updates About you · {res.about.label}</span>
+            {res.about.before && <span className="ai-before">{res.about.before}</span>}
+            <b>{res.about.text}</b>
+          </div>
+        )}
+        {res && res.ok && 'draft' in res && (
+          <div className="ai-res">
+            <span className="ai-kind"><Icon name={res.draft.type === 'goal' ? 'star' : 'spark'} size={14} />New {KIND[res.draft.type].toLowerCase()}</span>
+            <b>{res.draft.title}</b>
+            {res.draft.target && <span>{eur(res.draft.target.amount)} by {when(res.draft.target.date)}</span>}
+          </div>
+        )}
+        {res && !res.ok && (
+          <div className={`ai-res ${res.reason === 'private' ? 'warn' : ''}`} role="status">
+            <span>{res.message}</span>
+            {res.reason === 'goal_details' && (
+              <button className="btn small" onClick={() => { onClose(); onGoalForm(res.title, res.goalType); }}>Add the amount and date</button>
+            )}
+          </div>
+        )}
+        {err && <p className="ofs-small" role="alert" style={{ color: '#B3261E' }}>{err}</p>}
+
+        <div className="ofs-acts">
+          {res && res.ok ? (
+            <>
+              <button className="btn primary" disabled={busy} onClick={save}><Icon name="check" size={16} />{busy ? 'Saving…' : 'Save'}</button>
+              <button className="btn" disabled={busy} onClick={() => { setRes(null); requestAnimationFrame(() => input.current?.focus()); }}>Change the wording</button>
+            </>
+          ) : (
+            <button className="btn primary" disabled={busy || !text.trim()} onClick={check}>{busy ? 'Reading…' : 'Continue'}</button>
+          )}
+        </div>
+        <p className="ofs-small muted">Nothing is saved until you tap Save. Private things like health are never kept.</p>
+      </div>
+    </div>
+  );
+  const host = document.querySelector('.phone');
+  return host ? createPortal(sheet, host) : sheet;
+};

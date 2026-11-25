@@ -14,6 +14,7 @@ import { GetMoreCard, introFor } from './components/AboutYou.js';
 import { CabinetPage } from './components/CabinetPage.js';
 import { OffersForYou } from './components/Offers.js';
 import { fetchAbout } from './services/aboutApi.js';
+import { AddInfoSheet } from './components/AddInfo.js';
 import { offerQuestion, type AboutView } from './aboutParts.js';
 import { CabinetEntry, ChatMessage, PersonaId, User } from './types.js';
 import {
@@ -67,6 +68,8 @@ export default function App() {
   // About you, the onboarding and Offers for you.
   const [about, setAbout] = useState<AboutView | null>(null);
   const [offersKey, setOffersKey] = useState(0);
+  const [addInfoOpen, setAddInfoOpen] = useState(false);
+  const [goalPrefill, setGoalPrefill] = useState<{ title?: string; type?: string }>({});
   const [usersOpen, setUsersOpen] = useState(false);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -480,11 +483,22 @@ export default function App() {
                 onSelectPersona={(p) => { selectedCustomer.current = p; setState(null); setPersonaId(p); setUsersOpen(false); setChatOpen(false); setPage('home'); }}
                 onResetDatabase={async () => { await resetDatabase(); setUsersOpen(false); setChatOpen(false); refresh(); setToast({ message: 'Data reset' }); }}
               />
+              {addInfoOpen && (
+                <AddInfoSheet userId={state.user.id} onClose={() => setAddInfoOpen(false)}
+                  onGoalForm={(title, type) => { setGoalPrefill({ title, type }); setAddGoalOpen(true); }}
+                  onSaved={(message, r) => {
+                    setToast({ message, undoToken: r.undoToken });
+                    if (r.about) setAbout(r.about); else fetchAbout(state.user.id).then(setAbout).catch(() => {});
+                    setOffersKey((n) => n + 1); refresh();
+                  }} />
+              )}
               <AddGoalModal
                 isOpen={addGoalOpen}
                 onClose={() => setAddGoalOpen(false)}
                 userId={state.user.id}
-                onGoalAdded={(e, undoToken) => { setToast({ message: `📌 Added “${e.title}”`, undoToken }); refresh(); }}
+                onGoalAdded={(e, undoToken) => { setToast({ message: `📌 Added “${e.title}”`, undoToken }); refresh(); setOffersKey((n) => n + 1); }}
+                initialTitle={goalPrefill.title}
+                initialType={goalPrefill.type}
               />
               {redeemAsk && (
                 <RedeemSheet
@@ -547,7 +561,8 @@ export default function App() {
               onAboutSaved={(v) => { if (selectedCustomer.current !== state.user.id) return; setAbout(v); setOffersKey((n) => n + 1); refresh(); }}
               onSeeNora={() => about && tryNora(about)}
               onRewards={() => goPage('rewards')}
-              onAddGoal={() => setAddGoalOpen(true)}
+              onAddGoal={() => { setGoalPrefill({}); setAddGoalOpen(true); }}
+              onAddInfo={() => setAddInfoOpen(true)}
               onTellNora={() => openHelper('abel')}
               onImport={() => doImport({ sample: true })}
               onPrivacy={() => goPage('privacy')}

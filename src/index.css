@@ -1149,3 +1149,13 @@ button.gm-item svg{margin-left:auto;color:var(--muted)}
 .ab-clear-link{align-self:flex-start;color:var(--muted)!important;font-weight:500;padding:6px 0}
 .btn.danger{background:#B3261E;color:#fff;border-color:#B3261E}
 .ab-sug{font-style:normal;color:var(--bank);font-weight:500}
+/* Add new info */
+.ai-input{font:inherit;font-size:15px;line-height:1.4;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);resize:none;width:100%;box-sizing:border-box}
+.ai-input:focus{outline:none;border-color:var(--brand-soft)}
+.ai-tips{display:flex;flex-wrap:wrap;gap:6px}
+.ai-tips .chip{font-size:13px}
+.ai-res{display:flex;flex-direction:column;gap:4px;background:var(--sel);border-radius:12px;padding:12px;font-size:14px;color:var(--ink)}
+.ai-res.warn{background:var(--warn-bg)}
+.ai-res .btn{align-self:flex-start;margin-top:6px}
+.ai-kind{display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600;color:var(--brand-soft)}
+.ai-before{font-size:13px;color:var(--muted);text-decoration:line-through}

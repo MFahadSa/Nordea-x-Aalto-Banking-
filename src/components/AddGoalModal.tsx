@@ -6,11 +6,20 @@ interface Props {
   onClose: () => void;
   userId: string;
   onGoalAdded: (entry: CabinetEntry, undoToken: string) => void;
+  /** Filled in from Add new info ("I want to buy a car"). */
+  initialTitle?: string;
+  initialType?: string;
 }
 
-export const AddGoalModal: React.FC<Props> = ({ isOpen, onClose, userId, onGoalAdded }) => {
+export const AddGoalModal: React.FC<Props> = ({ isOpen, onClose, userId, onGoalAdded, initialTitle, initialType }) => {
   const [goalType, setGoalType] = useState<'home' | 'car' | 'travel' | 'buffer' | 'other'>('home');
   const [title, setTitle] = useState('');
+  // Opened from Add new info: start from what the customer typed.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setTitle(initialTitle || '');
+    if (initialType && ['home', 'car', 'travel', 'buffer', 'other'].includes(initialType)) setGoalType(initialType as any);
+  }, [isOpen, initialTitle, initialType]);
   const [amount, setAmount] = useState(30000);
   const [months, setMonths] = useState(18);
   const [loading, setLoading] = useState(false);

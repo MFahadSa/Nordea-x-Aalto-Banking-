@@ -18,6 +18,8 @@ export const mockProvider: LlmProvider = {
   isConfigured: () => true,
   async step({ turns, tools, system }) {
     const last = turns[turns.length - 1];
+    // Add new info: the scripted stand-in answers nothing, so the app's own rules decide (tests both paths).
+    if (tools.some((t) => t.name === 'understand') && last.role === 'user') return { calls: [] };
     if (tools.some((t) => t.name === 'writeSummary') && last.role === 'user') {
       return { calls: [call('writeSummary', { text: last.text.replace(/^Facts:\n/, '') })] };
     }

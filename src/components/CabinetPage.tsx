@@ -25,6 +25,8 @@ export interface CabinetProps {
   onSeeNora: () => void;
   onRewards: () => void;
   onAddGoal: () => void;
+  /** Add new info: one line for anything that changed. */
+  onAddInfo?: () => void;
   onTellNora: () => void;
   onImport: () => void;
   onPrivacy: () => void;
@@ -166,7 +168,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
           <button className="dh-side" onClick={p.onPrivacy}><Icon name="shield" />Who sees it</button>
         </div>
         <RoundActions actions={[
-          { icon: 'plus', label: 'Add a goal', onClick: p.onAddGoal },
+          { icon: 'plus', label: 'Add new info', onClick: p.onAddInfo || p.onAddGoal },
           { icon: 'spark', label: 'Tell Nora', onClick: p.onTellNora },
           { icon: 'file', label: 'Import a chat', onClick: p.onImport },
         ]} />
@@ -238,7 +240,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
         {/* 3. From you */}
         <Band left="From you" right={fold('mine', goals.length + mine.length)} />
         {isOpen('mine') && <div className="ncard cb-sec">
-          {!goals.length && !mine.length && <p className="cb-empty">Nothing yet. Add a goal, or tell Nora about your plans.</p>}
+          {!goals.length && !mine.length && <p className="cb-empty">Nothing yet. Add new info when something changes, or tell Nora about your plans.</p>}
           {goals.map((g) => {
             const e = items.find((x) => x.id === g.goalId)!;
             return (
@@ -264,7 +266,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
             );
           })}
           {mine.map((e) => itemRow(e, false))}
-          <button className="cb-link" onClick={p.onAddGoal}><Icon name="plus" size={16} />Add a goal<Icon name="chev" size={16} /></button>
+          <button className="cb-link" onClick={p.onAddInfo || p.onAddGoal}><Icon name="plus" size={16} />Add new info<Icon name="chev" size={16} /></button>
         </div>}
 
         {/* 4. From Nordea */}
