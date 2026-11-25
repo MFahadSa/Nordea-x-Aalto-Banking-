@@ -336,6 +336,8 @@ export interface OfferView {
   goal?: string; pinned: boolean;
   /** Details: what it is, how to set it up, and the official page when we have one. */
   about: string; steps: string[]; url?: string;
+  /** Not picked from their answers: shown so the row is never empty, and said so. */
+  general?: boolean;
 }
 interface OfferDef {
   id: string; title: string; earns: string; note?: string;
@@ -452,15 +454,37 @@ export function offersFor(userId: string, today = now().slice(0, 10), shared?: C
   const c = ctxOf(userId, shared);
   const offers: OfferView[] = [];
   let hidden = 0;
+  const hiddenIds: string[] = [];
+  const isHidden = (id: string) => !!st.hidden?.[id] || !!(st.later?.[id] && st.later[id] > today);
+  const view = (o: OfferDef, f: { reason: string; used: OfferView['used']; line?: string }): OfferView => {
+    const d = DETAILS[o.id] || { about: o.line, steps: [] };
+    return { id: o.id, title: o.title, line: f.line || o.line, reason: f.reason, note: o.note, earns: o.earns, used: f.used, goal: o.goal?.(c), pinned: !!st.pinned?.[o.id], about: d.about, steps: d.steps, url: d.url };
+  };
   for (const o of OFFERS) {
     if (u.offersOff && PARTNER_OFFERS.has(o.id)) continue;
     const f = o.fit(c);
     if (!f) continue;
-    if (st.hidden?.[o.id] || (st.later?.[o.id] && st.later[o.id] > today)) { hidden++; continue; }
-    const d = DETAILS[o.id] || { about: o.line, steps: [] };
-    offers.push({ id: o.id, title: o.title, line: f.line || o.line, reason: f.reason, note: o.note, earns: o.earns, used: f.used, goal: o.goal?.(c), pinned: !!st.pinned?.[o.id], about: d.about, steps: d.steps, url: d.url });
+    if (isHidden(o.id)) { hidden++; hiddenIds.push(o.id); continue; }
+    offers.push(view(o, f));
   }
-  return { offers, hidden };
+  // Never an empty row: with fewer than two that fit personally, add offers many customers use, said
+  // plainly ("Popular with Nordea customers"), never one their own answers rule out or they hid.
+  if (!shared && offers.length < 2) {
+    const safe = c.v('risk').includes('Keep it safe');
+    const GENERAL: { id: string; ok: boolean }[] = [
+      { id: 'young', ok: c.age >= 18 && c.age <= 27 },
+      { id: 'funds', ok: !safe },
+      { id: 'gold', ok: true },
+      { id: 'if-home', ok: !u.offersOff },
+    ];
+    for (const g of GENERAL) {
+      if (offers.length >= 2) break;
+      const o = OFFERS.find((x) => x.id === g.id);
+      if (!o || !g.ok || isHidden(o.id) || offers.some((x) => x.id === o.id)) continue;
+      offers.push({ ...view(o, { reason: 'Popular with Nordea customers', used: [] }), general: true });
+    }
+  }
+  return { offers, hidden, hiddenIds };
 }
 
 /** The offer the customer tapped "Ask Nora" on, if it is one they are shown now. Its reason comes only from what Nora may read. */
@@ -553,7 +577,7 @@ export function registerAboutRoutes(app: Express) {
     const u = userX(userId);
     if (!u) return res.status(404).json({ error: 'Customer not found' });
     const id = String(req.body?.id || '');
-    const offer = OFFERS.find((o) => o.id === id);
+    const offer = OFFERS.find((o) => o.id === id) || (req.body?.action === 'unhideAll' ? OFFERS[0] : undefined);
     if (!offer) return res.status(404).json({ error: 'Unknown offer' });
     const today = now().slice(0, 10);
     const st: OfferState = JSON.parse(JSON.stringify(u.offerState || {}));
@@ -565,6 +589,7 @@ export function registerAboutRoutes(app: Express) {
     else if (action === 'unlater') delete st.later[id];
     else if (action === 'hide') st.hidden[id] = { at: today };
     else if (action === 'unhide') delete st.hidden[id];
+    else if (action === 'unhideAll') { st.hidden = {}; st.later = {}; }
     else if (action === 'reason') { if (st.hidden[id]) st.hidden[id].reason = String(req.body?.reason || '').slice(0, 40); }
     else return res.status(400).json({ error: 'Unknown action' });
     db.updateUser(userId, { offerState: st } as never);

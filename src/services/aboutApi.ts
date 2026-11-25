@@ -6,8 +6,9 @@ export interface OfferView {
   used: { label: string; value: string; from: string }[];
   goal?: string; pinned: boolean;
   about: string; steps: string[]; url?: string;
+  general?: boolean;
 }
-export type OfferAction = 'pin' | 'unpin' | 'later' | 'unlater' | 'hide' | 'unhide' | 'reason';
+export type OfferAction = 'pin' | 'unpin' | 'later' | 'unlater' | 'hide' | 'unhide' | 'unhideAll' | 'reason';
 export type Answers = Partial<Record<FieldKey, { values: string[]; text?: string; asIs?: boolean }>>;
 
 async function j<T>(r: Response): Promise<T> {
@@ -21,8 +22,8 @@ export const fetchAbout = (userId: string) => fetch(`/api/about?userId=${encodeU
 export const saveAbout = (userId: string, answers: Answers, confirm: FieldKey[] = []) =>
   post<AboutView & { points: number }>('/api/about', { userId, answers, confirm });
 export const resetAbout = (userId: string) => post<AboutView>('/api/about/reset', { userId });
-export const fetchOffers = (userId: string) => fetch(`/api/offers?userId=${encodeURIComponent(userId)}`).then((r) => j<{ offers: OfferView[]; hidden: number }>(r));
+export const fetchOffers = (userId: string) => fetch(`/api/offers?userId=${encodeURIComponent(userId)}`).then((r) => j<{ offers: OfferView[]; hidden: number; hiddenIds?: string[] }>(r));
 export const offerAction = (userId: string, id: string, action: OfferAction, reason?: string) =>
-  post<{ offers: OfferView[]; hidden: number; until?: string; goal?: string }>('/api/offers/action', { userId, id, action, reason });
+  post<{ offers: OfferView[]; hidden: number; hiddenIds?: string[]; until?: string; goal?: string }>('/api/offers/action', { userId, id, action, reason });
 export const removeAbout = (userId: string, key: FieldKey | 'all') => post<AboutView>('/api/about/remove', { userId, key });
 export const aboutSummary = (userId: string) => post<{ text: string; by: 'ai' | 'rules' }>('/api/about/summary', { userId });

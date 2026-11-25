@@ -11,7 +11,7 @@ export type OfferToast = (message: string, undo?: () => void) => void;
 export const OfferCard: React.FC<{ o: OfferView; onDetails: (o: OfferView) => void; onHide: (o: OfferView) => void; onAsk: (o: OfferView) => void }> = ({ o, onDetails, onHide, onAsk }) => (
   <article className="offer-card" aria-label={o.title}>
     <h3>{o.title}</h3>
-    <p className="ofc-reason"><Icon name="spark" size={14} />{o.reason}</p>
+    <p className={`ofc-reason${o.general ? ' gen' : ''}`}><Icon name={o.general ? 'star' : 'spark'} size={14} />{o.reason}</p>
     <p className="ofc-line">{o.line}</p>
     <div className="ofc-acts">
       <button className="btn primary small" onClick={() => onDetails(o)}>Details</button>
@@ -37,7 +37,7 @@ export const OfferSheet: React.FC<{ o: OfferView; onClose: () => void; onAsk: (o
         </div>
         <p className="ofs-about">{o.about}</p>
         <section>
-          <h4>Why it fits you</h4>
+          <h4>{o.general ? 'Why you see it' : 'Why it fits you'}</h4>
           <p className="ofc-reason"><Icon name="spark" size={14} />{o.reason}</p>
           <ul className="ofs-used">{o.used.map((u) => <li key={u.label}><span>{u.label}: {u.value}</span><span className="ofc-src">{u.from}</span></li>)}</ul>
         </section>
@@ -75,15 +75,20 @@ export const OffersForYou: React.FC<{ userId: string; refreshKey: number; skip?:
   const [open, setOpen] = useState<OfferView | null>(null);
   const [hiddenNow, setHiddenNow] = useState<OfferView | null>(null);
   const [reasonSent, setReasonSent] = useState(false);
-  useEffect(() => { fetchOffers(userId).then((d) => setList(d.offers)).catch(() => setList([])); }, [userId, refreshKey]);
+  const [hidden, setHidden] = useState(0);
+  // A failed reload keeps the offers already on screen (it used to empty the row, and the section vanished).
+  const load = () => fetchOffers(userId).then((d) => { setList(d.offers); setHidden(d.hidden || 0); }).catch(() => setList((l) => l ?? []));
+  useEffect(() => { load(); }, [userId, refreshKey]);
+  // Switching customer: never show the previous customer's offers.
+  useEffect(() => { setList(null); setHidden(0); setHiddenNow(null); }, [userId]);
 
   const act = async (o: OfferView, a: OfferAction) => {
     try {
       const r = await offerAction(userId, o.id, a);
-      setList(r.offers);
+      setList(r.offers); setHidden(r.hidden || 0);
       if (a === 'hide') {
         setHiddenNow(o); setReasonSent(false);
-        onToast('Hidden', async () => { const u = await offerAction(userId, o.id, 'unhide'); setList(u.offers); setHiddenNow(null); });
+        onToast('Hidden', async () => { const u = await offerAction(userId, o.id, 'unhide'); setList(u.offers); setHidden(u.hidden || 0); setHiddenNow(null); });
       }
     } catch (e: any) { onToast(e?.message || 'That didn’t work. Try again.'); }
   };
@@ -95,11 +100,17 @@ export const OffersForYou: React.FC<{ userId: string; refreshKey: number; skip?:
     window.setTimeout(() => setHiddenNow(null), 1600);
   };
 
+  const showAgain = async () => {
+    try { const r = await offerAction(userId, '', 'unhideAll'); setList(r.offers); setHidden(r.hidden || 0); setHiddenNow(null); onToast('Hidden offers are back'); }
+    catch (e: any) { onToast(e?.message || 'That didn’t work. Try again.'); }
+  };
   const shown = (list || []).filter((o) => !skip.includes(o.id)).slice(0, 5);
-  if (!list || (!shown.length && !hiddenNow)) return null;
+  // The section stays on Home once loaded, even when every offer is hidden: the way back is right there.
+  if (!list) return null;
   return (
     <>
       <Band left="Offers for you" right={<span className="band-note">From Nordea, picked for you</span>} />
+      {!shown.length && !hiddenNow && <p className="ofc-empty">No offers right now. Answer a few questions in Nora knows to get offers that fit you.</p>}
       {hiddenNow && (
         <div className="card ofc-hidden" role="status">
           {reasonSent ? <p>Thanks. Nora will use that.</p> : (
@@ -116,6 +127,9 @@ export const OffersForYou: React.FC<{ userId: string; refreshKey: number; skip?:
         <div className="offer-row" role="list" aria-label="Offers for you">
           {shown.map((o) => <div role="listitem" key={o.id}><OfferCard o={o} onDetails={setOpen} onHide={hide} onAsk={onAsk} /></div>)}
         </div>
+      )}
+      {hidden > 0 && (
+        <button className="btn link small ofc-again" onClick={showAgain}>{hidden} hidden · Show {hidden === 1 ? 'it' : 'them'} again</button>
       )}
       {open && <OfferSheet o={open} onClose={() => setOpen(null)} onAsk={onAsk} onHide={hide} />}
     </>
