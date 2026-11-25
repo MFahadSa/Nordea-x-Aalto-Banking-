@@ -3,6 +3,9 @@ import {FinancialRegistry,inspectExplicitSource,type Expression,type VerifiedFac
 import {registerFinanceOutput} from './financialRegistryAdapters.js';
 import {sourceRevision} from '../arch/text.js';
 import type {CabinetEntry} from '../../types.js';
+/** A general "how am I doing with my money" question: balances and spending are relevant even though no keyword names them.
+ *  Without this the handle list stayed empty, the model had nothing it was allowed to quote, and the turn ended at the step limit. */
+export const MONEY_OVERVIEW=/\bhow am i (?:doing|going) (?:with|on) (?:my |the )?(?:money|finances?)\b|\bhow(?:'s|\u2019s| is| are) my (?:money|finances?)\b|\b(?:my (?:money|finances?|financial) situation|(?:overview|summary) of my (?:money|finances?)|my (?:money|finance|financial) (?:overview|summary))\b|\brahatilanteeni\b|\bmiten (?:rahani|talouteni) (?:menee|ovat)\b/iu;
 export class TurnFinancialEvidence {
  readonly registry:FinancialRegistry;
  private revisions=new Map<string,string>();
@@ -37,9 +40,9 @@ export class TurnFinancialEvidence {
  includeBank(tool:'getAccounts'|'getSalary'|'getSpending'|'getPayPlan',data:unknown){const id='bank:'+tool,revision=sourceRevision(data);this.revisions.set(id,revision);this.bankData.set(id,data);registerFinanceOutput(this.registry,{id,revision},tool,data);}
  list(){return this.registry.list().filter(f=>!this.currentGoals.has(f.sourceId)).filter(f=>{
   if(!this.requestText||!f.sourceId.startsWith('bank:'))return true;
-  if(f.sourceId==='bank:getAccounts')return /balance|account|how much.*(?:have|money)|savings|säästötil|käyttötil|saldo|afford/iu.test(this.requestText);
+  if(f.sourceId==='bank:getAccounts')return /balance|account|how much.*(?:have|money)|savings|säästötil|käyttötil|saldo|afford/iu.test(this.requestText)||MONEY_OVERVIEW.test(this.requestText);
   if(f.sourceId==='bank:getSalary')return /budgets?|monthly plan|salary|income|pension|payday|palk|eläke|afford/iu.test(this.requestText);
-  if(f.sourceId==='bank:getSpending')return /budgets?|monthly plan|spend|spent|cost|pay|gym|phone|restaurant|groc|transport|kulut|käytin|ruoka|afford/iu.test(this.requestText);
+  if(f.sourceId==='bank:getSpending')return /budgets?|monthly plan|spend|spent|cost|pay|gym|phone|restaurant|groc|transport|kulut|käytin|ruoka|afford/iu.test(this.requestText)||MONEY_OVERVIEW.test(this.requestText);
   if(f.sourceId==='bank:getPayPlan')return /budgets?|monthly plan|payday|left|remainder|afford|how much.*save|palkkapäiv|varaa/iu.test(this.requestText);
   return true;
  });}
