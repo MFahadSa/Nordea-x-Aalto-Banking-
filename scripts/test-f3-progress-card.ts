@@ -21,6 +21,8 @@ const staleUpdate = () => {
   const goal = dbRef.getCabinetEntries('lauri').find((e: any) => e.type === 'goal' && /japan/i.test(e.title));
   return { calls: [{ id: 'u1', name: 'proposeCabinetChange', args: { action: 'update', type: 'goal', title: 'Japan trip', entryId: goal.id } }] };
 };
+let prose = 'I have put the new progress for your Japan trip on the card below. Tap the card if you want to keep those numbers.';
+let textOnly = false;
 const { setProvider } = await import('../src/server/llm.js');
 setProvider({ name: 'scripted', isConfigured: () => true, step: async (a: any) => {
   const text = String(a.turns?.filter((t: any) => t.role === 'user').pop()?.text || '');
@@ -29,7 +31,8 @@ setProvider({ name: 'scripted', isConfigured: () => true, step: async (a: any) =
   if (/actually I've saved 900/.test(text) && !acted) return staleUpdate();
   // Turn 3 control: stale no-change update with NO new number in the text (no progress card).
   if (/please update my Japan trip goal/.test(text) && !acted) return staleUpdate();
-  return { calls: [{ id: 'f', name: 'finishReply', args: { text: 'I have put the new progress for your Japan trip on the card below. Tap the card if you want to keep those numbers.', suggestions: [], usedEntryIds: [], topic: 'other', couldHelp: true } }] };
+  if (textOnly) return { calls: [], text: prose } as any;
+  return { calls: [{ id: 'f', name: 'finishReply', args: { text: prose, suggestions: [], usedEntryIds: [], topic: 'other', couldHelp: true } }] };
 } } as any);
 await import('../server.js');
 const base = 'http://127.0.0.1:3927';
@@ -56,7 +59,7 @@ const t2Agent = agentOf(t2);
 const t2Card = (t2Agent?.cards || []).find((c: any) => c.type === 'goal_progress');
 check('fix: fresh 900 progress card still shown', !!t2Card && t2Card.data?.saved === 900, t2Agent?.cards);
 check('fix: reply no longer contradicts the card', !!t2Agent && !String(t2Agent.text).includes(CONTRADICTION), t2Agent?.text);
-check('fix: model text flows (card-pointing wording)', !!t2Agent && /card below/.test(String(t2Agent.text)), t2Agent?.text);
+check('contract: fixed card-owned wording on the progress-card turn', !!t2Agent && String(t2Agent.text) === `${japan().title}: change saved amount to 900 €. Nothing is saved until you tap Save progress.`, t2Agent?.text);
 check('fix: nothing written by the reply alone', japan().progress?.saved === 800, japan().progress);
 // Tap records 900.
 await req('/api/actions', { userId: 'lauri', messageId: t2Agent?.id, action: 'progress_save', cardType: 'goal_progress', card: t2Card });
@@ -67,6 +70,38 @@ const t3 = await chat('please update my Japan trip goal');
 const t3Agent = agentOf(t3);
 check('control: no progress card without a new number', !(t3Agent?.cards || []).some((c: any) => c.type === 'goal_progress'), t3Agent?.cards);
 check('control: forced already-saved reply still fires without a card', !!t3Agent && String(t3Agent.text).includes(CONTRADICTION), t3Agent?.text);
+
+
+// --- Contract: whatever the model writes (contradicting, figure-bearing, sympathetic, or plain text with no tool call),
+// a Save-progress card turn shows exactly the card's fixed wording. Residual model contradiction cannot reach the user.
+const titleOf = japan().title;
+let amount = 900;
+for (const [label, p, plain] of [
+  ['"Nothing changed" prose', 'Nothing changed on your Japan trip goal.', false],
+  ['"no change, still 800" prose', 'No change, your Japan trip is still at 800 €.', false],
+  ['"already saved" prose', 'That is already saved, nothing is different.', false],
+  ['friendly extra remark', 'Great progress! Keep going, Japan will be wonderful.', false],
+  ['plain text, no tool call', 'Nothing changed on your Japan trip goal.', true],
+] as const) {
+  amount += 50; prose = p; textOnly = plain;
+  const tn = await chat(`actually I've saved ${amount} € for the Japan trip`);
+  const a = agentOf(tn); const c = (a?.cards || []).find((x: any) => x.type === 'goal_progress');
+  check(`contract [${label}]: card shown for ${amount}`, !!c && c.data?.saved === amount, a?.cards);
+  check(`contract [${label}]: text is exactly the fixed card wording`, String(a?.text) === `${titleOf}: change saved amount to ${amount} €. Nothing is saved until you tap Save progress.`, a?.text);
+  check(`contract [${label}]: nothing written before the tap`, japan().progress?.saved === amount - 50, japan().progress);
+  await req('/api/actions', { userId: 'lauri', messageId: a?.id, action: 'progress_save', cardType: 'goal_progress', card: c });
+  check(`contract [${label}]: tap records ${amount}`, japan().progress?.saved === amount, japan().progress);
+}
+textOnly = false; prose = 'Noted.';
+// Scope: a turn WITHOUT a progress card keeps the model's own words (not canned).
+const t4 = await chat('how is the weather today');
+check('scope: ordinary turn keeps the AI-written reply', String(agentOf(t4)?.text) === 'Noted.' && !(agentOf(t4)?.cards || []).some((c: any) => c.type === 'goal_progress'), agentOf(t4)?.text);
+// Tradeoff, stated and tested: progress number + question in one message => only the fixed wording is shown.
+prose = 'You are doing great, and the weather is sunny.';
+amount += 50;
+const t5 = await chat(`I've saved ${amount} € for the Japan trip, and also what is the weather`);
+const a5 = agentOf(t5);
+check('tradeoff: mixed message shows only the fixed card wording (extra AI answer dropped)', !!(a5?.cards || []).find((c: any) => c.type === 'goal_progress') ? String(a5?.text).endsWith('Nothing is saved until you tap Save progress.') && !/weather/.test(String(a5?.text)) : true, a5?.text);
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASS');
 process.exit(failed ? 1 : 0);

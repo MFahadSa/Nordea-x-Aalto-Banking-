@@ -721,6 +721,15 @@ function linkCurrentSource(ctx: TurnCtx, entryId: string) {
   if (e) db.updateCabinetEntry(entryId, { provenance: { ...e.provenance, messageId: m.id } });
 }
 
+/** The Save progress card owns its turn's wording (user-approved, narrow): the reply states exactly what the card proposes. */
+function progressCardText(ctx:TurnCtx):string|null{
+  const c:any=ctx.cards.find((x:any)=>x.type==='goal_progress');
+  if(!c)return null;
+  const d=c.data||{};
+  const parts=[typeof d.saved==='number'?`change saved amount to ${d.saved} €`:'',typeof d.monthly==='number'?`set monthly amount to ${d.monthly} €`:''].filter(Boolean);
+  if(!parts.length)return null;
+  return `${d.title}: ${parts.join(' and ')}. Nothing is saved until you tap Save progress.`;
+}
 /** Rejected mutations own their customer-visible outcome, never model success prose. */
 function runTool(call:ToolCall,ctx:TurnCtx):unknown {
  const result=runToolCore(call,ctx) as any;
@@ -1660,6 +1669,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       const t = cleanReply(j ? String(j.text) : raw);
       const sourceAnswer=t?narrowSourceAnswer(t,j || {}):null;
       if(sourceAnswer)return sourceAnswer;
+      {const pt=progressCardText(ctx);if(pt){ctx.goalWriteReplies=[pt];recordTurn(Date.now() - t0, modelCalls);return finish(pt,[],[],'other',true);}}
       const p = t ? problemWith(t) : null;
       if (t && !isGarbled(t) && !looksLikeCode(t) && !unsupportedNumbers(t, known, money).length && !p) {
         recordTurn(Date.now() - t0, modelCalls);
@@ -1683,6 +1693,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
       if(clarificationCall&&call.name!=='finishReply'&&ACTION_TOOLS.has(call.name)){results.push({call,result:{saved:false,shown:false,error:'A clarification question cannot execute or prepare another action in the same step.'}});continue;}
       if(readScope&&!readScope.has(call.name)){results.push({call,result:{accepted:false,error:'This is a read-only recall turn. No stateful action was authorized or run. Answer from current sources, or ask the customer to clarify a separate action request.'}});continue;}
       if (call.name === 'finishReply') {
+        {const pt=progressCardText(ctx);if(pt){ctx.goalWriteReplies=[pt];finished=finish(pt,[],[],'other',true);results.push({call,result:{accepted:true}});continue;}}
         if(ctx.goalWriteReplies?.length){finished=finish(ctx.goalWriteReplies.join('\n'),[],[], 'other',true);results.push({call,result:{accepted:true}});continue;}
         if(bounded && call.args.savedLookupClaim==='claims_no_saved_fact'){results.push({call,result:{accepted:false,error:'No complete knowledge-absence proof exists. Describe the limited lookup or ask what name to search.'}});continue;}
         const retrievalChanged=results.some(r=>r.call.name==='getMoreSaved'||r.call.name==='getGoalStatus');
