@@ -24,7 +24,7 @@ export function registerFinanceOutput(registry:FinancialRegistry,source:{id:stri
   for(const [category,value]of Object.entries(data.lastFullMonth.categories||{}))add('Spending: '+category+' ('+data.lastFullMonth.month+')','last_full_month_spending','cost','lastFullMonth.categories.'+category,value);
  }
  if(tool==='getPayPlan'){
-  add('Payday plan','current_income','income','income',data?.income,'month');add('Payday plan','average_spending','cost','spendingAveragePerMonth',data?.spendingAveragePerMonth,'month');add('Payday plan','saving_rate','saving','alreadySavingPerMonth',data?.alreadySavingPerMonth,'month');add('Payday plan','left_over_after_spending_and_saving','balance','leftOver',data?.leftOver,'month');add('Payday plan','suggested_extra_not_approved','saving','suggestedExtraMove',data?.suggestedExtraMove,'month');
+  add('Payday plan','current_income','income','income',data?.income,'month');add('Payday plan','average_spending','cost','spendingAveragePerMonth',data?.spendingAveragePerMonth,'month');add('Payday plan','saving_rate','saving','alreadySavingPerMonth',data?.alreadySavingPerMonth,'month');add('Payday plan','left_over_after_spending_and_saving','balance','leftOver',data?.leftOver,'month');add('Payday plan','suggested_extra_not_approved','saving','suggestedExtraMove',data?.suggestedExtraMove,'month');add('Payday plan','buffer_kept_by_plan','balance','keepInCurrentAccount',data?.keepInCurrentAccount);
  }
  return facts;
 }

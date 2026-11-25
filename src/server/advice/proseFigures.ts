@@ -20,6 +20,7 @@ const FIELD_WORDS: Record<string, string[]> = {
   last_full_month_spending: ['last', 'previous', 'spent', 'spending'],
   saving_rate: ['save', 'saving', 'saved', 'aside', 'savings', 'put', 'putting', 'puts', 'contribution', 'contribute', 'toward', 'towards', 'into'],
   left_over_after_spending_and_saving: ['left', 'leftover', 'remains', 'remaining', 'remainder', 'spare', 'leaves', 'shortfall', 'short', 'deficit', 'minus', 'negative', 'over'],
+  buffer_kept_by_plan: ['keep', 'keeping', 'kept', 'buffer', 'leave', 'leaving', 'stay', 'stays', 'cushion'],
   suggested_extra_not_approved: ['suggested', 'suggest', 'extra', 'could', 'additional'],
   hypothetical_additional_saving: ['extra', 'additional', 'more'],
   balance: ['balance', 'account', 'have', 'there'],

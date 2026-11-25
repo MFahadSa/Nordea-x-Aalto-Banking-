@@ -203,6 +203,8 @@ const cmToEntry = (userId: string, e: ArchEntry): CabinetEntry => {
     ...(doc?.confirmedAt ? { confirmedAt: doc.confirmedAt } : {}),
     // v25: a customer's answer to an Nora fact question (the recommender's rules read these).
     ...(doc?.factKey ? { factKey: doc.factKey, factValue: doc.factValue } : {}),
+    // About you: which field this note fills, and the tapped answers (src/server/aboutYou.ts).
+    ...(doc?.aboutPart ? { aboutPart: doc.aboutPart, aboutValues: doc.aboutValues } : {}),
     createdAt: e.createdAt,
     updatedAt: doc?.updatedAt ?? e.createdAt,
   };
@@ -401,6 +403,11 @@ class Database {
       ...(profile?.extraMonthly !== undefined ? { extraMonthly: profile.extraMonthly } : {}),
       ...(profile?.nordeaData ? { nordeaData: profile.nordeaData } : {}),
       ...(profile?.advice ? { advice: profile.advice } : {}),
+      // About you rewards, Offers for you state and Memory settings (src/server/aboutYou.ts, memorySettings.ts).
+      ...(['aboutRewarded', 'offerState', 'memory', 'aboutOff', 'infoRewards'] as const).reduce((o, k) => {
+        const v = (profile as Record<string, unknown> | undefined)?.[k];
+        return v !== undefined ? { ...o, [k]: v } : o;
+      }, {}),
     };
   }
 

@@ -3,12 +3,18 @@ import {FinancialRegistry,inspectExplicitSource,type Expression,type VerifiedFac
 import {registerFinanceOutput} from './financialRegistryAdapters.js';
 import {sourceRevision} from '../arch/text.js';
 import type {CabinetEntry} from '../../types.js';
+/** A general "how am I doing with my money" question: balances and spending are relevant even though no keyword names them.
+ *  Without this the handle list stayed empty, the model had nothing it was allowed to quote, and the turn ended at the step limit. */
+export const MONEY_OVERVIEW=/\bhow am i (?:doing|going) (?:with|on) (?:my |the )?(?:money|finances?)\b|\bhow(?:'s|\u2019s| is| are) my (?:money|finances?)\b|\b(?:my (?:money|finances?|financial) situation|(?:overview|summary) of my (?:money|finances?)|my (?:money|finance|financial) (?:overview|summary))\b|\brahatilanteeni\b|\bmiten (?:rahani|talouteni) (?:menee|ovat)\b/iu;
 export class TurnFinancialEvidence {
  readonly registry:FinancialRegistry;
  private revisions=new Map<string,string>();
  private requestText='';
  private bankData=new Map<string,unknown>();
  private currentGoals=new Set<string>();
+ /** Bank tools the model itself called this turn. Their figures are relevant whatever words the question used
+  *  (live: after getPayPlan, "keep 500 €… move an extra 300 €" was refused because the pay plan was filtered out). */
+ private requestedTools=new Set<string>();
  constructor(customerId:string,conversationId:string,turnId:string,private verifySource?:(id:string,revision:string)=>boolean){this.registry=new FinancialRegistry({customerId,conversationId,turnId},id=>{const r=this.revisions.get(id);return r&&(!this.verifySource||this.verifySource(id,r))?r:undefined;});}
  includeEntry(e:CabinetEntry){const revision=sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy]);this.revisions.set(e.id,revision);inspectExplicitSource(this.registry,{id:e.id,revision,title:e.title,detail:e.detail,target:e.target});}
  includeGoal(g:any){
@@ -34,12 +40,15 @@ export class TurnFinancialEvidence {
   }
   if(matched.length===1)for(const m of text.matchAll(/\b(?:extra|additional|another)\s+(\d+(?:[.,]\d{1,2})?)\s*(?:euros?|EUR|€)?\s*(?:a|per|each|every)\s+month\b/giu))this.registry.register({sourceId:id,sourceRevision:revision,entity:matched[0].entity,field:'hypothetical_additional_saving',role:'saving',kind:'quantity',quantity:{value:Number(m[1].replace(',','.')),unit:'EUR',per:'month'},evidence:{type:'exact-span',span:m[0]}});
  }
+ /** The model called this bank tool; returns the handles of what it got back, so it can quote them with financialAnswer. */
+ requestedBank(tool:'getAccounts'|'getSalary'|'getSpending'|'getPayPlan'){this.requestedTools.add('bank:'+tool);return this.list().filter(f=>f.sourceId==='bank:'+tool).map(({id,entity,field,quantity})=>({id,entity,field,value:quantity?.value,per:quantity?.per}));}
  includeBank(tool:'getAccounts'|'getSalary'|'getSpending'|'getPayPlan',data:unknown){const id='bank:'+tool,revision=sourceRevision(data);this.revisions.set(id,revision);this.bankData.set(id,data);registerFinanceOutput(this.registry,{id,revision},tool,data);}
  list(){return this.registry.list().filter(f=>!this.currentGoals.has(f.sourceId)).filter(f=>{
   if(!this.requestText||!f.sourceId.startsWith('bank:'))return true;
-  if(f.sourceId==='bank:getAccounts')return /balance|account|how much.*(?:have|money)|savings|säästötil|käyttötil|saldo|afford/iu.test(this.requestText);
+  if(this.requestedTools.has(f.sourceId))return true;
+  if(f.sourceId==='bank:getAccounts')return /balance|account|how much.*(?:have|money)|savings|säästötil|käyttötil|saldo|afford/iu.test(this.requestText)||MONEY_OVERVIEW.test(this.requestText);
   if(f.sourceId==='bank:getSalary')return /budgets?|monthly plan|salary|income|pension|payday|palk|eläke|afford/iu.test(this.requestText);
-  if(f.sourceId==='bank:getSpending')return /budgets?|monthly plan|spend|spent|cost|pay|gym|phone|restaurant|groc|transport|kulut|käytin|ruoka|afford/iu.test(this.requestText);
+  if(f.sourceId==='bank:getSpending')return /budgets?|monthly plan|spend|spent|cost|pay|gym|phone|restaurant|groc|transport|kulut|käytin|ruoka|afford/iu.test(this.requestText)||MONEY_OVERVIEW.test(this.requestText);
   if(f.sourceId==='bank:getPayPlan')return /budgets?|monthly plan|payday|left|remainder|afford|how much.*save|palkkapäiv|varaa/iu.test(this.requestText);
   return true;
  });}
@@ -69,12 +78,15 @@ export class TurnFinancialEvidence {
   if(!Array.isArray(proposals)||proposals.length>8)throw new Error('Choose up to eight financial facts or calculations');
   const requestedCurrent=/current(?: account)?|checking account|käyttötil/iu.test(request),requestedSavings=/savings(?: account)?|säästötil/iu.test(request);
   const requestedIncome=/salary|pension|income|palk|eläke/iu.test(request),previous=/previous|before|used to|aiemp|edelli/iu.test(request),change=/change|difference|increase|muuttu|ero/iu.test(request);
+  const selectedFields=new Set<string>();{const walk=(x:any):void=>{if(!x||typeof x!=='object')return;if(x.fact){const f=this.registry.get(String(x.fact));if(f&&f.sourceId==='bank:getSpending')selectedFields.add(f.field);}if(x.calculation)walk(x.calculation);if(x.left)walk(x.left);if(x.right)walk(x.right);};proposals.forEach(walk);}
   const scopeCheck=(f:VerifiedFact)=>{
    if(f.sourceId==='bank:getSpending'){
     const category=f.entity.replace('Spending: ','').replace(/ \(\d{4}-\d{2}\)$/,'').toLowerCase();const requestedCategory=['restaurants','groceries','transport','housing','bills','subscriptions','shopping','pharmacy'].find(c=>request.toLowerCase().includes(c));
     if(requestedCategory&&category!==requestedCategory)throw new Error('This is not the requested spending category');
-    if(/last month|viime kuussa/iu.test(request)&&f.field!=='last_full_month_spending')throw new Error('A monthly average cannot answer last-month spending');
-    if(/this month|tässä kuussa|tässä kuussa/iu.test(request)&&f.field!=='current_month_spending')throw new Error('This is not current month spending');
+    // The figure for the asked period must be in the answer. A labelled comparison (the monthly average, the last full
+    // month) may sit beside it, never replace it: each row is rendered with its own period.
+    if(/last month|viime kuussa/iu.test(request)&&f.field!=='last_full_month_spending'&&!selectedFields.has('last_full_month_spending'))throw new Error('A monthly average cannot answer last-month spending');
+    if(/this month|tässä kuussa|tässä kuussa/iu.test(request)&&f.field!=='current_month_spending'&&!selectedFields.has('current_month_spending'))throw new Error('This is not current month spending');
    }
    if((requestedCurrent||requestedSavings)&&f.sourceId.startsWith('bank:')&&f.field==='balance'&&f.sourceId!=='bank:getAccounts')throw new Error('Use the requested account balance, not a planning figure');
    if(f.sourceId==='bank:getAccounts'&&f.field==='balance'){

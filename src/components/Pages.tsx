@@ -19,6 +19,8 @@ const DRAWERS: { name: string; has: (e: CabinetEntry) => boolean; icon: string }
 
 interface KnowsProps {
   state: AppState;
+  /** About you, shown first (src/components/AboutYou.tsx). */
+  aboutTop?: React.ReactNode;
   onAddGoal: () => void;
   onTellNora: () => void;
   onImport: () => void;
@@ -239,7 +241,8 @@ const DocsSection: React.FC<{ userId: string; docs: DocInfo[]; onDelete: (id: st
 );
 
 export const KnowsPage: React.FC<KnowsProps> = (p) => {
-  const { state } = p;
+  // About you shows its own notes (aboutPart), so the lists below don't repeat them.
+  const state = { ...p.state, entries: p.state.entries.filter((e) => !e.aboutPart) };
   const [menu, setMenu] = useState<string | null>(null);
   const [why, setWhy] = useState<string | null>(null);
   const [goalOpen, setGoalOpen] = useState<string | null>(null);
@@ -290,6 +293,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
         ]} />
       </header>
       <div className="nbody">
+        {p.aboutTop}
         {waiting.length > 0 && (
           <>
             <Band left="Waiting for you" right={<span className="band-note">Notes here aren’t used until you confirm</span>} />
@@ -324,7 +328,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 <button className="nrow2 goal" onClick={() => setGoalOpen(goalOpen === g.goalId ? null : g.goalId)}>
                   <span className="n-l">
                     <span className="n-name">{g.title}</span>
-                    <span className="n-sub">{g.saved===undefined?<>Saved balance not linked · target {eur(g.target)}</>:<>Saved now <b>{eur(g.saved)}</b> of {eur(g.target)}</>} · goal {monthShort(g.targetDate.slice(0, 7))}</span>
+                    <span className="n-sub">{g.saved===undefined?<>Target {eur(g.target)} · saved so far not known</>:<>Saved now <b>{eur(g.saved)}</b> of {eur(g.target)}</>} · goal {monthShort(g.targetDate.slice(0, 7))}</span>
                     <span className="gbar">{g.percentSaved!==undefined&&<i style={{ width: `${g.percentSaved}%` }} />}</span>
                   </span>
                   <span className="n-r"><span className={`npill ${g.onTrack===undefined?'grey':g.onTrack ? 'up' : 'down'}`}>{g.onTrack===undefined?'Forecast unknown':g.onTrack ? 'On track' : `Forecast: ${eur(g.shortBy)} short`}</span></span>
@@ -520,7 +524,7 @@ export const AutopilotPage: React.FC<{ state: AppState; onBack: () => void; onPl
 
 // ---------------- Rewards ----------------
 export const levelOf = (lifetime: number) => (lifetime >= 300 ? 'Gold' : lifetime >= 150 ? 'Silver' : 'Starter');
-export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: () => void; onUse: (r: Reward) => void; onEarn: () => void }> = ({ state, rewards, onAsk, onUse, onEarn }) => {
+export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: () => void; onUse: (r: Reward) => void; onEarn: () => void; onAddInfo?: () => void; onOpenPage?: (p: string) => void }> = ({ state, rewards, onAsk, onUse, onEarn, onAddInfo, onOpenPage }) => {
   const pts = state.user.points || 0;
   const level = levelOf(pts + (state.user.pointsSpent || 0));
   const waiting = state.entries.filter((e) => (e.source === 'nordea' && !e.reviewed && e.status === 'active') || e.status === 'stale').length;
@@ -532,6 +536,12 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
   const lifetime = pts + (state.user.pointsSpent || 0);
   const next = lifetime < 150 ? { name: 'Silver', at: 150, from: 0 } : lifetime < 300 ? { name: 'Gold', at: 300, from: 150 } : null;
   const [how, setHow] = useState(false);
+  // What each way of earning pays, and what's left (src/server/addInfo.ts).
+  const [earn, setEarn] = useState<{ points: { new: number; progress: number; about: number; perDay: number }; infoLeftToday: number; aboutQuestionsLeft: number; aboutPoints: number; goalsWithoutProgress: string[] } | null>(null);
+  useEffect(() => { fetch(`/api/info/earn?userId=${encodeURIComponent(state.user.id)}`).then((r) => r.json()).then(setEarn).catch(() => setEarn(null)); }, [state.user.id, pts]);
+  const go = (p: string) => (onOpenPage ? onOpenPage(p) : onEarn());
+  const pill = (n: number) => <span className="rw-pts">+{n}</span>;
+  const done = <span className="npill up">✓</span>;
   return (
     <>
       <header className="nhead detail rw-head" style={{ backgroundImage: BAND_BG }}>
@@ -573,10 +583,30 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
             );
           })}
         </div>
+        {/* Keep Nora up to date: the best-paid way to earn, one tap from here. */}
+        {onAddInfo && (
+          <div className="ncard rw-info">
+            <span className="rw-info-ic" aria-hidden="true"><Icon name="plus" /></span>
+            <span className="rw-info-t">
+              <b>Something new? Tell Nora</b>
+              <span>A raise, a move, a new plan or goal: keep Nora up to date and earn <b>+{earn?.points.new ?? 20} points</b> for each new thing{earn ? `, up to ${earn.points.perDay} a day` : ''}.</span>
+              {earn && earn.infoLeftToday === 0 && <span className="rw-muted">Today’s points for updates are earned. Thanks!</span>}
+            </span>
+            <button className="btn primary block rw-info-btn" onClick={onAddInfo}><Icon name="plus" size={16} />Add new info · +{earn?.points.new ?? 20} points</button>
+          </div>
+        )}
         <Band left="Earn more" />
-        <div className="ncard flat">
-          <NRow name={waiting ? 'Check what Nordea noticed' : 'Everything is checked'} sub={waiting ? `${waiting} waiting · +10 points each` : 'Nothing waiting for you'} right={waiting ? <button className="btn small" onClick={onEarn}>Do it</button> : <span className="npill up">✓</span>} />
-          <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `You save ${eur(state.user.extraMonthly)} more a month` : 'Plan your payday with Nora · +50 points'} right={state.user.extraMonthly ? <span className="npill up">✓</span> : undefined} />
+        <div className="ncard flat rw-earn">
+          {onAddInfo && <NRow name="Add new info" sub={earn ? `${earn.infoLeftToday} of ${earn.points.perDay} left today · updates +${earn.points.progress}` : 'A new goal, a change, a plan'} onClick={onAddInfo} right={pill(earn?.points.new ?? 20)} />}
+          <NRow name={earn && earn.aboutQuestionsLeft === 0 ? 'About you is complete' : 'Answer About you questions'} sub={earn ? (earn.aboutQuestionsLeft ? `${earn.aboutQuestionsLeft} quick ${earn.aboutQuestionsLeft === 1 ? 'question' : 'questions'} left · in Nora knows` : 'Thanks, all answered') : 'In Nora knows'}
+            onClick={earn?.aboutQuestionsLeft ? () => go('knows') : undefined} right={earn && earn.aboutQuestionsLeft === 0 ? done : pill(earn?.aboutPoints || 5)} />
+          <NRow name={waiting ? 'Check what Nordea noticed' : 'Everything is checked'} sub={waiting ? `${waiting} waiting for you · +10 points each` : 'Nothing waiting for you'}
+            onClick={waiting ? () => go('knows') : undefined} right={waiting ? pill(10 * waiting) : done} />
+          {earn && earn.goalsWithoutProgress.length > 0 && onAddInfo && (
+            <NRow name={`Tell Nora what you’ve saved for ${earn.goalsWithoutProgress[0]}`} sub="Then she can tell you if you’re on track" onClick={onAddInfo} right={pill(earn.points.progress)} />
+          )}
+          <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `You save ${eur(state.user.extraMonthly)} more a month` : 'Plan your payday with Nora'}
+            onClick={state.user.extraMonthly ? undefined : () => go('autopilot')} right={state.user.extraMonthly ? done : pill(50)} />
         </div>
         {used.length > 0 && (
           <>
@@ -817,6 +847,7 @@ export const MorePage: React.FC<{ state: AppState; isDark: boolean; onPage: (p: 
       <Band left="You" />
       <div className="ncard flat">
         <NRow name="What Nora knows" sub="Goals, plans, preferences" onClick={() => onPage('knows')} />
+        <NRow name="Memory" sub="Past chats, private topics, import and export" onClick={() => onPage('memory')} />
         <NRow name="Who sees it" sub="Access, sharing, offers" onClick={() => onPage('privacy')} />
         <NRow name="Rewards" sub="Points and levels" onClick={() => onPage('rewards')} />
       </div>
@@ -901,7 +932,7 @@ export const InvestPage: React.FC<{ state: AppState; onAddGoal: () => void; onOp
       <Band left="Your goals" right={state.goals.length ? String(state.goals.length) : undefined} />
       <div className="ncard flat">
         {state.goals.map((g) => (
-          <NRow key={g.goalId} name={g.title} sub={g.saved===undefined?`Target ${eur(g.target)} · saved balance not linked`:`${eur(g.saved)} of ${eur(g.target)}`} amount={`${g.percentSaved===undefined?'Progress unknown':Math.round(g.percentSaved)+' %'}`} onClick={() => onOpenPage('knows')} />
+          <NRow key={g.goalId} name={g.title} sub={g.saved===undefined?`Target ${eur(g.target)} · saved so far not known`:`${eur(g.saved)} of ${eur(g.target)}`} amount={`${g.percentSaved===undefined?'Add progress':Math.round(g.percentSaved)+' %'}`} onClick={() => onOpenPage('knows')} />
         ))}
         {!state.goals.length && <NRow name="No goals yet" sub="Add one below" chevron={false} />}
         <NRow name="Open an ASP account" sub="Ask Nora whether it fits you" onClick={() => onAskAbout('Can I open an ASP account?')} />

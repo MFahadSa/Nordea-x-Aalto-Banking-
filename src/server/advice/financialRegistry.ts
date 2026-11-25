@@ -140,6 +140,7 @@ export class FinancialRegistry {
      last_full_month_spending:spendOn?`In the last full demo month${spendOn[3]?' ('+MONTHS[Number(spendOn[3])-1][0].toUpperCase()+MONTHS[Number(spendOn[3])-1].slice(1)+')':''} you spent ${v} on ${spendOn[1]}.`:undefined,
      saving_rate:`You put ${v}${pm} into savings.`,
      left_over_after_spending_and_saving:`After spending and saving, about ${v}${pm} is left over (an estimated remainder).`,
+     buffer_kept_by_plan:`The plan keeps ${v} in your current account as a buffer.`,
      suggested_extra_not_approved:`You could move about ${v}${pm} more into savings. That is only a suggestion, not approved or scheduled.`,
      balance:`Your ${entity.toLowerCase()} has ${v}.`,
     };

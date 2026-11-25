@@ -118,8 +118,13 @@ export function activeGoals(userId: string): CabinetEntry[] {
 export function goalStatus(userId: string, goal: CabinetEntry) {
   const acc = accounts(userId)!;
   const isPrimary = primaryGoal(userId)?.id === goal.id;
-  const saved:number|undefined = goal.goalType === 'car' ? acc.carFund?.balance : isPrimary ? acc.savings.balance : undefined;
-  const monthly:number|undefined = isPrimary ? acc.savings.monthlyDeposit : undefined;
+  const linkedSaved:number|undefined = goal.goalType === 'car' ? acc.carFund?.balance : isPrimary ? acc.savings.balance : undefined;
+  const linkedMonthly:number|undefined = isPrimary ? acc.savings.monthlyDeposit : undefined;
+  // Not linked to an account: what the customer told us (Edit, Add new info or chat), never a guess.
+  const told = goal.progress;
+  const saved:number|undefined = linkedSaved ?? (typeof told?.saved === 'number' ? told.saved : undefined);
+  const monthly:number|undefined = linkedMonthly ?? (typeof told?.monthly === 'number' ? told.monthly : undefined);
+  const customerStated = linkedSaved === undefined && saved !== undefined || linkedMonthly === undefined && monthly !== undefined;
   const monthsLeft = Math.max(1, monthsBetween(CUR_MONTH, goal.target!.date.slice(0, 7)));
   const projected = saved!==undefined&&monthly!==undefined?saved+monthly*monthsLeft:undefined;
   const gap = projected!==undefined?Math.max(0,goal.target!.amount-projected):undefined;
@@ -131,8 +136,9 @@ export function goalStatus(userId: string, goal: CabinetEntry) {
     shortBy:gap===undefined?undefined:round(gap,10),onTrack:gap===undefined?undefined:gap<=0,
     extraPerMonthNeeded:gap===undefined?undefined:gap>0?round(gap/monthsLeft,10):0,
     percentSaved:saved===undefined?undefined:Math.min(100,Math.round(saved/goal.target!.amount*100)),
-    source: isPrimary?'demo-linked-savings-account':goal.goalType==='car'&&saved!==undefined?'car-fund-account':'unlinked',
-    ...(!isPrimary?{note:'No monthly contribution is linked to this goal. Missing amounts are unknown, not zero. Do not infer saving progress or forecast.'}:{})
+    source: isPrimary?'demo-linked-savings-account':goal.goalType==='car'&&linkedSaved!==undefined?'car-fund-account':customerStated?'customer-stated':'unlinked',
+    ...(customerStated?{statedAt:told!.at.slice(0,10)}:{}),
+    ...(!isPrimary&&(saved===undefined||monthly===undefined)?{note:`${saved===undefined?'The saved amount':'The monthly contribution'} for this goal is not known. Missing amounts are unknown, not zero. Do not infer saving progress or forecast.`}:{})
   };
 }
 

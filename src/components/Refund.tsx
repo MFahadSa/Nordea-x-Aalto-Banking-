@@ -227,7 +227,7 @@ export const RefundCasePage: React.FC<{ userId: string; onBack: () => void }> = 
   );
 };
 
-export const RefundKnows: React.FC<{ userId: string; onOpen?: () => void }> = ({ userId, onOpen }) => {
+export const RefundKnows: React.FC<{ userId: string; onOpen?: () => void; bare?: boolean }> = ({ userId, onOpen, bare }) => {
   const { v } = useRefund(userId);
   const [ask, setAsk] = useState(false);
   const c = openCase(v);
@@ -235,7 +235,7 @@ export const RefundKnows: React.FC<{ userId: string; onOpen?: () => void }> = ({
   const withdraw = async () => { await api(`/api/refund/case/${c.id}/withdraw`, {}); setAsk(false); ping(); };
   return (
     <>
-      <Band left="Refund cases" />
+      {!bare && <Band left="Refund cases" />}
       <div className="ncard flat">
         <NRow name={`${c.merchant ?? 'the shop'} refund`} sub={c.state === 'closed' ? `Refund received in full. Nora may keep reading the ${c.itemCount} records you allowed until you withdraw the case.` : `Nora may read the ${c.itemCount} records you allowed and watches for this refund`} chevron={false}
           right={<span className="rf-row-b">{onOpen && <button className="btn small" onClick={onOpen}>Open</button>}<button className="btn small" onClick={() => setAsk(true)}>Withdraw</button></span>} />

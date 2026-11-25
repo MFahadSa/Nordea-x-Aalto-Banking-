@@ -1,5 +1,6 @@
 // TEST ONLY: a scripted stand-in for the language model, so the tool pipeline and guardrails can be
 // tested without an API key. Enabled only when LLM_PROVIDER=mock. The real app always uses Gemini.
+import { mergeCorrection } from '../aboutParts.js';
 import { LlmProvider, Turn, ToolCall } from './llm.js';
 
 const call = (name: string, args: Record<string, any> = {}): ToolCall => ({ id: `mock-${name}-${Math.random().toString(36).slice(2, 6)}`, name, args });
@@ -17,6 +18,16 @@ export const mockProvider: LlmProvider = {
   isConfigured: () => true,
   async step({ turns, tools, system }) {
     const last = turns[turns.length - 1];
+    // Add new info: the scripted stand-in answers nothing, so the app's own rules decide (tests both paths).
+    if (tools.some((t) => t.name === 'understand') && last.role === 'user') return { calls: [] };
+    if (tools.some((t) => t.name === 'writeSummary') && last.role === 'user') {
+      return { calls: [call('writeSummary', { text: last.text.replace(/^Facts:\n/, '') })] };
+    }
+    // About you corrections: the scripted stand-in applies the same rules the app falls back to.
+    if (tools.some((t) => t.name === 'rewriteAnswer') && last.role === 'user') {
+      const m = last.text.match(/^Current line: (.*)\nCustomer's correction: ([\s\S]*)$/);
+      return { calls: [call('rewriteAnswer', { text: m ? mergeCorrection(m[1], m[2]) : '' })] };
+    }
     // v20: the pipeline's usefulness filter. Deterministic stand-in for a model's judgement, so the AI path
     // (not only the rule check) is exercised: money/goal words keep, health/other people private, rest drop.
     if (tools.some((t) => t.name === 'judgeSignals') && last.role === 'user') {

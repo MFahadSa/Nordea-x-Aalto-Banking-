@@ -96,6 +96,8 @@ export interface CabinetEntry {
     targetOrigin?:{amount?:'customer-evidence'|'direct-customer-ui'|'customer-confirmed-proposal';date?:'customer-evidence'|'direct-customer-ui'|'customer-confirmed-proposal'};
     targetFields?: {amount?:import('./server/advice/goalWriteEvidence.js').GoalFieldEvidence;date?:import('./server/advice/goalWriteEvidence.js').GoalFieldEvidence};
   };
+  /** A goal not linked to an account: what the customer told us they have saved and put in each month. */
+  progress?: { saved?: number; monthly?: number; at: string };
   target?: {
     amount: number;
     date: string; // YYYY-MM-DD
@@ -123,6 +125,9 @@ export interface CabinetEntry {
   /** v25: a customer's answer to one of Nora's fact questions (see src/server/advice/facts.ts). */
   factKey?: string;
   factValue?: boolean | number | string;
+  /** About you: which field this note fills (src/aboutParts.ts), and the tapped answers. */
+  aboutPart?: string;
+  aboutValues?: string[];
   confirmedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -280,6 +285,8 @@ export interface MessageCard {
     | 'handoff'
     | 'confirm_save'
     | 'confirm_plan'
+    /** Goal progress the customer said in chat, recorded only after the Save progress tap. */
+    | 'goal_progress'
     | 'duplicate'
     /** v21: a Nordea adviser's question about a case, answered in the card. */
     | 'case_request'
