@@ -3,7 +3,7 @@
 //  - a change to About you ("I got a raise…") updates that line;
 //  - a goal, a life change, a preference or a fact is saved as a new item (with Undo);
 //  - a goal without an amount or a date opens the goal form, already filled in;
-//  - private topics are never saved.
+//  - private topics can't be added in this box (chat offers Save privately).
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { saveAbout } from '../services/aboutApi.js';
@@ -167,7 +167,7 @@ export const AddInfoSheet: React.FC<{
             <button className="btn primary" disabled={busy || !text.trim()} onClick={check}>{busy ? 'Reading…' : 'Continue'}</button>
           )}
         </div>
-        <p className="ofs-small muted">Nothing is saved until you tap Save. Private things like health are never kept.</p>
+        <p className="ofs-small muted">Nothing is saved until you tap Save. Private things like health can’t be added here; tell Nora in chat to save them privately.</p>
       </div>
     </div>
   );

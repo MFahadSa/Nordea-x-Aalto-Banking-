@@ -107,7 +107,7 @@ function byRules(text: string): Understood {
 export async function understandInfo(text: string, userId?: string): Promise<Understood> {
   const t = String(text || '').trim().slice(0, 300);
   if (!t) return { ok: false, reason: 'empty', message: 'Type what Nora should know.' };
-  if (isSensitiveTopic(t)) return { ok: false, reason: 'private', message: 'Nora doesn’t keep private things like health, relationships or religion. Leave that out, and add the money part if there is one.' };
+  if (isSensitiveTopic(t)) return { ok: false, reason: 'private', message: 'Private things like health, relationships or religion can’t be added here. Tell Nora in chat if you want them saved privately. Otherwise leave that out, and add the money part if there is one.' };
   // Progress on a goal they already have ("I've saved 800 € for Japan", "I put 150 € a month into it").
   const prog = userId ? goalProgressIn(userId, t) : null;
   if (prog) return { ok: true, by: 'rules', progress: prog };
@@ -185,8 +185,12 @@ export function goalProgressIn(userId: string, text: string): { goalId: string; 
   };
   const aboutSaving = (clause: string) => /\b(saved|save|saving|put|putting|aside|away|add|adding|so far|monthly|into it|towards)\b/i.test(clause);
   // Each amount belongs to its own clause: "saved 800 for Japan, and my rent is 1150 a month" records 800 only.
-  const clauses = text.split(/[,;.!?]|\band\b|\bbut\b|\bwhile\b/i);
+  // A clause break needs a space or the end after the punctuation, so European formats ("2.500 €", "1.200,50 €") stay whole.
+  const clauses = text.split(/[,;.!?](?=\s|$)|\band\b|\bbut\b|\bwhile\b/i);
+  // A duration is not money: "saved 2 hours for Japan" proposes nothing.
+  const TIME_UNIT = /^\s*(hours?|hrs?|minutes?|mins?|seconds?|days?|weeks?|months?|years?|tuntia|minuuttia|päivää|viikkoa|kuukautta|vuotta)\b/i;
   let saved: number | undefined, monthly: number | undefined;
+  let anyTied = false;
   for (const clause of clauses) {
     if (NOT_GOAL_MONEY.test(clause)) continue;
     const tied = goalish(clause) || aboutSaving(clause);
@@ -196,9 +200,28 @@ export function goalProgressIn(userId: string, text: string): { goalId: string; 
       const n = num(m);
       if (!(n > 0) || (n >= 1900 && n <= 2100 && !m[3])) continue;
       const after = clause.slice((m.index || 0) + m[0].length, (m.index || 0) + m[0].length + 18);
+      if (TIME_UNIT.test(after)) continue;
+      anyTied = true;
       const isMonthly = /^\s*(a|per|each|every) month|^\s*monthly/i.test(after) || /\b(a|per|each|every) month\b|\bmonthly\b/i.test(clause);
       if (isMonthly) { if (monthly === undefined) monthly = n; }
       else if (saved === undefined) saved = n;
+    }
+  }
+  // A bare monthly clause continues the goal named in the same message: "saved 800 for Japan and 150 a month".
+  if (monthly === undefined && anyTied) {
+    for (const clause of clauses) {
+      if (NOT_GOAL_MONEY.test(clause) || goalish(clause) || aboutSaving(clause)) continue;
+      if (!/\b(a|per|each|every) month\b|\bmonthly\b/i.test(clause)) continue;
+      AMOUNT.lastIndex = 0;
+      for (const m of clause.matchAll(AMOUNT)) {
+        const n = num(m);
+        if (!(n > 0) || (n >= 1900 && n <= 2100 && !m[3])) continue;
+        const after = clause.slice((m.index || 0) + m[0].length, (m.index || 0) + m[0].length + 18);
+        if (TIME_UNIT.test(after)) continue;
+        monthly = n;
+        break;
+      }
+      if (monthly !== undefined) break;
     }
   }
   if (saved === undefined && monthly === undefined) return null;

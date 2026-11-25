@@ -177,7 +177,12 @@ export function registerV14Routes(app: Express) {
       const gs=fin.goalStatus(userId,e);
       // Numbers the customer already told us answer the question; the missing-link shortcut only applies when they are unknown.
       if(!Number.isFinite(gs.saved)||!Number.isFinite(gs.monthlyGoingIn)){
-      const a=agentMsg(userId,conv.id,conv.helperId,fi?`Tallennettu tavoite "${e.title}" on ${e.target!.amount} euroa, määräpäivä ${e.target!.date}. Tavoitteeseen ei ole yhdistetty säästösaldoa ja kuukausisummaa. Tämä ei tarkoita, että säästösi olisivat nolla. Paljonko olet säästänyt ja paljonko lisäät kuukaudessa?`:`The saved "${e.title}" target is ${e.target!.amount} EUR by ${e.target!.date}. I do not have a linked saved balance and monthly contribution for this goal. That does not mean your savings are zero. How much have you saved and how much do you add each month?`);
+      // One figure can be known without the other: acknowledge what the customer told us, ask only for what is missing.
+      const hasSaved=Number.isFinite(gs.saved),hasMonthly=Number.isFinite(gs.monthlyGoingIn);
+      const base=fi?`Tallennettu tavoite "${e.title}" on ${e.target!.amount} euroa, määräpäivä ${e.target!.date}.`:`The saved "${e.title}" target is ${e.target!.amount} EUR by ${e.target!.date}.`;
+      const known=hasSaved?(fi?` Kerroit säästäneesi ${gs.saved} euroa${gs.statedAt?` (${gs.statedAt})`:''}. Se on kertomasi luku, ei tilin saldo.`:` You told me you have saved ${gs.saved} EUR${gs.statedAt?` on ${gs.statedAt}`:''}. That is your figure, not an account balance.`):hasMonthly?(fi?` Kuukausisummaksi on tallennettu ${gs.monthlyGoingIn} euroa.`:` Your monthly contribution is ${gs.monthlyGoingIn} EUR.`):'';
+      const missing=!hasSaved&&!hasMonthly?(fi?' Tavoitteeseen ei ole yhdistetty säästösaldoa ja kuukausisummaa. Tämä ei tarkoita, että säästösi olisivat nolla. Paljonko olet säästänyt ja paljonko lisäät kuukaudessa?':' I do not have a linked saved balance and monthly contribution for this goal. That does not mean your savings are zero. How much have you saved and how much do you add each month?'):!hasSaved?(fi?' Säästösaldoa ei ole yhdistetty. Tämä ei tarkoita, että säästösi olisivat nolla. Paljonko olet jo säästänyt?':' I do not have a linked saved balance for this goal. That does not mean your savings are zero. How much have you saved so far?'):(fi?' Kuukausisummaa ei ole yhdistetty, joten en voi ennustaa, pysytkö aikataulussa. Paljonko lisäät kuukaudessa?':' I do not have a monthly contribution for this goal, so I cannot forecast whether you are on track. How much do you add each month?');
+      const a=agentMsg(userId,conv.id,conv.helperId,base+known+missing);
       const pm=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.cards?.some(c=>c.type==='goal_confirm')).at(-1);const pd=pm&&!pm.resolved?pm.cards?.find(c=>c.type==='goal_confirm')?.data:undefined;
       if(pd?.entryId===e.id&&pd.existingRevision===goalRevision(e)&&pd.expiresAt&&Date.parse(pd.expiresAt)>Date.now()&&pd.draft?.target){a.text+=' '+(fi?`Ehdotettu tavoite ${pd.draft.target.amount} euroa ei ole tallennettu. Muutos vaatii kortin vahvistuksen.`:`The proposed target ${pd.draft.target.amount} EUR is not saved. Only tapping the card confirmation would apply it.`);db.updateMessage(a.id,{text:a.text});}
       return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
@@ -477,9 +482,15 @@ export function registerV14Routes(app: Express) {
         }
         const g = c.data!.goalId && db.getCabinetEntry(String(c.data!.goalId));
         if (!g || g.userId !== userId || g.status === 'archived') return res.status(409).json({ error: 'This goal is no longer there. Nothing recorded.' });
+        // The card is valid only for the goal as it was when proposed: not expired, target unchanged, no newer numbers recorded since.
+        const pd: any = c.data;
+        if (!pd.expiresAt || !Number.isFinite(Date.parse(pd.expiresAt)) || Date.parse(pd.expiresAt) < Date.now()) return res.status(409).json({ error: 'This progress proposal is no longer current. Ask Nora for a fresh card. Nothing recorded.' });
+        if (pd.targetAmount !== (g.target?.amount ?? null) || pd.targetDate !== (g.target?.date ?? null)) return res.status(409).json({ error: `"${g.title}" changed since this proposal (now ${g.target?.amount} EUR by ${g.target?.date}). Ask Nora for a fresh card. Nothing recorded.` });
+        if ((pd.basisSaved ?? null) !== (g.progress?.saved ?? null) || (pd.basisMonthly ?? null) !== (g.progress?.monthly ?? null)) return res.status(409).json({ error: 'Newer numbers were recorded after this proposal. Ask Nora for a fresh card. Nothing recorded.' });
         const saved = typeof c.data!.saved === 'number' && c.data!.saved >= 0 ? c.data!.saved : undefined;
         const monthly = typeof c.data!.monthly === 'number' && c.data!.monthly >= 0 ? c.data!.monthly : undefined;
         if (saved === undefined && monthly === undefined) return res.status(400).json({ error: 'No amounts on this card' });
+        if (saved !== undefined && g.target && saved > g.target.amount) return res.status(409).json({ error: `${saved} EUR is more than the ${g.target.amount} EUR target. Ask Nora for a fresh card. Nothing recorded.` });
         const prev: any = { ...g, progress: g.progress ?? null };
         db.updateCabinetEntry(g.id, { progress: { ...g.progress, ...(saved !== undefined ? { saved } : {}), ...(monthly !== undefined ? { monthly } : {}), at: now() } }, { by: 'you', how: 'From your chat' });
         const undoToken = id('undo');

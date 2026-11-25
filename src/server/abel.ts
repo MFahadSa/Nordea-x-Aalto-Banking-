@@ -1188,7 +1188,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     if (pg && goal && !linked && ctx.allowedIds.has(goal.id) && (pg.saved !== goal.progress?.saved || pg.monthly !== goal.progress?.monthly)) {
       const newSaved = pg.saved !== goal.progress?.saved ? pg.saved : undefined;
       const newMonthly = pg.monthly !== goal.progress?.monthly ? pg.monthly : undefined;
-      ctx.cards.push({ type: 'goal_progress', title: `Save progress for ${goal.title}?`, data: { goalId: goal.id, title: goal.title, ...(newSaved !== undefined ? { saved: newSaved } : {}), ...(newMonthly !== undefined ? { monthly: newMonthly } : {}) } });
+      // The card carries the goal state it was proposed from (basis, target, expiry): saving is refused if the goal moved on.
+      ctx.cards.push({ type: 'goal_progress', title: `Save progress for ${goal.title}?`, data: { goalId: goal.id, title: goal.title, ...(newSaved !== undefined ? { saved: newSaved } : {}), ...(newMonthly !== undefined ? { monthly: newMonthly } : {}), basisSaved: goal.progress?.saved ?? null, basisMonthly: goal.progress?.monthly ?? null, targetAmount: goal.target?.amount ?? null, targetDate: goal.target?.date ?? null, expiresAt: proposalDeadline() } });
       ctx.extraUsed.push(goal.id);
       progressNote = `\nTHIS TURN, the app shows a card proposing to record the customer's own numbers for the goal "${goal.title}"${newSaved !== undefined ? `: ${newSaved} EUR saved so far` : ''}${newMonthly !== undefined ? `, ${newMonthly} EUR a month` : ''}. Nothing is recorded until they tap Save progress on the card. Repeat the proposed numbers in one short sentence and point to the card; never say they are saved, recorded or updated.`;
     }
