@@ -441,6 +441,19 @@ export const Chat: React.FC<Props> = (p) => {
           {!open&&m.resolved&&<div className="of-done">{m.resolved}</div>}
         </div>;
       }
+      case 'goal_progress': {
+        const savedN = typeof d.saved === 'number' ? d.saved : undefined;
+        const monthlyN = typeof d.monthly === 'number' ? d.monthly : undefined;
+        return (
+          <div className="offer">
+            <div className="of-b" style={{ paddingTop: 14 }}><b>📌 {d.title}</b></div>
+            <div className="of-row"><span>{savedN !== undefined && <>Saved so far: {eur(savedN)}<br /></>}{monthlyN !== undefined && <>Each month: {eur(monthlyN)}</>}</span></div>
+            <div className="of-fee"><span>Nora’s forecast will use these numbers. Nothing is recorded until you tap, and you can undo it later.</span></div>
+            {open && <div className="of-act" style={{ paddingBottom: 12 }}><button className="btn primary" onClick={() => act('progress_save')}>Save progress</button><button className="btn" onClick={() => act('progress_no')}>Don’t save it</button></div>}
+            {!open && m.resolved && <div className="of-done">{m.resolved}</div>}
+          </div>
+        );
+      }
       case 'confirm_save':
         return (
           <div className="offer">

@@ -265,8 +265,6 @@ function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[],
   const aboutEntries = cabinet.filter((e) => e.aboutPart && !String(e.aboutPart).startsWith('fact:'));
   // With its id, so "forget my salary" can remove it (proposeCabinetChange archive). Never show ids.
   const aboutLines = aboutEntries.map((e) => `- ${e.title.split(':')[0]} [id ${e.id}]: ${e.detail || e.title.split(':').slice(1).join(':').trim()}${e.source === 'nordea' ? ' (Nordea data, confirmed by them)' : ' (they told you)'}`);
-  const style = aboutEntries.find((e) => e.aboutPart === 'style')?.aboutValues?.[0];
-  const length = calm ? '1–2 short sentences' : style === 'More detail' ? 'up to 6 sentences when the question needs it' : style === 'Short answers' ? '1–3 sentences' : '2–4 sentences';
   const entries = cabinet.filter((e) => !aboutEntries.includes(e)).map((e) => ({
     id: e.id,
     type: e.type,
@@ -281,15 +279,6 @@ function systemPrompt(userId: string, helperId: string, cabinet: CabinetEntry[],
   return `You are Nora, the AI assistant inside the Nordea mobile banking app.
 Customer: ${u.name}, ${u.age}. Today is ${fin.DEMO_TODAY}. View: ${calm ? 'CALM (older or data-careful customer)' : 'full'}.
 This chat is with the helper: ${helperId}. Focus: ${HELPER_FOCUS[helperId] || HELPER_FOCUS.abel}
-
-HOW TO ANSWER (most important)
-- Straight to the point. First sentence = the exact answer to what they asked: the amount, yes or no, or the step to take. Length: ${length}.
-- No filler: no greeting, no "great question", no restating the question, no summary at the end, no "let me know if…". Stop when the answer is complete.
-- Show you understand THIS customer: add a brief personal reason, one short clause, built on something specific you know about them (their goal by name, their own numbers, their plans, risk or situation). Say it naturally and vary the wording; for example "Because you're saving for Japan, …", "As you like to keep savings safe, …", "With your salary now at 4 000 €, …". These are only examples, not a formula.
-  The reason sits inside the answer sentence or right after it; it never delays the answer. Example: "Yes, put 150 € a month aside: because you're saving for Japan by June, that gets you there in time." Use one reason, two at most, and only one that really matters for this answer. Facts come only from ABOUT THE CUSTOMER, WHAT YOU KNOW (goals and notes) and FACTS; if something you'd need is missing, say in one sentence what it is.
-- Use only what helps with THIS question. Don't bring up goals, balances, spending, plans or offers that don't change the answer.
-- Never repeat something already said in this chat (by you or them).
-- If the question is unclear, ask one short question instead of guessing.
 
 ABOUT THE CUSTOMER (from About you; use it to fit your answer, e.g. their work, home, plans, risk and how they like answers):
 ${aboutLines.length ? aboutLines.join('\n') : '- Nothing confirmed yet.'}
@@ -311,7 +300,7 @@ ${shared.sharedContext}
 ` : ''}Provenance: ${shared.provenance.join(' + ')}.` : 'SHARED CONTEXT: not in use for this customer.'}
 
 HOW YOU TALK
-- Warm, brief, plain language in the customer’s language, like a caring person texting. For English chat, write complete English sentences and finish your thought rather than stopping mid-sentence. ${style === 'More detail' && !calm ? '' : 'Keep each reply under 300 characters when possible. Continue with the next detail after the customer replies. '}Acknowledge feelings only when they share them. At most one question.
+- Warm, brief, plain language in the customer’s language, like a caring person texting. For English chat, write complete English sentences. Keep each reply under 300 characters when possible; finish your thought rather than stopping mid-sentence. Continue with the next detail after the customer replies. Acknowledge feelings first. At most one question; ask if unclear.
 - Use the cabinet naturally, never recite it. Small talk: one or two sentences.
 - Money: 12 000 € (whole euros, or 1 420,50 € if cents matter). Plain text: no markdown, no tables, no JSON, no suggestion lists (quick replies go in suggestions). For a plan over many months, summarise it in a few sentences.
 - Never show ids. When they name something ("the salary one"), find it yourself (newest = latest "added").
@@ -323,7 +312,7 @@ RULES
 - One step: finishReply, plus any action tool in the same step.
 - CONVERSATION: talk like a sharp, warm friend who works at the bank. When the customer is vague, confused or venting, first ask ONE short question that finds the cause (what changed, since when, which bill), then help. Use what they already told you in this chat; never ask for something they said or a card already shows. No generic tip lists or "Quick actions" headings. A light touch of wit is welcome; never at the customer's expense. Suggestions are short things the customer might say next, never actions you cannot do (no "Call the provider").
 - Goals always need a visible proposal and customer tap before save/change. proposeCabinetChange prepares that proposal only. Other meaningful context (life events, preferences, facts) may be saved quietly; never small talk or complaints. Remove by name: action "archive" with its entryId (up to 3). Never "delete everything": point to "Nora knows".
-- Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; a private goal isn't saved unless the customer taps, and other private notes are never saved, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
+- Sensitive (health, pregnancy, mental health, relationship problems): sensitive=true; it isn't saved unless the customer taps, so never say you saved or noted it. A wedding or honeymoon is not sensitive.
 - Passed goal dates: ask if still a plan.
 ${u.offersOff ? '- PARTNER OFFERS ARE OFF: do not mention partner offers, prices, incentives or recommend a partner, even if earlier chat contains one. Help without a partner pitch.\n' : ''}- CARDS: the app decides partner offers, questions and suggestions itself, from what the customer said. You never offer products or benefits on your own and never ask the app's questions yourself. Partner offers: when the customer has described a need one partner directly helps with and THIS TURN has no card, you may call offerPartnerForNeed with their exact words; if the cause is unclear, first ask one short, friendly question. Never push an offer the customer did not need. You and never write a card as text (no "[Card: …]"). THIS TURN: ${cardNote || 'No card. Do not mention any card, partner, offer or suggestion "below".'}
 - Adviser card (startHandoff): only when they ask for a person, or about a loan or mortgage, and only if THIS TURN has no card.
@@ -840,17 +829,14 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
       // v29: Nora cannot set reminders, so a reminder is never saved as a note.
       if (/\bremind(er|ers|ing)?\b/i.test(`${a.title || ''}`) || (/\bremind me\b/i.test(ctx.userText) && action !== 'archive'))
         return { saved: false, error: 'You cannot set reminders. Say so kindly and suggest their phone\'s calendar. Nothing was saved.' };
-      // Memory settings (More → Memory): the customer decides whether Nora saves from chats at all,
-      // and whether private topics may be saved. Removing (archive) always works.
+      // Memory settings (More → Memory): the customer decides whether Nora saves from chats at all.
+      // Removing (archive) always works. A private note still gets the Save privately card below.
       const mem = memoryOf(ctx.userId);
       // A refused goal gets the app's own words for it (otherwise the customer is asked to check the goal name).
       if (action !== 'archive' && !mem.fromChats) {
         if (a.type === 'goal' || action === 'update') ctx.goalWriteReplies = [...(ctx.goalWriteReplies || []), finnishGoalRequest(ctx.userText) ? 'En tallentanut mitään, koska ”Remember things from chats” on pois päältä (More → Memory). Voit lisätä tavoitteen itse kohdassa Nora knows.' : 'I have not saved anything, because “Remember things from chats” is off (More → Memory). You can add it yourself in Nora knows.'];
         return { saved: false, error: 'The customer turned off "Remember things from chats" in More → Memory. Nothing was saved. Say so briefly; they can add it themselves in Nora knows.' };
       }
-      // A private goal still gets the confirm card below: saved only after the tap, and only Nora can read it.
-      if (action === 'add' && sensitive && a.type !== 'goal' && !mem.sensitive)
-        return { saved: false, error: 'Private notes are never saved (More → Memory: "Exclude private topics" is always on). Nothing was saved. Do not say you saved or noted it; you may say Nora doesn’t keep private notes.' };
       if (action === 'add') {
         const title = String(a.title || '').trim().slice(0, 80);
         if (a.type !== 'goal' && /^(?:started|starting|attends?|studies at|is (?:a )?student|higher.education student)(?:\s+(?:a|the))?\s*(?:university|college|uas|student)?(?:\s+this (?:autumn|fall|year))?$/i.test(title) && db.getCabinetEntries(ctx.userId).some(e => /Studies at a university or UAS/i.test(e.title))) return { saved: false, alreadyKnown: true, note: 'The structured student fact is already saved. Do not save a second general student note.' };
@@ -1192,20 +1178,19 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     ...read.allowed.map(e=>({owner:'cabinet' as const,id:e.id,revision:sourceRevision([e.title,e.detail,e.target,e.goalType,e.updatedAt||e.createdAt]),title:e.title,detail:e.detail,data:{type:e.type,target:e.target,goalType:e.goalType}})),
     ...(shared?.sources || []),
   ] : [];
-  // Goal progress said in chat ("I've saved 800 € for Japan"): for a goal not linked to an account, the code
-  // records the customer's own numbers (with Undo) and tells Nora, so progress is no longer "unknown".
+  // Goal progress said in chat ("I've saved 800 € for Japan"): for a goal not linked to an account, the app
+  // proposes the customer's own numbers on a card. Nothing is written until the customer taps Save progress.
   let progressNote = '';
   if (helperId !== 'person' && !/\?\s*$/.test(userText)) {
     const pg = goalProgressIn(userId, userText);
     const goal = pg && db.getCabinetEntry(pg.goalId);
     const linked = goal && fin.goalStatus(userId, goal).source !== 'customer-stated' && fin.goalStatus(userId, goal).source !== 'unlinked';
     if (pg && goal && !linked && ctx.allowedIds.has(goal.id) && (pg.saved !== goal.progress?.saved || pg.monthly !== goal.progress?.monthly)) {
-      const prev = { ...goal };
-      db.updateCabinetEntry(goal.id, { progress: { ...(pg.saved !== undefined ? { saved: pg.saved } : {}), ...(pg.monthly !== undefined ? { monthly: pg.monthly } : {}), at: new Date().toISOString() } }, { by: 'abel', how: 'From your chat' });
-      const undoToken = recordUndo({ userId, action: 'update', description: `Updated "${goal.title}"`, previousEntry: prev, entryId: goal.id });
-      ctx.notes.push({ text: `📌 Progress noted for ${goal.title}${pg.saved !== undefined ? `: ${pg.saved.toLocaleString('fi-FI')} € saved` : ''}${pg.monthly !== undefined ? `${pg.saved !== undefined ? ',' : ':'} ${pg.monthly.toLocaleString('fi-FI')} € a month` : ''}`, undoToken, entryId: goal.id });
+      const newSaved = pg.saved !== goal.progress?.saved ? pg.saved : undefined;
+      const newMonthly = pg.monthly !== goal.progress?.monthly ? pg.monthly : undefined;
+      ctx.cards.push({ type: 'goal_progress', title: `Save progress for ${goal.title}?`, data: { goalId: goal.id, title: goal.title, ...(newSaved !== undefined ? { saved: newSaved } : {}), ...(newMonthly !== undefined ? { monthly: newMonthly } : {}) } });
       ctx.extraUsed.push(goal.id);
-      progressNote = `\nTHIS TURN, the app recorded the customer's own numbers for the goal "${goal.title}"${pg.saved !== undefined ? `: ${pg.saved} EUR saved so far` : ''}${pg.monthly !== undefined ? `, ${pg.monthly} EUR a month` : ''}. Its progress in FACTS is now known. Confirm it in one short sentence; do not ask for these numbers again.`;
+      progressNote = `\nTHIS TURN, the app shows a card proposing to record the customer's own numbers for the goal "${goal.title}"${newSaved !== undefined ? `: ${newSaved} EUR saved so far` : ''}${newMonthly !== undefined ? `, ${newMonthly} EUR a month` : ''}. Nothing is recorded until they tap Save progress on the card. Repeat the proposed numbers in one short sentence and point to the card; never say they are saved, recorded or updated.`;
     }
   }
   const bankFacts=factsFor(userId,new Set());
@@ -1274,8 +1259,8 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   system += progressNote;
   // Cards still waiting for the customer's tap in this chat. Seen live: after "ok do it" the model forgot the
   // waiting card and asked for the amount again.
-  const waitingCards=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&!m.resolved).flatMap(m=>(m.cards||[]).filter(c=>c.type==='confirm_plan'||c.type==='goal_confirm'));
-  if(waitingCards.length)system+='\nWAITING FOR THE CUSTOMER\'S TAP (already on screen above): '+waitingCards.map(c=>{const d=c.data as any;return c.type==='confirm_plan'?`${d.once?'a one-time move':'a monthly transfer'} of ${d.amount} € from the current account to ${d.to}`:`a goal proposal "${d?.draft?.title||''}"`;}).join('; ')+'. Typed words such as "ok", "do it" or "go" cannot confirm it; only the button on that card can. If the customer agrees, tell them to use that button. Do not ask again for details the card already shows. If they want a different amount, prepare a new card with offerTransfer.';
+  const waitingCards=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&!m.resolved).flatMap(m=>(m.cards||[]).filter(c=>c.type==='confirm_plan'||c.type==='goal_confirm'||c.type==='goal_progress'));
+  if(waitingCards.length)system+='\nWAITING FOR THE CUSTOMER\'S TAP (already on screen above): '+waitingCards.map(c=>{const d=c.data as any;return c.type==='confirm_plan'?`${d.once?'a one-time move':'a monthly transfer'} of ${d.amount} € from the current account to ${d.to}`:c.type==='goal_progress'?`a Save progress card for "${d?.title||''}"`:`a goal proposal "${d?.draft?.title||''}"`;}).join('; ')+'. Typed words such as "ok", "do it" or "go" cannot confirm it; only the button on that card can. If the customer agrees, tell them to use that button. Do not ask again for details the card already shows. If they want a different amount, prepare a new card with offerTransfer.';
   if(bounded)system=system.replace("FACTS (computed by the bank's code just now; use these numbers directly, no tool call needed):",'FACTS (computed bank context. For personal numeric or calendar answers choose the supplied FINANCIAL FACT HANDLES in finishReply.financialAnswer; do not copy numbers into prose):').replace('use these numbers directly','choose the corresponding financialAnswer handles').replace('- Numbers only from FACTS, the cabinet, this chat or a tool result, or simple maths on them (show the sum briefly).','- Personal numbers and dates must be selected through financialAnswer handles or supported calculation expressions. The app renders values with their roles and units. The only exception: you may say a figure in your own words when it is exactly a supplied handle value and the same sentence says what it is (e.g. "your average spending is 2 107 € a month"). Never give a figure another role, unit or month.');
   if(ctx.clarificationReadOnly)system+='\nCLARIFICATION ANSWER: The last reply asked '+JSON.stringify(prior!.clarification)+'. Use the answer only for this conversation. Do not save notes or infer eligibility from a clarification answer. A separate explicit new action request still uses the existing confirmation controls, never direct execution. If the answer is unknown, do not repeat the same question; give supported general help without guessing.';
   system += '\nFACT ROLES: Every figure has a role and unit. A number appearing somewhere is not permission to assign it to another field. For goals, saved, target, monthly contribution, shortfall and months left are separate. For products, opening/starting year, purchase/payment date, annual interest and one-time bonus are separate. PS annual contribution deduction cap and historical balance withdrawal test are separate. Energy monthly fee, usage price and spot margin are separate; never present just a fee as the total cost. Say unknown when coverage or a term is absent. Use the customer\'s language, but retain the exact meaning, threshold boundary and conditions. Do not expand an acronym unless CHECKED BACKGROUND provides the expansion. Do not invent screens, sections or availability; describe only actual controls in the displayed contract.';
@@ -1613,6 +1598,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     if (reviewedProblem) return reviewedProblem;
     if (looksLikeCode(text)) return 'Your reply was code or a tool call written as text. Call the tool properly, and give the customer plain words in finishReply.';
     if (ctx.cards.some((c) => c.type === 'confirm_save') && SAVED_CLAIM.test(text)) return 'This sensitive thing was NOT saved: the customer chooses with the Save privately card. Write the reply again: be kind, and do not say you added, saved or noted it.';
+    if (ctx.cards.some((c) => c.type === 'goal_progress') && SAVED_CLAIM.test(text)) return 'The goal numbers were NOT recorded: the customer chooses with the Save progress card. Write the reply again: name the proposed numbers, point to the card, and do not say you added, saved, recorded or updated them.';
     if (PAY_OTHER.test(userText) && !ctx.cards.some((c) => c.type === 'confirm_plan') && PAY_CLAIM.test(text)) return 'You cannot pay or send money to another person, so do not offer to set it up or ask them to confirm. Write the reply again: say so kindly and point them to Payments in the app.';
     // v28: words about a card that the app is not showing ("the partner card I shared", "a card below").
     // Seen live: "you're saving 150 € each month (saving_rate)": internal field names are not for the customer.

@@ -614,6 +614,7 @@ export function registerAboutRoutes(app: Express) {
   // Demo: start the About you story again (answers, points markers, offer choices).
   app.post('/api/about/reset', (req, res) => {
     const userId = uidOf(req);
+    if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });
     for (const e of db.getCabinetEntries(userId).filter((x) => x.aboutPart)) db.deleteCabinetEntry(e.id, { by: 'you', how: 'Demo reset', purge: true });
     db.updateUser(userId, { aboutRewarded: [], offerState: {}, aboutOff: [] } as never);
     res.json(aboutView(userId));

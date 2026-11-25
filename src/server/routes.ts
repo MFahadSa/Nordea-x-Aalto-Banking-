@@ -174,10 +174,14 @@ export function registerV14Routes(app: Express) {
     const missingLinkQuestion=/(?:\?|^(?:how|what|am I|do I|paljonko|kuinka|olenko))/iu.test(text)&&/(?:saved|saving|save|short|remain|on track|extra|sääst|puuttu)/iu.test(text)&&!/(?:change|update|set|create|add|rename|muuta|vaihda|nosta|poista|note)/iu.test(text);
     if(namedUnlinked.length===1&&missingLinkQuestion&&!/\band\b|also|payday|salary/iu.test(text)){
       const e=namedUnlinked[0],fi=/(?:paljonko|mitä|kuinka|sääst|tavoite|sohva)/iu.test(text);
+      const gs=fin.goalStatus(userId,e);
+      // Numbers the customer already told us answer the question; the missing-link shortcut only applies when they are unknown.
+      if(!Number.isFinite(gs.saved)||!Number.isFinite(gs.monthlyGoingIn)){
       const a=agentMsg(userId,conv.id,conv.helperId,fi?`Tallennettu tavoite "${e.title}" on ${e.target!.amount} euroa, määräpäivä ${e.target!.date}. Tavoitteeseen ei ole yhdistetty säästösaldoa ja kuukausisummaa. Tämä ei tarkoita, että säästösi olisivat nolla. Paljonko olet säästänyt ja paljonko lisäät kuukaudessa?`:`The saved "${e.title}" target is ${e.target!.amount} EUR by ${e.target!.date}. I do not have a linked saved balance and monthly contribution for this goal. That does not mean your savings are zero. How much have you saved and how much do you add each month?`);
       const pm=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.cards?.some(c=>c.type==='goal_confirm')).at(-1);const pd=pm&&!pm.resolved?pm.cards?.find(c=>c.type==='goal_confirm')?.data:undefined;
       if(pd?.entryId===e.id&&pd.existingRevision===goalRevision(e)&&pd.expiresAt&&Date.parse(pd.expiresAt)>Date.now()&&pd.draft?.target){a.text+=' '+(fi?`Ehdotettu tavoite ${pd.draft.target.amount} euroa ei ole tallennettu. Muutos vaatii kortin vahvistuksen.`:`The proposed target ${pd.draft.target.amount} EUR is not saved. Only tapping the card confirmation would apply it.`);db.updateMessage(a.id,{text:a.text});}
       return {status:201,body:{conversationId:conv.id,messages:[u,a]}};
+      }
     }
     const lastAgent = db.getMessages(userId).filter((m) => m.conversationId === conv!.id && m.sender === 'agent').slice(-1)[0];
     const pendingGoal=db.getMessages(userId).filter(m=>m.conversationId===conv!.id&&m.sender==='agent'&&m.cards?.some(c=>c.type==='goal_confirm')).at(-1);
@@ -446,8 +450,7 @@ export function registerV14Routes(app: Express) {
         break;
       }
       case 'save_private':
-      case 'save_no': {
-        const c = card('confirm_save');
+      case 'save_no': {        const c = card('confirm_save');
         if (!c) return res.status(400).json({ error: 'Nothing to save on this message' });
         if (action === 'save_no') {
           db.updateMessage(msg.id, { resolved: 'Don’t save it' });
@@ -461,6 +464,28 @@ export function registerV14Routes(app: Express) {
         db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'create', description: `Added "${e.title}" (private)`, previousEntry: null, entryId: e.id });
         db.updateMessage(msg.id, { resolved: 'Save privately' });
         out.push(agentMsg(userId, conv, helper, `Saved privately. Only I can read it, never offers.${e.target?` Target: ${e.target.amount} EUR by ${e.target.date}.`:''}`, { notes: [{ text: `📌 Nora will remember this: ${e.title}`, undoToken, entryId: e.id }] }));
+        break;
+      }
+      case 'progress_save':
+      case 'progress_no': {
+        const c = card('goal_progress');
+        if (!c) return res.status(400).json({ error: 'No progress proposal on this message' });
+        if (action === 'progress_no') {
+          db.updateMessage(msg.id, { resolved: 'Don’t save it' });
+          out.push(agentMsg(userId, conv, helper, 'Okay, nothing was recorded. Your goal stays as it is.'));
+          break;
+        }
+        const g = c.data!.goalId && db.getCabinetEntry(String(c.data!.goalId));
+        if (!g || g.userId !== userId || g.status === 'archived') return res.status(409).json({ error: 'This goal is no longer there. Nothing recorded.' });
+        const saved = typeof c.data!.saved === 'number' && c.data!.saved >= 0 ? c.data!.saved : undefined;
+        const monthly = typeof c.data!.monthly === 'number' && c.data!.monthly >= 0 ? c.data!.monthly : undefined;
+        if (saved === undefined && monthly === undefined) return res.status(400).json({ error: 'No amounts on this card' });
+        const prev: any = { ...g, progress: g.progress ?? null };
+        db.updateCabinetEntry(g.id, { progress: { ...g.progress, ...(saved !== undefined ? { saved } : {}), ...(monthly !== undefined ? { monthly } : {}), at: now() } }, { by: 'you', how: 'From your chat' });
+        const undoToken = id('undo');
+        db.addUndoRecord({ undoToken, timestamp: now(), userId, action: 'update', description: `Updated "${g.title}"`, previousEntry: prev, entryId: g.id });
+        db.updateMessage(msg.id, { resolved: 'Save progress' });
+        out.push(agentMsg(userId, conv, helper, `Recorded for “${g.title}”${saved !== undefined ? `: ${fmt(saved)} saved` : ''}${monthly !== undefined ? `${saved !== undefined ? ',' : ':'} ${fmt(monthly)} a month` : ''}. Your forecast now uses these numbers.`, { notes: [{ text: `📌 Progress recorded for ${g.title}`, undoToken, entryId: g.id }] }));
         break;
       }
       case 'case_answer': {

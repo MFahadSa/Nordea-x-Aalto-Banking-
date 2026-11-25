@@ -285,6 +285,8 @@ export interface MessageCard {
     | 'handoff'
     | 'confirm_save'
     | 'confirm_plan'
+    /** Goal progress the customer said in chat, recorded only after the Save progress tap. */
+    | 'goal_progress'
     | 'duplicate'
     /** v21: a Nordea adviser's question about a case, answered in the card. */
     | 'case_request'

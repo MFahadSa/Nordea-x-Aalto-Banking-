@@ -1,14 +1,14 @@
 // Memory settings (More → Memory), modelled on Claude's memory settings and adapted to banking.
 // Nora follows them in src/server/abel.ts:
-//  - searchChats: Nora may look at the titles of the customer's earlier chats with her.
+//  - searchChats: Nora may look at the titles of the customer's earlier chats with her. Off until the customer turns it on.
 //  - fromChats:   Nora may suggest things to remember from a chat (they still need the customer's OK).
-//  - sensitive:   always false. Private topics (health, religion, relationships…) are never saved as notes; not a setting.
-//                 A private goal may be saved, but only after the customer taps its confirm card.
+//  - sensitive:   private topics (health, religion, relationships…) are never saved automatically; a private note is
+//                 saved only when the customer taps Save privately, a private goal only after its confirm card.
 import type { Express, Request } from 'express';
 import { db } from './db.js';
 
 export interface MemorySettings { searchChats: boolean; fromChats: boolean; sensitive: boolean }
-export const MEMORY_DEFAULTS: MemorySettings = { searchChats: true, fromChats: true, sensitive: false };
+export const MEMORY_DEFAULTS: MemorySettings = { searchChats: false, fromChats: true, sensitive: false };
 
 export function memoryOf(userId: string): MemorySettings {
   const u = db.getUser(userId) as unknown as { memory?: Partial<MemorySettings> } | undefined;

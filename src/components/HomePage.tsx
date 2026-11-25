@@ -1,4 +1,4 @@
-import { RefundHomeCard } from './Refund.js';
+import { RefundHomeCard, useRefundNoraCount } from './Refund.js';
 import React, { useState } from 'react';
 import { AppState } from '../services/api.js';
 import { CabinetEntry } from '../types.js';
@@ -98,8 +98,9 @@ export const HomePage: React.FC<Props> = (p) => {
   const available = acc.current.balance + acc.savings.balance + (acc.carFund?.balance || 0);
   const carGoal = state.entries.find((e) => e.goalType === 'car' && e.status !== 'archived');
 
-  // The bell counts what waits for the customer (Nordea noticed, old goals) and opens Nora knows → Waiting for you.
-  const waitingCount = feed.length;
+  // The bell counts what waits for the customer (Nordea noticed, old goals, refund news) and opens Nora knows → Waiting for you.
+  const refundN = useRefundNoraCount(state.user.id);
+  const waitingCount = feed.length + refundN;
   const goals = state.goals || [];
   const mainGoal = goals.find((g) => /flat|home|house|apartment/i.test(g.title)) || goals[0];
   const accounts = [
@@ -136,6 +137,7 @@ export const HomePage: React.FC<Props> = (p) => {
         ))}
         {/* The existing Nordea app: shown so Nora sits in a familiar place. Tapping says so. */}
         <QuickActions onFrame={p.onFrame} />
+        <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         {(state.notices || []).filter(n => n.kind === 'decision').map((n) => (
           <button key={n.id} className="ncard notice" onClick={() => p.onOpenConversation(n.conversationId)}>
             <span className="nt-ic" aria-hidden="true"><Icon name={n.kind === 'question' ? 'chat' : 'check'} /></span>
@@ -182,7 +184,6 @@ export const HomePage: React.FC<Props> = (p) => {
           </button>
         </div>
         {p.offers}
-        <RefundHomeCard userId={state.user.id} onOpen={() => p.onOpenPage('refund')} />
         {p.getMore}
 
         <p className="foot-note">You can see and remove what Nora uses in Nora knows.</p>

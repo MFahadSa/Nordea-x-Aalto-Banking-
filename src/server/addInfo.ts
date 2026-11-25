@@ -94,7 +94,7 @@ function byRules(text: string): Understood {
   const wantsGoal = GOAL.test(t) && (/\b(save|saving|put aside|goal|fund|afford|buy|buying)\b/i.test(t) || amounts.length > 0);
   if (wantsGoal && !LIFE.test(t.replace(/\b(trip|holiday|travel)\b/gi, '')) || wantsGoal && amounts.length) {
     const goalType = goalTypeOf(t);
-    const title = shortTitle(t.replace(/\b(by|before|in|until)\b.*$/i, '').replace(/\b(about|around|roughly)?\s*\d[\d\s.,]*\s*(k\b|€|eur(os?)?\b)?/gi, '').replace(/\s{2,}/g, ' ')) || 'Savings goal';
+    const title = shortTitle(t.replace(/\b(by|before|in|until)\b.*$/i, '').replace(/\b(a|per|each|every) month\b|\bmonthly\b/gi, '').replace(/\b(about|around|roughly)?\s*\d[\d\s.,]*\s*(k\b|€|eur(os?)?\b)?/gi, '').replace(/\s{2,}/g, ' ')) || 'Savings goal';
     if (!amounts.length || !date) return { ok: false, reason: 'goal_details', title, goalType,
       message: `To track it as a goal, Nora needs ${!amounts.length && !date ? 'an amount and a date' : !amounts.length ? 'an amount' : 'a date'}.` };
     return { ok: true, by: 'rules', draft: { type: 'goal', title, detail: t, goalType, target: { amount: amounts[0], date } } };
@@ -112,7 +112,9 @@ export async function understandInfo(text: string, userId?: string): Promise<Und
   const prog = userId ? goalProgressIn(userId, t) : null;
   if (prog) return { ok: true, by: 'rules', progress: prog };
   // Something changed in what About you already says: update that line (the same smart correction as "Not right").
-  const now = userId ? ABOUT_NOW.find((a) => a.re.test(t)) : undefined;
+  // A goal ("I'm saving 5 000 € for a car by August 2027") is never a money-habit update: the goal wording wins.
+  const goalLike = GOAL.test(t) && (!!dateIn(t) || /\b(for|towards)\b[^.]*\b(by|before|until)\b/i.test(t) || /\b(save|saving|saved|putting? (aside|away))\b[^.]*\b(for|towards)\b/i.test(t));
+  const now = userId && !goalLike ? ABOUT_NOW.find((a) => a.re.test(t)) : undefined;
   if (userId && now) {
     const v = aboutView(userId);
     const f = v.fields[now.key];
@@ -161,24 +163,43 @@ export async function understandInfo(text: string, userId?: string): Promise<Und
 
 const PROGRESS = /\b(i'?ve|i have|we'?ve|we have|i'?d|already)\s+(already\s+)?(saved|put (aside|away))\b|\bsaved so far\b|\bso far\b.*\bsaved\b|\b(put|putting|add|adding|save|saving|move|moving)\b[^.]*\b(a|per|each|every) month\b|\bmonthly\b/i;
 const COMMON = new Set(['save', 'saving', 'saved', 'goal', 'for', 'the', 'and', 'with', 'my', 'our', 'a', 'to', 'by', 'buy', 'trip', 'fund', 'month']);
+/** Money that is never goal progress, whatever the sentence also says: rent, salary, bills and other obligations. */
+const NOT_GOAL_MONEY = /\b(rent|rents|salary|salaries|wages?|income|paycheck|bills?|mortgage|electricity|heating|phone|internet|insurance|subscriptions?|spotify|netflix|loan|loans|invoice|invoices|groceries|expenses?)\b/i;
+const wordsOf = (x: string) => new Set((x.toLowerCase().match(/[a-zåäö]{3,}/g) || []).filter((w) => !COMMON.has(w)));
+const AMOUNT = /(\d[\d\s.,]*\d|\d)\s*(k\b)?\s*(€|eur(?:os?)?\b)?/gi;
+const num = (m: RegExpMatchArray) => Number(m[1].replace(/\s/g, '').replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.')) * (m[2] ? 1000 : 1);
 
 /** "I've saved 800 € for the Japan trip, and I put 150 € a month in": which goal, and the two amounts. */
 export function goalProgressIn(userId: string, text: string): { goalId: string; title: string; saved?: number; monthly?: number } | null {
   if (!PROGRESS.test(text)) return null;
   const goals = db.getCabinetEntries(userId).filter((e) => e.type === 'goal' && e.status === 'active' && e.target);
   if (!goals.length) return null;
-  const words = (x: string) => new Set((x.toLowerCase().match(/[a-zåäö]{3,}/g) || []).filter((w) => !COMMON.has(w)));
-  const tw = words(text);
-  const named = goals.filter((g) => [...words(`${g.title} ${g.goalType || ''}`)].some((w) => tw.has(w) || [...tw].some((x) => x.length > 4 && w.startsWith(x.slice(0, 5)))));
+  const tw = wordsOf(text);
+  const named = goals.filter((g) => [...wordsOf(`${g.title} ${g.goalType || ''}`)].some((w) => tw.has(w) || [...tw].some((x) => x.length > 4 && w.startsWith(x.slice(0, 5)))));
   const goal = named.length === 1 ? named[0] : goals.length === 1 ? goals[0] : null;
   if (!goal) return null;
+  const gw = wordsOf(`${goal.title} ${goal.goalType || ''}`);
+  const goalish = (clause: string) => {
+    const cw = wordsOf(clause);
+    return [...gw].some((w) => cw.has(w) || [...cw].some((x) => x.length > 4 && w.startsWith(x.slice(0, 5))));
+  };
+  const aboutSaving = (clause: string) => /\b(saved|save|saving|put|putting|aside|away|add|adding|so far|monthly|into it|towards)\b/i.test(clause);
+  // Each amount belongs to its own clause: "saved 800 for Japan, and my rent is 1150 a month" records 800 only.
+  const clauses = text.split(/[,;.!?]|\band\b|\bbut\b|\bwhile\b/i);
   let saved: number | undefined, monthly: number | undefined;
-  for (const m of text.matchAll(/(\d[\d\s.,]*\d|\d)\s*(k\b)?\s*(€|eur(?:os?)?\b)?/gi)) {
-    const n = Number(m[1].replace(/\s/g, '').replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.')) * (m[2] ? 1000 : 1);
-    if (!(n > 0) || n >= 1900 && n <= 2100 && !m[3]) continue;
-    const after = text.slice((m.index || 0) + m[0].length, (m.index || 0) + m[0].length + 18);
-    if (/^\s*(a|per|each|every) month|^\s*monthly/i.test(after) && monthly === undefined) monthly = n;
-    else if (saved === undefined) saved = n;
+  for (const clause of clauses) {
+    if (NOT_GOAL_MONEY.test(clause)) continue;
+    const tied = goalish(clause) || aboutSaving(clause);
+    if (!tied) continue;
+    AMOUNT.lastIndex = 0;
+    for (const m of clause.matchAll(AMOUNT)) {
+      const n = num(m);
+      if (!(n > 0) || (n >= 1900 && n <= 2100 && !m[3])) continue;
+      const after = clause.slice((m.index || 0) + m[0].length, (m.index || 0) + m[0].length + 18);
+      const isMonthly = /^\s*(a|per|each|every) month|^\s*monthly/i.test(after) || /\b(a|per|each|every) month\b|\bmonthly\b/i.test(clause);
+      if (isMonthly) { if (monthly === undefined) monthly = n; }
+      else if (saved === undefined) saved = n;
+    }
   }
   if (saved === undefined && monthly === undefined) return null;
   // A saved amount bigger than the target is not "saved so far" (probably the target): leave it.

@@ -16,7 +16,7 @@ import { Icon } from '../ui/icons.js';
 import { eur, monthShort, monthLong, dayMonth } from '../ui/format.js';
 import { Band, RoundActions, BAND_BG } from './Nordea.js';
 import { AboutCard } from './AboutYou.js';
-import { RefundKnows } from './Refund.js';
+import { RefundKnows, RefundNoraCard, useRefundNoraCount } from './Refund.js';
 
 export interface CabinetProps {
   state: AppState;
@@ -153,7 +153,9 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
   // 2. Waiting: Nordea's guesses not yet confirmed, and goals that look out of date.
   const guesses = items.filter((e) => fromNordea(e) && !e.reviewed);
   const stale = items.filter((e) => e.type === 'goal' && e.status === 'stale');
-  const waitingCount = guesses.length + stale.length + pipe.length + approvals.length;
+  // Refund news waits here too, so the Home bell leads to it.
+  const refundN = useRefundNoraCount(state.user.id);
+  const waitingCount = guesses.length + stale.length + pipe.length + approvals.length + refundN;
   // 3. From you / 4. From Nordea (confirmed).
   const mine = items.filter((e) => !fromNordea(e) && e.status === 'active' && !tracked.has(e.id));
   const nordea = items.filter((e) => fromNordea(e) && e.reviewed && e.status === 'active');
@@ -196,6 +198,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
         <Band left="Waiting for you" right={waitingCount ? <span className="cb-count">{waitingCount}</span> : undefined} />
         <div className="ncard cb-sec">
           {!waitingCount && <p className="cb-empty"><Icon name="check" size={16} strokeWidth={2.6} />Nothing waiting. You’re all set.</p>}
+          <RefundNoraCard userId={state.user.id} onOpen={p.onOpenRefundCase || (() => {})} />
           {guesses.map((e) => (
             <div className="cb-item" key={e.id}>
               <span className="cb-src bank"><Icon name="bank" size={13} />Nordea noticed</span>
