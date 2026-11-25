@@ -569,6 +569,20 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
             )}
           </>
         )}
+        <Band left="Use your points" right={`${pts} to spend`} />
+        <div className="ncard flat" id="use-points">
+          {rewards.map((r) => {
+            const can = pts >= r.pts;
+            return (
+              <NRow
+                key={r.id}
+                name={r.short}
+                sub={can ? `${r.pts} points` : `${r.pts} points · ${r.pts - pts} to go`}
+                right={<button className={`btn small ${can ? 'primary' : ''}`} disabled={!can} onClick={() => onUse(r)}>{can ? 'Use' : 'Locked'}</button>}
+              />
+            );
+          })}
+        </div>
         {/* Keep Nora up to date: the best-paid way to earn, one tap from here. */}
         {onAddInfo && (
           <div className="ncard rw-info">
@@ -593,20 +607,6 @@ export const RewardsPage: React.FC<{ state: AppState; rewards: Reward[]; onAsk: 
           )}
           <NRow name={state.user.extraMonthly ? 'Saving plan set up' : 'Set up a saving plan'} sub={state.user.extraMonthly ? `You save ${eur(state.user.extraMonthly)} more a month` : 'Plan your payday with Nora'}
             onClick={state.user.extraMonthly ? undefined : () => go('autopilot')} right={state.user.extraMonthly ? done : pill(50)} />
-        </div>
-        <Band left="Use your points" right={`${pts} to spend`} />
-        <div className="ncard flat" id="use-points">
-          {rewards.map((r) => {
-            const can = pts >= r.pts;
-            return (
-              <NRow
-                key={r.id}
-                name={r.short}
-                sub={can ? `${r.pts} points` : `${r.pts} points · ${r.pts - pts} to go`}
-                right={<button className={`btn small ${can ? 'primary' : ''}`} disabled={!can} onClick={() => onUse(r)}>{can ? 'Use' : 'Locked'}</button>}
-              />
-            );
-          })}
         </div>
         {used.length > 0 && (
           <>
