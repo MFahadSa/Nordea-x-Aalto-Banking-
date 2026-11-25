@@ -491,6 +491,8 @@ function collectNumbers(v: unknown, out: number[]) {
 
 // ---------- tool execution ----------
 interface TurnCtx {
+  /** Set once the turn's financial evidence exists: records a bank tool the model called and returns its fact handles. */
+  onBankTool?: (tool: 'getAccounts' | 'getSalary' | 'getSpending' | 'getPayPlan') => unknown;
   userId: string;
   conversationId: string;
   allowedIds: Set<string>;
@@ -809,12 +811,21 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
       ctx.changes += ids.length;
       return { ...result, facts: ids.map(id => { const e = db.getCabinetEntry(id); return e ? { fact: e.factKey, value: e.factValue, title: e.title } : null; }), instruction: 'The question was processed. Describe the result and actual next card only. Do not repeat the old question or invent eligibility. Saved facts are listed in savedIds; Undo is available.' };
     }
-    case 'getAccounts':
-      return fin.accounts(ctx.userId);
-    case 'getSpending':
-      return fin.spending(ctx.userId, Math.min(12, Math.max(1, Number(a.months) || 3)), a.category || undefined);
-    case 'getSalary':
-      return fin.salaryInfo(ctx.userId);
+    case 'getAccounts': {
+      const data = fin.accounts(ctx.userId);
+      const factHandles = ctx.onBankTool?.('getAccounts');
+      return factHandles ? { ...data, factHandles } : data;
+    }
+    case 'getSpending': {
+      const data = fin.spending(ctx.userId, Math.min(12, Math.max(1, Number(a.months) || 3)), a.category || undefined);
+      const factHandles = ctx.onBankTool?.('getSpending');
+      return factHandles ? { ...data, factHandles } : data;
+    }
+    case 'getSalary': {
+      const data = fin.salaryInfo(ctx.userId);
+      const factHandles = ctx.onBankTool?.('getSalary');
+      return factHandles ? { ...data, factHandles } : data;
+    }
     case 'getGoalStatus': {
       if(ctx.retrieve)ctx.retrieve({query:ctx.userText,goalId:a.goalId});
       const goals = fin.activeGoals(ctx.userId).filter((g) => (!ctx.exposedIds || ctx.exposedIds.has(g.id)) && ctx.allowedIds.has(g.id) && (!a.goalId || g.id === a.goalId));
@@ -823,7 +834,8 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
     case 'getPayPlan': {
       const plan=fin.payPlan(ctx.userId, Number(a.keepInCurrentAccount) || 500);
       if(ctx.exposedIds)plan.towardsGoal=null;
-      return plan;
+      const factHandles=ctx.onBankTool?.('getPayPlan');
+      return factHandles?{...plan,factHandles}:plan;
     }
     case 'checkAffordability': {
       const amt = Number(a.amount);
@@ -1277,6 +1289,9 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   let checkedContext = reviewedContext(backgroundRequest, db.getUser(userId)?.age, fin.DEMO_TODAY, shownPartners);
   let groundedNote = checkedContext;
   const financialEvidence=new TurnFinancialEvidence(userId,conversationId,newId('financial-turn'),(id,revision)=>{if(id==='request:current')return sourceRevision(userText)===revision;if(id==='bank:getSpending')return sourceRevision({...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}})===revision;if(id==='bank:getPayPlan')return sourceRevision(fin.payPlan(userId))===revision;if(id==='bank:getAccounts')return sourceRevision(fin.accounts(userId))===revision;if(id==='bank:getSalary')return sourceRevision(fin.salaryInfo(userId))===revision;const current=previewCabinetForAgent(userId,'abel').allowed;if(id.startsWith('status:')){const e=current.find(e=>e.id===id.slice(7));return !!e&&e.status!=='archived'&&!!e.target&&sourceRevision({...fin.goalStatus(userId,e),goalType:e.goalType,...(e.status==='stale'?{stale:true,savingRateKnown:false}:{savingRateKnown:fin.primaryGoal(userId)?.id===e.id})})===revision;}const e=current.find(e=>e.id===id);return !!e&&sourceRevision([e.title,e.detail,e.target,e.updatedAt,e.status,e.readableBy])===revision;});
+  // Only marks the tool as asked for. Its checked figures are the ones registered above from the same bank functions;
+  // a different view the model asks for (another spending window, another buffer) is not a checked fact.
+  ctx.onBankTool=(tool)=>financialEvidence.requestedBank(tool);
   selected.forEach(e=>financialEvidence.includeEntry(e));facts.goals.forEach(g=>financialEvidence.includeGoal({...g,savingRateKnown:fin.primaryGoal(userId)?.id===g.goalId}));selected.filter(e=>e.type==='goal'&&e.status==='stale'&&e.target).forEach(e=>financialEvidence.includeGoal({...fin.goalStatus(userId,e),goalType:e.goalType,stale:true,savingRateKnown:false}));financialEvidence.includeBank('getAccounts',fin.accounts(userId));financialEvidence.includeBank('getSalary',fin.salaryInfo(userId));financialEvidence.includeBank('getSpending',{...fin.spending(userId,3),lastFullMonth:{month:fin.addMonths(fin.CUR_MONTH,-1),categories:fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1)),total:Object.values(fin.monthSpend(userId,fin.addMonths(fin.CUR_MONTH,-1))).reduce((a,b)=>a+b,0)}});financialEvidence.includeBank('getPayPlan',fin.payPlan(userId));
   const reasons=aboutReasons(userId,read.allowed,db.getCabinetEntries(userId));
   const asksRecommendation=helperId!=='person'&&!FRAUD.test(userText)&&!DIRECT_PERSON.test(userText)&&!savedRecallRequest(userText)&&recommendationRequest(userText);
