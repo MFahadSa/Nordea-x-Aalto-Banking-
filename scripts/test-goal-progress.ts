@@ -20,7 +20,7 @@ setProvider({ name: 'capture', isConfigured: () => true, step: async (a: any) =>
 await import('../server.js');
 const base = 'http://127.0.0.1:3921';
 for (let i = 0; i < 100; i++) { try { await fetch(base + '/api/about?userId=lauri'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
-const req = async (u: string, body?: unknown, method = 'POST') => (await fetch(base + u, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})).json() as Promise<any>;
+const req = async (u: string, body?: unknown, method = 'POST') => (await fetch(base + u, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : method === 'GET' ? {} : { method })).json() as Promise<any>;
 const { db } = await import('../src/server/db.js');
 const fin = await import('../src/server/finance.js');
 
@@ -56,6 +56,22 @@ const flat = db.getCabinetEntries('lauri').find((e: any) => e.type === 'goal' &&
 const before = fin.goalStatus('lauri', flat).saved;
 await req('/api/chat', { userId: 'lauri', helperId: 'abel', text: "I've saved 5 € for the flat" });
 check('a goal linked to an account keeps the account balance', fin.goalStatus('lauri', flat).saved === before);
+
+// Points for Add new info: paid once per item, only for a fresh save of their own, at most 5 a day.
+const pts = () => db.getUser('lauri')!.points || 0;
+const add = async (title: string) => (await req('/api/cabinet', { userId: 'lauri', type: 'fact', title, detail: title, source: 'customer' })).entry.id as string;
+const p0 = pts();
+const first = await add('Moving to Espoo in March');
+check('a new item earns 20', (await req('/api/info/reward', { userId: 'lauri', kind: 'new', id: first })).points === 20 && pts() === p0 + 20);
+check('the same item is paid once', (await req('/api/info/reward', { userId: 'lauri', kind: 'new', id: first })).points === 0);
+await req(`/api/cabinet/${japan().id}`, { progress: { saved: 900, at: new Date().toISOString() } }, 'PATCH');
+check('a goal progress update earns 10', (await req('/api/info/reward', { userId: 'lauri', kind: 'progress', id: japan().id })).points === 10);
+check('someone else’s or an unknown item earns nothing', (await req('/api/info/reward', { userId: 'lauri', kind: 'new', id: 'nope' })).points === 0);
+for (let i = 0; i < 6; i++) await req('/api/info/reward', { userId: 'lauri', kind: 'new', id: await add(`Note ${i}`) });
+const earned = ((db.getUser('lauri') as any).infoRewards || []).filter((r: any) => r.at.slice(0, 10) === new Date().toISOString().slice(0, 10)).length;
+check('at most 5 a day', earned === 5, earned);
+const e = await req('/api/info/earn?userId=lauri', undefined, 'GET');
+check('Earn more says none left today', e.infoLeftToday === 0 && e.points.new === 20, e);
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

@@ -281,7 +281,7 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
             );
           })}
           {mine.map((e) => itemRow(e, false))}
-          <button className="cb-link" onClick={p.onAddInfo || p.onAddGoal}><Icon name="plus" size={16} />Add new info<Icon name="chev" size={16} /></button>
+          <button className="cb-link" onClick={p.onAddInfo || p.onAddGoal}><Icon name="plus" size={16} />Add new info<span className="rw-pts cb-pts">+20 points</span><Icon name="chev" size={16} /></button>
         </div>}
 
         {/* 4. From Nordea */}

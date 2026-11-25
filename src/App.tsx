@@ -608,7 +608,7 @@ export default function App() {
           {page === 'pay' && <PayPage state={state} onFrame={frame} />}
           {page === 'invest' && <InvestPage state={state} onAddGoal={() => setAddGoalOpen(true)} onOpenPage={(p) => goPage(p as Page)} onAskAbout={(t) => startChat('abel', t)} />}
           {page === 'services' && <ServicesPage state={state} onHelper={openHelper} onOpenPage={(p) => goPage(p as Page)} />}
-          {page === 'rewards' && <RewardsPage state={state} rewards={rewards} onAsk={() => openHelper('abel')} onUse={setRedeemAsk} onEarn={() => goPage('home')} />}
+          {page === 'rewards' && <RewardsPage state={state} rewards={rewards} onAsk={() => openHelper('abel')} onUse={setRedeemAsk} onEarn={() => goPage('knows')} onAddInfo={() => setAddInfoOpen(true)} onOpenPage={(p) => goPage(p as Page)} />}
           {page === 'contact' && <ContactPage state={state} onHelper={openHelper} onOpenConversation={openConversation} onDeleteChat={setAskDeleteChat} onDeleteAllChats={() => setAskDeleteChats(true)} />}
           {page === 'more' && (
             <MorePage

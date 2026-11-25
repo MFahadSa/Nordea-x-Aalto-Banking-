@@ -213,7 +213,66 @@ export function infoSuggestions(userId: string): string[] {
   return [...new Set(out)].slice(0, 7);
 }
 
+/**
+ * Points for keeping Nora up to date. Worth more than a single About you answer, because it takes more:
+ * a new goal, life change, preference or note 20; a goal's progress or a changed About you line 10.
+ * Paid once per item, only for something the customer really just saved, at most 5 times a day.
+ */
+export const INFO_POINTS = { new: 20, progress: 10, about: 10, perDay: 5 } as const;
+type InfoReward = { ref: string; at: string; pts: number };
+const freshly = (iso?: string) => !!iso && Date.now() - Date.parse(iso) < 10 * 60_000;
+
+export function rewardInfo(userId: string, kind: 'new' | 'progress' | 'about', id: string): { points: number; why?: string } {
+  const u = db.getUser(userId) as unknown as { points?: number; infoRewards?: InfoReward[] } | undefined;
+  if (!u) return { points: 0, why: 'unknown customer' };
+  // About you: the id is the field ("work"); the reward goes to its current answer.
+  const e = kind === 'about'
+    ? db.getCabinetEntries(userId).filter((x) => x.aboutPart === id && x.status !== 'archived' && x.status !== 'disputed').sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0]
+    : db.getCabinetEntry(id);
+  if (!e || e.userId !== userId) return { points: 0, why: 'not found' };
+  const ok = kind === 'new' ? e.source === 'customer' && !e.aboutPart && freshly(e.createdAt)
+    : kind === 'progress' ? e.type === 'goal' && freshly(e.progress?.at)
+    : !!e.aboutPart && freshly(e.updatedAt || e.createdAt);
+  if (!ok) return { points: 0, why: 'not a fresh save' };
+  const ref = kind === 'about' ? `about:${e.aboutPart}:${e.id}` : `${kind}:${e.id}`;
+  const done = u.infoRewards || [];
+  if (done.some((r) => r.ref === ref)) return { points: 0, why: 'already rewarded' };
+  const today = new Date().toISOString().slice(0, 10);
+  if (done.filter((r) => r.at.slice(0, 10) === today).length >= INFO_POINTS.perDay) return { points: 0, why: 'daily limit' };
+  const pts = INFO_POINTS[kind];
+  db.updateUser(userId, { points: (u.points || 0) + pts, infoRewards: [...done.slice(-200), { ref, at: new Date().toISOString(), pts }] } as never);
+  return { points: pts };
+}
+
+/** For Rewards → Earn more: what each way pays and what is left to do. */
+export function earnInfo(userId: string) {
+  const u = db.getUser(userId) as unknown as { infoRewards?: InfoReward[] } | undefined;
+  const today = new Date().toISOString().slice(0, 10);
+  const usedToday = (u?.infoRewards || []).filter((r) => r.at.slice(0, 10) === today).length;
+  const v = aboutView(userId);
+  const goals = db.getCabinetEntries(userId).filter((e) => e.type === 'goal' && e.status === 'active' && e.target);
+  return {
+    points: INFO_POINTS,
+    infoLeftToday: Math.max(0, INFO_POINTS.perDay - usedToday),
+    aboutQuestionsLeft: v.incentive.remaining,
+    aboutPoints: v.incentive.points,
+    goalsWithoutProgress: goals.filter((g) => fin.goalStatus(userId, g).saved === undefined).map((g) => g.title),
+  };
+}
+
 export function registerInfoRoutes(app: Express) {
+  app.get('/api/info/earn', (req, res) => {
+    const userId = uidOf(req);
+    if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });
+    res.json(earnInfo(userId));
+  });
+  // Called after a save from Add new info: the server checks the item is real, new and not yet paid.
+  app.post('/api/info/reward', (req, res) => {
+    const userId = uidOf(req);
+    const kind = String(req.body?.kind || '') as 'new' | 'progress' | 'about';
+    if (!['new', 'progress', 'about'].includes(kind)) return res.status(400).json({ error: 'Unknown kind' });
+    res.json(rewardInfo(userId, kind, String(req.body?.id || '')));
+  });
   app.get('/api/info/suggestions', (req, res) => {
     const userId = uidOf(req);
     if (!db.getUser(userId)) return res.status(404).json({ error: 'Customer not found' });

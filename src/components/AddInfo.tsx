@@ -26,7 +26,7 @@ export const AddInfoSheet: React.FC<{
   userId: string;
   onClose: () => void;
   /** Saved as a new item (Undo through the token), or About you was updated (the new view). */
-  onSaved: (message: string, result: { undoToken?: string; about?: AboutView }) => void;
+  onSaved: (message: string, result: { undoToken?: string; about?: AboutView; points?: number }) => void;
   /** A goal that needs an amount and a date: the goal form, filled in. */
   onGoalForm: (title: string, goalType?: string) => void;
 }> = ({ userId, onClose, onSaved, onGoalForm }) => {
@@ -36,9 +36,11 @@ export const AddInfoSheet: React.FC<{
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const input = useRef<HTMLTextAreaElement>(null);
+  const [earn, setEarn] = useState<{ points: { new: number; progress: number; about: number; perDay: number }; infoLeftToday: number } | null>(null);
 
   useEffect(() => {
     fetch(`/api/info/suggestions?userId=${encodeURIComponent(userId)}`).then((r) => r.json()).then((d) => setTips(d.suggestions || [])).catch(() => setTips([]));
+    fetch(`/api/info/earn?userId=${encodeURIComponent(userId)}`).then((r) => r.json()).then(setEarn).catch(() => setEarn(null));
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
@@ -59,6 +61,15 @@ export const AddInfoSheet: React.FC<{
     } catch { setErr('That didn’t work. Try again.'); } finally { setBusy(false); }
   };
 
+  // Points for this save (the server checks it is real, new and within today's limit).
+  const claim = async (kind: 'new' | 'progress' | 'about', id: string): Promise<number> => {
+    try {
+      const r = await fetch('/api/info/reward', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, kind, id }) });
+      return (await r.json()).points || 0;
+    } catch { return 0; }
+  };
+  const plus = (n: number) => (n ? ` · +${n} points` : '');
+  const worth = !res || !res.ok ? 0 : 'draft' in res ? earn?.points.new ?? 0 : 'progress' in res ? earn?.points.progress ?? 0 : earn?.points.about ?? 0;
   const save = async () => {
     if (!res || !res.ok) return;
     setBusy(true); setErr('');
@@ -70,10 +81,12 @@ export const AddInfoSheet: React.FC<{
         }) });
         if (!r.ok) throw new Error();
         const j = await r.json();
-        onSaved(`Updated your goal: ${g.title}`, { undoToken: j.undoToken });
+        const pts = await claim('progress', g.goalId);
+        onSaved(`Updated your goal: ${g.title}${plus(pts)}`, { undoToken: j.undoToken, points: pts });
       } else if ('about' in res) {
         const v = await saveAbout(userId, { [res.about.key]: { values: [], text: res.about.text, asIs: true } });
-        onSaved(`Updated in About you: ${res.about.label}`, { about: v });
+        const pts = await claim('about', res.about.key);
+        onSaved(`Updated in About you: ${res.about.label}${plus(pts)}`, { about: v, points: pts });
       } else {
         const d = res.draft;
         const r = await fetch('/api/cabinet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
@@ -82,7 +95,8 @@ export const AddInfoSheet: React.FC<{
         }) });
         if (!r.ok) throw new Error();
         const j = await r.json();
-        onSaved(`📌 Nora will remember: ${d.title}`, { undoToken: j.undoToken });
+        const pts = await claim('new', j.entry?.id);
+        onSaved(`📌 Nora will remember: ${d.title}${plus(pts)}`, { undoToken: j.undoToken, points: pts });
       }
       onClose();
     } catch { setErr('That didn’t work. Try again.'); } finally { setBusy(false); }
@@ -96,6 +110,13 @@ export const AddInfoSheet: React.FC<{
           <button className="ofs-x" onClick={onClose} aria-label="Close"><Icon name="x" size={20} /></button>
         </div>
         <p className="ofs-small">Something changed, or a new plan? Tell Nora in your own words, and she updates what she knows.</p>
+        {earn && (
+          <p className="ai-earn"><Icon name="star" size={15} />
+            {earn.infoLeftToday > 0
+              ? <span><b>+{earn.points.new} points</b> for each new thing, +{earn.points.progress} for an update · {earn.infoLeftToday} left today</span>
+              : <span>You’ve earned today’s points for updates. Thanks! Saving still works.</span>}
+          </p>
+        )}
         <textarea ref={input} className="ai-input" rows={2} value={text} autoFocus placeholder="E.g. I got a raise, my salary is now 4 200 €"
           onChange={(e) => { setText(e.target.value); setRes(null); setErr(''); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (text.trim() && !busy) check(); } }} aria-label="What should Nora know?" />
@@ -139,7 +160,7 @@ export const AddInfoSheet: React.FC<{
         <div className="ofs-acts">
           {res && res.ok ? (
             <>
-              <button className="btn primary" disabled={busy} onClick={save}><Icon name="check" size={16} />{busy ? 'Saving…' : 'Save'}</button>
+              <button className="btn primary" disabled={busy} onClick={save}><Icon name="check" size={16} />{busy ? 'Saving…' : `Save${earn?.infoLeftToday && worth ? ` · +${worth} points` : ''}`}</button>
               <button className="btn" disabled={busy} onClick={() => { setRes(null); requestAnimationFrame(() => input.current?.focus()); }}>Change the wording</button>
             </>
           ) : (
