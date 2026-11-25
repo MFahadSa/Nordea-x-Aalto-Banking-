@@ -7,6 +7,7 @@ export interface OfferView {
   goal?: string; pinned: boolean;
   about: string; steps: string[]; url?: string;
   general?: boolean;
+  helps?: string;
 }
 export type OfferAction = 'pin' | 'unpin' | 'later' | 'unlater' | 'hide' | 'unhide' | 'unhideAll' | 'reason';
 export type Answers = Partial<Record<FieldKey, { values: string[]; text?: string; asIs?: boolean }>>;

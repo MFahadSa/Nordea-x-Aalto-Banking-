@@ -63,7 +63,7 @@ export function reasonsFor(text: string, reasons: AboutReason[]): AboutReason[] 
   return reasons.filter((r) => rank(r) >= 0).sort((a, b) => rank(a) - rank(b));
 }
 
-const LEAD = /\b(?:because|since|as) you(?:['’]re|['’]ve|\b)/i;
+const LEAD = /\b(?:because|since|as) you(?:['’]re|['’]ve|\b)|\bas we know(?:,)? you\b|\bas you(?:['’]ve| have)? told us\b/i;
 export const givesReason = (text: string) => LEAD.test(text.split(/(?<=[.!?])\s+/).slice(0, 2).join(' '));
 
 /** A claim about who the customer is that the box does not support ("Because you are a student" for someone who is not). */
@@ -75,7 +75,8 @@ const STATUS: { re: RegExp; has: RegExp; what: string }[] = [
   { re: /\bbetween jobs\b|\bunemployed\b/i, has: /between jobs/, what: 'between jobs' },
 ];
 export function unsupportedReason(text: string, reasons: AboutReason[], customerWords: string): string | null {
-  for (const m of text.matchAll(/\b(?:because|since) you(?:['’]re| are)?\b[^,.!?;]{0,80}/gi)) {
+  // "As we know you…" and "As you told us…" claim the same as "Because you…": the same check.
+  for (const m of text.matchAll(/\b(?:because|since|as we know,?|as you(?:['’]ve| have)? told us,?)\s+(?:that\s+)?you(?:['’]re| are)?\b[^,.!?;]{0,80}/gi)) {
     if (/\b(?:not|never|n['’]t)\b/i.test(m[0])) continue;
     for (const s of STATUS) if (s.re.test(m[0]) && !reasons.some((r) => s.has.test(r.phrase)) && !s.re.test(customerWords)) return s.what;
   }
@@ -106,6 +107,7 @@ export function reasonPrompt(reasons: AboutReason[]): string {
   return `BECAUSE YOU … (when you recommend or suggest something, e.g. an account, a product, an amount to save or a next step):
 - First check it against About you. Never recommend something that goes against it (no shares or funds for someone who keeps savings safe; no home-buyer product for someone who owns a home). If nothing fits, say so.
 - Start the recommendation with the reason that matters most, like: "Because ${reasons[0]?.phrase ?? '(reason)'}, (your recommendation)." Use one reason, two at most, and only one that really explains the recommendation.
-- Only these reasons are true: ${reasons.length ? reasons.map((r) => `${r.phrase}${r.from === 'nordea' ? ' (from Nordea data)' : ''}`).join('; ') : 'none yet, so give no "because you" reason; you may say that answering About you helps you suggest better'}.
+- True reasons from About you: ${reasons.length ? reasons.map((r) => `${r.phrase}${r.from === 'nordea' ? ' (from Nordea data)' : ''}`).join('; ') : 'none yet'}. The customer's goals and notes in WHAT YOU KNOW are true reasons too ("Because you're saving for <goal name>, …"). Nothing else is: no guessed status, job, home or plan.${reasons.length ? '' : ' With no reason at all, give none; you may say that answering About you helps you suggest better.'}
+- Keep it brief and natural (one short clause, worded your own way), then say in a few words HOW it helps with that, specifically.
 - Plain facts, balances, recalls and small talk need no reason. In another language, say the reason in that language.`;
 }

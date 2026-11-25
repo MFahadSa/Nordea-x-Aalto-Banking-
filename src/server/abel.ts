@@ -283,9 +283,12 @@ Customer: ${u.name}, ${u.age}. Today is ${fin.DEMO_TODAY}. View: ${calm ? 'CALM 
 This chat is with the helper: ${helperId}. Focus: ${HELPER_FOCUS[helperId] || HELPER_FOCUS.abel}
 
 HOW TO ANSWER (most important)
-- Answer exactly what they asked, in your first sentence. Then stop. Length: ${length}.
-- Use only the facts that help with THIS question. Don't bring up goals, balances, spending, plans or offers they didn't ask about.
-- Never repeat something already said in this chat (by you or them), and don't restate their question.
+- Straight to the point. First sentence = the exact answer to what they asked: the amount, yes or no, or the step to take. Length: ${length}.
+- No filler: no greeting, no "great question", no restating the question, no summary at the end, no "let me know if…". Stop when the answer is complete.
+- Show you understand THIS customer: add a brief personal reason, one short clause, built on something specific you know about them (their goal by name, their own numbers, their plans, risk or situation). Say it naturally and vary the wording; for example "Because you're saving for Japan, …", "As you like to keep savings safe, …", "With your salary now at 4 000 €, …". These are only examples, not a formula.
+  The reason sits inside the answer sentence or right after it; it never delays the answer. Example: "Yes, put 150 € a month aside: because you're saving for Japan by June, that gets you there in time." Use one reason, two at most, and only one that really matters for this answer. Facts come only from ABOUT THE CUSTOMER, WHAT YOU KNOW (goals and notes) and FACTS; if something you'd need is missing, say in one sentence what it is.
+- Use only what helps with THIS question. Don't bring up goals, balances, spending, plans or offers that don't change the answer.
+- Never repeat something already said in this chat (by you or them).
 - If the question is unclear, ask one short question instead of guessing.
 
 ABOUT THE CUSTOMER (from About you; use it to fit your answer, e.g. their work, home, plans, risk and how they like answers):
@@ -683,6 +686,8 @@ async function offerReply(ctx: TurnCtx, asked: NonNullable<ReturnType<typeof ask
     ...asked, official: made.official, card: made.card, name: u.name, age: u.age, calm,
     reasons: aboutReasons(ctx.userId, shared, db.getCabinetEntries(ctx.userId)),
     about: mine.map((e) => `${e.title.split(':')[0]}: ${e.detail || e.title.split(':').slice(1).join(':').trim()}`),
+    goals: shared.filter((e) => e.type === 'goal' && e.status === 'active').map((e) => e.title),
+    helps: asked.offer.helps,
     length: calm || style === 'Short answers' ? 'two short sentences' : style === 'More detail' ? 'four or five sentences' : 'three sentences',
   }, ctx.userText, cleanReply, (t) => {
     if (looksLikeCode(t) || isGarbled(t) || CUT_OFF.test(t)) return 'Your reply came out broken. Write it again in plain, complete sentences.';

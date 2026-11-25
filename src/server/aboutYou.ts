@@ -338,7 +338,22 @@ export interface OfferView {
   about: string; steps: string[]; url?: string;
   /** Not picked from their answers: shown so the row is never empty, and said so. */
   general?: boolean;
+  /** The rationale after the reason: how this offer helps with it (no figures: the terms are shown separately). */
+  helps?: string;
 }
+
+/** How each offer helps, said to follow its "Because you …" reason. Plain, no figures, no promises. */
+const HELPS: Record<string, string> = {
+  asp: 'what you put aside for your first home earns extra interest, and it can lead to an ASP loan with a state guarantee',
+  'asp-loan': 'your ASP savings can be topped up with a loan that has a state guarantee for that first home',
+  young: 'your daily banking costs little or nothing while you are young, and saving and investing come with extra benefits',
+  funds: 'you can start investing with a small amount each month and learn as you go, without picking shares yourself',
+  'equity-savings': 'you can buy shares and pay tax only when you take money out, without custody fees at your age',
+  'if-home': 'your home and belongings are covered, with a discount because you bank with Nordea',
+  'home-loan': 'if life changes after you buy, you can lower or pause your loan payments for a while',
+  renovation: 'you can spread the cost of work on your home over time instead of paying it all at once',
+  gold: 'travel insurance and cashback come with your card, which helps on the trips you are planning',
+};
 interface OfferDef {
   id: string; title: string; earns: string; note?: string;
   fit: (c: Ctx) => null | { reason: string; line?: string; used: OfferView['used'] };
@@ -458,7 +473,7 @@ export function offersFor(userId: string, today = now().slice(0, 10), shared?: C
   const isHidden = (id: string) => !!st.hidden?.[id] || !!(st.later?.[id] && st.later[id] > today);
   const view = (o: OfferDef, f: { reason: string; used: OfferView['used']; line?: string }): OfferView => {
     const d = DETAILS[o.id] || { about: o.line, steps: [] };
-    return { id: o.id, title: o.title, line: f.line || o.line, reason: f.reason, note: o.note, earns: o.earns, used: f.used, goal: o.goal?.(c), pinned: !!st.pinned?.[o.id], about: d.about, steps: d.steps, url: d.url };
+    return { id: o.id, title: o.title, line: f.line || o.line, reason: f.reason, note: o.note, earns: o.earns, used: f.used, goal: o.goal?.(c), pinned: !!st.pinned?.[o.id], about: d.about, steps: d.steps, url: d.url, helps: HELPS[o.id] };
   };
   for (const o of OFFERS) {
     if (u.offersOff && PARTNER_OFFERS.has(o.id)) continue;

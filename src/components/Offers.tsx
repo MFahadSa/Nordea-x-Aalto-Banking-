@@ -12,7 +12,8 @@ export const OfferCard: React.FC<{ o: OfferView; onDetails: (o: OfferView) => vo
   <article className="offer-card" aria-label={o.title}>
     <h3>{o.title}</h3>
     <p className={`ofc-reason${o.general ? ' gen' : ''}`}><Icon name={o.general ? 'star' : 'spark'} size={14} />{o.reason}</p>
-    <p className="ofc-line">{o.line}</p>
+    {/* Why them (the reason above), then how it helps them; the product's own description is in Details. */}
+    <p className="ofc-line">{o.helps && !o.general ? `So ${o.helps}.` : o.line}</p>
     <div className="ofc-acts">
       <button className="btn primary small" onClick={() => onDetails(o)}>Details</button>
       <button className="btn small" onClick={() => onAsk(o)}><Icon name="chat" size={15} />Ask Nora</button>
@@ -41,6 +42,12 @@ export const OfferSheet: React.FC<{ o: OfferView; onClose: () => void; onAsk: (o
           <p className="ofc-reason"><Icon name="spark" size={14} />{o.reason}</p>
           <ul className="ofs-used">{o.used.map((u) => <li key={u.label}><span>{u.label}: {u.value}</span><span className="ofc-src">{u.from}</span></li>)}</ul>
         </section>
+        {o.helps && (
+          <section>
+            <h4>How it helps you</h4>
+            <p className="ofs-about">{o.helps.charAt(0).toUpperCase() + o.helps.slice(1)}.</p>
+          </section>
+        )}
         {o.steps.length > 0 && (
           <section>
             <h4>How to set it up</h4>
