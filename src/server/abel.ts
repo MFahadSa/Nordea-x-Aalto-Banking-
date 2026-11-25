@@ -727,8 +727,14 @@ function runTool(call:ToolCall,ctx:TurnCtx):unknown {
  // An exploratory wish ("maybe 8k for a car by next summer?") is the model's to answer with a question; the refused-save
  // guard still blocks any "saved" claim. Seen live: the generic goal-name text replaced that question.
  if(call.name==='proposeCabinetChange'&&(call.args?.type==='goal'||call.args?.action==='update')&&result?.saved===false&&!result.waitingForCustomer&&!ctx.goalWriteReplies?.length&&!/^This is an exploratory question/.test(String(result?.error||''))){
+  // A deterministic Save-progress card for the same goal already owns this turn's outcome: the forced
+  // "already saved" text would contradict it (seen live: fresh 900 EUR card + "Nothing changed" together).
+  // With the suppression the model text flows through the gauntlet, which rewrites any save claim to the card.
+  const cardOwnsOutcome=!!result.alreadyKnown&&!!result.entryId&&ctx.cards.some((c:any)=>c.type==='goal_progress'&&c.data?.goalId===result.entryId);
+  if(!cardOwnsOutcome){
   const fi=finnishGoalRequest(ctx.userText);
   ctx.goalWriteReplies=[fi?'En tallentanut tai muuttanut mitään tästä ehdotuksesta. Tarkista tavoitteen nimi ja kerro, mitä haluat muuttaa.':result.alreadyKnown?'Nothing changed. The proposed information is already saved.':'I have not saved, changed or removed anything from this proposal. Please check the goal name and tell me what you want to change.'];
+  }
  }
  if(call.name==='proposeCabinetChange'&&result?.saved===false&&!result.waitingForCustomer)(ctx as any).refusedSave=true;
  return result;
@@ -942,7 +948,7 @@ function runToolCore(call: ToolCall, ctx: TurnCtx): unknown {
         && (!updates.target || (existing.target && updates.target.amount === existing.target.amount && updates.target.date === existing.target.date));
       if (same && existing.status !== 'stale') {
         if(updates.target)ctx.goalWriteReplies=[...(ctx.goalWriteReplies||[]),`"${existing.title}" already has target ${existing.target!.amount} EUR by ${existing.target!.date}. I kept it unchanged.`];
-        return { saved: false, alreadyKnown: true, note: 'Nothing changed: it is already like this. Do not mention an update.' };
+        return { saved: false, alreadyKnown: true, entryId: existing.id, note: 'Nothing changed: it is already like this. Do not mention an update.' };
       }
       if(existing.type==='goal'){
         if(!existing.target&&!updates.target){return {saved:false,error:'This goal has no complete target. Please edit it in Nora knows. Nothing changed.'};}

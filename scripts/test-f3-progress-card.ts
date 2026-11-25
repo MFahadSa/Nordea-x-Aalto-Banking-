@@ -1,0 +1,72 @@
+/**
+ * F3 offline proof: when a deterministic Save-progress card owns the turn's outcome, the forced
+ * "Nothing changed. The proposed information is already saved." reply for an alreadyKnown
+ * proposeCabinetChange is suppressed (the card + verifier own the wording). Without a card,
+ * the forced reply still fires. Scripted provider, real routes, no paid AI.
+ */
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+process.env.CABINET_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'f3-proof-'));
+process.env.PORT = '3927';
+process.env.NODE_ENV = 'production';
+for (const k of ['SUPABASE_URL', 'GEMINI_API_KEY', 'LLM_API_KEY', 'LLM_PROVIDER', 'GROQ_API_KEY', 'USER_DB_URL', 'CM_DB_URL', 'NORDEA_DB_URL']) delete process.env[k];
+
+let failed = 0;
+const check = (name: string, ok: unknown, detail?: unknown) => { if (!ok) failed++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : ` ${JSON.stringify(detail).slice(0, 400)}`}`); };
+
+let dbRef: any = null;
+const staleUpdate = () => {
+  const goal = dbRef.getCabinetEntries('lauri').find((e: any) => e.type === 'goal' && /japan/i.test(e.title));
+  return { calls: [{ id: 'u1', name: 'proposeCabinetChange', args: { action: 'update', type: 'goal', title: 'Japan trip', entryId: goal.id } }] };
+};
+const { setProvider } = await import('../src/server/llm.js');
+setProvider({ name: 'scripted', isConfigured: () => true, step: async (a: any) => {
+  const text = String(a.turns?.filter((t: any) => t.role === 'user').pop()?.text || '');
+  const acted = /"name":"proposeCabinetChange"/.test(JSON.stringify(a.turns));
+  // Turn 2: the model proposes a stale no-change update (alreadyKnown) while the user gave a NEW number.
+  if (/actually I've saved 900/.test(text) && !acted) return staleUpdate();
+  // Turn 3 control: stale no-change update with NO new number in the text (no progress card).
+  if (/please update my Japan trip goal/.test(text) && !acted) return staleUpdate();
+  return { calls: [{ id: 'f', name: 'finishReply', args: { text: 'I have put the new progress for your Japan trip on the card below. Tap the card if you want to keep those numbers.', suggestions: [], usedEntryIds: [], topic: 'other', couldHelp: true } }] };
+} } as any);
+await import('../server.js');
+const base = 'http://127.0.0.1:3927';
+for (let i = 0; i < 100; i++) { try { await fetch(base + '/api/about?userId=lauri'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
+const req = async (u: string, body?: unknown, method = 'POST') => (await fetch(base + u, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : method === 'GET' ? {} : { method })).json() as Promise<any>;
+({ db: dbRef } = await import('../src/server/db.js'));
+
+const chat = async (text: string) => req('/api/chat', { userId: 'lauri', helperId: 'abel', text });
+const agentOf = (r: any) => r.messages.find((m: any) => m.sender === 'agent');
+const japan = () => dbRef.getCabinetEntries('lauri').find((e: any) => e.type === 'goal' && /japan/i.test(e.title))!;
+const CONTRADICTION = 'Nothing changed. The proposed information is already saved.';
+
+// --- Turn 1: record 800 saved on the Japan goal through the deterministic card.
+const t1 = await chat("I've saved 800 € for the Japan trip");
+const t1Agent = agentOf(t1);
+const t1Card = (t1Agent?.cards || []).find((c: any) => c.type === 'goal_progress');
+check('setup: 800 progress card shown', !!t1Card && t1Card.data?.saved === 800, t1Agent?.cards);
+await req('/api/actions', { userId: 'lauri', messageId: t1Agent?.id, action: 'progress_save', cardType: 'goal_progress', card: t1Card });
+check('setup: 800 recorded', japan().progress?.saved === 800, japan().progress);
+
+// --- Turn 2: the exact live failure — model proposes an already-known update while the detector shows a 900 card.
+const t2 = await chat("actually I've saved 900 € for the Japan trip");
+const t2Agent = agentOf(t2);
+const t2Card = (t2Agent?.cards || []).find((c: any) => c.type === 'goal_progress');
+check('fix: fresh 900 progress card still shown', !!t2Card && t2Card.data?.saved === 900, t2Agent?.cards);
+check('fix: reply no longer contradicts the card', !!t2Agent && !String(t2Agent.text).includes(CONTRADICTION), t2Agent?.text);
+check('fix: model text flows (card-pointing wording)', !!t2Agent && /card below/.test(String(t2Agent.text)), t2Agent?.text);
+check('fix: nothing written by the reply alone', japan().progress?.saved === 800, japan().progress);
+// Tap records 900.
+await req('/api/actions', { userId: 'lauri', messageId: t2Agent?.id, action: 'progress_save', cardType: 'goal_progress', card: t2Card });
+check('fix: tapping the card records 900', japan().progress?.saved === 900, japan().progress);
+
+// --- Control turn 3: alreadyKnown WITHOUT a progress card keeps the forced honest reply.
+const t3 = await chat('please update my Japan trip goal');
+const t3Agent = agentOf(t3);
+check('control: no progress card without a new number', !(t3Agent?.cards || []).some((c: any) => c.type === 'goal_progress'), t3Agent?.cards);
+check('control: forced already-saved reply still fires without a card', !!t3Agent && String(t3Agent.text).includes(CONTRADICTION), t3Agent?.text);
+
+console.log(failed ? `\n${failed} FAILED` : '\nALL PASS');
+process.exit(failed ? 1 : 0);
