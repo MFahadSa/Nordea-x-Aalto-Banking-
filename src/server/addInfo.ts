@@ -24,6 +24,8 @@ export interface InfoDraft {
 }
 export type Understood =
   | { ok: true; draft: InfoDraft; by: 'ai' | 'rules' }
+  /** Progress on a goal: what they have saved, or put in each month (for goals not linked to an account). */
+  | { ok: true; progress: { goalId: string; title: string; saved?: number; monthly?: number }; by: 'rules' }
   /** A change to something About you already says: that line is updated, not a second note added. */
   | { ok: true; about: { key: FieldKey; label: string; before: string; text: string }; by: 'ai' | 'rules' }
   | { ok: false; reason: 'private' | 'empty'; message: string }
@@ -106,6 +108,9 @@ export async function understandInfo(text: string, userId?: string): Promise<Und
   const t = String(text || '').trim().slice(0, 300);
   if (!t) return { ok: false, reason: 'empty', message: 'Type what Nora should know.' };
   if (isSensitiveTopic(t)) return { ok: false, reason: 'private', message: 'Nora doesn’t keep private things like health, relationships or religion. Leave that out, and add the money part if there is one.' };
+  // Progress on a goal they already have ("I've saved 800 € for Japan", "I put 150 € a month into it").
+  const prog = userId ? goalProgressIn(userId, t) : null;
+  if (prog) return { ok: true, by: 'rules', progress: prog };
   // Something changed in what About you already says: update that line (the same smart correction as "Not right").
   const now = userId ? ABOUT_NOW.find((a) => a.re.test(t)) : undefined;
   if (userId && now) {
@@ -154,6 +159,36 @@ export async function understandInfo(text: string, userId?: string): Promise<Und
   }
 }
 
+const PROGRESS = /\b(i'?ve|i have|we'?ve|we have|i'?d|already)\s+(already\s+)?(saved|put (aside|away))\b|\bsaved so far\b|\bso far\b.*\bsaved\b|\b(put|putting|add|adding|save|saving|move|moving)\b[^.]*\b(a|per|each|every) month\b|\bmonthly\b/i;
+const COMMON = new Set(['save', 'saving', 'saved', 'goal', 'for', 'the', 'and', 'with', 'my', 'our', 'a', 'to', 'by', 'buy', 'trip', 'fund', 'month']);
+
+/** "I've saved 800 € for the Japan trip, and I put 150 € a month in": which goal, and the two amounts. */
+export function goalProgressIn(userId: string, text: string): { goalId: string; title: string; saved?: number; monthly?: number } | null {
+  if (!PROGRESS.test(text)) return null;
+  const goals = db.getCabinetEntries(userId).filter((e) => e.type === 'goal' && e.status === 'active' && e.target);
+  if (!goals.length) return null;
+  const words = (x: string) => new Set((x.toLowerCase().match(/[a-zåäö]{3,}/g) || []).filter((w) => !COMMON.has(w)));
+  const tw = words(text);
+  const named = goals.filter((g) => [...words(`${g.title} ${g.goalType || ''}`)].some((w) => tw.has(w) || [...tw].some((x) => x.length > 4 && w.startsWith(x.slice(0, 5)))));
+  const goal = named.length === 1 ? named[0] : goals.length === 1 ? goals[0] : null;
+  if (!goal) return null;
+  let saved: number | undefined, monthly: number | undefined;
+  for (const m of text.matchAll(/(\d[\d\s.,]*\d|\d)\s*(k\b)?\s*(€|eur(?:os?)?\b)?/gi)) {
+    const n = Number(m[1].replace(/\s/g, '').replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.')) * (m[2] ? 1000 : 1);
+    if (!(n > 0) || n >= 1900 && n <= 2100 && !m[3]) continue;
+    const after = text.slice((m.index || 0) + m[0].length, (m.index || 0) + m[0].length + 18);
+    if (/^\s*(a|per|each|every) month|^\s*monthly/i.test(after) && monthly === undefined) monthly = n;
+    else if (saved === undefined) saved = n;
+  }
+  if (saved === undefined && monthly === undefined) return null;
+  // A saved amount bigger than the target is not "saved so far" (probably the target): leave it.
+  if (saved !== undefined && goal.target && saved > goal.target.amount) saved = undefined;
+  if (saved === undefined && monthly === undefined) return null;
+  // What they didn't mention stays as it was.
+  saved ??= goal.progress?.saved; monthly ??= goal.progress?.monthly;
+  return { goalId: goal.id, title: goal.title, ...(saved !== undefined ? { saved } : {}), ...(monthly !== undefined ? { monthly } : {}) };
+}
+
 /** Lines to tap, picked from what Nora doesn't know yet. Each starts a sentence the customer finishes. */
 export function infoSuggestions(userId: string): string[] {
   const v = aboutView(userId);
@@ -162,7 +197,9 @@ export function infoSuggestions(userId: string): string[] {
   const goal = (re: RegExp) => goals.some((g) => re.test(`${g.goalType} ${g.title}`));
   const plans = v.fields.plans.values;
   // Things that change in life first (the usual reason to come here), then goals and preferences.
+  const unknownGoal = goals.find((g) => g.target && fin.goalStatus(userId, g).saved === undefined);
   const out = [
+    unknownGoal ? `I’ve saved … € for ${unknownGoal.title} so far` : '',
     has('work') || v.bank.some((b) => b.key === 'work') ? 'I got a raise, my salary is now … €' : 'I work as …',
     'I started a new job at …',
     'We’re moving to … in …',

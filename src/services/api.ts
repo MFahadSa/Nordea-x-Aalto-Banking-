@@ -168,6 +168,8 @@ export async function sendMessage(
 export interface GoalStatus {
   goalId: string; title: string; target: number; targetDate: string; saved?: number; monthlyGoingIn?: number;
   monthsLeft: number; projectedByTargetDate?: number; shortBy?: number; onTrack?: boolean; extraPerMonthNeeded?: number; percentSaved?: number;
+  /** Where saved/monthly come from: a linked account, or what the customer told us. */
+  source?: string; statedAt?: string;
 }
 export interface AppState {
   user: User;

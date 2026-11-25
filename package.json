@@ -33,7 +33,7 @@
     "test:arch-events": "tsx scripts/test-arch-events.ts",
     "test:customer-id": "node scripts/test-arch-customer-ui.mjs && node scripts/test-customer-id-loader.mjs && tsx scripts/test-customer-id.ts && tsx scripts/test-customer-id-hydrate.ts && tsx scripts/test-customer-id-server.ts && tsx scripts/test-customer-id-fuzz.ts && tsx scripts/test-fail-closed-routes.ts && tsx scripts/test-customer-id-length.ts",
     "test:advice": "tsx scripts/test-intent.ts && tsx scripts/test-advice.ts && tsx scripts/test-advice-home.ts",
-    "test:about": "tsx scripts/test-about-reasons.ts && tsx scripts/test-about-remove.ts",
+    "test:about": "tsx scripts/test-about-reasons.ts && tsx scripts/test-about-remove.ts && tsx scripts/test-goal-progress.ts",
     "test:trust": "tsx scripts/test-trust.ts",
     "test:v31": "tsx scripts/test-v31.ts",
     "test:audit": "tsx scripts/test-prose-figures.ts && tsx scripts/test-audit-conversation.ts && tsx scripts/stress-natural-language.ts",

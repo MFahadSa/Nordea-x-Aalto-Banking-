@@ -48,11 +48,14 @@ const fromNordea = (e: CabinetEntry) => e.source === 'nordea';
 const shown = (e: CabinetEntry) => e.status !== 'archived' && e.status !== 'disputed' && e.type !== 'blind_spot' && !e.aboutPart;
 
 /** Edit in place: the name and details (and for a goal, the amount and date). */
-const EditForm: React.FC<{ e: CabinetEntry; onSave: (u: Partial<CabinetEntry>) => void; onCancel: () => void }> = ({ e, onSave, onCancel }) => {
+const EditForm: React.FC<{ e: CabinetEntry; onSave: (u: Partial<CabinetEntry>) => void; onCancel: () => void; askProgress?: boolean }> = ({ e, onSave, onCancel, askProgress }) => {
   const [title, setTitle] = useState(e.title);
   const [detail, setDetail] = useState(e.detail || '');
   const [amount, setAmount] = useState(e.target ? String(e.target.amount) : '');
   const [date, setDate] = useState(e.target?.date?.slice(0, 7) || '');
+  // A goal not linked to an account: what they have saved and put in each month (blank = unknown, not 0).
+  const [saved, setSaved] = useState(e.progress?.saved !== undefined ? String(e.progress.saved) : '');
+  const [monthly, setMonthly] = useState(e.progress?.monthly !== undefined ? String(e.progress.monthly) : '');
   const goal = e.type === 'goal';
   const ok = title.trim().length > 0 && (!goal || !amount || Number(amount) > 0);
   return (
@@ -61,6 +64,11 @@ const EditForm: React.FC<{ e: CabinetEntry; onSave: (u: Partial<CabinetEntry>) =
       if (!ok) return;
       const u: Partial<CabinetEntry> = { title: title.trim(), detail: detail.trim() };
       if (goal && amount && date) u.target = { amount: Number(amount), date: `${date}-01` };
+      if (goal && askProgress) {
+        const p = { ...(saved !== '' ? { saved: Number(saved) } : {}), ...(monthly !== '' ? { monthly: Number(monthly) } : {}) };
+        const before: { saved?: number; monthly?: number } = e.progress || {};
+        if (p.saved !== before.saved || p.monthly !== before.monthly) (u as any).progress = Object.keys(p).length ? { ...p, at: new Date().toISOString() } : null; // null clears it
+      }
       onSave(u);
     }}>
       <label className="pf-l" htmlFor={`ed-t-${e.id}`}>Name</label>
@@ -70,7 +78,14 @@ const EditForm: React.FC<{ e: CabinetEntry; onSave: (u: Partial<CabinetEntry>) =
           <span><label className="pf-l" htmlFor={`ed-a-${e.id}`}>Amount (€)</label><input id={`ed-a-${e.id}`} className="ab-text one" inputMode="numeric" value={amount} onChange={(x) => setAmount(x.target.value.replace(/[^\d]/g, ''))} /></span>
           <span><label className="pf-l" htmlFor={`ed-d-${e.id}`}>By</label><input id={`ed-d-${e.id}`} className="ab-text one" type="month" value={date} onChange={(x) => setDate(x.target.value)} /></span>
         </div>
-      ) : (
+      ) : null}
+      {goal && askProgress ? (
+        <div className="cb-edit-row">
+          <span><label className="pf-l" htmlFor={`ed-s-${e.id}`}>Saved so far (€)</label><input id={`ed-s-${e.id}`} className="ab-text one" inputMode="numeric" placeholder="e.g. 800" value={saved} onChange={(x) => setSaved(x.target.value.replace(/[^\d]/g, ''))} /></span>
+          <span><label className="pf-l" htmlFor={`ed-m-${e.id}`}>Each month (€)</label><input id={`ed-m-${e.id}`} className="ab-text one" inputMode="numeric" placeholder="e.g. 150" value={monthly} onChange={(x) => setMonthly(x.target.value.replace(/[^\d]/g, ''))} /></span>
+        </div>
+      ) : null}
+      {!goal && (
         <>
           <label className="pf-l" htmlFor={`ed-d-${e.id}`}>Details</label>
           <textarea id={`ed-d-${e.id}`} className="ab-text" rows={2} value={detail} onChange={(x) => setDetail(x.target.value)} />
@@ -248,18 +263,18 @@ export const CabinetPage: React.FC<CabinetProps> = (p) => {
                 <button className="cb-goal" aria-expanded={open === g.goalId} onClick={() => setOpen(open === g.goalId ? null : g.goalId)}>
                   <span className="cb-t">
                     <span className="n-name">{g.title}</span>
-                    <span className="n-sub">{g.saved === undefined ? `Saved balance not linked · target ${eur(g.target)}` : `${eur(g.saved)} of ${eur(g.target)}`} · by {monthShort(g.targetDate.slice(0, 7))}</span>
+                    <span className="n-sub">{g.saved === undefined ? `Target ${eur(g.target)} · saved so far not known` : `${eur(g.saved)} of ${eur(g.target)}${g.source === 'customer-stated' ? ' (you told us)' : ''}`} · by {monthShort(g.targetDate.slice(0, 7))}</span>
                     <span className="gbar">{g.percentSaved !== undefined && <i style={{ width: `${Math.min(100, g.percentSaved)}%` }} />}</span>
                   </span>
                   <span className={`npill ${g.onTrack === undefined ? 'grey' : g.onTrack ? 'up' : 'down'}`}>{g.onTrack === undefined ? 'Forecast unknown' : g.onTrack ? 'On track' : `${eur(g.shortBy)} short`}</span>
                 </button>
                 {open === g.goalId && (
                   <p className="cb-why">
-                    {g.projectedByTargetDate === undefined ? 'Forecast unavailable. Link the saved balance and monthly contribution to assess progress.' : <>At {eur(g.monthlyGoingIn)} a month you’ll have about {eur(g.projectedByTargetDate)} by {monthLong(g.targetDate.slice(0, 7))}{g.onTrack ? '.' : `: ${eur(g.extraPerMonthNeeded)} more a month closes the gap.`} An estimate, not a guarantee.</>}{' '}
+                    {g.projectedByTargetDate === undefined ? <>{g.saved === undefined ? 'Nora doesn’t know how much you have saved for this yet' : 'Nora doesn’t know how much you put in each month'}, so she can’t tell if you’re on track. <button className="btn link" onClick={() => { setOpen(null); edit(e); }}>Add it</button></> : <>At {eur(g.monthlyGoingIn)} a month you’ll have about {eur(g.projectedByTargetDate)} by {monthLong(g.targetDate.slice(0, 7))}{g.onTrack ? '.' : `: ${eur(g.extraPerMonthNeeded)} more a month closes the gap.`} An estimate, not a guarantee.</>}{' '}
                     <button className="btn link" onClick={() => p.onAskAbout(`Am I on track for “${g.title}”?`)}>Ask Nora</button>
                   </p>
                 )}
-                {editing === e.id ? <EditForm e={e} onSave={(u) => saveEdit(e, u)} onCancel={() => setEditing(null)} /> : (
+                {editing === e.id ? <EditForm e={e} askProgress={g.source !== 'demo-linked-savings-account' && g.source !== 'car-fund-account'} onSave={(u) => saveEdit(e, u)} onCancel={() => setEditing(null)} /> : (
                   <Actions e={e} editing={false} why={false} onEdit={() => edit(e)} onRemove={() => remove(e)} />
                 )}
               </div>

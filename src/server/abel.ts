@@ -71,6 +71,7 @@ const fmt = (n: number, d = 0) =>
 import { ABEL_PRIVATE_TOPIC as SENSITIVE } from './sensitive.js';
 import { memoryOf } from './memorySettings.js';
 import { askedOffer, offerTerms, offerText, forgetAbout } from './aboutYou.js';
+import { goalProgressIn } from './addInfo.js';
 import { writeOfferReply } from './offerReply.js';
 import { aboutReasons, givesReason, reasonPrompt, reasonsFor, recommendationRequest, unsupportedReason, withReason, type AboutReason } from './aboutReasons.js';
 
@@ -1186,6 +1187,22 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
     ...read.allowed.map(e=>({owner:'cabinet' as const,id:e.id,revision:sourceRevision([e.title,e.detail,e.target,e.goalType,e.updatedAt||e.createdAt]),title:e.title,detail:e.detail,data:{type:e.type,target:e.target,goalType:e.goalType}})),
     ...(shared?.sources || []),
   ] : [];
+  // Goal progress said in chat ("I've saved 800 € for Japan"): for a goal not linked to an account, the code
+  // records the customer's own numbers (with Undo) and tells Nora, so progress is no longer "unknown".
+  let progressNote = '';
+  if (helperId !== 'person' && !/\?\s*$/.test(userText)) {
+    const pg = goalProgressIn(userId, userText);
+    const goal = pg && db.getCabinetEntry(pg.goalId);
+    const linked = goal && fin.goalStatus(userId, goal).source !== 'customer-stated' && fin.goalStatus(userId, goal).source !== 'unlinked';
+    if (pg && goal && !linked && ctx.allowedIds.has(goal.id) && (pg.saved !== goal.progress?.saved || pg.monthly !== goal.progress?.monthly)) {
+      const prev = { ...goal };
+      db.updateCabinetEntry(goal.id, { progress: { ...(pg.saved !== undefined ? { saved: pg.saved } : {}), ...(pg.monthly !== undefined ? { monthly: pg.monthly } : {}), at: new Date().toISOString() } }, { by: 'abel', how: 'From your chat' });
+      const undoToken = recordUndo({ userId, action: 'update', description: `Updated "${goal.title}"`, previousEntry: prev, entryId: goal.id });
+      ctx.notes.push({ text: `📌 Progress noted for ${goal.title}${pg.saved !== undefined ? `: ${pg.saved.toLocaleString('fi-FI')} € saved` : ''}${pg.monthly !== undefined ? `${pg.saved !== undefined ? ',' : ':'} ${pg.monthly.toLocaleString('fi-FI')} € a month` : ''}`, undoToken, entryId: goal.id });
+      ctx.extraUsed.push(goal.id);
+      progressNote = `\nTHIS TURN, the app recorded the customer's own numbers for the goal "${goal.title}"${pg.saved !== undefined ? `: ${pg.saved} EUR saved so far` : ''}${pg.monthly !== undefined ? `, ${pg.monthly} EUR a month` : ''}. Its progress in FACTS is now known. Confirm it in one short sentence; do not ask for these numbers again.`;
+    }
+  }
   const bankFacts=factsFor(userId,new Set());
   (bankFacts.paydayPlan as any).towardsGoal=null;
   const bankCore:ContextSource={owner:'nordea',id:'app-bank-core',revision:sourceRevision([bankFacts,db.getTransactions(userId),db.getBankAccounts(userId),db.getBalanceSnapshots(userId)]),title:'Current bank facts',detail:'',data:bankFacts};
@@ -1249,6 +1266,7 @@ async function abelTurnInner(userId: string, conversationId: string, helperId: s
   const reasons=aboutReasons(userId,read.allowed,db.getCabinetEntries(userId));
   const asksRecommendation=helperId!=='person'&&!FRAUD.test(userText)&&!DIRECT_PERSON.test(userText)&&!savedRecallRequest(userText)&&recommendationRequest(userText);
   let system = systemPrompt(userId, helperId, selected, read.blocked.length, facts, suppliedShared, cardNote, reasons) + '\n' + checkedContext;
+  system += progressNote;
   // Cards still waiting for the customer's tap in this chat. Seen live: after "ok do it" the model forgot the
   // waiting card and asked for the amount again.
   const waitingCards=db.getMessages(userId).filter(m=>m.conversationId===conversationId&&!m.resolved).flatMap(m=>(m.cards||[]).filter(c=>c.type==='confirm_plan'||c.type==='goal_confirm'));

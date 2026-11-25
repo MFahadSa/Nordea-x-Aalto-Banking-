@@ -14,6 +14,7 @@ type Draft = { type: 'goal' | 'life_event' | 'preference' | 'fact'; title: strin
 type Understood =
   | { ok: true; draft: Draft; by: string }
   | { ok: true; about: { key: FieldKey; label: string; before: string; text: string }; by: string }
+  | { ok: true; progress: { goalId: string; title: string; saved?: number; monthly?: number }; by: string }
   | { ok: false; reason: 'private' | 'empty'; message: string }
   | { ok: false; reason: 'goal_details'; message: string; title: string; goalType?: string };
 
@@ -62,7 +63,15 @@ export const AddInfoSheet: React.FC<{
     if (!res || !res.ok) return;
     setBusy(true); setErr('');
     try {
-      if ('about' in res) {
+      if ('progress' in res) {
+        const g = res.progress;
+        const r = await fetch(`/api/cabinet/${encodeURIComponent(g.goalId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          progress: { ...(g.saved !== undefined ? { saved: g.saved } : {}), ...(g.monthly !== undefined ? { monthly: g.monthly } : {}), at: new Date().toISOString() },
+        }) });
+        if (!r.ok) throw new Error();
+        const j = await r.json();
+        onSaved(`Updated your goal: ${g.title}`, { undoToken: j.undoToken });
+      } else if ('about' in res) {
         const v = await saveAbout(userId, { [res.about.key]: { values: [], text: res.about.text, asIs: true } });
         onSaved(`Updated in About you: ${res.about.label}`, { about: v });
       } else {
@@ -101,6 +110,13 @@ export const AddInfoSheet: React.FC<{
             <span className="ai-kind"><Icon name="person" size={14} />Updates About you · {res.about.label}</span>
             {res.about.before && <span className="ai-before">{res.about.before}</span>}
             <b>{res.about.text}</b>
+          </div>
+        )}
+        {res && res.ok && 'progress' in res && (
+          <div className="ai-res">
+            <span className="ai-kind"><Icon name="star" size={14} />Updates your goal · {res.progress.title}</span>
+            {res.progress.saved !== undefined && <b>Saved so far: {eur(res.progress.saved)}</b>}
+            {res.progress.monthly !== undefined && <b>Each month: {eur(res.progress.monthly)}</b>}
           </div>
         )}
         {res && res.ok && 'draft' in res && (

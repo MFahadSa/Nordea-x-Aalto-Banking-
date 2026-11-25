@@ -96,6 +96,8 @@ export interface CabinetEntry {
     targetOrigin?:{amount?:'customer-evidence'|'direct-customer-ui'|'customer-confirmed-proposal';date?:'customer-evidence'|'direct-customer-ui'|'customer-confirmed-proposal'};
     targetFields?: {amount?:import('./server/advice/goalWriteEvidence.js').GoalFieldEvidence;date?:import('./server/advice/goalWriteEvidence.js').GoalFieldEvidence};
   };
+  /** A goal not linked to an account: what the customer told us they have saved and put in each month. */
+  progress?: { saved?: number; monthly?: number; at: string };
   target?: {
     amount: number;
     date: string; // YYYY-MM-DD

@@ -328,7 +328,7 @@ export const KnowsPage: React.FC<KnowsProps> = (p) => {
                 <button className="nrow2 goal" onClick={() => setGoalOpen(goalOpen === g.goalId ? null : g.goalId)}>
                   <span className="n-l">
                     <span className="n-name">{g.title}</span>
-                    <span className="n-sub">{g.saved===undefined?<>Saved balance not linked · target {eur(g.target)}</>:<>Saved now <b>{eur(g.saved)}</b> of {eur(g.target)}</>} · goal {monthShort(g.targetDate.slice(0, 7))}</span>
+                    <span className="n-sub">{g.saved===undefined?<>Target {eur(g.target)} · saved so far not known</>:<>Saved now <b>{eur(g.saved)}</b> of {eur(g.target)}</>} · goal {monthShort(g.targetDate.slice(0, 7))}</span>
                     <span className="gbar">{g.percentSaved!==undefined&&<i style={{ width: `${g.percentSaved}%` }} />}</span>
                   </span>
                   <span className="n-r"><span className={`npill ${g.onTrack===undefined?'grey':g.onTrack ? 'up' : 'down'}`}>{g.onTrack===undefined?'Forecast unknown':g.onTrack ? 'On track' : `Forecast: ${eur(g.shortBy)} short`}</span></span>
@@ -906,7 +906,7 @@ export const InvestPage: React.FC<{ state: AppState; onAddGoal: () => void; onOp
       <Band left="Your goals" right={state.goals.length ? String(state.goals.length) : undefined} />
       <div className="ncard flat">
         {state.goals.map((g) => (
-          <NRow key={g.goalId} name={g.title} sub={g.saved===undefined?`Target ${eur(g.target)} · saved balance not linked`:`${eur(g.saved)} of ${eur(g.target)}`} amount={`${g.percentSaved===undefined?'Progress unknown':Math.round(g.percentSaved)+' %'}`} onClick={() => onOpenPage('knows')} />
+          <NRow key={g.goalId} name={g.title} sub={g.saved===undefined?`Target ${eur(g.target)} · saved so far not known`:`${eur(g.saved)} of ${eur(g.target)}`} amount={`${g.percentSaved===undefined?'Add progress':Math.round(g.percentSaved)+' %'}`} onClick={() => onOpenPage('knows')} />
         ))}
         {!state.goals.length && <NRow name="No goals yet" sub="Add one below" chevron={false} />}
         <NRow name="Open an ASP account" sub="Ask Nora whether it fits you" onClick={() => onAskAbout('Can I open an ASP account?')} />
